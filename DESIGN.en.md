@@ -22,12 +22,12 @@ markup, or stylistic reasons. It does so without disturbing structure or
 content outside the text it is asked to transform; regions marked as non-Korean
 or as preserved (code blocks and the like) pass through untouched. It streams
 input and output where possible, with buffering bounded by the size of
-contiguous hanja runs and by opt-in cross-context disambiguation. It accepts
-pluggable dictionaries that may be in-memory, mmap-backed, or otherwise opaque
-to the engine. It ships a default dictionary derived from the South Korean
-*Standard Korean Language Dictionary* (標準國語大辭典). It is usable from Rust,
-from Node.js via [Node-API], from browsers and Deno via WebAssembly, and from a
-command line.
+contiguous conversion spans that contain hanja and by opt-in cross-context
+disambiguation. It accepts pluggable dictionaries that may be in-memory,
+mmap-backed, or otherwise opaque to the engine. It ships a default dictionary
+derived from the South Korean *Standard Korean Language Dictionary*
+(標準國語大辭典). It is usable from Rust, from Node.js via [Node-API], from
+browsers and Deno via WebAssembly, and from a command line.
 
 The library deliberately does not provide broader Korean typographic
 adjustments such as smart quotes, dashes, ellipses, or citation marks; those
@@ -56,8 +56,9 @@ to one format. This is what makes a single test fixture meaningful across all
 three formats, and what makes adding a new format a contained piece of work.
 
 *Responsibilities are split into independently selectable pipeline stages*. The
-*Reader* parses an input format into the IR. The *Engine* segments hanja and
-emits annotations. *Middlewares* transform the IR stream by adjusting
+*Reader* parses an input format into the IR. The *Engine* finds
+hanja-containing lexical spans, segments them, and emits annotations.
+*Middlewares* transform the IR stream by adjusting
 annotation flags. The *Renderer* turns annotations into concrete text or
 markup. The *Writer* serializes the IR back to the target format. A user
 replacing one stage does not perturb the others; the boundaries are explicit
@@ -65,11 +66,11 @@ values, not method calls.
 
 *Streaming is the default*. Operations that fundamentally require buffering,
 notably per-document homophone disambiguation, are opt-in modes. The default
-configuration buffers only within a contiguous hanja run (a handful of
-characters in typical text) and within a single text token. This makes
-gukhanmun usable inside servers that process large documents or live streams,
-and it makes the WebAssembly build a viable target for in-page conversion of
-long articles.
+configuration buffers only within a contiguous conversion span that contains
+hanja (usually a handful of characters in typical text) and within a single
+text token. This makes gukhanmun usable inside servers that process large
+documents or live streams, and it makes the WebAssembly build a viable target
+for in-page conversion of long articles.
 
 
 Architecture
@@ -186,17 +187,19 @@ the IR free of fields the engine does not consume.
 Engine
 ------
 
-The engine has three duties: segment hanja runs into words, look those words up
-in the dictionary, and emit annotations and fallback text accordingly. It also
-has a fallback phoneticizer that maps single hanja characters to hangul and
-applies the initial sound law where appropriate, and a numeral converter that
-translates hanja digits to either hangul or Arabic numerals depending on
-configuration.
+The engine has three duties: identify convertible lexical spans that contain
+hanja, segment those spans into dictionary and fallback edges, and emit
+annotations and fallback text accordingly. Most spans are contiguous runs of
+hanja, but dictionary entries may also include Korean native or hangul
+fragments around hanja, as in `汽車길` or `色깔論`. It also has a fallback
+phoneticizer that maps single hanja characters to hangul and applies the
+initial sound law where appropriate, and a numeral converter that translates
+hanja digits to either hangul or Arabic numerals depending on configuration.
 
 ### Lattice segmentation
 
-Segmenting a run of hanja characters into dictionary words is the engine's core
-decision, and the obvious algorithm is wrong.
+Segmenting a hanja-containing span into dictionary words and fallback fragments
+is the engine's core decision, and the obvious algorithm is wrong.
 
 The obvious algorithm is *eager longest-match*: scan left to right, at each
 position take the longest dictionary entry that starts there, and continue from
@@ -208,40 +211,48 @@ On the input `行事場所`, eager segmentation produces `行事場` + `所`, wh
 leaves `所` to the character-by-character fallback even though the segmentation
 `行事` + `場所` would have covered both segments with the dictionary.
 
+The span is not limited to hanja-only text. Some entries in the Standard Korean
+Language Dictionary mix native Korean and hanja, such as `汽車길` for
+`기찻길`, `祭祀날` for `제삿날`, `洗手대야` for `세숫대야`, `火김` for
+`홧김`, and `色깔論` for `색깔론`. A dictionary edge may therefore consume a
+mixed-script prefix from the current text cursor. Fallback edges, however, are
+still created only for hanja characters that no dictionary edge covers; hangul
+that is not part of a dictionary match passes through as ordinary text.
+
 The correct algorithm is dynamic programming over a lattice. For each character
-position `i` in the hanja run, the engine queries the dictionary for every
-match that starts at `i` and considers a single-character fallback edge as a
-backup. A score function ranks the alternatives; we choose the segmentation
-with the highest score by Viterbi-style backtracking from the end of the run.
+position `i` in the conversion span, the engine queries the dictionary for
+every match that starts at `i` and considers a single-hanja fallback edge as a
+backup when the current character is hanja. A ranking function compares the
+alternatives; we choose the best segmentation by Viterbi-style backtracking
+from the end of the span.
 
-The score function we use is simple and gives the right answer for the
-`行事場所` example. A dictionary match of length `L` scores
-`BASE_DICT + (L - 1) * LENGTH_BONUS`, with `BASE_DICT` chosen large enough that
-any dictionary match beats a fallback of any plausible length. A fallback edge
-scores `BASE_FALLBACK`, which is non-negative so longer segmentations are never
-preferred by accident. Under this scoring, `行事` + `場所` (two dictionary
-matches covering four characters) beats `行事場` + `所` (one dictionary match
-plus one fallback covering four characters), as desired.
+The ranking function is deliberately simple. It first maximizes the number of
+characters covered by dictionary matches, so `行事` + `場所` beats `行事場` +
+`所` because the former leaves no fallback. Among paths with the same
+dictionary coverage, it prefers fewer segments, so a whole-word match such as
+`天地` beats the component split `天` + `地`. Remaining ties are kept
+deterministic by preserving the first candidate that reached the same score.
 
-The cost of lattice segmentation is bounded by the run length times the maximum
-dictionary entry length. In normal Korean text, contiguous hanja runs are
-short: most are one to four characters, almost never more than ten. The
-dictionary's maximum entry length is on the order of ten characters. The
-per-run runtime is therefore tens of dictionary lookups, which the FST and CDB
-backends handle in microseconds.
+The cost of lattice segmentation is bounded by the conversion-span length
+times the maximum dictionary entry length. In normal Korean text, spans that
+contain hanja are short: most are one to four characters, almost never more
+than ten, except for rare mixed-script dictionary entries. The dictionary's
+maximum entry length is on the order of ten characters. The per-span runtime is
+therefore tens of dictionary lookups, which the FST and CDB backends handle in
+microseconds.
 
 An *eager* segmentation strategy remains available as an option for callers who
-do not need lattice accuracy and want to reduce per-run overhead. The default
+do not need lattice accuracy and want to reduce per-span overhead. The default
 is lattice.
 
 ### Fallback phoneticizer
 
-When no dictionary entry covers a character, the fallback phoneticizer converts
-the character to hangul by looking up its canonical reading in the embedded
-Unihan-derived character map. The character map is built from the Unicode
-`kHangul` property and embedded in *gukhanmun-core* as a perfect-hash table; it
-covers approximately ten thousand hanja and adds roughly fifty kilobytes to the
-binary.
+When no dictionary entry covers a hanja character, the fallback phoneticizer
+converts the character to hangul by looking up its canonical reading in the
+embedded Unihan-derived character map. The character map is built from the
+Unicode `kHangul` property and embedded in *gukhanmun-core* as a perfect-hash
+table; it covers approximately ten thousand hanja and adds roughly fifty
+kilobytes to the binary.
 
 For the first character of a word produced by the fallback, that is, the first
 character of a fallback-only run or the first character after a dictionary
@@ -297,7 +308,7 @@ worth preserving for the renderer to handle later.
 Dictionaries
 ------------
 
-A dictionary is anything that can be asked what matches start at a given
+A dictionary is anything that can be asked what matches start at a given text
 position.
 
 ~~~~ rust
@@ -320,10 +331,13 @@ pub trait HanjaDictionary {
 application would be `longest_match`, but eager longest-match is exactly the
 algorithm we reject in the engine. The trait surfaces *every* match starting at
 a position because the lattice segmenter needs the full set in order to score
-alternatives.
+alternatives. The input string is the text suffix at the current cursor, not
+only a pre-cut hanja run; this lets dictionaries contain mixed-script keys such
+as `汽車길` as long as the match itself contains at least one hanja character.
 
 A `Match` carries the matched byte length, the hangul reading, and a
-`MatchMark`:
+`MatchMark`. `byte_len` is the UTF-8 length of the matched dictionary key,
+which may include both hanja and hangul:
 
 ~~~~ rust
 pub struct Match<'a> {
@@ -683,11 +697,13 @@ Streaming on the JavaScript side uses the platform
 `TransformStream<string, string>` interface, which is available across
 browsers, Deno, Node 18+, and Bun. Chunks are JavaScript strings; encoding
 concerns (`TextDecoderStream`, `TextEncoderStream`) live outside the gukhanmun
-stream. Within the engine, a chunk that ends in the middle of a hanja run
-causes the trailing run to be held until the next chunk arrives; everything
-before that point is flushed eagerly. The trailing-run buffer is bounded by the
-dictionary's `max_word_chars` plus a small constant for the lattice's outgoing
-state, typically a few dozen characters.
+stream. Within the engine, a chunk that ends in the middle of a conversion
+span, or close enough to a hanja character that a mixed-script dictionary key
+could still cross the boundary, causes that trailing span to be held until the
+next chunk arrives; everything before that point is flushed eagerly. The
+trailing-span buffer is bounded by the dictionary's `max_word_chars` plus a
+small constant for the lattice's outgoing state, typically a few dozen
+characters.
 
 We chose strings rather than `Uint8Array` for the streaming type because the
 engine fundamentally works on Unicode scalar values: byte-level chunking would
