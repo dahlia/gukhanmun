@@ -16,7 +16,7 @@ depends = ["fmt-check", "typecheck", "clippy"]
 
 [tasks.ci]
 description = "Run the full CI verification gate"
-depends = ["check", "test"]
+depends = ["check", "test", "doc"]
 
 [tasks.typecheck]
 description = "Check all Rust workspace targets"
@@ -37,3 +37,7 @@ run = ["cargo fmt --all --check", "hongdown --check", "mise fmt --check"]
 [tasks.test]
 description = "Run Rust workspace tests"
 run = "cargo test --workspace"
+
+[tasks.doc]
+description = "Build Rust API documentation with warnings denied"
+run = 'RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps'

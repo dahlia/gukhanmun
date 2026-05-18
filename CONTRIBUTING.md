@@ -45,6 +45,7 @@ mise run fmt
 mise run fmt-check
 mise run clippy
 mise run ci
+mise run doc
 mise run test
 mise run typecheck
 ~~~~
@@ -52,5 +53,9 @@ mise run typecheck
 Avoid relying on globally installed Rust tools or ad hoc command variants when
 working on this repository. Add or update a mise task when the project needs a
 new repeated development command.
+
+Document every new public Rust API with rustdoc comments. Public documentation
+should explain the API's role, important invariants, and where it fits in the
+pipeline so that `mise run doc` stays useful as an API review gate.
 
 [mise]: https://mise.jdx.dev/

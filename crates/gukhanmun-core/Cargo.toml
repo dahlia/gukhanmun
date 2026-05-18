@@ -7,3 +7,6 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Core IR, engine, dictionary traits, and fallback logic for gukhanmun."
+
+[dev-dependencies]
+proptest = "1.9.0"
