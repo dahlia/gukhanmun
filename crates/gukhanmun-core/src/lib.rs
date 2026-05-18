@@ -11,10 +11,14 @@
 
 extern crate alloc;
 
+mod segment;
+
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+
+use segment::{Segment, segment_hanja_run};
 
 /// Adapter-owned data attached to an intermediate-representation scope.
 ///
@@ -182,8 +186,8 @@ pub struct Match {
 /// A hanja dictionary queried by the conversion engine.
 ///
 /// The key operation returns every entry that starts at the beginning of the
-/// supplied string. This shape supports the later lattice segmenter; the MVP
-/// engine currently selects the longest returned match.
+/// supplied string. This shape supports lattice segmentation because the
+/// engine must consider every candidate path through a hanja run.
 pub trait HanjaDictionary {
     /// Yields every dictionary match that starts at the beginning of `s`.
     fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a>;
@@ -209,8 +213,7 @@ struct DictionaryEntry {
 ///
 /// This implementation is intended for tests, user-supplied custom entries,
 /// and early pipeline validation. It returns all prefix matches at a cursor so
-/// the engine can later swap greedy selection for lattice segmentation without
-/// changing the dictionary contract.
+/// the engine can score every candidate path through a hanja run.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct MapDictionary {
     entries: BTreeMap<String, DictionaryEntry>,
@@ -328,8 +331,9 @@ pub fn write_plain_text<S>(tokens: impl IntoIterator<Item = RenderedToken<S>>) -
 /// Processes input tokens with the MVP hanja conversion engine.
 ///
 /// The engine preserves structural and verbatim tokens, skips text under any
-/// preserving scope, and annotates the longest dictionary match found inside a
-/// contiguous hanja run. Unknown hanja text is preserved unchanged.
+/// preserving scope, and uses lattice segmentation to annotate dictionary
+/// matches inside contiguous hanja runs. Unknown hanja text is preserved
+/// unchanged until fallback phoneticization is implemented.
 pub fn process_tokens<S, D>(
     tokens: impl IntoIterator<Item = InputToken<S>>,
     dictionary: &D,
@@ -384,28 +388,54 @@ where
             continue;
         }
 
-        if let Some(best_match) = longest_match(dictionary.matches_at(rest)) {
-            let hanja = &rest[..best_match.byte_len];
-            output.push(OutputToken::Annotated(Annotation {
-                hanja: hanja.to_string(),
-                reading: best_match.reading.clone(),
-                homophone: dictionary.has_homophone(hanja, &best_match.reading),
-                require_hanja: best_match.mark.require_hanja,
-                require_hangul: best_match.mark.require_hangul,
-                first_in_context: true,
-                from_dictionary: true,
-            }));
-            cursor += best_match.byte_len;
-        } else {
-            let next = cursor + first.len_utf8();
-            push_text(output, &text[cursor..next]);
-            cursor = next;
-        }
+        let run_end = cursor + hanja_run_len(rest);
+        process_hanja_run(&text[cursor..run_end], dictionary, output);
+        cursor = run_end;
     }
 }
 
-fn longest_match(matches: impl IntoIterator<Item = Match>) -> Option<Match> {
-    matches.into_iter().max_by_key(|matched| matched.byte_len)
+fn hanja_run_len(s: &str) -> usize {
+    let mut len = 0;
+
+    for ch in s.chars() {
+        if !is_hanja(ch) {
+            break;
+        }
+        len += ch.len_utf8();
+    }
+
+    len
+}
+
+fn process_hanja_run<S, D>(run: &str, dictionary: &D, output: &mut Vec<OutputToken<S>>)
+where
+    D: HanjaDictionary + ?Sized,
+{
+    for segment in segment_hanja_run(run, dictionary) {
+        match segment {
+            Segment::Dictionary {
+                byte_start,
+                byte_end,
+                reading,
+                mark,
+            } => {
+                let hanja = &run[byte_start..byte_end];
+                output.push(OutputToken::Annotated(Annotation {
+                    hanja: hanja.to_string(),
+                    homophone: dictionary.has_homophone(hanja, &reading),
+                    reading,
+                    require_hanja: mark.require_hanja,
+                    require_hangul: mark.require_hangul,
+                    first_in_context: true,
+                    from_dictionary: true,
+                }));
+            }
+            Segment::Fallback {
+                byte_start,
+                byte_end,
+            } => push_text(output, &run[byte_start..byte_end]),
+        }
+    }
 }
 
 fn push_text<S>(output: &mut Vec<OutputToken<S>>, text: &str) {
