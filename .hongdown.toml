@@ -1,0 +1,6 @@
+no_inherit = true
+include = ["*.md", "**/*.md"]
+exclude = [
+  "**/target/**",
+  "DESIGN.md",
+]
