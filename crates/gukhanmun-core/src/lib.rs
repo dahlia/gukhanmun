@@ -11,6 +11,7 @@
 
 extern crate alloc;
 
+mod fallback;
 mod segment;
 
 use alloc::boxed::Box;
@@ -18,6 +19,9 @@ use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+use fallback::{
+    FallbackPart, FallbackState, fallback_reading_for_run, phoneticize_fallback_run_with_state,
+};
 use segment::{Segment, segment_text};
 
 /// Adapter-owned data attached to an intermediate-representation scope.
@@ -203,6 +207,37 @@ pub trait HanjaDictionary {
     }
 }
 
+/// Engine-level options that affect hanja conversion before rendering.
+///
+/// These options apply to fallback text that is not covered by the supplied
+/// dictionary. Dictionary matches are assumed to already contain the desired
+/// reading and are not rewritten by fallback orthography rules.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EngineOptions {
+    /// Whether fallback readings should apply South Korean initial sound law.
+    pub initial_sound_law: bool,
+
+    /// How fallback hanja numerals are rendered.
+    pub numeral_strategy: NumeralStrategy,
+}
+
+impl Default for EngineOptions {
+    fn default() -> Self {
+        Self {
+            initial_sound_law: true,
+            numeral_strategy: NumeralStrategy::HangulPhonetic,
+        }
+    }
+}
+
+/// Strategy for rendering hanja numerals encountered in fallback text.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NumeralStrategy {
+    /// Render hanja numerals as their hangul phonetic readings.
+    HangulPhonetic,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct DictionaryEntry {
     reading: String,
@@ -328,15 +363,30 @@ pub fn write_plain_text<S>(tokens: impl IntoIterator<Item = RenderedToken<S>>) -
     output
 }
 
-/// Processes input tokens with the MVP hanja conversion engine.
+/// Processes input tokens with the default hanja conversion engine options.
 ///
 /// The engine preserves structural and verbatim tokens, skips text under any
-/// preserving scope, and uses lattice segmentation to annotate dictionary
-/// matches inside text tokens. Unknown hanja text is preserved unchanged until
-/// fallback phoneticization is implemented.
+/// preserving scope, and uses lattice segmentation to annotate dictionary and
+/// fallback matches inside text tokens.
 pub fn process_tokens<S, D>(
     tokens: impl IntoIterator<Item = InputToken<S>>,
     dictionary: &D,
+) -> Vec<OutputToken<S>>
+where
+    S: ScopeData,
+    D: HanjaDictionary + ?Sized,
+{
+    process_tokens_with_options(tokens, dictionary, EngineOptions::default())
+}
+
+/// Processes input tokens with explicit hanja conversion engine options.
+///
+/// This is the lower-level entry point for callers that need to disable
+/// fallback initial sound law or choose a non-default numeral strategy.
+pub fn process_tokens_with_options<S, D>(
+    tokens: impl IntoIterator<Item = InputToken<S>>,
+    dictionary: &D,
+    options: EngineOptions,
 ) -> Vec<OutputToken<S>>
 where
     S: ScopeData,
@@ -359,7 +409,7 @@ where
                 if scopes.iter().any(|scope| scope.data().is_preserve()) {
                     output.push(OutputToken::Text(text));
                 } else {
-                    process_text(&text, dictionary, &mut output);
+                    process_text(&text, dictionary, options, &mut output);
                 }
             }
             InputToken::Verbatim(text) => output.push(OutputToken::Verbatim(text)),
@@ -369,38 +419,163 @@ where
     output
 }
 
-fn process_text<S, D>(text: &str, dictionary: &D, output: &mut Vec<OutputToken<S>>)
-where
+fn process_text<S, D>(
+    text: &str,
+    dictionary: &D,
+    options: EngineOptions,
+    output: &mut Vec<OutputToken<S>>,
+) where
     D: HanjaDictionary + ?Sized,
 {
-    for segment in segment_text(text, dictionary) {
-        match segment {
+    let segments = segment_text(text, dictionary);
+    let mut index = 0;
+    let mut fallback_state = FallbackState::default();
+
+    while index < segments.len() {
+        match &segments[index] {
             Segment::Dictionary {
                 byte_start,
                 byte_end,
                 reading,
                 mark,
             } => {
-                let hanja = &text[byte_start..byte_end];
+                let source = &text[*byte_start..*byte_end];
                 output.push(OutputToken::Annotated(Annotation {
-                    hanja: hanja.to_string(),
-                    homophone: dictionary.has_homophone(hanja, &reading),
-                    reading,
+                    hanja: source.to_string(),
+                    homophone: dictionary.has_homophone(source, reading),
+                    reading: reading.clone(),
                     require_hanja: mark.require_hanja,
                     require_hangul: mark.require_hangul,
                     first_in_context: true,
                     from_dictionary: true,
                 }));
+                if should_preserve_dictionary_context(source, reading, options) {
+                    update_fallback_state_for_reading(reading, &mut fallback_state);
+                } else {
+                    fallback_state = FallbackState::default();
+                }
+                index += 1;
             }
             Segment::Fallback {
                 byte_start,
                 byte_end,
+            } => {
+                let mut fallback_end = *byte_end;
+                while let Some(Segment::Fallback { byte_end, .. }) = segments.get(index + 1) {
+                    fallback_end = *byte_end;
+                    index += 1;
+                }
+                process_fallback_text(
+                    &text[*byte_start..fallback_end],
+                    options,
+                    &mut fallback_state,
+                    output,
+                );
+                index += 1;
             }
-            | Segment::Text {
+            Segment::Text {
                 byte_start,
                 byte_end,
-            } => push_text(output, &text[byte_start..byte_end]),
+            } => {
+                let text_segment = &text[*byte_start..*byte_end];
+                push_text(output, text_segment);
+                update_fallback_state_for_text(text_segment, &mut fallback_state);
+                index += 1;
+            }
         }
+    }
+}
+
+fn process_fallback_text<S>(
+    text: &str,
+    options: EngineOptions,
+    state: &mut FallbackState,
+    output: &mut Vec<OutputToken<S>>,
+) {
+    for part in phoneticize_fallback_run_with_state(text, options, state) {
+        match part {
+            FallbackPart::Annotation { hanja, reading } => {
+                output.push(OutputToken::Annotated(Annotation {
+                    hanja,
+                    reading,
+                    homophone: false,
+                    require_hanja: false,
+                    require_hangul: false,
+                    first_in_context: true,
+                    from_dictionary: false,
+                }));
+            }
+            FallbackPart::Text(text) => push_text(output, &text),
+        }
+    }
+}
+
+fn update_fallback_state_for_text(text: &str, state: &mut FallbackState) {
+    if text.is_empty() {
+        return;
+    }
+
+    if text.chars().all(char::is_whitespace) {
+        *state = FallbackState::default();
+        return;
+    }
+
+    let Some(last) = text.chars().rev().find(|ch| !ch.is_whitespace()) else {
+        return;
+    };
+
+    if last.is_alphanumeric() {
+        state.starts_word = false;
+        state.previous_reading = Some(last);
+    } else {
+        *state = FallbackState::default();
+    }
+}
+
+fn should_preserve_dictionary_context(source: &str, reading: &str, options: EngineOptions) -> bool {
+    if reading.chars().all(char::is_whitespace) {
+        return false;
+    }
+
+    if source.chars().all(is_hanja) {
+        match fallback_reading_for_run(source, options) {
+            Some(fallback_reading) => fallback_reading == reading,
+            None => has_one_hangul_syllable_per_hanja(source, reading),
+        }
+    } else {
+        true
+    }
+}
+
+fn has_one_hangul_syllable_per_hanja(source: &str, reading: &str) -> bool {
+    let source_len = source.chars().count();
+    let mut reading_len = 0;
+
+    for ch in reading.chars() {
+        if !is_hangul_syllable(ch) {
+            return false;
+        }
+        reading_len += 1;
+    }
+
+    reading_len == source_len
+}
+
+fn is_hangul_syllable(ch: char) -> bool {
+    ('\u{ac00}'..='\u{d7a3}').contains(&ch)
+}
+
+fn update_fallback_state_for_reading(reading: &str, state: &mut FallbackState) {
+    let Some(last) = reading.chars().rev().find(|ch| !ch.is_whitespace()) else {
+        *state = FallbackState::default();
+        return;
+    };
+
+    if last.is_alphanumeric() {
+        state.starts_word = false;
+        state.previous_reading = Some(last);
+    } else {
+        *state = FallbackState::default();
     }
 }
 
@@ -415,12 +590,26 @@ fn push_text<S>(output: &mut Vec<OutputToken<S>>, text: &str) {
     }
 }
 
-/// Returns whether `ch` is in the MVP hanja character range.
-///
-/// This covers the basic CJK Unified Ideographs block used by the current core
-/// tests. Wider Unicode coverage belongs to the fallback phoneticizer phase.
+/// Returns whether `ch` is in a known CJK ideograph range.
 pub fn is_hanja(ch: char) -> bool {
-    ('\u{4E00}'..='\u{9FFF}').contains(&ch)
+    matches!(
+        ch,
+        '\u{2F00}'..='\u{2FFF}'
+            | '\u{3007}'
+            | '\u{3400}'..='\u{4DBF}'
+            | '\u{4E00}'..='\u{9FFF}'
+            | '\u{F900}'..='\u{FAFF}'
+            | '\u{20000}'..='\u{2A6DF}'
+            | '\u{2A700}'..='\u{2B73F}'
+            | '\u{2B740}'..='\u{2B81F}'
+            | '\u{2B820}'..='\u{2CEAF}'
+            | '\u{2CEB0}'..='\u{2EBEF}'
+            | '\u{2EBF0}'..='\u{2EE5F}'
+            | '\u{2F800}'..='\u{2FA1F}'
+            | '\u{30000}'..='\u{3134F}'
+            | '\u{31350}'..='\u{323AF}'
+            | '\u{323B0}'..='\u{3347F}'
+    )
 }
 
 /// The concrete rendering mode for annotated hanja words.
@@ -483,8 +672,23 @@ pub fn convert_plain_text<D>(input: &str, dictionary: &D, mode: RenderMode) -> S
 where
     D: HanjaDictionary + ?Sized,
 {
+    convert_plain_text_with_options(input, dictionary, mode, EngineOptions::default())
+}
+
+/// Converts plain text with explicit hanja conversion engine options.
+///
+/// This is the option-aware variant of [`convert_plain_text`].
+pub fn convert_plain_text_with_options<D>(
+    input: &str,
+    dictionary: &D,
+    mode: RenderMode,
+    options: EngineOptions,
+) -> String
+where
+    D: HanjaDictionary + ?Sized,
+{
     let input_tokens = read_plain_text(input);
-    let output_tokens = process_tokens(input_tokens, dictionary);
+    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
     let rendered_tokens = render_tokens(output_tokens, mode);
     write_plain_text(rendered_tokens)
 }

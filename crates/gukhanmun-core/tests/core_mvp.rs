@@ -1,10 +1,48 @@
 use gukhanmun_core::{
-    Annotation, HanjaDictionary, InputToken, MapDictionary, MatchMark, OutputToken, PlainScopeData,
-    RenderMode, RenderedToken, Scope, ScopeData, convert_plain_text, process_tokens,
-    read_plain_text, render_tokens, write_plain_text,
+    Annotation, EngineOptions, HanjaDictionary, InputToken, MapDictionary, MatchMark,
+    NumeralStrategy, OutputToken, PlainScopeData, RenderMode, RenderedToken, Scope, ScopeData,
+    convert_plain_text, convert_plain_text_with_options, process_tokens, read_plain_text,
+    render_tokens, write_plain_text,
 };
 use proptest::prelude::*;
 use std::cell::Cell;
+
+#[test]
+fn hanja_detection_covers_known_cjk_ranges() {
+    let cases = [
+        '⼀',        // CJK radicals / ideographic description range used by Seonbi.
+        '〇',        // Ideographic number zero.
+        '㐀',        // CJK Unified Ideographs Extension A.
+        '一',        // CJK Unified Ideographs.
+        '豈',        // CJK Compatibility Ideographs.
+        '\u{20000}', // CJK Unified Ideographs Extension B.
+        '\u{2A6DF}', // CJK Unified Ideographs Extension B end.
+        '\u{2A700}', // CJK Unified Ideographs Extension C.
+        '\u{2B73F}', // CJK Unified Ideographs Extension C end.
+        '\u{2B740}', // CJK Unified Ideographs Extension D.
+        '\u{2B81F}', // CJK Unified Ideographs Extension D end.
+        '\u{2B820}', // CJK Unified Ideographs Extension E.
+        '\u{2CEAF}', // CJK Unified Ideographs Extension E end.
+        '\u{2CEB0}', // CJK Unified Ideographs Extension F.
+        '\u{2EBEF}', // CJK Unified Ideographs Extension F end.
+        '\u{2EBF0}', // CJK Unified Ideographs Extension I.
+        '\u{2EE5F}', // CJK Unified Ideographs Extension I end.
+        '\u{2F800}', // CJK Compatibility Ideographs Supplement.
+        '\u{30000}', // CJK Unified Ideographs Extension G.
+        '\u{3134F}', // CJK Unified Ideographs Extension G end.
+        '\u{31350}', // CJK Unified Ideographs Extension H.
+        '\u{323AF}', // CJK Unified Ideographs Extension H end.
+        '\u{323B0}', // CJK Unified Ideographs Extension J.
+        '\u{3347F}', // CJK Unified Ideographs Extension J end.
+    ];
+
+    for ch in cases {
+        assert!(
+            gukhanmun_core::is_hanja(ch),
+            "{ch} should be treated as hanja"
+        );
+    }
+}
 
 fn sample_dictionary() -> MapDictionary {
     let mut dict = MapDictionary::new();
@@ -290,10 +328,224 @@ fn engine_preserves_text_inside_preserve_scope() {
 }
 
 #[test]
-fn unknown_hanja_is_preserved_as_text() {
-    let output = convert_plain_text("未知와 漢字", &sample_dictionary(), RenderMode::HangulOnly);
+fn hanja_without_fallback_reading_is_preserved_as_text() {
+    let output = convert_plain_text("龥와 漢字", &sample_dictionary(), RenderMode::HangulOnly);
 
-    assert_eq!(output, "未知와 한자");
+    assert_eq!(output, "龥와 한자");
+}
+
+#[test]
+fn fallback_only_hanja_is_phoneticized_with_initial_sound_law() {
+    let output = convert_plain_text(
+        "未知 來日 未來 良質 力量",
+        &MapDictionary::new(),
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(output, "미지 내일 미래 양질 역량");
+}
+
+#[test]
+fn mixed_script_fallback_keeps_context_after_plain_text() {
+    let cases = [("가羅", "가라"), ("가來", "가래"), ("色깔論", "色깔론")];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn unmapped_hanja_inside_fallback_run_does_not_reset_word_start() {
+    let output = convert_plain_text("新羅", &MapDictionary::new(), RenderMode::HangulOnly);
+
+    assert_eq!(output, "新라");
+}
+
+#[test]
+fn fallback_initial_sound_law_can_be_disabled() {
+    let options = EngineOptions {
+        initial_sound_law: false,
+        numeral_strategy: NumeralStrategy::HangulPhonetic,
+    };
+    let output = convert_plain_text_with_options(
+        "來日 良質 力量",
+        &MapDictionary::new(),
+        RenderMode::HangulOnly,
+        options,
+    );
+
+    assert_eq!(output, "래일 량질 력량");
+}
+
+#[test]
+fn fallback_numerals_honor_initial_sound_law_option() {
+    let no_law = EngineOptions {
+        initial_sound_law: false,
+        numeral_strategy: NumeralStrategy::HangulPhonetic,
+    };
+
+    let default_cases = [
+        ("六", "육"),
+        ("一六年", "일륙년"),
+        ("六六年", "육륙년"),
+        ("一九六六年", "일구륙륙년"),
+        ("第六", "제육"),
+        ("六〇年", "육공년"),
+        ("陸〇年", "육공년"),
+    ];
+    for (input, expected) in default_cases {
+        let output = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        assert_eq!(output, expected);
+    }
+
+    let no_law_cases = [
+        ("六", "륙"),
+        ("第六", "제륙"),
+        ("六〇年", "륙공년"),
+        ("陸〇年", "륙공년"),
+    ];
+    for (input, expected) in no_law_cases {
+        let output = convert_plain_text_with_options(
+            input,
+            &MapDictionary::new(),
+            RenderMode::HangulOnly,
+            no_law,
+        );
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn fallback_after_punctuation_starts_a_new_word() {
+    let cases = [("(來日)", "(내일)"), ("「良質」", "「양질」")];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn dictionary_readings_are_not_rewritten_by_fallback_initial_sound_law() {
+    let mut dict = MapDictionary::new();
+    dict.insert("來日", "래일");
+
+    let output = convert_plain_text("來日", &dict, RenderMode::HangulHanjaParens);
+
+    assert_eq!(output, "래일(來日)");
+}
+
+#[test]
+fn fallback_combines_with_dictionary_segments() {
+    let mut dict = MapDictionary::new();
+    dict.insert("標識", "표지");
+    dict.insert("毛澤東", "마오쩌둥");
+
+    let output = convert_plain_text(
+        "安全標識 毛澤東語錄 毛澤東理論",
+        &dict,
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(output, "안전표지 마오쩌둥어록 마오쩌둥이론");
+}
+
+#[test]
+fn fallback_keeps_context_after_prefix_dictionary_segments() {
+    let cases = [
+        ("力", "역", "力量", "역량"),
+        ("法", "법", "法律", "법률"),
+        ("新", "신", "新羅", "신라"),
+        ("新法", "신법", "新法律", "신법률"),
+    ];
+
+    for (hanja, reading, input, expected) in cases {
+        let mut dict = MapDictionary::new();
+        dict.insert(hanja, reading);
+
+        let output = convert_plain_text(input, &dict, RenderMode::HangulOnly);
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn fallback_keeps_context_after_mixed_script_dictionary_prefixes() {
+    let mut dict = MapDictionary::new();
+    dict.insert("色깔", "색깔");
+    dict.insert("毛澤東", "마오쩌둥");
+
+    let cases = [("色깔論", "색깔론"), ("毛澤東理論", "마오쩌둥이론")];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text(input, &dict, RenderMode::HangulOnly);
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn fallback_applies_yeol_yul_rule() {
+    let cases = [
+        ("法律", "법률"),
+        ("一列", "일렬"),
+        ("十二列", "십이열"),
+        ("十二律", "십이율"),
+        ("羅列", "나열"),
+        ("序列", "서열"),
+        ("規律", "규율"),
+        ("自律", "자율"),
+        ("前列", "전열"),
+        ("韻律", "운율"),
+        ("分列", "분열"),
+        ("旋律", "선율"),
+    ];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn fallback_phoneticizes_hanja_numerals() {
+    let cases = [
+        ("千九百八十六年", "천구백팔십육년"),
+        ("二〇一六年", "이공일륙년"),
+        ("第六共和國", "제육공화국"),
+        ("拾萬圓", "십만원"),
+        ("參佰拾圓", "삼백십원"),
+        ("仟參佰圓", "천삼백원"),
+        ("〇", "공"),
+        ("零", "영"),
+    ];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn hangul_phonetic_numerals_remain_renderable_annotations() {
+    let cases = [
+        ("二〇一六年", "이공일륙(二〇一六)년(年)"),
+        ("第六共和國", "제육(第六)공화국(共和國)"),
+    ];
+
+    for (input, expected) in cases {
+        let output =
+            convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulHanjaParens);
+
+        assert_eq!(output, expected);
+    }
 }
 
 #[test]
@@ -304,7 +556,7 @@ fn lattice_mixes_dictionary_segments_with_fallback_text() {
 
     let output = convert_plain_text("天地未知漢字", &dict, RenderMode::HangulHanjaParens);
 
-    assert_eq!(output, "천지(天地)未知한자(漢字)");
+    assert_eq!(output, "천지(天地)미지(未知)한자(漢字)");
 }
 
 #[test]
@@ -327,7 +579,7 @@ fn renderer_removes_annotations_from_the_stream() {
 
 proptest! {
     #[test]
-    fn non_hanja_plain_text_is_unchanged(input in "[\\PC&&[^一-龥]]*") {
+    fn non_hanja_plain_text_is_unchanged(input in "[A-Za-z0-9가-힣 .,!?()「」]*") {
         let dict = MapDictionary::new();
 
         let output = convert_plain_text(&input, &dict, RenderMode::HangulOnly);
@@ -394,6 +646,13 @@ proptest! {
                 from_dictionary: true,
             })],
         );
+    }
+
+    #[test]
+    fn known_fallback_hanja_are_removed_from_hangul_only_output(input in "[未知來日良質力量安全語錄理論法律一列羅序規律自前韻分旋千九百八十六年第共和國拾萬圓參佰仟]{1,12}") {
+        let output = convert_plain_text(&input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        prop_assert!(!output.chars().any(gukhanmun_core::is_hanja));
     }
 }
 

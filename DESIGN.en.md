@@ -267,12 +267,13 @@ Korean dictionary stores `來日` as 내일, a North Korean dictionary stores it
 
 Two small rules from Seonbi survive in the fallback because they are not
 learnable from per-character mappings alone. First, the *ryeol*-*ryul* rule
-(`列`, `律`): when these characters follow a syllable whose final jamo is ㄴ or
-absent, their pronunciation glides to 열 or 율 rather than 렬 or 률 even though
-the initial sound law as such does not apply. Second, the hanja-numeral rule: a
-sequence of two or more hanja digits is read as a single word with the initial
-sound law applied at its head and not at internal positions. Both rules are
-encoded as small parsers over the character stream.
+(`列`, `律`) is treated as part of the initial sound law: when the law is
+enabled and these characters follow a syllable whose final jamo is ㄴ or
+absent, their pronunciation glides to 열 or 율 rather than 렬 or 률. When the
+law is disabled, as in North Korean orthography, they remain 렬 or 률. Second,
+the hanja-numeral rule: a sequence of two or more hanja digits is read as a
+single word with the initial sound law applied at its head and not at internal
+positions. Both rules are encoded as small parsers over the character stream.
 
 ### Numeral conversion
 
@@ -300,9 +301,11 @@ length four or more, it uses `positional-arabic` (matching the year
 convention); otherwise it falls back to `hangul-phonetic`.
 
 Numeral conversion runs inside the fallback path on segments that the lattice
-has identified as not matching the dictionary. The output is plain text rather
-than an `Annotated` token, since there is no hanja-versus-hangul ambiguity
-worth preserving for the renderer to handle later.
+has identified as not matching the dictionary. The `hangul-phonetic` strategy
+emits a fallback `Annotated` token, preserving the original hanja numeral so
+renderers such as `HangulHanjaParens` can still show the source text. Arabic
+numeral strategies may emit plain text instead, since their output is a numeric
+normalization rather than a hangul reading of the source hanja.
 
 
 Dictionaries
