@@ -18,7 +18,7 @@ use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use segment::{Segment, segment_hanja_run};
+use segment::{Segment, segment_text};
 
 /// Adapter-owned data attached to an intermediate-representation scope.
 ///
@@ -332,8 +332,8 @@ pub fn write_plain_text<S>(tokens: impl IntoIterator<Item = RenderedToken<S>>) -
 ///
 /// The engine preserves structural and verbatim tokens, skips text under any
 /// preserving scope, and uses lattice segmentation to annotate dictionary
-/// matches inside contiguous hanja runs. Unknown hanja text is preserved
-/// unchanged until fallback phoneticization is implemented.
+/// matches inside text tokens. Unknown hanja text is preserved unchanged until
+/// fallback phoneticization is implemented.
 pub fn process_tokens<S, D>(
     tokens: impl IntoIterator<Item = InputToken<S>>,
     dictionary: &D,
@@ -373,45 +373,7 @@ fn process_text<S, D>(text: &str, dictionary: &D, output: &mut Vec<OutputToken<S
 where
     D: HanjaDictionary + ?Sized,
 {
-    let mut cursor = 0;
-
-    while cursor < text.len() {
-        let rest = &text[cursor..];
-        let Some(first) = rest.chars().next() else {
-            break;
-        };
-
-        if !is_hanja(first) {
-            let next = cursor + first.len_utf8();
-            push_text(output, &text[cursor..next]);
-            cursor = next;
-            continue;
-        }
-
-        let run_end = cursor + hanja_run_len(rest);
-        process_hanja_run(&text[cursor..run_end], dictionary, output);
-        cursor = run_end;
-    }
-}
-
-fn hanja_run_len(s: &str) -> usize {
-    let mut len = 0;
-
-    for ch in s.chars() {
-        if !is_hanja(ch) {
-            break;
-        }
-        len += ch.len_utf8();
-    }
-
-    len
-}
-
-fn process_hanja_run<S, D>(run: &str, dictionary: &D, output: &mut Vec<OutputToken<S>>)
-where
-    D: HanjaDictionary + ?Sized,
-{
-    for segment in segment_hanja_run(run, dictionary) {
+    for segment in segment_text(text, dictionary) {
         match segment {
             Segment::Dictionary {
                 byte_start,
@@ -419,7 +381,7 @@ where
                 reading,
                 mark,
             } => {
-                let hanja = &run[byte_start..byte_end];
+                let hanja = &text[byte_start..byte_end];
                 output.push(OutputToken::Annotated(Annotation {
                     hanja: hanja.to_string(),
                     homophone: dictionary.has_homophone(hanja, &reading),
@@ -433,7 +395,11 @@ where
             Segment::Fallback {
                 byte_start,
                 byte_end,
-            } => push_text(output, &run[byte_start..byte_end]),
+            }
+            | Segment::Text {
+                byte_start,
+                byte_end,
+            } => push_text(output, &text[byte_start..byte_end]),
         }
     }
 }

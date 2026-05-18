@@ -4,6 +4,7 @@ use gukhanmun_core::{
     read_plain_text, render_tokens, write_plain_text,
 };
 use proptest::prelude::*;
+use std::cell::Cell;
 
 fn sample_dictionary() -> MapDictionary {
     let mut dict = MapDictionary::new();
@@ -19,6 +20,18 @@ fn segmentation_dictionary() -> MapDictionary {
     dict.insert("行事場", "행사장");
     dict.insert("場所", "장소");
     dict.insert("入口", "입구");
+    dict
+}
+
+fn mixed_script_dictionary() -> MapDictionary {
+    let mut dict = MapDictionary::new();
+    dict.insert("汽車길", "기찻길");
+    dict.insert("祭祀날", "제삿날");
+    dict.insert("洗手대야", "세숫대야");
+    dict.insert("火김", "홧김");
+    dict.insert("色깔論", "색깔론");
+    dict.insert("汽車", "기차");
+    dict.insert("天地", "천지");
     dict
 }
 
@@ -109,6 +122,140 @@ fn lattice_prefers_whole_dictionary_word_over_component_split() {
     let output = convert_plain_text("天地", &dict, RenderMode::HangulHanjaParens);
 
     assert_eq!(output, "천지(天地)");
+}
+
+#[test]
+fn lattice_consumes_mixed_script_dictionary_entries_as_one_annotation() {
+    let cases = [
+        ("汽車길", "기찻길(汽車길)"),
+        ("祭祀날", "제삿날(祭祀날)"),
+        ("洗手대야", "세숫대야(洗手대야)"),
+        ("火김", "홧김(火김)"),
+        ("色깔論", "색깔론(色깔論)"),
+    ];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text(
+            input,
+            &mixed_script_dictionary(),
+            RenderMode::HangulHanjaParens,
+        );
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn mixed_script_annotation_keeps_the_full_source_spelling() {
+    let output = process_tokens(
+        vec![InputToken::<PlainScopeData>::Text("色깔論".into())],
+        &mixed_script_dictionary(),
+    );
+
+    assert_eq!(
+        output,
+        vec![OutputToken::Annotated(Annotation {
+            hanja: "色깔論".into(),
+            reading: "색깔론".into(),
+            homophone: false,
+            require_hanja: false,
+            require_hangul: false,
+            first_in_context: true,
+            from_dictionary: true,
+        })]
+    );
+}
+
+#[test]
+fn mixed_script_match_beats_shorter_hanja_prefix_match() {
+    let output = convert_plain_text(
+        "汽車길",
+        &mixed_script_dictionary(),
+        RenderMode::HangulHanjaParens,
+    );
+
+    assert_eq!(output, "기찻길(汽車길)");
+}
+
+#[test]
+fn hangul_only_dictionary_entry_is_not_a_conversion_candidate() {
+    let mut dict = MapDictionary::new();
+    dict.insert("길", "road");
+
+    let output = convert_plain_text("길", &dict, RenderMode::HangulOnly);
+
+    assert_eq!(output, "길");
+}
+
+#[test]
+fn non_hanja_text_does_not_query_the_dictionary() {
+    let dict = CountingDictionary::new(vec![("天地", "천지"), ("汽車길", "기찻길")]);
+
+    let output = convert_plain_text(
+        "이 문장은 한글과 ASCII only text만 있습니다.",
+        &dict,
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(output, "이 문장은 한글과 ASCII only text만 있습니다.");
+    assert_eq!(dict.lookup_count(), 0);
+}
+
+#[test]
+fn whitespace_bounds_dictionary_lookup_windows() {
+    let dict = CountingDictionary::new(vec![("漢字", "한자")]);
+
+    let output = convert_plain_text("가나다 漢字", &dict, RenderMode::HangulOnly);
+
+    assert_eq!(output, "가나다 한자");
+    assert_eq!(dict.lookup_count(), 2);
+}
+
+#[test]
+fn mixed_script_lookup_does_not_cross_text_tokens() {
+    let tokens = vec![
+        InputToken::<PlainScopeData>::Text("汽車".into()),
+        InputToken::Text("길".into()),
+    ];
+    let output = render_tokens(
+        process_tokens(tokens, &mixed_script_dictionary()),
+        RenderMode::HangulHanjaParens,
+    );
+
+    assert_eq!(write_plain_text(output), "기차(汽車)길");
+}
+
+#[test]
+fn mixed_script_lookup_does_not_cross_verbatim_tokens() {
+    let tokens = vec![
+        InputToken::<PlainScopeData>::Text("汽車".into()),
+        InputToken::Verbatim("길".into()),
+    ];
+    let output = render_tokens(
+        process_tokens(tokens, &mixed_script_dictionary()),
+        RenderMode::HangulHanjaParens,
+    );
+
+    assert_eq!(write_plain_text(output), "기차(汽車)길");
+}
+
+#[test]
+fn whitespace_bounded_lattice_skips_non_hanja_spans_without_max_word_length() {
+    let dict = CountingDictionary::without_max_word_chars(vec![("漢字", "한자")]);
+
+    let output = convert_plain_text("가나다라마바사 漢字", &dict, RenderMode::HangulOnly);
+
+    assert_eq!(output, "가나다라마바사 한자");
+    assert_eq!(dict.lookup_count(), 2);
+}
+
+#[test]
+fn dictionary_without_max_word_length_can_match_mixed_script_entries() {
+    let dict = CountingDictionary::without_max_word_chars(vec![("汽車길", "기찻길")]);
+
+    let output = convert_plain_text("汽車길", &dict, RenderMode::HangulHanjaParens);
+
+    assert_eq!(output, "기찻길(汽車길)");
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -218,6 +365,36 @@ proptest! {
 
         prop_assert_eq!(output, "행사(行事)장소(場所)");
     }
+
+    #[test]
+    fn mixed_script_dictionary_match_covers_the_generated_key(
+        prefix in "[가-힣]{0,2}",
+        middle in "[一-龥]{1,2}",
+        suffix in "[가-힣一-龥]{0,2}",
+        reading in "[가-힣]{1,5}",
+    ) {
+        let key = format!("{prefix}{middle}{suffix}");
+        let mut dict = MapDictionary::new();
+        dict.insert(&key, &reading);
+
+        let output = process_tokens(
+            vec![InputToken::<PlainScopeData>::Text(key.clone())],
+            &dict,
+        );
+
+        prop_assert_eq!(
+            output,
+            vec![OutputToken::Annotated(Annotation {
+                hanja: key,
+                reading,
+                homophone: false,
+                require_hanja: false,
+                require_hangul: false,
+                first_in_context: true,
+                from_dictionary: true,
+            })],
+        );
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -228,6 +405,60 @@ struct OrderedDictionary {
 impl OrderedDictionary {
     fn new(entries: Vec<(&'static str, &'static str)>) -> Self {
         Self { entries }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct CountingDictionary {
+    entries: Vec<(&'static str, &'static str)>,
+    lookup_count: Cell<usize>,
+    max_word_chars: Option<usize>,
+}
+
+impl CountingDictionary {
+    fn new(entries: Vec<(&'static str, &'static str)>) -> Self {
+        let max_word_chars = entries.iter().map(|(hanja, _)| hanja.chars().count()).max();
+        Self {
+            entries,
+            lookup_count: Cell::new(0),
+            max_word_chars,
+        }
+    }
+
+    fn without_max_word_chars(entries: Vec<(&'static str, &'static str)>) -> Self {
+        Self {
+            entries,
+            lookup_count: Cell::new(0),
+            max_word_chars: None,
+        }
+    }
+
+    fn lookup_count(&self) -> usize {
+        self.lookup_count.get()
+    }
+}
+
+impl HanjaDictionary for CountingDictionary {
+    fn matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Box<dyn Iterator<Item = gukhanmun_core::Match> + 'a> {
+        self.lookup_count.set(self.lookup_count.get() + 1);
+        Box::new(
+            self.entries
+                .iter()
+                .copied()
+                .filter(move |(hanja, _)| s.starts_with(hanja))
+                .map(|(hanja, reading)| gukhanmun_core::Match {
+                    byte_len: hanja.len(),
+                    reading: reading.into(),
+                    mark: MatchMark::default(),
+                }),
+        )
+    }
+
+    fn max_word_chars(&self) -> Option<usize> {
+        self.max_word_chars
     }
 }
 
