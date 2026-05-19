@@ -1,9 +1,8 @@
 //! Dictionary builder support for `gukhanmun-mkdict`.
 //!
-//! The crate owns the canonical TSV parser and the first on-disk FST
-//! dictionary format. The public reader API exists so integration tests and
-//! future backend crates can verify files built by the CLI before the stable
-//! `gukhanmun-fst` backend is split out.
+//! The crate owns the canonical TSV parser and writer for the first on-disk
+//! FST dictionary format. Runtime lookup is handled by the `gukhanmun-fst`
+//! backend crate.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -11,12 +10,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
-use std::io::{BufRead, BufReader, Cursor, Read};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use ciborium::{de::from_reader, ser::into_writer};
-use fst::{Map, MapBuilder};
+use ciborium::ser::into_writer;
+use fst::MapBuilder;
+use gukhanmun_fst::FstDictionary;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -26,11 +26,11 @@ const FORMAT_VERSION: u32 = 1;
 const FIXED_HEADER_LEN: usize = 64;
 const MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
 const MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
-const VALUE_READING_LEN_MASK: u64 = 0xffff;
 const VALUE_MARK_SHIFT: u64 = 16;
 const VALUE_OFFSET_SHIFT: u64 = 24;
 const VALUE_MAX_OFFSET: u64 = (1u64 << 40) - 1;
-const RESERVED_METADATA_KEYS: &[&str] = &["entry_count", "version"];
+const RESERVED_METADATA_KEYS: &[&str] =
+    &["entry_count", "version", "max_word_chars", "max_key_bytes"];
 
 /// The maximum accepted UTF-8 key length when the CLI option is omitted.
 pub const DEFAULT_MAX_KEY_BYTES: usize = 1024;
@@ -130,101 +130,6 @@ impl Default for BuildOptions {
     }
 }
 
-/// A decoded entry returned from an FST dictionary lookup.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LookupEntry {
-    reading: String,
-    mark: EntryMark,
-}
-
-impl LookupEntry {
-    /// Returns the hangul reading stored for the matched key.
-    pub fn reading(&self) -> &str {
-        &self.reading
-    }
-
-    /// Returns dictionary-provided rendering constraints.
-    pub fn mark(&self) -> EntryMark {
-        self.mark
-    }
-}
-
-/// Reader for the first `gukhanmun-mkdict` FST file format.
-///
-/// This is a verification reader rather than the long-term engine backend.
-/// `PLAN-4.2` can reuse the file layout and lift the lookup logic into the
-/// dedicated `gukhanmun-fst` crate.
-#[derive(Clone, Debug)]
-pub struct FstDictionary {
-    metadata: BTreeMap<String, String>,
-    map: Map<Vec<u8>>,
-    readings: Vec<u8>,
-}
-
-impl FstDictionary {
-    /// Opens a dictionary file from disk.
-    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let bytes = fs::read(path.as_ref())
-            .with_context(|| format!("failed to read {}", path.as_ref().display()))?;
-        Self::from_bytes(bytes)
-    }
-
-    /// Decodes a dictionary file from an owned byte buffer.
-    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
-        let header = FixedHeader::parse(&bytes)?;
-        let metadata_bytes = checked_slice(&bytes, header.metadata_offset, header.metadata_len)
-            .context("metadata range is outside the file")?;
-        let metadata = from_reader::<BTreeMap<String, String>, _>(metadata_bytes)
-            .context("failed to decode dictionary metadata")?;
-        let fst_bytes = checked_slice(&bytes, header.fst_offset, header.fst_len)
-            .context("FST range is outside the file")?;
-        let readings = checked_slice(&bytes, header.readings_offset, header.readings_len)
-            .context("reading table range is outside the file")?
-            .to_vec();
-        let map = Map::new(fst_bytes.to_vec()).context("failed to decode FST map")?;
-
-        Ok(Self {
-            metadata,
-            map,
-            readings,
-        })
-    }
-
-    /// Returns the metadata embedded in the dictionary file.
-    pub fn metadata(&self) -> &BTreeMap<String, String> {
-        &self.metadata
-    }
-
-    /// Returns the number of dictionary entries recorded at build time.
-    pub fn entry_count(&self) -> u64 {
-        self.metadata
-            .get("entry_count")
-            .and_then(|count| count.parse().ok())
-            .unwrap_or(0)
-    }
-
-    /// Looks up an exact hanja key in the FST dictionary.
-    pub fn lookup(&self, hanja: &str) -> Result<Option<LookupEntry>> {
-        let Some(encoded) = self.map.get(hanja.as_bytes()) else {
-            return Ok(None);
-        };
-        let (reading_len, mark, reading_offset) = decode_value(encoded);
-        let reading_start = usize::try_from(reading_offset).context("reading offset too large")?;
-        let reading_end = reading_start
-            .checked_add(usize::from(reading_len))
-            .context("reading range overflow")?;
-        let reading_bytes = self
-            .readings
-            .get(reading_start..reading_end)
-            .ok_or_else(|| anyhow!("reading range is outside the reading table"))?;
-        let reading = std::str::from_utf8(reading_bytes)
-            .context("reading table contains invalid UTF-8")?
-            .to_owned();
-
-        Ok(Some(LookupEntry { reading, mark }))
-    }
-}
-
 /// Builds a dictionary file from canonical TSV inputs.
 pub fn build_dictionary(
     input_paths: &[PathBuf],
@@ -240,13 +145,14 @@ pub fn build_dictionary(
     }
 
     let entries = read_and_merge_inputs(input_paths, options)?;
-    let metadata = build_metadata(&options.metadata, entries.len())?;
+    let metadata = build_metadata(&options.metadata, &entries)?;
     let bytes = build_fst_bytes(&entries, &metadata)?;
     fs::write(output_path.as_ref(), &bytes)
         .with_context(|| format!("failed to write {}", output_path.as_ref().display()))?;
 
     if options.validate {
-        let dictionary = FstDictionary::open(output_path.as_ref())?;
+        let dictionary = FstDictionary::open(output_path.as_ref())
+            .with_context(|| format!("failed to validate {}", output_path.as_ref().display()))?;
         validate_round_trip(&entries, &dictionary)?;
     }
 
@@ -411,7 +317,7 @@ fn parse_optional_bool(fields: &[&str], index: Option<usize>, location: &str) ->
 
 fn build_metadata(
     user_metadata: &BTreeMap<String, String>,
-    entry_count: usize,
+    entries: &[DictionaryEntry],
 ) -> Result<BTreeMap<String, String>> {
     for key in RESERVED_METADATA_KEYS {
         ensure!(
@@ -436,8 +342,26 @@ fn build_metadata(
             .cloned()
             .unwrap_or_else(default_build_date),
     );
-    metadata.insert("entry_count".to_owned(), entry_count.to_string());
+    metadata.insert("entry_count".to_owned(), entries.len().to_string());
     metadata.insert("version".to_owned(), FORMAT_VERSION.to_string());
+    metadata.insert(
+        "max_word_chars".to_owned(),
+        entries
+            .iter()
+            .map(|entry| entry.hanja().chars().count())
+            .max()
+            .unwrap_or(0)
+            .to_string(),
+    );
+    metadata.insert(
+        "max_key_bytes".to_owned(),
+        entries
+            .iter()
+            .map(|entry| entry.hanja().len())
+            .max()
+            .unwrap_or(0)
+            .to_string(),
+    );
 
     for (key, value) in user_metadata {
         metadata.entry(key.clone()).or_insert_with(|| value.clone());
@@ -523,8 +447,11 @@ fn validate_round_trip(entries: &[DictionaryEntry], dictionary: &FstDictionary) 
                 entry.hanja()
             )
         })?;
+        let mark = actual.mark();
         ensure!(
-            actual.reading() == entry.reading() && actual.mark() == entry.mark(),
+            actual.reading() == entry.reading()
+                && mark.require_hanja == entry.mark().require_hanja
+                && mark.require_hangul == entry.mark().require_hangul,
             "round-trip validation failed for `{}`",
             entry.hanja()
         );
@@ -538,13 +465,6 @@ fn encode_value(reading_len: u16, mark: EntryMark, reading_offset: u64) -> u64 {
         | (reading_offset << VALUE_OFFSET_SHIFT)
 }
 
-fn decode_value(value: u64) -> (u16, EntryMark, u64) {
-    let reading_len = (value & VALUE_READING_LEN_MASK) as u16;
-    let mark = decode_mark(((value >> VALUE_MARK_SHIFT) & 0xff) as u8);
-    let reading_offset = value >> VALUE_OFFSET_SHIFT;
-    (reading_len, mark, reading_offset)
-}
-
 fn encode_mark(mark: EntryMark) -> u8 {
     let mut encoded = 0;
     if mark.require_hanja {
@@ -554,13 +474,6 @@ fn encode_mark(mark: EntryMark) -> u8 {
         encoded |= MARK_REQUIRE_HANGUL;
     }
     encoded
-}
-
-fn decode_mark(encoded: u8) -> EntryMark {
-    EntryMark {
-        require_hanja: encoded & MARK_REQUIRE_HANJA != 0,
-        require_hangul: encoded & MARK_REQUIRE_HANGUL != 0,
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -586,49 +499,6 @@ impl FixedHeader {
         output.extend_from_slice(&self.readings_len.to_le_bytes());
         debug_assert_eq!(output.len(), FIXED_HEADER_LEN);
     }
-
-    fn parse(bytes: &[u8]) -> Result<Self> {
-        ensure!(
-            bytes.len() >= FIXED_HEADER_LEN,
-            "dictionary file is shorter than the fixed header"
-        );
-        ensure!(&bytes[..8] == MAGIC, "invalid dictionary magic");
-        let version = read_u32(&bytes[8..12]);
-        ensure!(
-            version == FORMAT_VERSION,
-            "unsupported dictionary version {version}"
-        );
-        let header_len = read_u32(&bytes[12..16]);
-        ensure!(
-            header_len == FIXED_HEADER_LEN as u32,
-            "unsupported dictionary header length {header_len}"
-        );
-        let mut cursor = Cursor::new(&bytes[16..FIXED_HEADER_LEN]);
-        Ok(Self {
-            metadata_offset: read_next_u64(&mut cursor)?,
-            metadata_len: read_next_u64(&mut cursor)?,
-            fst_offset: read_next_u64(&mut cursor)?,
-            fst_len: read_next_u64(&mut cursor)?,
-            readings_offset: read_next_u64(&mut cursor)?,
-            readings_len: read_next_u64(&mut cursor)?,
-        })
-    }
-}
-
-fn read_u32(bytes: &[u8]) -> u32 {
-    u32::from_le_bytes(bytes.try_into().expect("slice has exactly four bytes"))
-}
-
-fn read_next_u64(cursor: &mut Cursor<&[u8]>) -> Result<u64> {
-    let mut bytes = [0; 8];
-    cursor.read_exact(&mut bytes)?;
-    Ok(u64::from_le_bytes(bytes))
-}
-
-fn checked_slice(bytes: &[u8], offset: u64, len: u64) -> Option<&[u8]> {
-    let offset = usize::try_from(offset).ok()?;
-    let len = usize::try_from(len).ok()?;
-    bytes.get(offset..offset.checked_add(len)?)
 }
 
 /// Parses one `KEY=VAL` metadata argument.
@@ -672,7 +542,7 @@ mod tests {
     fn rejects_reserved_metadata_keys() {
         let metadata = BTreeMap::from([("entry_count".to_owned(), "1".to_owned())]);
 
-        let error = build_metadata(&metadata, 0).unwrap_err();
+        let error = build_metadata(&metadata, &[]).unwrap_err();
 
         assert!(error.to_string().contains("reserved"));
     }

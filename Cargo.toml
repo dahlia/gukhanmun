@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/gukhanmun-core",
+    "crates/gukhanmun-fst",
     "crates/gukhanmun-mkdict",
     "crates/gukhanmun-unihan",
 ]

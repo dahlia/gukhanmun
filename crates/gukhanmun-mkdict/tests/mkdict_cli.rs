@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 use std::fs;
 
 use assert_cmd::Command;
-use gukhanmun_mkdict::FstDictionary;
+use gukhanmun_core::HanjaDictionary;
+use gukhanmun_fst::FstDictionary;
 use proptest::prop_assert_eq;
 use tempfile::tempdir;
 
@@ -44,6 +45,9 @@ fn builds_fst_with_metadata_and_lookup() {
         "1970-01-01T00:00:00Z"
     );
     assert_eq!(dictionary.entry_count(), 3);
+    assert_eq!(dictionary.metadata().get("max_word_chars").unwrap(), "3");
+    assert_eq!(dictionary.metadata().get("max_key_bytes").unwrap(), "9");
+    assert_eq!(dictionary.max_word_chars(), Some(3));
 
     let hanja = dictionary.lookup("漢字").unwrap().unwrap();
     assert_eq!(hanja.reading(), "한자");

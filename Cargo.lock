@@ -401,6 +401,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gukhanmun-fst"
+version = "0.1.0"
+dependencies = [
+ "ciborium",
+ "fst",
+ "gukhanmun-core",
+ "proptest",
+ "tempfile",
+]
+
+[[package]]
 name = "gukhanmun-mkdict"
 version = "0.1.0"
 dependencies = [
@@ -409,6 +420,8 @@ dependencies = [
  "ciborium",
  "clap",
  "fst",
+ "gukhanmun-core",
+ "gukhanmun-fst",
  "predicates",
  "proptest",
  "serde",

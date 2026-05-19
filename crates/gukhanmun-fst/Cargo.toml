@@ -1,0 +1,18 @@
+[package]
+name = "gukhanmun-fst"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "FST dictionary backend for gukhanmun."
+
+[dependencies]
+ciborium = "0.2.2"
+fst = "0.4.7"
+gukhanmun-core = { path = "../gukhanmun-core" }
+
+[dev-dependencies]
+proptest = "1.9.0"
+tempfile = "3.27.0"
