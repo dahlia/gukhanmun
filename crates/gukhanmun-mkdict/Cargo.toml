@@ -1,0 +1,28 @@
+[package]
+name = "gukhanmun-mkdict"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish = false
+description = "Builds gukhanmun dictionary backend files from canonical TSV input."
+
+[[bin]]
+name = "gukhanmun-mkdict"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.102"
+ciborium = "0.2.2"
+clap = { version = "4.6.1", features = ["derive"] }
+fst = "0.4.7"
+serde = { version = "1.0.228", features = ["derive"] }
+time = { version = "0.3.47", features = ["formatting"] }
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+predicates = "3.1.3"
+proptest = "1.9.0"
+tempfile = "3.27.0"
