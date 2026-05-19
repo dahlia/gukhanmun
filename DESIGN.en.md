@@ -250,9 +250,9 @@ is lattice.
 When no dictionary entry covers a hanja character, the fallback phoneticizer
 converts the character to hangul by looking up its canonical reading in the
 embedded Unihan-derived character map. The character map is built from the
-Unicode `kHangul` property and embedded in *gukhanmun-core* as a perfect-hash
-table; it covers approximately ten thousand hanja and adds roughly fifty
-kilobytes to the binary.
+Unicode `kHangul` property and embedded in *gukhanmun-core* as a generated
+sorted table queried by binary search. It covers thousands of hanja and keeps
+the default build independent of network access.
 
 For the first character of a word produced by the fallback, that is, the first
 character of a fallback-only run or the first character after a dictionary
@@ -367,7 +367,7 @@ should be hanja-annotated.
 `UnihanCharDict` is the per-character fallback, exposed as a `HanjaDictionary`
 so that the engine's interface is uniform: every lookup goes through
 `matches_at`, including the single-character base case. The implementation is a
-perfect-hash table generated at build time from the Unicode `kHangul` property.
+generated sorted table built from the Unicode `kHangul` property.
 
 `MapDictionary` is the in-memory dictionary used for user-supplied entries and
 small custom vocabularies. It is backed by an `fst::Map` rather than a hash

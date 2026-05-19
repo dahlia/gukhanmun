@@ -1,6 +1,7 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+use crate::generated::unihan_readings::KHANGUL_READINGS;
 use crate::{EngineOptions, NumeralStrategy};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -209,61 +210,10 @@ fn initial_sound_numeral_reading(ch: char) -> Option<&'static str> {
 }
 
 fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
-    Some(match ch {
-        '一' | '壹' | '壱' | '弌' | '夁' => "일",
-        '二' | '貳' | '贰' | '弐' | '弍' | '貮' => "이",
-        '三' | '參' | '叁' | '参' | '弎' | '叄' => "삼",
-        '四' | '肆' | '䦉' => "사",
-        '五' | '伍' => "오",
-        '六' | '陸' | '陆' => "륙",
-        '七' | '柒' | '漆' => "칠",
-        '八' | '捌' => "팔",
-        '九' | '玖' => "구",
-        '十' | '拾' => "십",
-        '百' | '佰' | '陌' => "백",
-        '千' | '仟' | '阡' => "천",
-        '萬' | '万' => "만",
-        '億' => "억",
-        '兆' => "조",
-        '京' => "경",
-        '垓' => "해",
-        '秭' => "자",
-        '穰' => "양",
-        '溝' => "구",
-        '澗' => "간",
-        '第' => "제",
-        '未' => "미",
-        '知' => "지",
-        '來' => "래",
-        '日' => "일",
-        '良' => "량",
-        '質' => "질",
-        '力' => "력",
-        '量' => "량",
-        '安' => "안",
-        '全' => "전",
-        '語' => "어",
-        '錄' => "록",
-        '理' => "리",
-        '論' => "론",
-        '法' => "법",
-        '律' => "률",
-        '列' => "렬",
-        '羅' => "라",
-        '序' => "서",
-        '規' => "규",
-        '自' => "자",
-        '前' => "전",
-        '韻' => "운",
-        '分' => "분",
-        '旋' => "선",
-        '年' => "년",
-        '共' => "공",
-        '和' => "화",
-        '國' => "국",
-        '圓' => "원",
-        _ => return None,
-    })
+    KHANGUL_READINGS
+        .binary_search_by_key(&ch, |(hanja, _)| *hanja)
+        .ok()
+        .map(|index| KHANGUL_READINGS[index].1)
 }
 
 fn numeral_reading(ch: char) -> Option<&'static str> {

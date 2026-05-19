@@ -1,0 +1,17 @@
+[package]
+name = "gukhanmun-unihan"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish = false
+description = "Generates gukhanmun-core fallback readings from Unicode Unihan data."
+
+[dependencies]
+sha2 = "0.10.9"
+zip = { version = "6.0.0", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+proptest = "1.9.0"

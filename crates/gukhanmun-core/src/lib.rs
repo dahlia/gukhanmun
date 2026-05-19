@@ -12,6 +12,7 @@
 extern crate alloc;
 
 mod fallback;
+mod generated;
 mod segment;
 
 use alloc::boxed::Box;
@@ -540,7 +541,9 @@ fn should_preserve_dictionary_context(source: &str, reading: &str, options: Engi
 
     if source.chars().all(is_hanja) {
         match fallback_reading_for_run(source, options) {
-            Some(fallback_reading) => fallback_reading == reading,
+            Some(fallback_reading) => {
+                fallback_reading == reading || has_one_hangul_syllable_per_hanja(source, reading)
+            }
             None => has_one_hangul_syllable_per_hanja(source, reading),
         }
     } else {

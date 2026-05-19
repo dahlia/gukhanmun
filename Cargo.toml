@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/gukhanmun-core"]
+members = ["crates/gukhanmun-core", "crates/gukhanmun-unihan"]
 resolver = "3"
 
 [workspace.package]

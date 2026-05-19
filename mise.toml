@@ -41,3 +41,11 @@ run = "cargo test --workspace"
 [tasks.doc]
 description = "Build Rust API documentation with warnings denied"
 run = 'RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps'
+
+[tasks.generate-unihan]
+description = "Regenerate Unihan kHangul fallback reading data"
+run = "cargo run -p gukhanmun-unihan --"
+
+[tasks.generate-unihan-check]
+description = "Check generated Unihan kHangul fallback reading data"
+run = "cargo run -p gukhanmun-unihan -- --check"

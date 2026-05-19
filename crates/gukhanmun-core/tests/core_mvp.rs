@@ -404,9 +404,72 @@ fn engine_preserves_text_inside_preserve_scope() {
 
 #[test]
 fn hanja_without_fallback_reading_is_preserved_as_text() {
-    let output = convert_plain_text("龥와 漢字", &sample_dictionary(), RenderMode::HangulOnly);
+    let output = convert_plain_text(
+        "\u{9FFF}와 漢字",
+        &sample_dictionary(),
+        RenderMode::HangulOnly,
+    );
 
-    assert_eq!(output, "龥와 한자");
+    assert_eq!(output, "\u{9FFF}와 한자");
+}
+
+#[test]
+fn fallback_phoneticizes_unihan_khangul_samples() {
+    let cases = [
+        ("學問", "학문"),
+        ("山川", "산천"),
+        ("龍馬", "용마"),
+        ("\u{349A}", "온"),
+    ];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn fallback_uses_pre_initial_sound_law_khangul_reading_as_canonical() {
+    let default = convert_plain_text("龍", &MapDictionary::new(), RenderMode::HangulOnly);
+    assert_eq!(default, "용");
+
+    let no_law = EngineOptions {
+        initial_sound_law: false,
+        numeral_strategy: NumeralStrategy::HangulPhonetic,
+    };
+    let output = convert_plain_text_with_options(
+        "龍",
+        &MapDictionary::new(),
+        RenderMode::HangulOnly,
+        no_law,
+    );
+
+    assert_eq!(output, "룡");
+}
+
+#[test]
+fn fallback_keeps_pre_initial_readings_inside_words() {
+    let cases = [("古老", "고로"), ("가老", "가로")];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        assert_eq!(output, expected);
+    }
+
+    let no_law = EngineOptions {
+        initial_sound_law: false,
+        numeral_strategy: NumeralStrategy::HangulPhonetic,
+    };
+    let output = convert_plain_text_with_options(
+        "老",
+        &MapDictionary::new(),
+        RenderMode::HangulOnly,
+        no_law,
+    );
+
+    assert_eq!(output, "로");
 }
 
 #[test]
@@ -422,7 +485,7 @@ fn fallback_only_hanja_is_phoneticized_with_initial_sound_law() {
 
 #[test]
 fn mixed_script_fallback_keeps_context_after_plain_text() {
-    let cases = [("가羅", "가라"), ("가來", "가래"), ("色깔論", "色깔론")];
+    let cases = [("가羅", "가라"), ("가來", "가래"), ("色깔論", "색깔론")];
 
     for (input, expected) in cases {
         let output = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
@@ -433,9 +496,10 @@ fn mixed_script_fallback_keeps_context_after_plain_text() {
 
 #[test]
 fn unmapped_hanja_inside_fallback_run_does_not_reset_word_start() {
-    let output = convert_plain_text("新羅", &MapDictionary::new(), RenderMode::HangulOnly);
+    let input = format!("\u{9FFF}{}", "羅");
+    let output = convert_plain_text(&input, &MapDictionary::new(), RenderMode::HangulOnly);
 
-    assert_eq!(output, "新라");
+    assert_eq!(output, format!("\u{9FFF}{}", "라"));
 }
 
 #[test]
@@ -547,6 +611,16 @@ fn fallback_keeps_context_after_prefix_dictionary_segments() {
 
         assert_eq!(output, expected);
     }
+}
+
+#[test]
+fn fallback_keeps_context_after_alternate_dictionary_readings() {
+    let mut dict = MapDictionary::new();
+    dict.insert("音樂", "음악");
+
+    let output = convert_plain_text("音樂律", &dict, RenderMode::HangulOnly);
+
+    assert_eq!(output, "음악률");
 }
 
 #[test]
@@ -904,7 +978,7 @@ proptest! {
     }
 
     #[test]
-    fn known_fallback_hanja_are_removed_from_hangul_only_output(input in "[未知來日良質力量安全語錄理論法律一列羅序規律自前韻分旋千九百八十六年第共和國拾萬圓參佰仟]{1,12}") {
+    fn known_fallback_hanja_are_removed_from_hangul_only_output(input in "[未知來日良質力量安全語錄理論法律一列羅序規律自前韻分旋千九百八十六年第共和國拾萬圓參佰仟學問山川龍馬㒚]{1,12}") {
         let output = convert_plain_text(&input, &MapDictionary::new(), RenderMode::HangulOnly);
 
         prop_assert!(!output.chars().any(gukhanmun_core::is_hanja));
