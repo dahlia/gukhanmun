@@ -3,6 +3,7 @@ members = [
     "crates/gukhanmun-core",
     "crates/gukhanmun-fst",
     "crates/gukhanmun-mkdict",
+    "crates/gukhanmun-stdict",
     "crates/gukhanmun-unihan",
 ]
 resolver = "3"

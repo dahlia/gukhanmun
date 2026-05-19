@@ -62,16 +62,19 @@ Build metadata
 
 Every generated backend file embeds CBOR metadata. The minimum keys are:
 
-| Key           | Source                                                                       |
-| ------------- | ---------------------------------------------------------------------------- |
-| `source`      | `--metadata source=...`, or an empty string.                                 |
-| `license`     | `--metadata license=...`, or an empty string.                                |
-| `build_date`  | `--metadata build_date=...`, `SOURCE_DATE_EPOCH`, or `1970-01-01T00:00:00Z`. |
-| `entry_count` | Number of merged dictionary entries.                                         |
-| `version`     | Dictionary file format version.                                              |
+| Key              | Source                                                                       |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `source`         | `--metadata source=...`, or an empty string.                                 |
+| `license`        | `--metadata license=...`, or an empty string.                                |
+| `build_date`     | `--metadata build_date=...`, `SOURCE_DATE_EPOCH`, or `1970-01-01T00:00:00Z`. |
+| `entry_count`    | Number of merged dictionary entries.                                         |
+| `version`        | Dictionary file format version.                                              |
+| `max_word_chars` | Maximum key length in Unicode scalar values.                                 |
+| `max_key_bytes`  | Maximum key length in UTF-8 bytes.                                           |
 
-`entry_count` and `version` are reserved and cannot be supplied with
-`--metadata`. Other `--metadata KEY=VAL` pairs are preserved as string values.
+`entry_count`, `version`, `max_word_chars`, and `max_key_bytes` are reserved
+and cannot be supplied with `--metadata`. Other `--metadata KEY=VAL` pairs are
+preserved as string values.
 
 For reproducible builds, the builder does not use the current clock by default.
 If `build_date` is not passed explicitly and `SOURCE_DATE_EPOCH` is set, the
@@ -119,6 +122,6 @@ because FST values are fixed-width integers.
 Validation
 ----------
 
-With `--validate`, `gukhanmun-mkdict` writes the output, opens it again with the
-same file reader, and checks that every merged TSV entry can be recovered with
-the same reading and mark bits. Validation failure is fatal.
+With `--validate`, `gukhanmun-mkdict` writes the output, opens it again with
+the `gukhanmun-fst` backend, and checks that every merged TSV entry can be
+recovered with the same reading and mark bits. Validation failure is fatal.
