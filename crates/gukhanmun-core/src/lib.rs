@@ -15,7 +15,7 @@ mod fallback;
 mod segment;
 
 use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
@@ -148,13 +148,14 @@ pub struct Annotation {
     /// The hangul reading selected for the hanja text.
     pub reading: String,
 
-    /// Whether another known hanja form shares this reading.
+    /// Whether another hanja form in the active context shares this reading.
     pub homophone: bool,
 
-    /// Whether the original hanja should be visible in rendered output.
+    /// Whether rendered output must keep the original hanja visible.
     pub require_hanja: bool,
 
-    /// Whether a hangul gloss should be visible when hanja remains primary.
+    /// Whether rendered output must include a hangul gloss when hanja remains
+    /// primary.
     pub require_hangul: bool,
 
     /// Whether this is the first occurrence in the active context window.
@@ -442,7 +443,7 @@ fn process_text<S, D>(
                 let source = &text[*byte_start..*byte_end];
                 output.push(OutputToken::Annotated(Annotation {
                     hanja: source.to_string(),
-                    homophone: dictionary.has_homophone(source, reading),
+                    homophone: false,
                     reading: reading.clone(),
                     require_hanja: mark.require_hanja,
                     require_hangul: mark.require_hangul,
@@ -620,6 +621,218 @@ pub enum RenderMode {
 
     /// Always emits hangul followed by the original hanja in parentheses.
     HangulHanjaParens,
+
+    /// Always emits original hanja followed by the hangul reading in
+    /// parentheses.
+    HanjaHangulParens,
+
+    /// Emits original hanja, adding a hangul gloss only when requested.
+    Original,
+}
+
+/// The context boundary used by stateful annotation middlewares.
+///
+/// `PerBlock` resets when a scope reports [`ScopeData::is_block_boundary`].
+/// Plain-text streams have no block scopes, so they behave like one document
+/// context.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ContextWindow {
+    /// Disable the middleware and leave tokens unchanged.
+    Off,
+
+    /// Reset state at format-adapter block boundaries.
+    PerBlock,
+
+    /// Use the entire token stream as one context.
+    PerDocument,
+}
+
+/// Literal user rules that force annotation presentation flags.
+///
+/// This early directive type intentionally supports only literal hanja sets.
+/// It adjusts policy flags and leaves rendering form decisions to
+/// [`render_tokens`].
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct UserDirectives {
+    require_hanja: BTreeSet<String>,
+    require_hangul: BTreeSet<String>,
+}
+
+impl UserDirectives {
+    /// Creates an empty directive set.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Marks a literal hanja form as requiring visible hanja in output.
+    pub fn require_hanja(&mut self, hanja: impl Into<String>) {
+        self.require_hanja.insert(hanja.into());
+    }
+
+    /// Marks a literal hanja form as requiring a visible hangul gloss.
+    pub fn require_hangul(&mut self, hanja: impl Into<String>) {
+        self.require_hangul.insert(hanja.into());
+    }
+
+    /// Returns whether no literal directive rules are configured.
+    pub fn is_empty(&self) -> bool {
+        self.require_hanja.is_empty() && self.require_hangul.is_empty()
+    }
+}
+
+/// Sets `homophone` on dictionary annotations sharing a reading in context.
+///
+/// The marker looks only at dictionary-backed annotations that actually appear
+/// in the stream. It does not ask the dictionary whether other unseen words
+/// share the same reading, and it ignores fallback annotations because those
+/// are phonetic fragments rather than known lexical homophones.
+pub fn mark_homophones<S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    window: ContextWindow,
+) -> Vec<OutputToken<S>>
+where
+    S: ScopeData,
+{
+    apply_contexts(tokens, window, mark_homophones_in_context)
+}
+
+/// Clears repeat gloss requirements after the first occurrence of each hanja.
+///
+/// The first occurrence key is the original hanja form. Later annotations for
+/// the same form have `first_in_context` set to false and no longer require
+/// either side to be shown.
+pub fn filter_first_occurrences<S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    window: ContextWindow,
+) -> Vec<OutputToken<S>>
+where
+    S: ScopeData,
+{
+    apply_contexts(tokens, window, filter_first_occurrences_in_context)
+}
+
+/// Applies literal user directives to annotation policy flags.
+///
+/// Rules only set flags; they do not render, remove, or reorder tokens.
+pub fn apply_user_directives<S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    directives: &UserDirectives,
+) -> Vec<OutputToken<S>> {
+    tokens
+        .into_iter()
+        .map(|token| match token {
+            OutputToken::Annotated(mut annotation) => {
+                if directives.require_hanja.contains(&annotation.hanja) {
+                    annotation.require_hanja = true;
+                }
+                if directives.require_hangul.contains(&annotation.hanja) {
+                    annotation.require_hangul = true;
+                }
+                OutputToken::Annotated(annotation)
+            }
+            token => token,
+        })
+        .collect()
+}
+
+fn apply_contexts<S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    window: ContextWindow,
+    mut apply: impl FnMut(&mut [OutputToken<S>]),
+) -> Vec<OutputToken<S>>
+where
+    S: ScopeData,
+{
+    match window {
+        ContextWindow::Off => tokens.into_iter().collect(),
+        ContextWindow::PerDocument => {
+            let mut tokens = tokens.into_iter().collect::<Vec<_>>();
+            apply(&mut tokens);
+            tokens
+        }
+        ContextWindow::PerBlock => {
+            let mut output = Vec::new();
+            let mut context = Vec::new();
+            let mut scope_boundaries = Vec::new();
+
+            for token in tokens {
+                match &token {
+                    OutputToken::Open(scope) => {
+                        let is_boundary = scope.data().is_block_boundary();
+                        if is_boundary {
+                            flush_context(&mut context, &mut output, &mut apply);
+                        }
+                        scope_boundaries.push(is_boundary);
+                        context.push(token);
+                    }
+                    OutputToken::Close => {
+                        let closes_boundary = scope_boundaries.pop().unwrap_or(false);
+                        context.push(token);
+                        if closes_boundary {
+                            flush_context(&mut context, &mut output, &mut apply);
+                        }
+                    }
+                    _ => context.push(token),
+                }
+            }
+
+            flush_context(&mut context, &mut output, &mut apply);
+            output
+        }
+    }
+}
+
+fn flush_context<S>(
+    context: &mut Vec<OutputToken<S>>,
+    output: &mut Vec<OutputToken<S>>,
+    apply: &mut impl FnMut(&mut [OutputToken<S>]),
+) {
+    if context.is_empty() {
+        return;
+    }
+
+    apply(context);
+    output.append(context);
+}
+
+fn mark_homophones_in_context<S>(tokens: &mut [OutputToken<S>]) {
+    let mut forms_by_reading = BTreeMap::<String, BTreeSet<String>>::new();
+
+    for token in tokens.iter() {
+        if let OutputToken::Annotated(annotation) = token
+            && annotation.from_dictionary
+        {
+            forms_by_reading
+                .entry(annotation.reading.clone())
+                .or_default()
+                .insert(annotation.hanja.clone());
+        }
+    }
+
+    for token in tokens.iter_mut() {
+        if let OutputToken::Annotated(annotation) = token {
+            annotation.homophone = annotation.from_dictionary
+                && forms_by_reading
+                    .get(&annotation.reading)
+                    .is_some_and(|forms| forms.len() > 1);
+        }
+    }
+}
+
+fn filter_first_occurrences_in_context<S>(tokens: &mut [OutputToken<S>]) {
+    let mut seen = BTreeSet::new();
+
+    for token in tokens.iter_mut() {
+        if let OutputToken::Annotated(annotation) = token {
+            if seen.insert(annotation.hanja.clone()) {
+                annotation.first_in_context = true;
+            } else {
+                annotation.first_in_context = false;
+                annotation.require_hanja = false;
+                annotation.require_hangul = false;
+            }
+        }
+    }
 }
 
 /// Renders engine output tokens into annotation-free tokens.
@@ -651,6 +864,11 @@ fn render_annotation(annotation: &Annotation, mode: RenderMode) -> String {
         }
         RenderMode::HangulOnly => annotation.reading.clone(),
         RenderMode::HangulHanjaParens => parens(&annotation.reading, &annotation.hanja),
+        RenderMode::HanjaHangulParens => parens(&annotation.hanja, &annotation.reading),
+        RenderMode::Original if annotation.require_hangul => {
+            parens(&annotation.hanja, &annotation.reading)
+        }
+        RenderMode::Original => annotation.hanja.clone(),
     }
 }
 
@@ -689,6 +907,7 @@ where
 {
     let input_tokens = read_plain_text(input);
     let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
+    let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
     let rendered_tokens = render_tokens(output_tokens, mode);
     write_plain_text(rendered_tokens)
 }

@@ -1,8 +1,9 @@
 use gukhanmun_core::{
-    Annotation, EngineOptions, HanjaDictionary, InputToken, MapDictionary, MatchMark,
-    NumeralStrategy, OutputToken, PlainScopeData, RenderMode, RenderedToken, Scope, ScopeData,
-    convert_plain_text, convert_plain_text_with_options, process_tokens, read_plain_text,
-    render_tokens, write_plain_text,
+    Annotation, ContextWindow, EngineOptions, HanjaDictionary, InputToken, MapDictionary,
+    MatchMark, NumeralStrategy, OutputToken, PlainScopeData, RenderMode, RenderedToken, Scope,
+    ScopeData, UserDirectives, apply_user_directives, convert_plain_text,
+    convert_plain_text_with_options, filter_first_occurrences, mark_homophones, process_tokens,
+    read_plain_text, render_tokens, write_plain_text,
 };
 use proptest::prelude::*;
 use std::cell::Cell;
@@ -73,6 +74,18 @@ fn mixed_script_dictionary() -> MapDictionary {
     dict
 }
 
+fn annotation(hanja: &str, reading: &str) -> Annotation {
+    Annotation {
+        hanja: hanja.into(),
+        reading: reading.into(),
+        homophone: false,
+        require_hanja: false,
+        require_hangul: false,
+        first_in_context: true,
+        from_dictionary: true,
+    }
+}
+
 #[test]
 fn converts_plain_text_to_hangul_only() {
     let output = convert_plain_text(
@@ -96,6 +109,40 @@ fn converts_plain_text_to_hangul_hanja_parens() {
 }
 
 #[test]
+fn renders_hanja_hangul_parens() {
+    let output = convert_plain_text(
+        "天地玄黃과 漢字",
+        &sample_dictionary(),
+        RenderMode::HanjaHangulParens,
+    );
+
+    assert_eq!(output, "天地(천지)玄黃(현황)과 漢字(한자)");
+}
+
+#[test]
+fn original_renderer_keeps_hanja_unless_hangul_is_required() {
+    let tokens = vec![
+        OutputToken::<PlainScopeData>::Annotated(annotation("天地", "천지")),
+        OutputToken::Text(" ".into()),
+        OutputToken::Annotated(Annotation {
+            require_hangul: true,
+            ..annotation("漢字", "한자")
+        }),
+    ];
+
+    let rendered = render_tokens(tokens, RenderMode::Original);
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Text("天地".into()),
+            RenderedToken::Text(" ".into()),
+            RenderedToken::Text("漢字(한자)".into()),
+        ]
+    );
+}
+
+#[test]
 fn hangul_only_keeps_required_or_homophonous_hanja_in_parens() {
     let mut dict = MapDictionary::new();
     dict.insert_marked(
@@ -111,6 +158,23 @@ fn hangul_only_keeps_required_or_homophonous_hanja_in_parens() {
     let output = convert_plain_text("漢字와 翰字", &dict, RenderMode::HangulOnly);
 
     assert_eq!(output, "한자(漢字)와 한자(翰字)");
+}
+
+#[test]
+fn engine_leaves_homophone_policy_to_middleware() {
+    let mut dict = MapDictionary::new();
+    dict.insert("漢字", "한자");
+    dict.insert("翰字", "한자");
+
+    let output = process_tokens(
+        vec![InputToken::<PlainScopeData>::Text("漢字".into())],
+        &dict,
+    );
+
+    assert_eq!(
+        output,
+        vec![OutputToken::Annotated(annotation("漢字", "한자"))]
+    );
 }
 
 #[test]
@@ -299,18 +363,26 @@ fn dictionary_without_max_word_length_can_match_mixed_script_entries() {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct TestScopeData {
     preserve: bool,
+    block_boundary: bool,
 }
 
 impl ScopeData for TestScopeData {
     fn is_preserve(&self) -> bool {
         self.preserve
     }
+
+    fn is_block_boundary(&self) -> bool {
+        self.block_boundary
+    }
 }
 
 #[test]
 fn engine_preserves_text_inside_preserve_scope() {
     let tokens = vec![
-        InputToken::Open(Scope::new(TestScopeData { preserve: true })),
+        InputToken::Open(Scope::new(TestScopeData {
+            preserve: true,
+            block_boundary: false,
+        })),
         InputToken::Text("漢字".into()),
         InputToken::Close,
     ];
@@ -320,7 +392,10 @@ fn engine_preserves_text_inside_preserve_scope() {
     assert_eq!(
         output,
         vec![
-            OutputToken::Open(Scope::new(TestScopeData { preserve: true })),
+            OutputToken::Open(Scope::new(TestScopeData {
+                preserve: true,
+                block_boundary: false,
+            })),
             OutputToken::Text("漢字".into()),
             OutputToken::Close,
         ]
@@ -577,6 +652,186 @@ fn renderer_removes_annotations_from_the_stream() {
     assert_eq!(rendered, vec![RenderedToken::Text("한자".into())]);
 }
 
+#[test]
+fn homophone_marker_uses_forms_that_appear_in_the_same_context() {
+    let tokens = vec![
+        OutputToken::<PlainScopeData>::Annotated(annotation("漢字", "한자")),
+        OutputToken::Text("와 ".into()),
+        OutputToken::Annotated(annotation("翰字", "한자")),
+        OutputToken::Text("와 ".into()),
+        OutputToken::Annotated(annotation("天地", "천지")),
+    ];
+
+    let marked = mark_homophones(tokens, ContextWindow::PerDocument);
+
+    assert_eq!(
+        marked,
+        vec![
+            OutputToken::Annotated(Annotation {
+                homophone: true,
+                ..annotation("漢字", "한자")
+            }),
+            OutputToken::Text("와 ".into()),
+            OutputToken::Annotated(Annotation {
+                homophone: true,
+                ..annotation("翰字", "한자")
+            }),
+            OutputToken::Text("와 ".into()),
+            OutputToken::Annotated(annotation("天地", "천지")),
+        ]
+    );
+}
+
+#[test]
+fn homophone_marker_resets_at_block_boundaries() {
+    let block = TestScopeData {
+        preserve: false,
+        block_boundary: true,
+    };
+    let tokens = vec![
+        OutputToken::Open(Scope::new(block.clone())),
+        OutputToken::Annotated(annotation("漢字", "한자")),
+        OutputToken::Close,
+        OutputToken::Open(Scope::new(block)),
+        OutputToken::Annotated(annotation("翰字", "한자")),
+        OutputToken::Close,
+    ];
+
+    let marked = mark_homophones(tokens.clone(), ContextWindow::PerBlock);
+
+    assert_eq!(marked, tokens);
+}
+
+#[test]
+fn homophone_marker_resets_at_nested_block_boundaries() {
+    let block = TestScopeData {
+        preserve: false,
+        block_boundary: true,
+    };
+    let tokens = vec![
+        OutputToken::Open(Scope::new(block.clone())),
+        OutputToken::Open(Scope::new(block.clone())),
+        OutputToken::Annotated(annotation("漢字", "한자")),
+        OutputToken::Close,
+        OutputToken::Open(Scope::new(block)),
+        OutputToken::Annotated(annotation("翰字", "한자")),
+        OutputToken::Close,
+        OutputToken::Close,
+    ];
+
+    let marked = mark_homophones(tokens.clone(), ContextWindow::PerBlock);
+
+    assert_eq!(marked, tokens);
+}
+
+#[test]
+fn first_occurrence_filter_clears_repeated_form_requirements() {
+    let tokens = vec![
+        OutputToken::<PlainScopeData>::Annotated(Annotation {
+            require_hanja: true,
+            require_hangul: true,
+            ..annotation("漢字", "한자")
+        }),
+        OutputToken::Text(" ".into()),
+        OutputToken::Annotated(Annotation {
+            require_hanja: true,
+            require_hangul: true,
+            ..annotation("翰字", "한자")
+        }),
+        OutputToken::Text(" ".into()),
+        OutputToken::Annotated(Annotation {
+            require_hanja: true,
+            require_hangul: true,
+            ..annotation("漢字", "한자")
+        }),
+    ];
+
+    let filtered = filter_first_occurrences(tokens, ContextWindow::PerDocument);
+
+    assert_eq!(
+        filtered,
+        vec![
+            OutputToken::Annotated(Annotation {
+                require_hanja: true,
+                require_hangul: true,
+                first_in_context: true,
+                ..annotation("漢字", "한자")
+            }),
+            OutputToken::Text(" ".into()),
+            OutputToken::Annotated(Annotation {
+                require_hanja: true,
+                require_hangul: true,
+                first_in_context: true,
+                ..annotation("翰字", "한자")
+            }),
+            OutputToken::Text(" ".into()),
+            OutputToken::Annotated(Annotation {
+                require_hanja: false,
+                require_hangul: false,
+                first_in_context: false,
+                ..annotation("漢字", "한자")
+            }),
+        ]
+    );
+}
+
+#[test]
+fn first_occurrence_filter_resets_at_nested_block_boundaries() {
+    let block = TestScopeData {
+        preserve: false,
+        block_boundary: true,
+    };
+    let required = || Annotation {
+        require_hanja: true,
+        require_hangul: true,
+        ..annotation("漢字", "한자")
+    };
+    let tokens = vec![
+        OutputToken::Open(Scope::new(block.clone())),
+        OutputToken::Open(Scope::new(block.clone())),
+        OutputToken::Annotated(required()),
+        OutputToken::Close,
+        OutputToken::Open(Scope::new(block)),
+        OutputToken::Annotated(required()),
+        OutputToken::Close,
+        OutputToken::Close,
+    ];
+
+    let filtered = filter_first_occurrences(tokens.clone(), ContextWindow::PerBlock);
+
+    assert_eq!(filtered, tokens);
+}
+
+#[test]
+fn user_directives_mark_literal_hanja_forms_without_rendering_them() {
+    let mut directives = UserDirectives::new();
+    directives.require_hanja("漢字");
+    directives.require_hangul("天地");
+
+    let tokens = vec![
+        OutputToken::<PlainScopeData>::Annotated(annotation("漢字", "한자")),
+        OutputToken::Text(" ".into()),
+        OutputToken::Annotated(annotation("天地", "천지")),
+    ];
+
+    let directed = apply_user_directives(tokens, &directives);
+
+    assert_eq!(
+        directed,
+        vec![
+            OutputToken::Annotated(Annotation {
+                require_hanja: true,
+                ..annotation("漢字", "한자")
+            }),
+            OutputToken::Text(" ".into()),
+            OutputToken::Annotated(Annotation {
+                require_hangul: true,
+                ..annotation("天地", "천지")
+            }),
+        ]
+    );
+}
+
 proptest! {
     #[test]
     fn non_hanja_plain_text_is_unchanged(input in "[A-Za-z0-9가-힣 .,!?()「」]*") {
@@ -653,6 +908,43 @@ proptest! {
         let output = convert_plain_text(&input, &MapDictionary::new(), RenderMode::HangulOnly);
 
         prop_assert!(!output.chars().any(gukhanmun_core::is_hanja));
+    }
+
+    #[test]
+    fn renderer_never_emits_unrendered_annotations(
+        hanja in "[一-龥]{1,4}",
+        reading in "[가-힣]{1,6}",
+        require_hanja in any::<bool>(),
+        require_hangul in any::<bool>(),
+        homophone in any::<bool>(),
+        mode in 0u8..4,
+    ) {
+        let mode = match mode {
+            0 => RenderMode::HangulOnly,
+            1 => RenderMode::HangulHanjaParens,
+            2 => RenderMode::HanjaHangulParens,
+            _ => RenderMode::Original,
+        };
+        let rendered = render_tokens(
+            vec![OutputToken::<PlainScopeData>::Annotated(Annotation {
+                hanja,
+                reading,
+                homophone,
+                require_hanja,
+                require_hangul,
+                first_in_context: true,
+                from_dictionary: true,
+            })],
+            mode,
+        );
+
+        prop_assert!(rendered.into_iter().all(|token| matches!(
+            token,
+            RenderedToken::Open(_)
+                | RenderedToken::Close
+                | RenderedToken::Text(_)
+                | RenderedToken::Verbatim(_)
+        )));
     }
 }
 
