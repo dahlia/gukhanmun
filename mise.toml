@@ -49,3 +49,7 @@ run = "cargo run -p gukhanmun-unihan --"
 [tasks.generate-unihan-check]
 description = "Check generated Unihan kHangul fallback reading data"
 run = "cargo run -p gukhanmun-unihan -- --check"
+
+[tasks.gukhanmun]
+description = "Run the gukhanmun plain-text CLI"
+run = "cargo run -p gukhanmun-cli --"
