@@ -428,6 +428,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gukhanmun-html"
+version = "0.1.0"
+dependencies = [
+ "gukhanmun-core",
+ "proptest",
+]
+
+[[package]]
 name = "gukhanmun-mkdict"
 version = "0.1.0"
 dependencies = [

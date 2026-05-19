@@ -167,14 +167,14 @@ pub trait ScopeData: Clone + 'static {
 }
 ~~~~
 
-The engine treats `is_preserve()` as the single point of truth for whether to
-skip a `Text` token: it walks the scope stack and asks each scope's
-`is_preserve()`. The HTML adapter's `ScopeData` implementation aggregates
-several concerns into that one flag: the `lang` attribute (inherited from
-ancestors and compared against a Korean predicate), the tag name (against the
-preserved-tag list of `pre`, `code`, `kbd`, `script`, `style`, and `textarea`),
-and any user-supplied predicate over raw attributes. The engine itself does not
-know what a `lang` attribute is.
+The engine treats the current scope's `is_preserve()` as the single point of
+truth for whether to skip a `Text` token. Adapters that need inheritance encode
+the effective answer in each opened scope. The HTML adapter's `ScopeData`
+implementation aggregates several concerns into that one flag: the inherited
+`lang` attribute compared against a Korean predicate, the current tag and
+preserved ancestors (against the preserved-tag list of `pre`, `code`, `kbd`,
+`script`, `style`, and `textarea`), and any user-supplied predicate over raw
+attributes. The engine itself does not know what a `lang` attribute is.
 
 This is a departure from Seonbi, which threads a parallel `LangHtmlEntity`
 annotation through the pipeline. We removed it because the engine never needs

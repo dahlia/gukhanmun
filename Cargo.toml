@@ -3,6 +3,7 @@ members = [
     "crates/gukhanmun-cli",
     "crates/gukhanmun-core",
     "crates/gukhanmun-fst",
+    "crates/gukhanmun-html",
     "crates/gukhanmun-mkdict",
     "crates/gukhanmun-stdict",
     "crates/gukhanmun-unihan",

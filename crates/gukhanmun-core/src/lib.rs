@@ -367,9 +367,9 @@ pub fn write_plain_text<S>(tokens: impl IntoIterator<Item = RenderedToken<S>>) -
 
 /// Processes input tokens with the default hanja conversion engine options.
 ///
-/// The engine preserves structural and verbatim tokens, skips text under any
-/// preserving scope, and uses lattice segmentation to annotate dictionary and
-/// fallback matches inside text tokens.
+/// The engine preserves structural and verbatim tokens, skips text when the
+/// current scope is preserving, and uses lattice segmentation to annotate
+/// dictionary and fallback matches inside text tokens.
 pub fn process_tokens<S, D>(
     tokens: impl IntoIterator<Item = InputToken<S>>,
     dictionary: &D,
@@ -408,7 +408,10 @@ where
                 output.push(OutputToken::Close);
             }
             InputToken::Text(text) => {
-                if scopes.iter().any(|scope| scope.data().is_preserve()) {
+                if scopes
+                    .last()
+                    .is_some_and(|scope| scope.data().is_preserve())
+                {
                     output.push(OutputToken::Text(text));
                 } else {
                     process_text(&text, dictionary, options, &mut output);

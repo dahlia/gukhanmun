@@ -403,6 +403,27 @@ fn engine_preserves_text_inside_preserve_scope() {
 }
 
 #[test]
+fn engine_uses_the_current_scope_preserve_flag() {
+    let tokens = vec![
+        InputToken::Open(Scope::new(TestScopeData {
+            preserve: true,
+            block_boundary: false,
+        })),
+        InputToken::Open(Scope::new(TestScopeData {
+            preserve: false,
+            block_boundary: false,
+        })),
+        InputToken::Text("漢字".into()),
+        InputToken::Close,
+        InputToken::Close,
+    ];
+
+    let output = process_tokens(tokens, &sample_dictionary());
+
+    assert!(output.contains(&OutputToken::Annotated(annotation("漢字", "한자"))));
+}
+
+#[test]
 fn hanja_without_fallback_reading_is_preserved_as_text() {
     let output = convert_plain_text(
         "\u{9FFF}와 漢字",

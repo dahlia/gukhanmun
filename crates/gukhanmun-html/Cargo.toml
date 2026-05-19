@@ -1,0 +1,15 @@
+[package]
+name = "gukhanmun-html"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "HTML fragment adapter for gukhanmun."
+
+[dependencies]
+gukhanmun-core = { path = "../gukhanmun-core" }
+
+[dev-dependencies]
+proptest = "1.9.0"
