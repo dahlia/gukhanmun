@@ -365,7 +365,7 @@ value = { is_complete: u8, mark: u8, reading_len: u16, reading: utf-8 }
 照會는 커서 位置에서 한 글字씩 進行한다. 失敗(miss)가 나면 이 位置에서 더 긴
 一致는 不可能하므로 巡廻를 終了한다. `is_complete = 1`로 一致하면 그 一致를
 yield한다; `is_complete = 0`으로 一致하면 더 긴 一致를 찾아 巡廻를 繼續한다.
-費用은 位置 當 $O(\\text{max\_word\_chars})$ 回의 CDB 照會이고, 各 照會는
+費用은 位置 當 $O(\\text{max\\\_word\\\_chars})$ 回의 CDB 照會이고, 各 照會는
 $O(1)$이다. 크기 費用은 實在한다: 各 項目의 모든 接頭辭가 한 레코드를
 차지하므로 內藏 stdict CDB는 原本 TSV의 約 2 倍이다. 折衷의 對價는 CDB의
 單純함이다(파일 形式 文書가 6 個 syscall 분량이고 公共 領域의 參照 具顯體들이
