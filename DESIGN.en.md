@@ -364,20 +364,25 @@ should be hanja-annotated.
 
 ### Built-in implementations
 
-`UnihanCharDict` is the per-character fallback, exposed as a `HanjaDictionary`
-so that the engine's interface is uniform: every lookup goes through
-`matches_at`, including the single-character base case. The implementation is a
-generated sorted table built from the Unicode `kHangul` property.
+`UnihanCharDict` exposes the per-character Unihan reading table as a
+`HanjaDictionary` so callers can compose those readings through the same public
+dictionary interface as other sources. It returns canonical pre-initial-sound-
+law readings from a generated sorted table built from the Unicode `kHangul`
+property; stateful fallback rules such as initial sound law and numeral
+grouping remain engine behavior.
 
-`MapDictionary` is the in-memory dictionary used for user-supplied entries and
-small custom vocabularies. It is backed by an `fst::Map` rather than a hash
-map: the FST gives ordered prefix iteration in microseconds and compresses
-well, which matters in WebAssembly bundles.
+`MapDictionary` is the small in-memory dictionary used for tests,
+programmatically supplied entries, and custom vocabularies that are already in
+process memory. It is backed by an ordered map so it stays dependency-light and
+usable in the `no_std` core crate. Callers that need compact serialized data,
+mmap-friendly loading, or large static dictionaries should use the
+`gukhanmun-fst` backend instead.
 
 `ChainDictionary` composes a sequence of dictionaries with a precedence policy.
-A typical configuration chains a small user dictionary (highest priority), a
-domain-specific dictionary, the *Standard Korean Language Dictionary*, and
-`UnihanCharDict` (lowest priority).
+A caller can chain a small user dictionary (highest priority), a
+domain-specific dictionary, the *Standard Korean Language Dictionary*, and, when
+canonical single-character dictionary matches are desired, `UnihanCharDict`
+(lowest priority).
 
 ### External backends
 

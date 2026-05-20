@@ -39,6 +39,7 @@ use alloc::vec::Vec;
 use fallback::{
     FallbackPart, FallbackState, fallback_reading_for_run, phoneticize_fallback_run_with_state,
 };
+use generated::unihan_readings::KHANGUL_READINGS;
 use segment::{Segment, segment_text};
 
 /// Error returned by fallible core pipeline entry points.
@@ -315,6 +316,177 @@ pub trait HanjaDictionary {
     fn has_homophone(&self, _hanja: &str, _reading: &str) -> bool {
         false
     }
+}
+
+impl<D> HanjaDictionary for &D
+where
+    D: HanjaDictionary + ?Sized,
+{
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        (**self).matches_at(s)
+    }
+
+    fn max_word_chars(&self) -> Option<usize> {
+        (**self).max_word_chars()
+    }
+
+    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        (**self).has_homophone(hanja, reading)
+    }
+}
+
+impl<D> HanjaDictionary for Box<D>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        (**self).matches_at(s)
+    }
+
+    fn max_word_chars(&self) -> Option<usize> {
+        (**self).max_word_chars()
+    }
+
+    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        (**self).has_homophone(hanja, reading)
+    }
+}
+
+/// Per-character Unihan fallback readings exposed as a dictionary.
+///
+/// This type reads the same generated `kHangul` table used by the engine's
+/// fallback phoneticizer, but it deliberately returns canonical pre-initial
+/// sound law readings. Stateful orthographic rules such as the initial sound
+/// law, `列`/`律`, and numeral grouping remain engine fallback behavior rather
+/// than dictionary behavior.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct UnihanCharDict;
+
+impl HanjaDictionary for UnihanCharDict {
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        let matched = s.chars().next().and_then(|ch| {
+            khangul_reading(ch).map(|reading| Match {
+                byte_len: ch.len_utf8(),
+                reading: reading.to_string(),
+                mark: MatchMark::default(),
+            })
+        });
+        Box::new(matched.into_iter())
+    }
+
+    fn max_word_chars(&self) -> Option<usize> {
+        Some(1)
+    }
+
+    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        let mut chars = hanja.chars();
+        let Some(hanja) = chars.next() else {
+            return false;
+        };
+        if chars.next().is_some() {
+            return false;
+        }
+        KHANGUL_READINGS
+            .iter()
+            .any(|&(other_hanja, other_reading)| other_hanja != hanja && other_reading == reading)
+    }
+}
+
+/// A dictionary composition that preserves caller-supplied priority order.
+///
+/// Dictionaries are stored from highest to lowest priority. During lookup,
+/// matches of different byte lengths are all returned so the lattice segmenter
+/// can still compare shorter high-priority entries with longer low-priority
+/// entries. When two dictionaries produce a match with the same byte length,
+/// only the first one is kept.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ChainDictionary<D> {
+    dictionaries: Vec<D>,
+}
+
+impl<D> ChainDictionary<D> {
+    /// Creates an empty chain.
+    pub fn new() -> Self {
+        Self {
+            dictionaries: Vec::new(),
+        }
+    }
+
+    /// Appends a dictionary with lower priority than the existing entries.
+    pub fn push(&mut self, dictionary: D) {
+        self.dictionaries.push(dictionary);
+    }
+
+    /// Returns the number of dictionaries in the chain.
+    pub fn len(&self) -> usize {
+        self.dictionaries.len()
+    }
+
+    /// Returns whether the chain contains no dictionaries.
+    pub fn is_empty(&self) -> bool {
+        self.dictionaries.is_empty()
+    }
+
+    /// Returns the chained dictionaries in priority order.
+    pub fn dictionaries(&self) -> &[D] {
+        &self.dictionaries
+    }
+
+    /// Consumes the chain and returns its dictionaries in priority order.
+    pub fn into_dictionaries(self) -> Vec<D> {
+        self.dictionaries
+    }
+}
+
+impl<D> FromIterator<D> for ChainDictionary<D> {
+    fn from_iter<T: IntoIterator<Item = D>>(iter: T) -> Self {
+        Self {
+            dictionaries: Vec::from_iter(iter),
+        }
+    }
+}
+
+impl<D> HanjaDictionary for ChainDictionary<D>
+where
+    D: HanjaDictionary,
+{
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        let mut seen_lengths = BTreeSet::new();
+        let mut matches = Vec::new();
+
+        for dictionary in &self.dictionaries {
+            for matched in dictionary.matches_at(s) {
+                if seen_lengths.insert(matched.byte_len) {
+                    matches.push(matched);
+                }
+            }
+        }
+
+        matches.sort_by_key(|matched| matched.byte_len);
+        Box::new(matches.into_iter())
+    }
+
+    fn max_word_chars(&self) -> Option<usize> {
+        let mut max = None;
+        for dictionary in &self.dictionaries {
+            let word_chars = dictionary.max_word_chars()?;
+            max = Some(max.map_or(word_chars, |current: usize| current.max(word_chars)));
+        }
+        max
+    }
+
+    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        self.dictionaries
+            .iter()
+            .any(|dictionary| dictionary.has_homophone(hanja, reading))
+    }
+}
+
+fn khangul_reading(ch: char) -> Option<&'static str> {
+    KHANGUL_READINGS
+        .binary_search_by_key(&ch, |(hanja, _)| *hanja)
+        .ok()
+        .map(|index| KHANGUL_READINGS[index].1)
 }
 
 /// Engine-level options that affect hanja conversion before rendering.

@@ -15,11 +15,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use gukhanmun_core::{
-    Annotation, ContextWindow, EngineOptions, Error as CoreError, HanjaDictionary, InputToken,
-    MapDictionary, MatchMark, NumeralStrategy, OutputToken, PlainScopeData, RecoverableInputError,
-    Recovery, RenderMode, RenderedToken, Scope, ScopeData, UserDirectives, apply_user_directives,
-    convert_plain_text, convert_plain_text_with_options, filter_first_occurrences, mark_homophones,
-    process_fallible_tokens, process_tokens, read_plain_text, render_tokens, write_plain_text,
+    Annotation, ChainDictionary, ContextWindow, EngineOptions, Error as CoreError, HanjaDictionary,
+    InputToken, MapDictionary, MatchMark, NumeralStrategy, OutputToken, PlainScopeData,
+    RecoverableInputError, Recovery, RenderMode, RenderedToken, Scope, ScopeData, UnihanCharDict,
+    UserDirectives, apply_user_directives, convert_plain_text, convert_plain_text_with_options,
+    filter_first_occurrences, mark_homophones, process_fallible_tokens, process_tokens,
+    read_plain_text, render_tokens, write_plain_text,
 };
 use proptest::prelude::*;
 use std::cell::Cell;
@@ -206,6 +207,90 @@ fn map_dictionary_returns_every_match_at_the_cursor() {
     assert_eq!(matches[0].reading, "행사");
     assert_eq!(matches[1].byte_len, "行事場".len());
     assert_eq!(matches[1].reading, "행사장");
+}
+
+#[test]
+fn unihan_char_dictionary_returns_single_canonical_character_matches() {
+    let matches: Vec<_> = UnihanCharDict.matches_at("龍馬").collect();
+
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].byte_len, "龍".len());
+    assert_eq!(matches[0].reading, "룡");
+    assert_eq!(matches[0].mark, MatchMark::default());
+    assert_eq!(UnihanCharDict.max_word_chars(), Some(1));
+    assert!(UnihanCharDict.has_homophone("漢", "한"));
+    assert!(!UnihanCharDict.has_homophone("龍馬", "룡마"));
+    assert!(UnihanCharDict.matches_at("가龍").next().is_none());
+}
+
+#[test]
+fn unihan_char_dictionary_matches_fallback_canonical_reading_without_initial_sound_law() {
+    let no_law = EngineOptions {
+        initial_sound_law: false,
+        numeral_strategy: NumeralStrategy::HangulPhonetic,
+    };
+    let cases = ["龍", "馬", "漢", "字", "\u{349A}"];
+
+    for input in cases {
+        let fallback = convert_plain_text_with_options(
+            input,
+            &MapDictionary::new(),
+            RenderMode::HangulOnly,
+            no_law,
+        );
+        let matches: Vec<_> = UnihanCharDict.matches_at(input).collect();
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].reading, fallback);
+    }
+}
+
+#[test]
+fn chain_dictionary_keeps_first_match_for_duplicate_lengths() {
+    let mut high = MapDictionary::new();
+    high.insert("漢字", "사용자");
+    high.insert("漢", "한");
+    let mut low = MapDictionary::new();
+    low.insert("漢字", "표준");
+    low.insert("漢字語", "한자어");
+    let chain = ChainDictionary::from_iter([high, low]);
+
+    let matches: Vec<_> = chain.matches_at("漢字語").collect();
+
+    assert_eq!(matches.len(), 3);
+    assert_eq!(
+        matches
+            .iter()
+            .map(|matched| matched.reading.as_str())
+            .collect::<Vec<_>>(),
+        vec!["한", "사용자", "한자어"]
+    );
+}
+
+#[test]
+fn chain_dictionary_allows_lattice_to_choose_lower_priority_longer_match() {
+    let mut high = MapDictionary::new();
+    high.insert("行事", "행사");
+    let mut low = MapDictionary::new();
+    low.insert("行事場", "행사장");
+    let chain = ChainDictionary::from_iter([high, low]);
+
+    let output = convert_plain_text("行事場", &chain, RenderMode::HangulHanjaParens);
+
+    assert_eq!(output, "행사장(行事場)");
+}
+
+#[test]
+fn chain_dictionary_reports_homophones_from_any_dictionary() {
+    let mut first = MapDictionary::new();
+    first.insert("天地", "천지");
+    let mut second = MapDictionary::new();
+    second.insert("漢字", "한자");
+    second.insert("翰字", "한자");
+    let chain = ChainDictionary::from_iter([first, second]);
+
+    assert!(chain.has_homophone("漢字", "한자"));
+    assert!(!chain.has_homophone("天地", "천지"));
 }
 
 #[test]
@@ -1066,6 +1151,25 @@ proptest! {
     }
 
     #[test]
+    fn chain_dictionary_max_word_chars_matches_component_policy(
+        values in prop::collection::vec(prop::option::of(0usize..20), 0..8),
+    ) {
+        let dictionaries = values
+            .iter()
+            .copied()
+            .map(MaxOnlyDictionary::new)
+            .collect::<Vec<_>>();
+        let chain = ChainDictionary::from_iter(dictionaries);
+        let expected = if values.iter().all(Option::is_some) {
+            values.into_iter().max().flatten()
+        } else {
+            None
+        };
+
+        prop_assert_eq!(chain.max_word_chars(), expected);
+    }
+
+    #[test]
     fn renderer_never_emits_unrendered_annotations(
         hanja in "[一-龥]{1,4}",
         reading in "[가-힣]{1,6}",
@@ -1191,5 +1295,29 @@ impl HanjaDictionary for OrderedDictionary {
             .iter()
             .map(|(hanja, _)| hanja.chars().count())
             .max()
+    }
+}
+
+#[derive(Clone, Debug)]
+struct MaxOnlyDictionary {
+    max_word_chars: Option<usize>,
+}
+
+impl MaxOnlyDictionary {
+    fn new(max_word_chars: Option<usize>) -> Self {
+        Self { max_word_chars }
+    }
+}
+
+impl HanjaDictionary for MaxOnlyDictionary {
+    fn matches_at<'a>(
+        &'a self,
+        _s: &'a str,
+    ) -> Box<dyn Iterator<Item = gukhanmun_core::Match> + 'a> {
+        Box::new(std::iter::empty())
+    }
+
+    fn max_word_chars(&self) -> Option<usize> {
+        self.max_word_chars
     }
 }

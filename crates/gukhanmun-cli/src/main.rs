@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::BTreeSet;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
@@ -23,7 +22,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, ValueEnum};
 use gukhanmun_cdb::CdbDictionary;
 use gukhanmun_core::{
-    ContextWindow, EngineOptions, HanjaDictionary, Match, NumeralStrategy, RenderMode,
+    ChainDictionary, ContextWindow, EngineOptions, HanjaDictionary, NumeralStrategy, RenderMode,
     mark_homophones, process_tokens_with_options, read_plain_text, render_tokens, write_plain_text,
 };
 use gukhanmun_fst::FstDictionary;
@@ -31,6 +30,8 @@ use gukhanmun_html::{read_html_fragment, write_html_fragment};
 use gukhanmun_markdown::{MarkdownVariant, read_markdown, write_markdown};
 
 const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
+
+type CliDictionary = ChainDictionary<Box<dyn HanjaDictionary>>;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -126,7 +127,7 @@ fn main() -> Result<()> {
 
 fn run(cli: Cli) -> Result<()> {
     let options = resolve_options(&cli)?;
-    let dictionary = CombinedDictionary::load(&cli.dictionaries, options.bundled_stdict)?;
+    let dictionary = load_dictionary(&cli.dictionaries, options.bundled_stdict)?;
     let format = cli.format.unwrap_or_else(|| {
         cli.input
             .as_deref()
@@ -162,7 +163,7 @@ fn run(cli: Cli) -> Result<()> {
 fn convert_file_in_place(
     input_path: &Path,
     output_path: &Path,
-    dictionary: &CombinedDictionary,
+    dictionary: &CliDictionary,
     options: ResolvedOptions,
     format: Format,
 ) -> Result<()> {
@@ -372,7 +373,7 @@ fn detect_format(path: &Path) -> Format {
 fn convert_document(
     input: impl BufRead,
     output: impl Write,
-    dictionary: &CombinedDictionary,
+    dictionary: &CliDictionary,
     options: ResolvedOptions,
     format: Format,
 ) -> Result<()> {
@@ -388,7 +389,7 @@ fn convert_document(
 fn convert_plain_stream(
     mut input: impl BufRead,
     mut output: impl Write,
-    dictionary: &CombinedDictionary,
+    dictionary: &CliDictionary,
     options: ResolvedOptions,
 ) -> Result<()> {
     let mut line = String::new();
@@ -409,11 +410,7 @@ fn convert_plain_stream(
     output.flush().context("failed to flush output")
 }
 
-fn convert_plain_line(
-    line: &str,
-    dictionary: &CombinedDictionary,
-    options: ResolvedOptions,
-) -> String {
+fn convert_plain_line(line: &str, dictionary: &CliDictionary, options: ResolvedOptions) -> String {
     let input_tokens = read_plain_text(line);
     let output_tokens = process_tokens_with_options(input_tokens, dictionary, options.engine);
     let output_tokens = match options.homophone_window {
@@ -427,7 +424,7 @@ fn convert_plain_line(
 fn convert_html(
     mut input: impl BufRead,
     mut output: impl Write,
-    dictionary: &CombinedDictionary,
+    dictionary: &CliDictionary,
     options: ResolvedOptions,
 ) -> Result<()> {
     let mut content = String::new();
@@ -463,7 +460,7 @@ fn markdown_format_options() -> hongdown::Options {
 fn convert_markdown_stream(
     mut input: impl BufRead,
     mut output: impl Write,
-    dictionary: &CombinedDictionary,
+    dictionary: &CliDictionary,
     options: ResolvedOptions,
     variant: MarkdownVariant,
 ) -> Result<()> {
@@ -499,74 +496,29 @@ impl From<Rendering> for RenderMode {
     }
 }
 
-struct CombinedDictionary {
-    dictionaries: Vec<DictionarySource>,
+fn load_dictionary(user_paths: &[PathBuf], bundled_stdict: bool) -> Result<CliDictionary> {
+    let mut dictionaries = ChainDictionary::new();
+
+    for path in user_paths.iter().rev() {
+        dictionaries.push(open_user_dictionary(path)?);
+    }
+    if bundled_stdict {
+        dictionaries.push(Box::new(gukhanmun_stdict::ko_kr()));
+    }
+
+    Ok(dictionaries)
 }
 
-impl CombinedDictionary {
-    fn load(user_paths: &[PathBuf], bundled_stdict: bool) -> Result<Self> {
-        let mut dictionaries = Vec::new();
-
-        for path in user_paths.iter().rev() {
-            dictionaries.push(DictionarySource::open_user(path)?);
-        }
-        if bundled_stdict {
-            dictionaries.push(DictionarySource::Bundled(gukhanmun_stdict::ko_kr()));
-        }
-
-        Ok(Self { dictionaries })
-    }
-}
-
-impl HanjaDictionary for CombinedDictionary {
-    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
-        let mut seen_lengths = BTreeSet::new();
-        let mut matches = Vec::new();
-
-        for dictionary in &self.dictionaries {
-            for matched in dictionary.matches_at(s) {
-                if seen_lengths.insert(matched.byte_len) {
-                    matches.push(matched);
-                }
-            }
-        }
-
-        matches.sort_by_key(|matched| matched.byte_len);
-        Box::new(matches.into_iter())
+fn open_user_dictionary(path: &Path) -> Result<Box<dyn HanjaDictionary>> {
+    if has_fst_magic(path)? {
+        return Ok(Box::new(FstDictionary::open(path).with_context(|| {
+            format!("failed to load dictionary {}", path.display())
+        })?));
     }
 
-    fn max_word_chars(&self) -> Option<usize> {
-        self.dictionaries
-            .iter()
-            .filter_map(HanjaDictionary::max_word_chars)
-            .max()
-    }
-
-    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        self.dictionaries
-            .iter()
-            .any(|dictionary| dictionary.has_homophone(hanja, reading))
-    }
-}
-
-enum DictionarySource {
-    UserFst(FstDictionary),
-    UserCdb(CdbDictionary),
-    Bundled(&'static FstDictionary),
-}
-
-impl DictionarySource {
-    fn open_user(path: &Path) -> Result<Self> {
-        if has_fst_magic(path)? {
-            return Ok(Self::UserFst(FstDictionary::open(path).with_context(
-                || format!("failed to load dictionary {}", path.display()),
-            )?));
-        }
-
-        Ok(Self::UserCdb(CdbDictionary::open(path).with_context(
-            || format!("failed to load dictionary {}", path.display()),
-        )?))
-    }
+    Ok(Box::new(CdbDictionary::open(path).with_context(|| {
+        format!("failed to load dictionary {}", path.display())
+    })?))
 }
 
 fn has_fst_magic(path: &Path) -> Result<bool> {
@@ -577,30 +529,4 @@ fn has_fst_magic(path: &Path) -> Result<bool> {
         .read(&mut header)
         .with_context(|| format!("failed to load dictionary {}", path.display()))?;
     Ok(bytes_read == FST_MAGIC.len() && &header == FST_MAGIC)
-}
-
-impl HanjaDictionary for DictionarySource {
-    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
-        match self {
-            Self::UserFst(dictionary) => dictionary.matches_at(s),
-            Self::UserCdb(dictionary) => dictionary.matches_at(s),
-            Self::Bundled(dictionary) => dictionary.matches_at(s),
-        }
-    }
-
-    fn max_word_chars(&self) -> Option<usize> {
-        match self {
-            Self::UserFst(dictionary) => dictionary.max_word_chars(),
-            Self::UserCdb(dictionary) => dictionary.max_word_chars(),
-            Self::Bundled(dictionary) => dictionary.max_word_chars(),
-        }
-    }
-
-    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        match self {
-            Self::UserFst(dictionary) => dictionary.has_homophone(hanja, reading),
-            Self::UserCdb(dictionary) => dictionary.has_homophone(hanja, reading),
-            Self::Bundled(dictionary) => dictionary.has_homophone(hanja, reading),
-        }
-    }
 }
