@@ -66,4 +66,4 @@ AI usage
 
 If you use AI tools (such as Claude Code, GitHub Copilot, Cursor, etc.) while
 contributing, you must disclose this in your pull request description and
-commit messages.  See <AI\_POLICY.md> for the complete policy.
+commit messages.  See [*AI\_POLICY.md*](./AI_POLICY.md) for the complete policy.
