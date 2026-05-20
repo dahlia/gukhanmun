@@ -448,6 +448,18 @@ fn convert_html(
     output.flush().context("failed to flush output")
 }
 
+fn markdown_format_options() -> hongdown::Options {
+    hongdown::Options {
+        curly_double_quotes: false,
+        curly_single_quotes: false,
+        curly_apostrophes: false,
+        ellipsis: false,
+        em_dash: hongdown::DashSetting::Disabled,
+        en_dash: hongdown::DashSetting::Disabled,
+        ..Default::default()
+    }
+}
+
 fn convert_markdown_stream(
     mut input: impl BufRead,
     mut output: impl Write,
@@ -468,6 +480,8 @@ fn convert_markdown_stream(
     let rendered_tokens = render_tokens(output_tokens, options.rendering);
     let converted =
         write_markdown(rendered_tokens).context("failed to serialize Markdown output")?;
+    let converted = hongdown::format(&converted, &markdown_format_options())
+        .context("failed to format Markdown output")?;
     output
         .write_all(converted.as_bytes())
         .context("failed to write output")?;

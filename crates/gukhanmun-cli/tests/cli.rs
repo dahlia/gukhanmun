@@ -238,7 +238,22 @@ fn format_text_markdown_converts_markdown_input() {
         .write_stdin("# 漢字\n")
         .assert()
         .success()
-        .stdout("# 한자");
+        .stdout("한자\n====\n");
+}
+
+#[test]
+fn format_text_markdown_does_not_transform_punctuation() {
+    // Hongdown's punctuation options (curly quotes, em dash, ellipsis) must be
+    // disabled so non-hanja text content is not unexpectedly mutated.
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown"])
+        .write_stdin("\"Hello\" -- world...\n")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("\"Hello\""))
+        .stdout(predicates::str::contains("--"))
+        .stdout(predicates::str::contains("..."));
 }
 
 #[test]
@@ -249,7 +264,7 @@ fn format_text_markdown_gfm_variant_with_space_enables_gfm_extensions() {
         .write_stdin("~~漢字~~\n")
         .assert()
         .success()
-        .stdout("~~한자~~");
+        .stdout("~~한자~~\n");
 }
 
 #[test]
@@ -260,7 +275,7 @@ fn format_text_markdown_gfm_variant_no_space_enables_gfm_extensions() {
         .write_stdin("~~漢字~~\n")
         .assert()
         .success()
-        .stdout("~~한자~~");
+        .stdout("~~한자~~\n");
 }
 
 #[test]
@@ -271,7 +286,7 @@ fn format_text_markdown_gfm_variant_extra_whitespace_and_unknown_param() {
         .write_stdin("~~漢字~~\n")
         .assert()
         .success()
-        .stdout("~~한자~~");
+        .stdout("~~한자~~\n");
 }
 
 #[test]
@@ -303,7 +318,7 @@ fn md_extension_infers_markdown_format() {
         .assert()
         .success();
 
-    assert_eq!(fs::read_to_string(output).unwrap(), "# 한자");
+    assert_eq!(fs::read_to_string(output).unwrap(), "한자\n====\n");
 }
 
 #[test]
