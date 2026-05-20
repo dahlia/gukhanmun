@@ -1,0 +1,17 @@
+[package]
+name = "gukhanmun-markdown"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Markdown adapter for gukhanmun."
+
+[dependencies]
+gukhanmun-core = { path = "../gukhanmun-core" }
+pulldown-cmark = { version = "0.13.3", default-features = false }
+pulldown-cmark-to-cmark = "22.0.0"
+
+[dev-dependencies]
+proptest = "1.9.0"
