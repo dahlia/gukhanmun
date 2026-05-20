@@ -59,3 +59,11 @@ should explain the API's role, important invariants, and where it fits in the
 pipeline so that `mise run doc` stays useful as an API review gate.
 
 [mise]: https://mise.jdx.dev/
+
+
+AI usage
+--------
+
+If you use AI tools (such as Claude Code, GitHub Copilot, Cursor, etc.) while
+contributing, you must disclose this in your pull request description and
+commit messages.  See <AI\_POLICY.md> for the complete policy.

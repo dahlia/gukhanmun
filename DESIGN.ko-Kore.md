@@ -1,9 +1,9 @@
-gukhanmun
-=========
+Gukhanmun 設計 文書
+===================
 
 *다른 言語: [English](DESIGN.en.md) (英語).*
 
-gukhanmun은 國漢文混用體로 쓰인 韓國語 텍스트를 한글 專用 텍스트로 變換하는
+Gukhanmun은 國漢文混用體로 쓰인 韓國語 텍스트를 한글 專用 텍스트로 變換하는
 라이브러리이다. [Seonbi]의 後繼 프로젝트로서, 漢字 變換 파이프라인 하나에
 集中하면서도 다음과 같은 軸들로 擴張되었다: 스트리밍 入出力, 結合 可能한 辭典,
 라티스 基盤 分割, 더 多樣한 出力 形式. 프로젝트는 Rust로 具顯되었고 Rust
@@ -61,7 +61,7 @@ Node-API를 通한 Node.js에서, WebAssembly를 通한 브라우저와 Deno에�
 **스트리밍이 基本이다.** 文書 全體를 對象으로 하는 同音異義 區別처럼 本質的으로
 버퍼링이 必要한 動作은 選擇 옵션으로 두고, 基本 設定에서는 漢字를 包含하는
 連續된 變換 候補 範圍(普通 數 個의 글字) 안에서, 그리고 한 텍스트 토큰
-內部에서만 버퍼링한다. 덕분에 gukhanmun은 큰 文書나 實時間 스트림을 處理하는
+內部에서만 버퍼링한다. 덕분에 Gukhanmun은 큰 文書나 實時間 스트림을 處理하는
 서버 內部에서도 適合하며, WebAssembly 빌드도 긴 記事의 페이지 內 變換에 充分히
 實用的이다.
 
@@ -422,7 +422,7 @@ OPTIONS:
 「무엇을 提示할지」와 「어떻게 提示할지」를 함께 決定한다. 그 結果, 同音異義
 區別 렌더러는 內部에 同音異義 探知 패스를 거의 그대로 다시 具顯해야 하고, 다른
 同音異義 휴리스틱으로 갈아끼우려면 렌더러 自體를 다시 써야 한다.
-gukhanmun에서는 미들웨어가 `OutputToken` 흐름에 對한 狀態 維持 필터이고,
+Gukhanmun에서는 미들웨어가 `OutputToken` 흐름에 對한 狀態 維持 필터이고,
 렌더러는 (普通) 無狀態의 `Annotated` 飜譯機이다.
 
 ### 內藏 미들웨어
@@ -631,7 +631,7 @@ typed」가 된다는 點이다; 두 具顯體는 境界에서 이를 檢證하�
 JavaScript 側 스트리밍은 플랫폼의 `TransformStream<string, string>`
 인터페이스를 利用한다. 이 인터페이스는 브라우저·Deno·Node 18 以上·Bun에서 두루
 使用 可能하다. 청크는 JavaScript 文字列이고, 인코딩
-處理(`TextDecoderStream`·`TextEncoderStream`)는 gukhanmun 스트림 바깥에 있다.
+處理(`TextDecoderStream`·`TextEncoderStream`)는 Gukhanmun 스트림 바깥에 있다.
 엔진 內部에서는 청크가 變換 候補 範圍 中間에서 끝나거나, 漢字 글字에 너무 가까워
 混用 表記 辭典 키가 境界를 넘어 이어질 可能性이 있으면, 그 꼬리 範圍를 다음
 청크까지 保留하며, 그 앞까지는 즉시 내보낸다. 꼬리 範圍 버퍼는 辭典의
@@ -642,7 +642,7 @@ JavaScript 側 스트리밍은 플랫폼의 `TransformStream<string, string>`
 Unicode 스칼라 단위로 動作하기 때문이다. 바이트 單位 청크화는 어댑터가 모든
 境界에서 部分 코드포인트 再組立을 直接 해야 함을 意味하는데, 그것은 플랫폼의
 `TextDecoderStream`이 이미 올바르게 해 주는 일이다. 바이트 스트림을 들고 있는
-使用者는 `TextDecoderStream` → gukhanmun 變換 順으로 連結하면 된다.
+使用者는 `TextDecoderStream` → Gukhanmun 變換 順으로 連結하면 된다.
 
 ### 辭典 設定
 
@@ -795,7 +795,7 @@ export type ErrorCode =
 
 테스트 모음은 네 部分이다.
 
-**回歸 픽스처**는 Seonbi나 gukhanmun 初期 開發에서 나타났던 特定 버그 樣相을
+**回歸 픽스처**는 Seonbi나 Gukhanmun 初期 開發에서 나타났던 特定 버그 樣相을
 다룬다. Seonbi *test/data/* 디렉터리에서 適切한 部分이 그대로 移植된다; 各
 픽스처는 HTML이나 Markdown 入力·期待 出力 파일 한 雙과 옆의 設定 파일로
 構成된다.
@@ -811,7 +811,7 @@ export type ErrorCode =
 된다).
 
 **適合性 테스트**는 CommonMark 仕樣의 一部 例示에 對하여 Markdown 어댑터를 돌려,
-gukhanmun이 손대지 않으려 하는 構文을 어댑터가 깨뜨리지 않음을 確認한다.
+Gukhanmun이 손대지 않으려 하는 構文을 어댑터가 깨뜨리지 않음을 確認한다.
 
 CI는 네 가지 모두를 stable·beta·워크스페이스의 MSRV(最低 支援 Rust 버전)에서
 돌린다. WASM 빌드는 크기 退步 對象으로도 監視된다: 各 아티팩트別 固定 크기

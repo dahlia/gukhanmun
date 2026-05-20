@@ -1,4 +1,4 @@
-//! CDB dictionary backend for gukhanmun.
+//! CDB dictionary backend for Gukhanmun.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -13,7 +13,7 @@ const META_KEY: &[u8] = b"__gukhanmun_meta__";
 const MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
 const MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
 
-/// Dictionary backed by a gukhanmun CDB-trie file.
+/// Dictionary backed by a Gukhanmun CDB-trie file.
 pub struct CdbDictionary {
     metadata: BTreeMap<String, String>,
     cdb: cdb::CDB,

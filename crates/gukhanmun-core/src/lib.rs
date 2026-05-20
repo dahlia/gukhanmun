@@ -1,4 +1,4 @@
-//! Core types and algorithms for gukhanmun.
+//! Core types and algorithms for Gukhanmun.
 //!
 //! This crate is the home for the format-neutral intermediate representation,
 //! conversion engine, dictionary traits, lattice segmentation, and fallback

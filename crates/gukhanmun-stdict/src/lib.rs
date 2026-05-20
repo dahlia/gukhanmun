@@ -1,4 +1,4 @@
-//! Bundled Standard Korean Language Dictionary for gukhanmun.
+//! Bundled Standard Korean Language Dictionary for Gukhanmun.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

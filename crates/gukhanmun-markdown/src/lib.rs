@@ -1,4 +1,4 @@
-//! Markdown reader and writer for gukhanmun.
+//! Markdown reader and writer for Gukhanmun.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

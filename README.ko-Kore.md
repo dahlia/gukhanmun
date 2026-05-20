@@ -1,0 +1,199 @@
+Gukhanmun
+=========
+
+*다른 言語: [English](README.en.md) (英語).*
+
+Gukhanmun은 國漢文混用體로 쓰인 韓國語 텍스트를 한글 專用 텍스트로 變換하는
+Rust 라이브러리이다. [Seonbi]의 後繼 프로젝트로서, 漢字 變換 파이프라인에
+集中하면서 스트리밍 入出力·結合 可能한 辭典·라티스 基盤 分割·多樣한 出力
+形式 等의 軸으로 擴張되었다. Rust 라이브러리·命令줄 道具 形態로 提供되며,
+WebAssembly·Node-API 바인딩은 計劃 中이다.
+
+[Seonbi]: https://github.com/dahlia/seonbi
+
+
+機能
+----
+
+ -  라티스 分割로 最適 分割을 찾는다. 貪慾的 最長 一致와 달리, 行事場所를
+    行事場 + 所가 아니라 行事 + 場所로 正確하게 분린다.
+ -  結合 可能한 辭典: 메모리 內 맵·mmap 親和的 FST 파일·CDB 파일을 쓸 수
+    있으며, `ChainDictionary`로 合成할 수 있다.
+ -  《標準國語大辭典》이 컴파일된 FST 形態로 內藏되어 있어 別途의 다운로드가
+    必要 없다.
+ -  純粹 텍스트·HTML 단편·Markdown 形式 어댑터를 提供한다. 엔진은 形式
+    中立的이며, 解析과 直列化는 어댑터가 담당한다.
+ -  다섯 가지 렌더링 모드: 한글 專用·한글(漢字) 괄호·漢字(한글) 괄호·루비
+    마크업·選擇的 倂記를 곁들인 國漢文 原文.
+ -  스트리밍 優先 設計: 엔진은 單一 漢字 變換 候補 範圍 內에서만 버퍼링하며,
+    文書 全體를 메모리에 올리지 않는다.
+ -  大韓民國 正書法을 爲한 頭音法則을 폴백 讀音에 適用한다. 辭典 項目은 이미
+    正確한 讀音을 들고 있다고 假定한다.
+ -  핵심 크레이트(`gukhanmun-core`)는 `no_std` + `alloc`으로, 임베디드
+    環境에서도 使用할 수 있다.
+
+
+設置
+----
+
+### 命令줄 道具
+
+~~~~ sh
+cargo install gukhanmun-cli
+~~~~
+
+### Rust 라이브러리
+
+*Cargo.toml*에 追加한다:
+
+~~~~ toml
+[dependencies]
+gukhanmun-core = "0.1"
+
+# 選擇的 形式 어댑터:
+gukhanmun-html     = "0.1"
+gukhanmun-markdown = "0.1"
+
+# 選擇的 辭典 백엔드:
+gukhanmun-fst  = "0.1"
+gukhanmun-cdb  = "0.1"
+
+# 選擇的 內藏 標準國語大辭典:
+gukhanmun-stdict = "0.1"
+~~~~
+
+
+使用 例
+-------
+
+### 命令줄
+
+基本으로 `ko-kr` 프리셋이 活性化되어 있어, 內藏 《標準國語大辭典》을 로드하고
+頭音法則을 適用한다.
+
+~~~~ sh
+echo "漢字 北京 標識" | gukhanmun
+# → 한자 베이징 표지
+
+echo "漢字" | gukhanmun --rendering hangul-hanja-parens
+# → 한자(漢字)
+
+echo "來日 北京" | gukhanmun --preset ko-kp
+# → 래일 북경
+
+gukhanmun --help
+~~~~
+
+### 純粹 텍스트 (Rust)
+
+~~~~ rust
+use gukhanmun_core::{MapDictionary, RenderMode, convert_plain_text};
+
+let mut dict = MapDictionary::new();
+dict.insert("漢字", "한자");
+dict.insert("北京", "베이징");
+
+let output = convert_plain_text("漢字 北京", &dict, RenderMode::HangulOnly);
+assert_eq!(output, "한자 베이징");
+~~~~
+
+### HTML 단편 (Rust)
+
+~~~~ rust
+use gukhanmun_core::{MapDictionary, RenderMode};
+use gukhanmun_html::convert_html_fragment;
+
+let mut dict = MapDictionary::new();
+dict.insert("漢字", "한자");
+
+let output = convert_html_fragment(
+    "<p class=\"intro\">漢字</p>",
+    &dict,
+    RenderMode::HangulOnly,
+);
+assert_eq!(output, "<p class=\"intro\">한자</p>");
+// 保存 對象 태그는 그대로 通過한다:
+// <code>漢字</code>, <pre>, <script>, <style>, <textarea>, <kbd>
+~~~~
+
+### Markdown (Rust)
+
+~~~~ rust
+use gukhanmun_core::{MapDictionary, RenderMode};
+use gukhanmun_markdown::convert_markdown;
+
+let mut dict = MapDictionary::new();
+dict.insert("漢字", "한자");
+dict.insert("北京", "베이징");
+
+let output = convert_markdown(
+    "# 漢字\n\n- 北京 and **漢字**\n",
+    &dict,
+    RenderMode::HangulOnly,
+).unwrap();
+// → "# 한자\n\n- 베이징 and **한자**\n" (意味 等價)
+~~~~
+
+
+렌더링 모드
+-----------
+
+렌더러는 엔진·미들웨어와 분리되어 있다. 모드는 變換 呼出마다 選擇한다.
+
+| 모드                      | Rust 열거형 變種                | `漢字`에 對한 出力                       |
+| ------------------------- | ------------------------------- | ---------------------------------------- |
+| 한글 專用                 | `RenderMode::HangulOnly`        | 한자                                     |
+| 한글(漢字) 괄호           | `RenderMode::HangulHanjaParens` | 한자(漢字)                               |
+| 漢字(한글) 괄호           | `RenderMode::HanjaHangulParens` | 漢字(한자)                               |
+| 루비 마크업               | `RenderMode::Ruby`              | `<ruby>한자<rt>漢字</rt></ruby>`         |
+| 選擇的 倂記를 곁들인 原文 | `RenderMode::Original`          | 漢字 (`require_hangul` 設定 時에만 倂記) |
+
+`HangulOnly`는 辭典이 該當 單語를 同音異義語 있음 또는 區別 必要로 標識한
+境遇, 自動으로 漢字를 괄호 안에 添加한다.
+
+
+프리셋
+------
+
+| 옵션          | `ko-kr` (基本) | `ko-kp`   |
+| ------------- | -------------- | --------- |
+| 內藏 辭典     | 標準國語大辭典 | 없음      |
+| 頭音法則      | 適用           | 未適用    |
+| 同音異義 區別 | per-block      | 없음      |
+| 렌더링        | 한글 專用      | 한글 專用 |
+
+`ko-kp` 프리셋은 朝鮮民主主義人民共和國 正書法 慣行을 따른다. 漢字語를 頭音法則
+없이 한글로 적는다(래일, 류행, 녀자). 大韓民國 《標準國語大辭典》의 讀音이
+`ko-KP`에서는 不正確하므로 內藏 辭典을 提供하지 않는다.
+
+
+크레이트 構成
+-------------
+
+이 프로젝트는 Cargo 워크스페이스로 構成되며, 모든 크레이트가 同一한 버전을
+共有한다.
+
+| 크레이트             | 說明                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `gukhanmun-core`     | 形式 中立的 IR·엔진·辭典 트레이트·라티스 分割機·폴백 音譯機. `no_std` + `alloc`.         |
+| `gukhanmun-html`     | HTML 단편 리더·라이터. `lang` 相續과 保存 對象 태그 處理를 포함하는 `HtmlScopeData`.     |
+| `gukhanmun-markdown` | `pulldown-cmark` 基盤 Markdown 어댑터. 인라인 HTML은 `lang` 屬性 處理를 위해 再走査된다. |
+| `gukhanmun-fst`      | mmap 親和的 온-디스크 辭典을 爲한 FST 基盤 `HanjaDictionary` 具顯.                       |
+| `gukhanmun-cdb`      | 監査 容易한 온-디스크 形式의 CDB-trie `HanjaDictionary` 具顯.                            |
+| `gukhanmun-stdict`   | 內藏 大韓民國 《標準國語大辭典》을 FST 바이트 配列로 提供.                               |
+| `gukhanmun-mkdict`   | TSV·CSV·JSON Lines 入力에서 FST·CDB 辭典 파일을 빌드하는 CLI 道具.                       |
+| `gukhanmun-cli`      | `gukhanmun` 命令줄 바이너리.                                                             |
+
+
+設計 文書
+---------
+
+[*DESIGN.md*](./DESIGN.ko-Kore.md)에서 全體 構造를 살펴볼 수 있다:
+中間 表現·라티스 分割 算法·辭典 트레이트 設計·미들웨어 體系·形式 어댑터 內部
+構造.
+
+
+라이선스
+--------
+
+GPL 3.0 하에 配布. [*LICENSE*](./LICENSE) 參照.

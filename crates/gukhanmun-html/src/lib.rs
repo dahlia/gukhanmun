@@ -1,4 +1,4 @@
-//! HTML fragment reader and writer for gukhanmun.
+//! HTML fragment reader and writer for Gukhanmun.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

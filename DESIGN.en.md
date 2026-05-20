@@ -1,9 +1,9 @@
-gukhanmun
-=========
+Gukhanmun design docs
+=====================
 
 *Also available: [韓國語](DESIGN.ko-Kore.md) (Korean).*
 
-gukhanmun is a library for converting Korean text written in mixed script
+Gukhanmun is a library for converting Korean text written in mixed script
 (國漢文混用體) into hangul-only text. It is the successor to [Seonbi], narrowed
 in scope to the hanja conversion pipeline and broadened along several axes:
 streaming I/O, pluggable dictionaries, lattice-based segmentation, and a wider
@@ -68,7 +68,7 @@ values, not method calls.
 notably per-document homophone disambiguation, are opt-in modes. The default
 configuration buffers only within a contiguous conversion span that contains
 hanja (usually a handful of characters in typical text) and within a single
-text token. This makes gukhanmun usable inside servers that process large
+text token. This makes Gukhanmun usable inside servers that process large
 documents or live streams, and it makes the WebAssembly build a viable target
 for in-page conversion of long articles.
 
@@ -462,7 +462,7 @@ only) gives us a cleaner pipeline than Seonbi has. In Seonbi, the rendering
 function decides both what to present and how. As a result, the
 homophone-disambiguating renderer must internally re-implement a
 homophone-detecting pass, and there is no way to swap in a different homophone
-heuristic without rewriting the renderer. In gukhanmun the middlewares are
+heuristic without rewriting the renderer. In Gukhanmun the middlewares are
 stateful filters on the `OutputToken` stream, and the renderer is a usually
 stateless translator from `Annotated` tokens to concrete text and markup.
 
@@ -872,7 +872,7 @@ WebAssembly bundle measurements call for it.
 The test suite has four parts.
 
 *Regression fixtures* cover specific bug shapes that have appeared in Seonbi or
-in early gukhanmun development. The relevant subset of Seonbi's *test/data/*
+in early Gukhanmun development. The relevant subset of Seonbi's *test/data/*
 directory ports over directly; each fixture is a pair of input and
 expected-output files in HTML or Markdown, with a configuration sidecar.
 
@@ -889,7 +889,7 @@ should not invent annotations from text without hanja).
 
 *Conformance tests* run the Markdown adapter against a selected subset of the
 CommonMark specification examples to verify that the adapter does not break
-syntax that gukhanmun is not interested in changing.
+syntax that Gukhanmun is not interested in changing.
 
 CI runs all four under stable, beta, and the MSRV (minimum supported Rust
 version) of the workspace. The WASM build is also exercised for size

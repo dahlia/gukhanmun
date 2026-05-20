@@ -11,7 +11,7 @@ use gukhanmun_mkdict::{
 #[derive(Debug, Parser)]
 #[command(
     name = "gukhanmun-mkdict",
-    about = "Build gukhanmun dictionary backend files from canonical TSV input."
+    about = "Build Gukhanmun dictionary backend files from canonical TSV input."
 )]
 struct Cli {
     #[arg(value_name = "INPUT", required = true)]

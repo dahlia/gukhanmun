@@ -1,4 +1,4 @@
-//! FST dictionary backend for gukhanmun.
+//! FST dictionary backend for Gukhanmun.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -22,7 +22,7 @@ const VALUE_READING_LEN_MASK: u64 = 0xffff;
 const VALUE_MARK_SHIFT: u64 = 16;
 const VALUE_OFFSET_SHIFT: u64 = 24;
 
-/// Dictionary backed by a gukhanmun FST file.
+/// Dictionary backed by a Gukhanmun FST file.
 #[derive(Clone, Debug)]
 pub struct FstDictionary {
     metadata: BTreeMap<String, String>,
@@ -44,7 +44,7 @@ impl FstDictionary {
         Self::from_bytes(&bytes)
     }
 
-    /// Decodes a dictionary from bytes in the gukhanmun FST file format.
+    /// Decodes a dictionary from bytes in the Gukhanmun FST file format.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         let header = FixedHeader::parse(bytes)?;
         let metadata_bytes = checked_slice(bytes, header.metadata_offset, header.metadata_len)
