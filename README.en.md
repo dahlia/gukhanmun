@@ -84,6 +84,18 @@ echo "漢字" | gukhanmun --rendering hangul-hanja-parens
 echo "來日 北京" | gukhanmun --preset ko-kp
 # → 래일 북경
 
+# HTML and Markdown formats are supported via --format (-f).
+# The format is also inferred automatically from the input file extension
+# (.html/.htm → text/html, .md/.markdown → text/markdown):
+echo "<p>漢字</p>" | gukhanmun --format text/html
+# → <p>한자</p>
+
+echo "# 漢字" | gukhanmun --format text/markdown
+# → # 한자
+
+gukhanmun input.html -o output.html   # format inferred from extension
+gukhanmun notes.md -o notes.md        # format inferred from extension
+
 gukhanmun --help
 ~~~~
 

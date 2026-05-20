@@ -455,6 +455,8 @@ dependencies = [
  "gukhanmun-cdb",
  "gukhanmun-core",
  "gukhanmun-fst",
+ "gukhanmun-html",
+ "gukhanmun-markdown",
  "gukhanmun-mkdict",
  "gukhanmun-stdict",
  "predicates",

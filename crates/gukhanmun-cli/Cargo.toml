@@ -19,6 +19,8 @@ clap = { version = "4.6.1", features = ["derive"] }
 gukhanmun-cdb = { path = "../gukhanmun-cdb" }
 gukhanmun-core = { path = "../gukhanmun-core" }
 gukhanmun-fst = { path = "../gukhanmun-fst" }
+gukhanmun-html = { path = "../gukhanmun-html" }
+gukhanmun-markdown = { path = "../gukhanmun-markdown" }
 gukhanmun-stdict = { path = "../gukhanmun-stdict" }
 
 [dev-dependencies]

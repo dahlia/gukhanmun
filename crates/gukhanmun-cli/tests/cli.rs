@@ -219,6 +219,76 @@ fn missing_dictionary_path_reports_a_human_readable_error() {
         .stderr(predicate::str::contains("failed to load dictionary"));
 }
 
+#[test]
+fn format_text_html_converts_html_input() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/html"])
+        .write_stdin("<p>漢字</p>")
+        .assert()
+        .success()
+        .stdout("<p>한자</p>");
+}
+
+#[test]
+fn format_text_markdown_converts_markdown_input() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown"])
+        .write_stdin("# 漢字\n")
+        .assert()
+        .success()
+        .stdout("# 한자");
+}
+
+#[test]
+fn html_extension_infers_html_format() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("doc.html");
+    let output = temp.path().join("out.html");
+    fs::write(&input, "<p>漢字</p>").unwrap();
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([input.to_str().unwrap(), "-o", output.to_str().unwrap()])
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(output).unwrap(), "<p>한자</p>");
+}
+
+#[test]
+fn md_extension_infers_markdown_format() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("doc.md");
+    let output = temp.path().join("out.md");
+    fs::write(&input, "# 漢字\n").unwrap();
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([input.to_str().unwrap(), "-o", output.to_str().unwrap()])
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(output).unwrap(), "# 한자");
+}
+
+#[test]
+fn unknown_extension_falls_back_to_plain_text() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("doc.txt");
+    let output = temp.path().join("out.txt");
+    fs::write(&input, "漢字\n").unwrap();
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([input.to_str().unwrap(), "-o", output.to_str().unwrap()])
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(output).unwrap(), "한자\n");
+}
+
 proptest! {
     #![proptest_config(ProptestConfig {
         cases: 32,

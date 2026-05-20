@@ -81,6 +81,18 @@ echo "漢字" | gukhanmun --rendering hangul-hanja-parens
 echo "來日 北京" | gukhanmun --preset ko-kp
 # → 래일 북경
 
+# HTML·Markdown 形式은 --format (-f) 옵션으로 指定한다.
+# 入力 파일 擴張字에서 自動으로 推測하기도 한다
+# (.html/.htm → text/html, .md/.markdown → text/markdown):
+echo "<p>漢字</p>" | gukhanmun --format text/html
+# → <p>한자</p>
+
+echo "# 漢字" | gukhanmun --format text/markdown
+# → # 한자
+
+gukhanmun input.html -o output.html   # 擴張字로 形式 推測
+gukhanmun notes.md -o notes.md        # 擴張字로 形式 推測
+
 gukhanmun --help
 ~~~~
 

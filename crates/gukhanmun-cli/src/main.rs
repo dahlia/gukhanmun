@@ -27,6 +27,8 @@ use gukhanmun_core::{
     mark_homophones, process_tokens_with_options, read_plain_text, render_tokens, write_plain_text,
 };
 use gukhanmun_fst::FstDictionary;
+use gukhanmun_html::{read_html_fragment, write_html_fragment};
+use gukhanmun_markdown::{read_markdown, write_markdown};
 
 const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
 
@@ -36,29 +38,62 @@ const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
     about = "Convert Korean mixed-script plain text into hangul text."
 )]
 struct Cli {
+    /// Input file to read from; reads from standard input when omitted.
     #[arg(value_name = "INPUT")]
     input: Option<PathBuf>,
 
+    /// Output file to write to; writes to standard output when omitted.
+    /// When the same path as INPUT, the file is replaced atomically.
     #[arg(short, long, value_name = "PATH")]
     output: Option<PathBuf>,
 
-    #[arg(long, value_enum, default_value_t = Preset::KoKr)]
+    /// Input/output format.  Inferred from the input file extension when omitted
+    /// (text/html for .html/.htm, text/markdown for .md/.markdown, text/plain
+    /// otherwise); falls back to text/plain when reading from standard input.
+    #[arg(short, long, value_enum, value_name = "MIME")]
+    format: Option<Format>,
+
+    /// Language variant preset.  ko-kr (default) enables the bundled Standard
+    /// Korean Dictionary (標準國語大辭典) and the initial sound law (頭音法則).  ko-kp disables
+    /// both, targeting North Korean orthography.
+    #[arg(short, long, value_enum, default_value_t = Preset::KoKr)]
     preset: Preset,
 
-    #[arg(long, value_enum)]
+    /// Controls how hanja annotations appear in the output.  hangul-only
+    /// (default for most presets) emits hangul, adding parenthesized hanja only
+    /// when disambiguation requires it.  hangul-hanja-parens always emits
+    /// 한글(漢字).  hanja-hangul-parens always emits 漢字(한글).  original keeps
+    /// the source hanja, adding a hangul gloss only where required.
+    #[arg(short, long, value_enum)]
     rendering: Option<Rendering>,
 
-    #[arg(long = "dictionary", value_name = "PATH")]
+    /// Path to a user-supplied dictionary file (.gukfst or .gukcdb).  May be
+    /// repeated; later dictionaries take priority over earlier ones and over the
+    /// bundled Standard Korean Dictionary (標準國語大辭典).
+    #[arg(short = 'd', long = "dictionary", value_name = "PATH")]
     dictionaries: Vec<PathBuf>,
 
-    #[arg(long)]
+    /// Disable the bundled Standard Korean Dictionary (標準國語大辭典).
+    #[arg(short = 'S', long)]
     no_stdict: bool,
 
-    #[arg(long)]
+    /// Enable the initial sound law (頭音法則), overriding the preset default.
+    #[arg(short = 'i', long, visible_alias = "dueum")]
     initial_sound_law: bool,
 
-    #[arg(long)]
+    /// Disable the initial sound law (頭音法則), overriding the preset default.
+    #[arg(short = 'I', long, visible_alias = "no-dueum")]
     no_initial_sound_law: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum Format {
+    #[value(name = "text/plain")]
+    PlainText,
+    #[value(name = "text/html")]
+    Html,
+    #[value(name = "text/markdown")]
+    Markdown,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -91,11 +126,17 @@ fn main() -> Result<()> {
 fn run(cli: Cli) -> Result<()> {
     let options = resolve_options(&cli)?;
     let dictionary = CombinedDictionary::load(&cli.dictionaries, options.bundled_stdict)?;
+    let format = cli.format.unwrap_or_else(|| {
+        cli.input
+            .as_deref()
+            .map(detect_format)
+            .unwrap_or(Format::PlainText)
+    });
 
     if let (Some(input_path), Some(output_path)) = (&cli.input, &cli.output)
         && is_same_existing_file(input_path, output_path)?
     {
-        return convert_file_in_place(input_path, output_path, &dictionary, options);
+        return convert_file_in_place(input_path, output_path, &dictionary, options, format);
     }
 
     let input: Box<dyn BufRead> = match &cli.input {
@@ -114,7 +155,7 @@ fn run(cli: Cli) -> Result<()> {
         None => Box::new(BufWriter::new(io::stdout().lock())),
     };
 
-    convert_stream(input, output, &dictionary, options)
+    convert_document(input, output, &dictionary, options, format)
 }
 
 fn convert_file_in_place(
@@ -122,6 +163,7 @@ fn convert_file_in_place(
     output_path: &Path,
     dictionary: &CombinedDictionary,
     options: ResolvedOptions,
+    format: Format,
 ) -> Result<()> {
     let original_permissions = fs::metadata(input_path)
         .with_context(|| format!("failed to inspect input {}", input_path.display()))?
@@ -141,7 +183,7 @@ fn convert_file_in_place(
                 .with_context(|| format!("failed to open input {}", input_path.display()))?,
         );
         let output = BufWriter::new(temp_file);
-        convert_stream(input, output, dictionary, options)?;
+        convert_document(input, output, dictionary, options, format)?;
         fs::rename(&temp_path, output_path).with_context(|| {
             format!(
                 "failed to replace {} with temporary output {}",
@@ -268,7 +310,34 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
     Ok(options)
 }
 
-fn convert_stream(
+fn detect_format(path: &Path) -> Format {
+    match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("html") | Some("htm") => Format::Html,
+        Some("md") | Some("markdown") | Some("mdown") | Some("mkd") => Format::Markdown,
+        _ => Format::PlainText,
+    }
+}
+
+fn convert_document(
+    input: impl BufRead,
+    output: impl Write,
+    dictionary: &CombinedDictionary,
+    options: ResolvedOptions,
+    format: Format,
+) -> Result<()> {
+    match format {
+        Format::PlainText => convert_plain_stream(input, output, dictionary, options),
+        Format::Html => convert_html(input, output, dictionary, options),
+        Format::Markdown => convert_markdown(input, output, dictionary, options),
+    }
+}
+
+fn convert_plain_stream(
     mut input: impl BufRead,
     mut output: impl Write,
     dictionary: &CombinedDictionary,
@@ -284,7 +353,7 @@ fn convert_stream(
             break;
         }
 
-        let converted = convert_line(&line, dictionary, options);
+        let converted = convert_plain_line(&line, dictionary, options);
         output
             .write_all(converted.as_bytes())
             .context("failed to write output")?;
@@ -292,7 +361,11 @@ fn convert_stream(
     output.flush().context("failed to flush output")
 }
 
-fn convert_line(line: &str, dictionary: &CombinedDictionary, options: ResolvedOptions) -> String {
+fn convert_plain_line(
+    line: &str,
+    dictionary: &CombinedDictionary,
+    options: ResolvedOptions,
+) -> String {
     let input_tokens = read_plain_text(line);
     let output_tokens = process_tokens_with_options(input_tokens, dictionary, options.engine);
     let output_tokens = match options.homophone_window {
@@ -301,6 +374,55 @@ fn convert_line(line: &str, dictionary: &CombinedDictionary, options: ResolvedOp
     };
     let rendered_tokens = render_tokens(output_tokens, options.rendering);
     write_plain_text(rendered_tokens)
+}
+
+fn convert_html(
+    mut input: impl BufRead,
+    mut output: impl Write,
+    dictionary: &CombinedDictionary,
+    options: ResolvedOptions,
+) -> Result<()> {
+    let mut content = String::new();
+    input
+        .read_to_string(&mut content)
+        .context("failed to read UTF-8 input")?;
+    let input_tokens = read_html_fragment(&content);
+    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options.engine);
+    let output_tokens = match options.homophone_window {
+        ContextWindow::Off => output_tokens,
+        window => mark_homophones(output_tokens, window),
+    };
+    let rendered_tokens = render_tokens(output_tokens, options.rendering);
+    let converted = write_html_fragment(rendered_tokens);
+    output
+        .write_all(converted.as_bytes())
+        .context("failed to write output")?;
+    output.flush().context("failed to flush output")
+}
+
+fn convert_markdown(
+    mut input: impl BufRead,
+    mut output: impl Write,
+    dictionary: &CombinedDictionary,
+    options: ResolvedOptions,
+) -> Result<()> {
+    let mut content = String::new();
+    input
+        .read_to_string(&mut content)
+        .context("failed to read UTF-8 input")?;
+    let input_tokens = read_markdown(&content);
+    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options.engine);
+    let output_tokens = match options.homophone_window {
+        ContextWindow::Off => output_tokens,
+        window => mark_homophones(output_tokens, window),
+    };
+    let rendered_tokens = render_tokens(output_tokens, options.rendering);
+    let converted =
+        write_markdown(rendered_tokens).context("failed to serialize Markdown output")?;
+    output
+        .write_all(converted.as_bytes())
+        .context("failed to write output")?;
+    output.flush().context("failed to flush output")
 }
 
 impl From<Rendering> for RenderMode {
