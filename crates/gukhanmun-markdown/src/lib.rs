@@ -26,7 +26,7 @@ use gukhanmun_core::{
     ContextWindow, EngineOptions, HanjaDictionary, InputToken, RenderMode, RenderedToken, Scope,
     ScopeData, mark_homophones, process_tokens_with_options, render_tokens,
 };
-use pulldown_cmark::{CowStr, Event, Parser, Tag, TagEnd};
+use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd};
 
 /// Adapter-owned scope data for Markdown documents.
 ///
@@ -90,13 +90,28 @@ impl From<pulldown_cmark_to_cmark::Error> for MarkdownError {
     }
 }
 
+/// Selects the Markdown dialect the parser recognises.
+///
+/// The variant controls which pulldown-cmark extensions are enabled.  Use
+/// [`MarkdownVariant::CommonMark`] for strict CommonMark input and
+/// [`MarkdownVariant::Gfm`] to also parse tables, footnotes, strikethrough,
+/// and task lists as defined by GitHub Flavored Markdown.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum MarkdownVariant {
+    /// CommonMark only — no GFM extensions.
+    #[default]
+    CommonMark,
+    /// GitHub Flavored Markdown: tables, footnotes, strikethrough, task lists.
+    Gfm,
+}
+
 /// Reads Markdown into the core input-token stream.
 ///
-/// Parsing uses pulldown-cmark's default CommonMark mode.  Inline HTML tags are
-/// represented as scopes so their `lang` and preserved-tag policy affects text
-/// until the corresponding inline HTML close tag is read.
-pub fn read_markdown(input: &str) -> Vec<InputToken<MarkdownScopeData>> {
-    Reader::new(input).read()
+/// Inline HTML tags are represented as scopes so their `lang` and
+/// preserved-tag policy affects text until the corresponding inline HTML close
+/// tag is read.  Pass [`MarkdownVariant::Gfm`] to enable GFM extensions.
+pub fn read_markdown(input: &str, variant: MarkdownVariant) -> Vec<InputToken<MarkdownScopeData>> {
+    Reader::new(input, variant).read()
 }
 
 /// Writes rendered Markdown tokens back to Markdown text.
@@ -117,11 +132,12 @@ pub fn convert_markdown<D>(
     input: &str,
     dictionary: &D,
     mode: RenderMode,
+    variant: MarkdownVariant,
 ) -> Result<String, MarkdownError>
 where
     D: HanjaDictionary + ?Sized,
 {
-    convert_markdown_with_options(input, dictionary, mode, EngineOptions::default())
+    convert_markdown_with_options(input, dictionary, mode, EngineOptions::default(), variant)
 }
 
 /// Converts Markdown with explicit engine options.
@@ -130,11 +146,12 @@ pub fn convert_markdown_with_options<D>(
     dictionary: &D,
     mode: RenderMode,
     options: EngineOptions,
+    variant: MarkdownVariant,
 ) -> Result<String, MarkdownError>
 where
     D: HanjaDictionary + ?Sized,
 {
-    let input_tokens = read_markdown(input);
+    let input_tokens = read_markdown(input, variant);
     let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
     let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
     let rendered_tokens = render_tokens(output_tokens, mode);
@@ -182,6 +199,7 @@ enum OpenScope {
 #[derive(Clone, Debug)]
 struct Reader<'a> {
     input: &'a str,
+    variant: MarkdownVariant,
     html_stack: Vec<HtmlContext>,
     open_scopes: Vec<OpenScope>,
     pending_reopen: Vec<Tag<'static>>,
@@ -189,9 +207,10 @@ struct Reader<'a> {
 }
 
 impl<'a> Reader<'a> {
-    fn new(input: &'a str) -> Self {
+    fn new(input: &'a str, variant: MarkdownVariant) -> Self {
         Self {
             input,
+            variant,
             html_stack: Vec::new(),
             open_scopes: Vec::new(),
             pending_reopen: Vec::new(),
@@ -200,7 +219,7 @@ impl<'a> Reader<'a> {
     }
 
     fn read(mut self) -> Vec<InputToken<MarkdownScopeData>> {
-        for event in Parser::new(self.input) {
+        for event in Parser::new_ext(self.input, markdown_options(self.variant)) {
             match event {
                 Event::Start(tag) => self.push_container(tag.into_static()),
                 Event::End(tag) => self.push_container_end(tag),
@@ -539,10 +558,33 @@ fn leaf_to_event(node: &LeafNode) -> Event<'static> {
     }
 }
 
+fn markdown_options(variant: MarkdownVariant) -> Options {
+    match variant {
+        MarkdownVariant::CommonMark => Options::empty(),
+        // In pulldown-cmark 0.13.x, ENABLE_GFM is a single flag (alerts/callouts)
+        // rather than the full combination.  Each GFM extension must be listed
+        // individually.
+        MarkdownVariant::Gfm => {
+            Options::ENABLE_TABLES
+                | Options::ENABLE_FOOTNOTES
+                | Options::ENABLE_STRIKETHROUGH
+                | Options::ENABLE_TASKLISTS
+                | Options::ENABLE_GFM
+        }
+    }
+}
+
 fn is_markdown_block_boundary(tag: &Tag<'_>) -> bool {
     matches!(
         tag,
-        Tag::Paragraph | Tag::Heading { .. } | Tag::Item | Tag::CodeBlock(_) | Tag::HtmlBlock
+        Tag::Paragraph
+            | Tag::Heading { .. }
+            | Tag::Item
+            | Tag::CodeBlock(_)
+            | Tag::HtmlBlock
+            | Tag::Table(_)
+            | Tag::TableCell
+            | Tag::FootnoteDefinition(_)
     )
 }
 

@@ -15,7 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use gukhanmun_core::{MapDictionary, RenderMode, RenderedToken};
-use gukhanmun_markdown::{MarkdownScopeData, convert_markdown, read_markdown, write_markdown};
+use gukhanmun_markdown::{
+    MarkdownScopeData, MarkdownVariant, convert_markdown, read_markdown, write_markdown,
+};
 use proptest::prelude::*;
 use pulldown_cmark::{Event, Parser};
 
@@ -38,6 +40,7 @@ fn converts_markdown_text_in_blocks_and_inlines() {
         "# 漢字\n\n- 北京 and **漢字**\n",
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -46,8 +49,13 @@ fn converts_markdown_text_in_blocks_and_inlines() {
 
 #[test]
 fn adjacent_markdown_text_events_are_merged_before_conversion() {
-    let output =
-        convert_markdown("漢&#23383;\n", &dictionary(), RenderMode::HangulHanjaParens).unwrap();
+    let output = convert_markdown(
+        "漢&#23383;\n",
+        &dictionary(),
+        RenderMode::HangulHanjaParens,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
 
     assert_eq!(events(&output), events("한자(漢字)\n"));
 }
@@ -58,6 +66,7 @@ fn code_span_and_code_block_are_not_converted() {
         "`漢字`\n\n```text\n北京\n```\n\n漢字\n",
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -73,6 +82,7 @@ fn inline_html_lang_scope_preserves_non_korean_text() {
         r#"<q lang="ja">漢字</q> 漢字"#,
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -85,6 +95,7 @@ fn inline_html_lang_scope_preserves_markdown_child_scopes() {
         r#"<span lang="ja">**漢字** [北京](https://example.com)</span> 漢字"#,
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -100,6 +111,7 @@ fn ancestor_inline_html_close_recovers_scope_stack() {
         "<span lang=ja><b>漢字</span> 漢字",
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -115,6 +127,7 @@ fn inline_html_close_inside_markdown_scope_updates_preserve_policy() {
         r#"<span lang="ja">**漢字</span> 北京**"#,
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -130,6 +143,7 @@ fn unclosed_inline_html_scope_ends_before_markdown_block_end() {
         "<span lang=\"ja\">漢字\n\n漢字\n",
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -145,6 +159,7 @@ fn html_blocks_are_preserved_as_raw_markdown_html() {
         "<div>\n漢字\n</div>\n\n漢字\n",
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -157,6 +172,7 @@ fn nested_inline_html_korean_lang_overrides_non_korean_ancestor() {
         r#"<span lang="ja">漢字 <span lang=ko>漢字</span></span> 漢字"#,
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -172,6 +188,7 @@ fn block_scopes_reset_homophone_marking() {
         "布告하다\n\n佈告하다\n\n- 布告하다 佈告하다\n",
         &dictionary(),
         RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
     )
     .unwrap();
 
@@ -183,7 +200,10 @@ fn block_scopes_reset_homophone_marking() {
 
 #[test]
 fn markdown_scope_data_exposes_effective_flags() {
-    let tokens = read_markdown(r#"<span lang="ja"><span lang=ko>漢字</span></span>"#);
+    let tokens = read_markdown(
+        r#"<span lang="ja"><span lang=ko>漢字</span></span>"#,
+        MarkdownVariant::CommonMark,
+    );
     let scopes = tokens
         .into_iter()
         .filter_map(|token| match token {
@@ -214,7 +234,7 @@ proptest! {
         item in "[A-Za-z0-9가-힣 .,!?]{0,32}",
     ) {
         let input = format!("# {heading}\n\n{paragraph}\n\n- {item}\n");
-        let rendered = read_markdown(&input)
+        let rendered = read_markdown(&input, MarkdownVariant::CommonMark)
             .into_iter()
             .map(|token| match token {
                 gukhanmun_core::InputToken::Open(scope) => gukhanmun_core::RenderedToken::Open(scope),
@@ -226,4 +246,28 @@ proptest! {
         let output = write_markdown(rendered).unwrap();
         prop_assert_eq!(events(&output), events(&input));
     }
+}
+
+#[test]
+fn gfm_table_converts_hanja_in_cells() {
+    let output = convert_markdown(
+        "| 頭 | 尾 |\n|---|---|\n| 東 | 西 |\n",
+        &dictionary(),
+        RenderMode::HangulOnly,
+        MarkdownVariant::Gfm,
+    )
+    .unwrap();
+
+    assert!(
+        !output.contains("\\|"),
+        "table pipes must not be escaped: {output}"
+    );
+    assert!(
+        output.contains("두"),
+        "header cell should be converted: {output}"
+    );
+    assert!(
+        output.contains("동"),
+        "body cell should be converted: {output}"
+    );
 }

@@ -28,7 +28,7 @@ use gukhanmun_core::{
 };
 use gukhanmun_fst::FstDictionary;
 use gukhanmun_html::{read_html_fragment, write_html_fragment};
-use gukhanmun_markdown::{read_markdown, write_markdown};
+use gukhanmun_markdown::{MarkdownVariant, read_markdown, write_markdown};
 
 const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
 
@@ -50,7 +50,11 @@ struct Cli {
     /// Input/output format.  Inferred from the input file extension when omitted
     /// (text/html for .html/.htm, text/markdown for .md/.markdown, text/plain
     /// otherwise); falls back to text/plain when reading from standard input.
-    #[arg(short, long, value_enum, value_name = "MIME")]
+    /// Accepted values: text/plain, text/html, text/markdown.  MIME parameters
+    /// are accepted for text/markdown; use "text/markdown; variant=GFM" to
+    /// enable GitHub Flavored Markdown (tables, footnotes, strikethrough, task
+    /// lists).  Unrecognised parameters are ignored.
+    #[arg(short, long, value_name = "MIME", value_parser = parse_format)]
     format: Option<Format>,
 
     /// Language variant preset.  ko-kr (default) enables the bundled Standard
@@ -86,14 +90,11 @@ struct Cli {
     no_initial_sound_law: bool,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Format {
-    #[value(name = "text/plain")]
     PlainText,
-    #[value(name = "text/html")]
     Html,
-    #[value(name = "text/markdown")]
-    Markdown,
+    Markdown(MarkdownVariant),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -310,6 +311,49 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
     Ok(options)
 }
 
+fn parse_format(s: &str) -> Result<Format, String> {
+    let mut parts = s.split(';');
+    let base = parts.next().unwrap_or("").trim();
+    match base {
+        "text/plain" => Ok(Format::PlainText),
+        "text/html" => Ok(Format::Html),
+        "text/markdown" => Ok(Format::Markdown(parse_markdown_variant(parts)?)),
+        _ => Err(format!(
+            "unknown format {base:?}: expected text/plain, text/html, or text/markdown"
+        )),
+    }
+}
+
+fn unquote_mime_param(s: &str) -> &str {
+    if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+        &s[1..s.len() - 1]
+    } else {
+        s
+    }
+}
+
+fn parse_markdown_variant<'a>(
+    params: impl Iterator<Item = &'a str>,
+) -> Result<MarkdownVariant, String> {
+    for param in params {
+        let param = param.trim();
+        if param.is_empty() {
+            continue;
+        }
+        if let Some((k, v)) = param.split_once('=')
+            && k.trim().eq_ignore_ascii_case("variant")
+        {
+            let v = unquote_mime_param(v.trim());
+            return match v {
+                v if v.eq_ignore_ascii_case("GFM") => Ok(MarkdownVariant::Gfm),
+                v if v.eq_ignore_ascii_case("CommonMark") => Ok(MarkdownVariant::CommonMark),
+                v => Err(format!("unknown Markdown variant {v:?}")),
+            };
+        }
+    }
+    Ok(MarkdownVariant::CommonMark)
+}
+
 fn detect_format(path: &Path) -> Format {
     match path
         .extension()
@@ -318,7 +362,9 @@ fn detect_format(path: &Path) -> Format {
         .as_deref()
     {
         Some("html") | Some("htm") => Format::Html,
-        Some("md") | Some("markdown") | Some("mdown") | Some("mkd") => Format::Markdown,
+        Some("md") | Some("markdown") | Some("mdown") | Some("mkd") => {
+            Format::Markdown(MarkdownVariant::CommonMark)
+        }
         _ => Format::PlainText,
     }
 }
@@ -333,7 +379,9 @@ fn convert_document(
     match format {
         Format::PlainText => convert_plain_stream(input, output, dictionary, options),
         Format::Html => convert_html(input, output, dictionary, options),
-        Format::Markdown => convert_markdown(input, output, dictionary, options),
+        Format::Markdown(variant) => {
+            convert_markdown_stream(input, output, dictionary, options, variant)
+        }
     }
 }
 
@@ -400,17 +448,18 @@ fn convert_html(
     output.flush().context("failed to flush output")
 }
 
-fn convert_markdown(
+fn convert_markdown_stream(
     mut input: impl BufRead,
     mut output: impl Write,
     dictionary: &CombinedDictionary,
     options: ResolvedOptions,
+    variant: MarkdownVariant,
 ) -> Result<()> {
     let mut content = String::new();
     input
         .read_to_string(&mut content)
         .context("failed to read UTF-8 input")?;
-    let input_tokens = read_markdown(&content);
+    let input_tokens = read_markdown(&content, variant);
     let output_tokens = process_tokens_with_options(input_tokens, dictionary, options.engine);
     let output_tokens = match options.homophone_window {
         ContextWindow::Off => output_tokens,

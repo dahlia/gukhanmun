@@ -242,6 +242,39 @@ fn format_text_markdown_converts_markdown_input() {
 }
 
 #[test]
+fn format_text_markdown_gfm_variant_with_space_enables_gfm_extensions() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown; variant=GFM"])
+        .write_stdin("~~漢字~~\n")
+        .assert()
+        .success()
+        .stdout("~~한자~~");
+}
+
+#[test]
+fn format_text_markdown_gfm_variant_no_space_enables_gfm_extensions() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown;variant=GFM"])
+        .write_stdin("~~漢字~~\n")
+        .assert()
+        .success()
+        .stdout("~~한자~~");
+}
+
+#[test]
+fn format_text_markdown_gfm_variant_extra_whitespace_and_unknown_param() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown;   foo=bar;   variant=GFM"])
+        .write_stdin("~~漢字~~\n")
+        .assert()
+        .success()
+        .stdout("~~한자~~");
+}
+
+#[test]
 fn html_extension_infers_html_format() {
     let temp = tempdir().unwrap();
     let input = temp.path().join("doc.html");

@@ -135,7 +135,7 @@ assert_eq!(output, "<p class=\"intro\">한자</p>");
 
 ~~~~ rust
 use gukhanmun_core::{MapDictionary, RenderMode};
-use gukhanmun_markdown::convert_markdown;
+use gukhanmun_markdown::{MarkdownVariant, convert_markdown};
 
 let mut dict = MapDictionary::new();
 dict.insert("漢字", "한자");
@@ -145,6 +145,7 @@ let output = convert_markdown(
     "# 漢字\n\n- 北京 and **漢字**\n",
     &dict,
     RenderMode::HangulOnly,
+    MarkdownVariant::CommonMark,
 ).unwrap();
 // → "# 한자\n\n- 베이징 and **한자**\n" (semantically equivalent)
 ~~~~
