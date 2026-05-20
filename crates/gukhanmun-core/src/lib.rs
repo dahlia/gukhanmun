@@ -41,6 +41,98 @@ use fallback::{
 };
 use segment::{Segment, segment_text};
 
+/// Error returned by fallible core pipeline entry points.
+///
+/// The core engine is mostly infallible today because dictionary lookup is a
+/// synchronous trait contract. This type is still the common structured error
+/// surface for reader/engine/writer boundaries and for future engine
+/// invariants that callers may need to inspect.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// Loading or preparing a dictionary failed before conversion could run.
+    #[error("dictionary load failed: {0}")]
+    DictionaryLoad(String),
+
+    /// Lattice segmentation failed for a specific source string.
+    #[error("segmentation failed for {hanja:?}: {reason}")]
+    Segmentation {
+        /// The hanja source span that could not be segmented.
+        hanja: String,
+
+        /// Human-readable reason for the segmentation failure.
+        reason: String,
+    },
+
+    /// A dictionary or fallback path produced a reading that is not accepted.
+    #[error("invalid hangul reading {reading:?} for hanja {hanja:?}")]
+    InvalidReading {
+        /// The hanja source string associated with the reading.
+        hanja: String,
+
+        /// The rejected hangul reading.
+        reading: String,
+    },
+
+    /// An internal invariant was violated.
+    #[error("internal invariant violated: {0}")]
+    Internal(&'static str),
+
+    /// A boxed error from an extension point that has no more specific core
+    /// variant yet.
+    #[error(transparent)]
+    Other(#[from] Box<dyn core::error::Error + Send + Sync + 'static>),
+}
+
+/// Stream-level error recovery policy.
+///
+/// `Strict` is the default and returns the first recoverable reader error.
+/// `Lenient` logs the error and emits the original unrecognized region as a
+/// verbatim token so downstream tokens can continue flowing.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum Recovery {
+    /// Return the first reader, engine, or writer error and stop processing.
+    #[default]
+    Strict,
+
+    /// Preserve recoverable bad input regions and continue processing.
+    Lenient,
+}
+
+/// A recoverable reader error plus the original source region.
+///
+/// Readers use this value when they can identify a malformed region and know
+/// how to preserve its source bytes or text in lenient mode. Strict mode
+/// returns the stored error directly.
+#[derive(Debug)]
+pub struct RecoverableInputError {
+    original: String,
+    error: Error,
+}
+
+impl RecoverableInputError {
+    /// Creates a recoverable input error from original source and cause.
+    pub fn new(original: String, error: Error) -> Self {
+        Self { original, error }
+    }
+
+    /// Returns the original source region that can be preserved in lenient
+    /// mode.
+    pub fn original(&self) -> &str {
+        &self.original
+    }
+
+    /// Returns the structured error describing why the region was rejected.
+    pub fn error(&self) -> &Error {
+        &self.error
+    }
+
+    /// Consumes the error and returns the original source plus cause.
+    pub fn into_parts(self) -> (String, Error) {
+        (self.original, self.error)
+    }
+}
+
 /// Adapter-owned data attached to an intermediate-representation scope.
 ///
 /// The engine treats this trait as an opaque policy boundary. Format adapters
@@ -414,30 +506,97 @@ where
     let mut scopes = Vec::new();
 
     for token in tokens {
-        match token {
-            InputToken::Open(scope) => {
-                scopes.push(scope.clone());
-                output.push(OutputToken::Open(scope));
-            }
-            InputToken::Close => {
-                scopes.pop();
-                output.push(OutputToken::Close);
-            }
-            InputToken::Text(text) => {
-                if scopes
-                    .last()
-                    .is_some_and(|scope| scope.data().is_preserve())
-                {
-                    output.push(OutputToken::Text(text));
-                } else {
-                    process_text(&text, dictionary, options, &mut output);
-                }
-            }
-            InputToken::Verbatim(text) => output.push(OutputToken::Verbatim(text)),
-        }
+        process_input_token(token, dictionary, options, &mut scopes, &mut output);
     }
 
     output
+}
+
+/// Processes fallible input tokens with default engine options.
+///
+/// Reader errors are handled according to `recovery`. In strict mode the first
+/// error is returned. In lenient mode each recoverable region is logged and
+/// emitted as `OutputToken::Verbatim`, after which later tokens continue
+/// through the normal engine path.
+pub fn process_fallible_tokens<S, D>(
+    tokens: impl IntoIterator<Item = Result<InputToken<S>, RecoverableInputError>>,
+    dictionary: &D,
+    recovery: Recovery,
+) -> Result<Vec<OutputToken<S>>, Error>
+where
+    S: ScopeData,
+    D: HanjaDictionary + ?Sized,
+{
+    process_fallible_tokens_with_options(tokens, dictionary, EngineOptions::default(), recovery)
+}
+
+/// Processes fallible input tokens with explicit engine options.
+///
+/// This is the recovery-aware counterpart to
+/// [`process_tokens_with_options`]. It does not make the dictionary trait
+/// fallible; it only handles reader errors that carry enough original source
+/// text for lenient preservation.
+pub fn process_fallible_tokens_with_options<S, D>(
+    tokens: impl IntoIterator<Item = Result<InputToken<S>, RecoverableInputError>>,
+    dictionary: &D,
+    options: EngineOptions,
+    recovery: Recovery,
+) -> Result<Vec<OutputToken<S>>, Error>
+where
+    S: ScopeData,
+    D: HanjaDictionary + ?Sized,
+{
+    let mut output = Vec::new();
+    let mut scopes = Vec::new();
+
+    for token in tokens {
+        match token {
+            Ok(token) => process_input_token(token, dictionary, options, &mut scopes, &mut output),
+            Err(error) => match recovery {
+                Recovery::Strict => return Err(error.into_parts().1),
+                Recovery::Lenient => {
+                    let (original, error) = error.into_parts();
+                    tracing::warn!(error = %error, "recovering from input reader error");
+                    output.push(OutputToken::Verbatim(original));
+                }
+            },
+        }
+    }
+
+    Ok(output)
+}
+
+fn process_input_token<S, D>(
+    token: InputToken<S>,
+    dictionary: &D,
+    options: EngineOptions,
+    scopes: &mut Vec<Scope<S>>,
+    output: &mut Vec<OutputToken<S>>,
+) where
+    S: ScopeData,
+    D: HanjaDictionary + ?Sized,
+{
+    match token {
+        InputToken::Open(scope) => {
+            scopes.push(scope.clone());
+            output.push(OutputToken::Open(scope));
+        }
+        InputToken::Close => {
+            scopes.pop();
+            output.push(OutputToken::Close);
+        }
+        InputToken::Text(text) => {
+            if scopes
+                .last()
+                .is_some_and(|scope| scope.data().is_preserve())
+            {
+                output.push(OutputToken::Text(text));
+            } else {
+                process_text(&text, dictionary, options, output);
+            }
+        }
+        InputToken::Verbatim(text) => output.push(OutputToken::Verbatim(text)),
+    }
 }
 
 fn process_text<S, D>(

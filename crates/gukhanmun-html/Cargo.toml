@@ -10,6 +10,8 @@ description = "HTML fragment adapter for gukhanmun."
 
 [dependencies]
 gukhanmun-core = { path = "../gukhanmun-core" }
+thiserror = "2.0.18"
+tracing = "0.1.41"
 
 [dev-dependencies]
 proptest = "1.9.0"

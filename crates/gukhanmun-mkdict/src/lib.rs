@@ -25,11 +25,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
+use std::error::Error as StdError;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, anyhow, bail, ensure};
 use ciborium::ser::into_writer;
 use fst::MapBuilder;
 use gukhanmun_cdb::CdbDictionary;
@@ -56,6 +56,92 @@ const RESERVED_METADATA_KEYS: &[&str] = &[
 const CDB_META_KEY: &[u8] = b"__gukhanmun_meta__";
 const CDB_MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
 const CDB_MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
+
+/// Error returned while parsing inputs or building dictionary files.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// The input violated the builder contract.
+    #[error("{0}")]
+    Message(String),
+
+    /// An underlying operation failed with extra builder context.
+    #[error("{context}: {source}")]
+    Source {
+        /// Builder context for the failing operation.
+        context: String,
+        /// Underlying source error.
+        #[source]
+        source: Box<dyn StdError + Send + Sync + 'static>,
+    },
+
+    /// FST backend validation or decoding failed.
+    #[error(transparent)]
+    Fst(#[from] gukhanmun_fst::Error),
+
+    /// CDB backend validation or decoding failed.
+    #[error(transparent)]
+    Cdb(#[from] gukhanmun_cdb::Error),
+}
+
+impl Error {
+    fn message(message: impl Into<String>) -> Self {
+        Self::Message(message.into())
+    }
+
+    fn source(context: impl Into<String>, source: impl StdError + Send + Sync + 'static) -> Self {
+        Self::Source {
+            context: context.into(),
+            source: Box::new(source),
+        }
+    }
+}
+
+/// Result type returned by dictionary builder APIs.
+pub type Result<T> = std::result::Result<T, Error>;
+
+trait ResultContext<T> {
+    fn context(self, context: impl Into<String>) -> Result<T>;
+
+    fn with_context(self, context: impl FnOnce() -> String) -> Result<T>;
+}
+
+impl<T, E> ResultContext<T> for std::result::Result<T, E>
+where
+    E: StdError + Send + Sync + 'static,
+{
+    fn context(self, context: impl Into<String>) -> Result<T> {
+        self.map_err(|source| Error::source(context, source))
+    }
+
+    fn with_context(self, context: impl FnOnce() -> String) -> Result<T> {
+        self.map_err(|source| Error::source(context(), source))
+    }
+}
+
+trait OptionContext<T> {
+    fn context(self, context: impl Into<String>) -> Result<T>;
+}
+
+impl<T> OptionContext<T> for Option<T> {
+    fn context(self, context: impl Into<String>) -> Result<T> {
+        self.ok_or_else(|| Error::message(context.into()))
+    }
+}
+
+macro_rules! bail {
+    ($($arg:tt)*) => {
+        return Err(Error::message(format!($($arg)*)))
+    };
+}
+
+macro_rules! ensure {
+    ($condition:expr, $($arg:tt)*) => {
+        if !$condition {
+            bail!($($arg)*);
+        }
+    };
+}
 
 /// The maximum accepted UTF-8 key length when the CLI option is omitted.
 pub const DEFAULT_MAX_KEY_BYTES: usize = 1024;
@@ -378,8 +464,8 @@ fn parse_header_with_format(header: &str, format_name: &str) -> Result<HeaderCol
     }
 
     Ok(HeaderColumns {
-        hanja: hanja.ok_or_else(|| anyhow!("missing required `hanja` column"))?,
-        hangul: hangul.ok_or_else(|| anyhow!("missing required `hangul` column"))?,
+        hanja: hanja.ok_or_else(|| Error::message("missing required `hanja` column"))?,
+        hangul: hangul.ok_or_else(|| Error::message("missing required `hangul` column"))?,
         require_hanja,
         require_hangul,
         column_count: columns.len(),
@@ -592,10 +678,10 @@ fn build_cdb_file(
     into_writer(&metadata, &mut metadata_bytes).context("failed to encode dictionary metadata")?;
 
     let output_name = output_path.to_str().ok_or_else(|| {
-        anyhow!(
+        Error::message(format!(
             "CDB output path must be valid UTF-8: {}",
             output_path.display()
-        )
+        ))
     })?;
     let mut writer = cdb::CDBWriter::create(output_name)
         .with_context(|| format!("failed to create {}", output_path.display()))?;
@@ -664,10 +750,10 @@ fn validate_fst_round_trip(entries: &[DictionaryEntry], dictionary: &FstDictiona
     );
     for entry in entries {
         let actual = dictionary.lookup(entry.hanja())?.ok_or_else(|| {
-            anyhow!(
+            Error::message(format!(
                 "round-trip validation failed: `{}` is missing",
                 entry.hanja()
-            )
+            ))
         })?;
         let mark = actual.mark();
         ensure!(
@@ -688,10 +774,10 @@ fn validate_cdb_round_trip(entries: &[DictionaryEntry], dictionary: &CdbDictiona
     );
     for entry in entries {
         let actual = dictionary.lookup(entry.hanja())?.ok_or_else(|| {
-            anyhow!(
+            Error::message(format!(
                 "round-trip validation failed: `{}` is missing",
                 entry.hanja()
-            )
+            ))
         })?;
         let mark = actual.mark();
         ensure!(
@@ -761,7 +847,7 @@ impl FixedHeader {
 pub fn parse_metadata_arg(arg: &str) -> Result<(String, String)> {
     let (key, value) = arg
         .split_once('=')
-        .ok_or_else(|| anyhow!("metadata must use KEY=VAL syntax"))?;
+        .ok_or_else(|| Error::message("metadata must use KEY=VAL syntax"))?;
     ensure!(!key.is_empty(), "metadata key must not be empty");
     Ok((key.to_owned(), value.to_owned()))
 }

@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use gukhanmun_core::{MapDictionary, RenderMode};
+use gukhanmun_core::{MapDictionary, Recovery, RenderMode};
 use gukhanmun_html::{
-    HtmlScopeData, convert_html_fragment, read_html_fragment, write_html_fragment,
+    HtmlError, HtmlScopeData, convert_html_fragment, read_html_fragment, try_convert_html_fragment,
+    write_html_fragment,
 };
 use proptest::prelude::*;
 
@@ -155,6 +156,32 @@ fn malformed_fragments_do_not_panic() {
     );
 
     assert_eq!(output, "<p>한자 <1invalid> 베이징 <![CDATA[한자");
+}
+
+#[test]
+fn strict_recovery_reports_malformed_html() {
+    let error = try_convert_html_fragment(
+        "<p>漢字 <1invalid> 北京",
+        &dictionary(),
+        RenderMode::HangulOnly,
+        Recovery::Strict,
+    )
+    .unwrap_err();
+
+    assert!(matches!(error, HtmlError::MalformedTag { .. }));
+}
+
+#[test]
+fn lenient_recovery_preserves_malformed_html_and_continues() {
+    let output = try_convert_html_fragment(
+        "<p>漢字 <1invalid> 北京",
+        &dictionary(),
+        RenderMode::HangulOnly,
+        Recovery::Lenient,
+    )
+    .unwrap();
+
+    assert_eq!(output, "<p>한자 <1invalid> 베이징");
 }
 
 proptest! {

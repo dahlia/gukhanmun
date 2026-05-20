@@ -51,11 +51,10 @@ pub struct FstDictionary {
 impl FstDictionary {
     /// Opens a dictionary file from disk.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let bytes = fs::read(path.as_ref()).map_err(|source| {
-            Error::new(format!(
-                "failed to read {}: {source}",
-                path.as_ref().display()
-            ))
+        let path = path.as_ref();
+        let bytes = fs::read(path).map_err(|source| Error::Io {
+            path: path.display().to_string(),
+            source,
         })?;
         Self::from_bytes(&bytes)
     }
@@ -64,18 +63,19 @@ impl FstDictionary {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         let header = FixedHeader::parse(bytes)?;
         let metadata_bytes = checked_slice(bytes, header.metadata_offset, header.metadata_len)
-            .ok_or_else(|| Error::new("metadata range is outside the file"))?;
-        let metadata =
-            from_reader::<BTreeMap<String, String>, _>(metadata_bytes).map_err(|source| {
-                Error::new(format!("failed to decode dictionary metadata: {source}"))
+            .ok_or(Error::SectionOutOfBounds {
+                section: "metadata",
             })?;
+        let metadata = from_reader::<BTreeMap<String, String>, _>(metadata_bytes)
+            .map_err(|source| Error::MetadataDecode { source })?;
         let fst_bytes = checked_slice(bytes, header.fst_offset, header.fst_len)
-            .ok_or_else(|| Error::new("FST range is outside the file"))?;
+            .ok_or(Error::SectionOutOfBounds { section: "FST" })?;
         let readings = checked_slice(bytes, header.readings_offset, header.readings_len)
-            .ok_or_else(|| Error::new("reading table range is outside the file"))?
+            .ok_or(Error::SectionOutOfBounds {
+                section: "readings",
+            })?
             .to_vec();
-        let map = Map::new(fst_bytes.to_vec())
-            .map_err(|source| Error::new(format!("failed to decode FST map: {source}")))?;
+        let map = Map::new(fst_bytes.to_vec()).map_err(|source| Error::FstDecode { source })?;
         let entry_count = parse_u64_metadata(&metadata, "entry_count")
             .unwrap_or_else(|| u64::try_from(map.len()).unwrap_or(u64::MAX));
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars")
@@ -110,18 +110,26 @@ impl FstDictionary {
 
     fn decode_entry(&self, encoded: u64) -> Result<LookupEntry, Error> {
         let (reading_len, mark, reading_offset) = decode_value(encoded);
-        let reading_start = usize::try_from(reading_offset)
-            .map_err(|_| Error::new("reading offset is too large"))?;
-        let reading_end = reading_start
-            .checked_add(usize::from(reading_len))
-            .ok_or_else(|| Error::new("reading range overflow"))?;
-        let reading_bytes = self
-            .readings
-            .get(reading_start..reading_end)
-            .ok_or_else(|| Error::new("reading range is outside the reading table"))?;
+        let reading_start =
+            usize::try_from(reading_offset).map_err(|_| Error::ValueOutOfRange {
+                field: "reading offset",
+            })?;
+        let reading_end =
+            reading_start
+                .checked_add(usize::from(reading_len))
+                .ok_or(Error::ValueOverflow {
+                    field: "reading range",
+                })?;
+        let reading_bytes =
+            self.readings
+                .get(reading_start..reading_end)
+                .ok_or(Error::SectionOutOfBounds {
+                    section: "reading table entry",
+                })?;
         let reading = std::str::from_utf8(reading_bytes)
-            .map_err(|source| {
-                Error::new(format!("reading table contains invalid UTF-8: {source}"))
+            .map_err(|source| Error::InvalidUtf8 {
+                field: "reading",
+                source,
             })?
             .to_owned();
 
@@ -190,26 +198,99 @@ impl LookupEntry {
 }
 
 /// Error returned while opening or decoding an FST dictionary.
-#[derive(Debug)]
-pub struct Error {
-    message: String,
-}
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// Reading a dictionary file from disk failed.
+    #[error("failed to read {path}: {source}")]
+    Io {
+        /// Path that failed to open or read.
+        path: String,
+        /// Underlying I/O error.
+        #[source]
+        source: std::io::Error,
+    },
 
-impl Error {
-    fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-        }
-    }
-}
+    /// The input is shorter than the fixed FST header.
+    #[error("dictionary file is shorter than the fixed header: {actual} bytes")]
+    ShortHeader {
+        /// Number of bytes supplied by the caller.
+        actual: usize,
+    },
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.message)
-    }
-}
+    /// The fixed header magic bytes do not identify a Gukhanmun FST file.
+    #[error("invalid dictionary magic")]
+    InvalidMagic,
 
-impl std::error::Error for Error {}
+    /// The file format version is not supported by this crate.
+    #[error("unsupported dictionary version {version}")]
+    UnsupportedVersion {
+        /// Version read from the fixed header.
+        version: u32,
+    },
+
+    /// The fixed header length field is not supported.
+    #[error("unsupported dictionary header length {header_len}")]
+    UnsupportedHeaderLength {
+        /// Header length read from the fixed header.
+        header_len: u32,
+    },
+
+    /// Reading the fixed header failed.
+    #[error("failed to read dictionary header: {source}")]
+    HeaderRead {
+        /// Underlying read error.
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// A section range from the header points outside the file.
+    #[error("{section} range is outside the file")]
+    SectionOutOfBounds {
+        /// Name of the section that was out of bounds.
+        section: &'static str,
+    },
+
+    /// CBOR metadata could not be decoded.
+    #[error("failed to decode dictionary metadata: {source}")]
+    MetadataDecode {
+        /// Underlying CBOR decode error.
+        #[source]
+        source: ciborium::de::Error<std::io::Error>,
+    },
+
+    /// The embedded FST map could not be decoded.
+    #[error("failed to decode FST map: {source}")]
+    FstDecode {
+        /// Underlying FST decode error.
+        #[source]
+        source: fst::Error,
+    },
+
+    /// A packed FST value did not fit the host representation.
+    #[error("{field} is too large")]
+    ValueOutOfRange {
+        /// Field that exceeded its valid range.
+        field: &'static str,
+    },
+
+    /// A packed FST value overflowed while computing a range.
+    #[error("{field} overflow")]
+    ValueOverflow {
+        /// Field that overflowed.
+        field: &'static str,
+    },
+
+    /// A UTF-8 string field was invalid.
+    #[error("{field} contains invalid UTF-8: {source}")]
+    InvalidUtf8 {
+        /// Field that contained invalid UTF-8.
+        field: &'static str,
+        /// Underlying UTF-8 error.
+        #[source]
+        source: std::str::Utf8Error,
+    },
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct FixedHeader {
@@ -224,24 +305,20 @@ struct FixedHeader {
 impl FixedHeader {
     fn parse(bytes: &[u8]) -> Result<Self, Error> {
         if bytes.len() < FIXED_HEADER_LEN {
-            return Err(Error::new(
-                "dictionary file is shorter than the fixed header",
-            ));
+            return Err(Error::ShortHeader {
+                actual: bytes.len(),
+            });
         }
         if &bytes[..8] != MAGIC {
-            return Err(Error::new("invalid dictionary magic"));
+            return Err(Error::InvalidMagic);
         }
         let version = read_u32(&bytes[8..12]);
         if version != FORMAT_VERSION {
-            return Err(Error::new(format!(
-                "unsupported dictionary version {version}"
-            )));
+            return Err(Error::UnsupportedVersion { version });
         }
         let header_len = read_u32(&bytes[12..16]);
         if header_len != FIXED_HEADER_LEN as u32 {
-            return Err(Error::new(format!(
-                "unsupported dictionary header length {header_len}"
-            )));
+            return Err(Error::UnsupportedHeaderLength { header_len });
         }
         let mut cursor = Cursor::new(&bytes[16..FIXED_HEADER_LEN]);
         Ok(Self {
@@ -334,7 +411,7 @@ fn read_next_u64(cursor: &mut Cursor<&[u8]>) -> Result<u64, Error> {
     let mut bytes = [0; 8];
     cursor
         .read_exact(&mut bytes)
-        .map_err(|source| Error::new(format!("failed to read dictionary header: {source}")))?;
+        .map_err(|source| Error::HeaderRead { source })?;
     Ok(u64::from_le_bytes(bytes))
 }
 
@@ -407,29 +484,51 @@ mod tests {
         let valid = fixture_bytes(&[entry("天地", "천지", false, false)]);
         let mut bad_magic = valid.clone();
         bad_magic[0] = b'X';
-        assert!(
-            FstDictionary::from_bytes(&bad_magic)
-                .unwrap_err()
-                .to_string()
-                .contains("magic")
-        );
+        assert!(matches!(
+            FstDictionary::from_bytes(&bad_magic).unwrap_err(),
+            super::Error::InvalidMagic
+        ));
 
         let mut bad_version = valid.clone();
         bad_version[8..12].copy_from_slice(&999u32.to_le_bytes());
-        assert!(
-            FstDictionary::from_bytes(&bad_version)
-                .unwrap_err()
-                .to_string()
-                .contains("version")
-        );
+        assert!(matches!(
+            FstDictionary::from_bytes(&bad_version).unwrap_err(),
+            super::Error::UnsupportedVersion { version: 999 }
+        ));
 
         let truncated = &valid[..valid.len() - 1];
-        assert!(
-            FstDictionary::from_bytes(truncated)
-                .unwrap_err()
-                .to_string()
-                .contains("reading")
-        );
+        assert!(matches!(
+            FstDictionary::from_bytes(truncated).unwrap_err(),
+            super::Error::SectionOutOfBounds {
+                section: "readings"
+            }
+        ));
+    }
+
+    #[test]
+    fn decode_errors_preserve_structured_variants_and_sources() {
+        let mut invalid_metadata = fixture_bytes(&[entry("天地", "천지", false, false)]);
+        let metadata_offset = FIXED_HEADER_LEN;
+        invalid_metadata[metadata_offset] = 0xff;
+        let metadata_error = FstDictionary::from_bytes(&invalid_metadata).unwrap_err();
+        assert!(matches!(
+            metadata_error,
+            super::Error::MetadataDecode { .. }
+        ));
+        assert!(std::error::Error::source(&metadata_error).is_some());
+
+        let mut invalid_reading = fixture_bytes(&[entry("天地", "천지", false, false)]);
+        *invalid_reading.last_mut().unwrap() = 0xff;
+        let dictionary = FstDictionary::from_bytes(&invalid_reading).unwrap();
+        let utf8_error = dictionary.lookup("天地").unwrap_err();
+        assert!(matches!(
+            utf8_error,
+            super::Error::InvalidUtf8 {
+                field: "reading",
+                ..
+            }
+        ));
+        assert!(std::error::Error::source(&utf8_error).is_some());
     }
 
     #[test]

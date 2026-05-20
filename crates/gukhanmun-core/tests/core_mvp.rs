@@ -15,11 +15,11 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use gukhanmun_core::{
-    Annotation, ContextWindow, EngineOptions, HanjaDictionary, InputToken, MapDictionary,
-    MatchMark, NumeralStrategy, OutputToken, PlainScopeData, RenderMode, RenderedToken, Scope,
-    ScopeData, UserDirectives, apply_user_directives, convert_plain_text,
-    convert_plain_text_with_options, filter_first_occurrences, mark_homophones, process_tokens,
-    read_plain_text, render_tokens, write_plain_text,
+    Annotation, ContextWindow, EngineOptions, Error as CoreError, HanjaDictionary, InputToken,
+    MapDictionary, MatchMark, NumeralStrategy, OutputToken, PlainScopeData, RecoverableInputError,
+    Recovery, RenderMode, RenderedToken, Scope, ScopeData, UserDirectives, apply_user_directives,
+    convert_plain_text, convert_plain_text_with_options, filter_first_occurrences, mark_homophones,
+    process_fallible_tokens, process_tokens, read_plain_text, render_tokens, write_plain_text,
 };
 use proptest::prelude::*;
 use std::cell::Cell;
@@ -437,6 +437,50 @@ fn engine_uses_the_current_scope_preserve_flag() {
     let output = process_tokens(tokens, &sample_dictionary());
 
     assert!(output.contains(&OutputToken::Annotated(annotation("漢字", "한자"))));
+}
+
+#[test]
+fn strict_recovery_returns_reader_error_and_stops() {
+    let tokens = vec![
+        Ok(InputToken::<PlainScopeData>::Text("漢字".into())),
+        Err(RecoverableInputError::new(
+            "<broken".into(),
+            CoreError::Internal("reader failed"),
+        )),
+        Ok(InputToken::Text("天地".into())),
+    ];
+
+    let error = process_fallible_tokens(tokens, &sample_dictionary(), Recovery::Strict)
+        .expect_err("strict recovery must return the reader error");
+
+    assert!(matches!(error, CoreError::Internal("reader failed")));
+}
+
+proptest! {
+    #[test]
+    fn lenient_recovery_preserves_bad_regions_and_continues(
+        prefix in "[A-Za-z가-힣 ]{0,24}",
+        recovered in "[<>/A-Za-z0-9 ]{1,16}",
+        suffix in "[A-Za-z가-힣 ]{0,24}",
+    ) {
+        let tokens = vec![
+            Ok(InputToken::<PlainScopeData>::Text(prefix.clone())),
+            Err(RecoverableInputError::new(
+                recovered.clone(),
+                CoreError::Internal("reader failed"),
+            )),
+            Ok(InputToken::Text(format!("漢字{suffix}"))),
+        ];
+
+        let output = process_fallible_tokens(tokens, &sample_dictionary(), Recovery::Lenient)
+            .expect("lenient recovery should not fail for recoverable input errors");
+        let rendered = render_tokens(output, RenderMode::HangulOnly);
+
+        prop_assert_eq!(
+            write_plain_text(rendered),
+            format!("{prefix}{recovered}한자{suffix}")
+        );
+    }
 }
 
 #[test]

@@ -19,9 +19,6 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-use std::error::Error;
-use std::fmt;
-
 use gukhanmun_core::{
     ContextWindow, EngineOptions, HanjaDictionary, InputToken, RenderMode, RenderedToken, Scope,
     ScopeData, mark_homophones, process_tokens_with_options, render_tokens,
@@ -66,27 +63,22 @@ impl ScopeData for MarkdownScopeData {
     }
 }
 
-/// Error returned when Markdown serialization fails.
-#[derive(Debug)]
-pub struct MarkdownError {
-    source: pulldown_cmark_to_cmark::Error,
-}
-
-impl fmt::Display for MarkdownError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "failed to serialize Markdown: {}", self.source)
-    }
-}
-
-impl Error for MarkdownError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Some(&self.source)
-    }
+/// Error returned when Markdown reading or serialization fails.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum MarkdownError {
+    /// Markdown serialization failed.
+    #[error("failed to serialize Markdown: {source}")]
+    Serialize {
+        /// Underlying serializer error.
+        #[source]
+        source: pulldown_cmark_to_cmark::Error,
+    },
 }
 
 impl From<pulldown_cmark_to_cmark::Error> for MarkdownError {
     fn from(source: pulldown_cmark_to_cmark::Error) -> Self {
-        Self { source }
+        Self::Serialize { source }
     }
 }
 

@@ -25,22 +25,39 @@ use std::path::Path;
 use serde::Deserialize;
 use zip::ZipArchive;
 
+/// Error returned while extracting Standard Korean Language Dictionary data.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// Filesystem or stream I/O failed.
+    #[error("I/O failed: {0}")]
+    Io(#[from] std::io::Error),
+
+    /// JSON input could not be decoded.
+    #[error("failed to decode dictionary JSON: {0}")]
+    Json(#[from] serde_json::Error),
+
+    /// ZIP archive input could not be read.
+    #[error("failed to read dictionary ZIP archive: {0}")]
+    Zip(#[from] zip::result::ZipError),
+}
+
+/// Result type returned by Standard Korean Language Dictionary extraction APIs.
+pub type Result<T> = std::result::Result<T, Error>;
+
 /// Extracts a canonical dictionary TSV from a Standard Korean Language
 /// Dictionary dump path.
 ///
 /// The input may be a single JSON file, a directory containing JSON shards, or
 /// the official ZIP archive.  Output rows are sorted by dictionary key and use
 /// the TSV schema consumed by `gukhanmun-mkdict`.
-pub fn extract_path_to_tsv(
-    path: &Path,
-    writer: impl Write,
-) -> Result<ExtractStats, Box<dyn std::error::Error>> {
+pub fn extract_path_to_tsv(path: &Path, writer: impl Write) -> Result<ExtractStats> {
     let mut extractor = Extractor::default();
 
     if path.is_dir() {
         let mut paths = fs::read_dir(path)?
             .map(|entry| entry.map(|entry| entry.path()))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<std::result::Result<Vec<_>, _>>()?;
         paths.sort();
         for path in paths {
             if path
@@ -65,10 +82,7 @@ pub fn extract_path_to_tsv(
 /// This helper is intended for tests and tools that already opened an
 /// individual JSON shard.  Use [`extract_path_to_tsv`] for the official ZIP
 /// archive or a directory of shards.
-pub fn extract_json_reader_to_tsv(
-    reader: impl Read,
-    writer: impl Write,
-) -> Result<ExtractStats, Box<dyn std::error::Error>> {
+pub fn extract_json_reader_to_tsv(reader: impl Read, writer: impl Write) -> Result<ExtractStats> {
     let mut extractor = Extractor::default();
     extractor.read_json(reader)?;
     extractor.write_tsv(writer)
@@ -96,7 +110,7 @@ struct Extractor {
 }
 
 impl Extractor {
-    fn read_zip<R>(&mut self, reader: R) -> Result<(), Box<dyn std::error::Error>>
+    fn read_zip<R>(&mut self, reader: R) -> Result<()>
     where
         R: Read + Seek,
     {
@@ -118,7 +132,7 @@ impl Extractor {
         Ok(())
     }
 
-    fn read_json(&mut self, reader: impl Read) -> Result<(), Box<dyn std::error::Error>> {
+    fn read_json(&mut self, reader: impl Read) -> Result<()> {
         let dump = serde_json::from_reader::<_, Dump>(reader)?;
         for item in dump.channel.item {
             self.stats.items_seen += 1;
@@ -173,10 +187,7 @@ impl Extractor {
         }
     }
 
-    fn write_tsv(
-        mut self,
-        mut writer: impl Write,
-    ) -> Result<ExtractStats, Box<dyn std::error::Error>> {
+    fn write_tsv(mut self, mut writer: impl Write) -> Result<ExtractStats> {
         writeln!(writer, "hanja\thangul\trequire_hanja\trequire_hangul")?;
         for (key, entry) in &self.entries {
             writeln!(writer, "{key}\t{}\tfalse\tfalse", entry.reading)?;

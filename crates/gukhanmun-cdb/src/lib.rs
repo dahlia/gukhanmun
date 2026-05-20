@@ -40,17 +40,21 @@ pub struct CdbDictionary {
 impl CdbDictionary {
     /// Opens a dictionary file from disk.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let cdb = cdb::CDB::open(path.as_ref()).map_err(|source| {
-            Error::new(format!(
-                "failed to open {}: {source}",
-                path.as_ref().display()
-            ))
+        let path = path.as_ref();
+        let cdb = cdb::CDB::open(path).map_err(|source| Error::Open {
+            path: path.display().to_string(),
+            source,
         })?;
         let metadata_bytes = get_required(&cdb, META_KEY, "dictionary metadata")?;
         let metadata = from_reader::<BTreeMap<String, String>, _>(metadata_bytes.as_slice())
-            .map_err(|source| {
-                Error::new(format!("failed to decode dictionary metadata: {source}"))
-            })?;
+            .map_err(|source| Error::MetadataDecode { source })?;
+        if let Some(version) = metadata.get("version")
+            && version != "1"
+        {
+            return Err(Error::UnsupportedVersion {
+                version: version.clone(),
+            });
+        }
         let entry_count = parse_u64_metadata(&metadata, "entry_count").unwrap_or(0);
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars");
 
@@ -148,40 +152,96 @@ impl LookupEntry {
 }
 
 /// Error returned while opening or decoding a CDB dictionary.
-#[derive(Debug)]
-pub struct Error {
-    message: String,
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// Opening a CDB dictionary file failed.
+    #[error("failed to open {path}: {source}")]
+    Open {
+        /// Path that failed to open.
+        path: String,
+        /// Underlying I/O or CDB format error.
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// Reading a CDB record failed.
+    #[error("failed to read CDB record: {source}")]
+    ReadRecord {
+        /// Underlying CDB reader error.
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// A required record is missing.
+    #[error("missing {record}")]
+    MissingRecord {
+        /// Human-readable record name.
+        record: &'static str,
+    },
+
+    /// CBOR metadata could not be decoded.
+    #[error("failed to decode dictionary metadata: {source}")]
+    MetadataDecode {
+        /// Underlying CBOR decode error.
+        #[source]
+        source: ciborium::de::Error<std::io::Error>,
+    },
+
+    /// The metadata version is not supported.
+    #[error("unsupported dictionary version {version}")]
+    UnsupportedVersion {
+        /// Version string read from metadata.
+        version: String,
+    },
+
+    /// A CDB value did not match the expected record layout.
+    #[error("malformed CDB record: {reason}")]
+    MalformedRecord {
+        /// Description of the malformed record condition.
+        reason: &'static str,
+    },
+
+    /// A CDB value range overflowed while decoding.
+    #[error("{field} overflow")]
+    ValueOverflow {
+        /// Field that overflowed.
+        field: &'static str,
+    },
+
+    /// A CDB value range points outside the record.
+    #[error("{field} is outside the CDB record")]
+    ValueOutOfBounds {
+        /// Field that was out of bounds.
+        field: &'static str,
+    },
+
+    /// A UTF-8 string field was invalid.
+    #[error("{field} contains invalid UTF-8: {source}")]
+    InvalidUtf8 {
+        /// Field that contained invalid UTF-8.
+        field: &'static str,
+        /// Underlying UTF-8 error.
+        #[source]
+        source: std::str::Utf8Error,
+    },
 }
 
-impl Error {
-    fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-        }
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for Error {}
-
-fn get_required(cdb: &cdb::CDB, key: &[u8], name: &str) -> Result<Vec<u8>, Error> {
-    get_optional(cdb, key)?.ok_or_else(|| Error::new(format!("missing {name}")))
+fn get_required(cdb: &cdb::CDB, key: &[u8], name: &'static str) -> Result<Vec<u8>, Error> {
+    get_optional(cdb, key)?.ok_or(Error::MissingRecord { record: name })
 }
 
 fn get_optional(cdb: &cdb::CDB, key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
     cdb.get(key)
         .transpose()
-        .map_err(|source| Error::new(format!("failed to read CDB record: {source}")))
+        .map_err(|source| Error::ReadRecord { source })
 }
 
 fn decode_record(value: &[u8]) -> Result<Option<LookupEntry>, Error> {
     if value.len() < 4 {
-        return Err(Error::new("CDB record is shorter than the fixed prefix"));
+        return Err(Error::MalformedRecord {
+            reason: "record is shorter than the fixed prefix",
+        });
     }
     if value[0] == 0 {
         return Ok(None);
@@ -191,12 +251,17 @@ fn decode_record(value: &[u8]) -> Result<Option<LookupEntry>, Error> {
     let reading_len = u16::from_le_bytes([value[2], value[3]]) as usize;
     let reading_end = 4usize
         .checked_add(reading_len)
-        .ok_or_else(|| Error::new("reading range overflow"))?;
+        .ok_or(Error::ValueOverflow {
+            field: "reading range",
+        })?;
     let reading_bytes = value
         .get(4..reading_end)
-        .ok_or_else(|| Error::new("reading range is outside the CDB record"))?;
+        .ok_or(Error::ValueOutOfBounds { field: "reading" })?;
     let reading = std::str::from_utf8(reading_bytes)
-        .map_err(|source| Error::new(format!("reading contains invalid UTF-8: {source}")))?
+        .map_err(|source| Error::InvalidUtf8 {
+            field: "reading",
+            source,
+        })?
         .to_owned();
 
     Ok(Some(LookupEntry { reading, mark }))
@@ -305,6 +370,52 @@ mod tests {
 
         assert!(dictionary.has_homophone("漢字", "한자"));
         assert!(!dictionary.has_homophone("天地", "천지"));
+    }
+
+    #[test]
+    fn open_errors_preserve_structured_variants_and_sources() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("dict.gukcdb");
+        let mut writer = cdb::CDBWriter::create(path.to_string_lossy().as_ref()).unwrap();
+        writer.add(META_KEY, &[0xff]).unwrap();
+        writer.finish().unwrap();
+
+        let error = match CdbDictionary::open(&path) {
+            Ok(_) => panic!("corrupt metadata should fail to open"),
+            Err(error) => error,
+        };
+
+        assert!(matches!(error, super::Error::MetadataDecode { .. }));
+        assert!(std::error::Error::source(&error).is_some());
+    }
+
+    #[test]
+    fn lookup_errors_distinguish_malformed_records() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("dict.gukcdb");
+        let metadata = BTreeMap::from([
+            ("entry_count".to_owned(), "1".to_owned()),
+            ("version".to_owned(), "1".to_owned()),
+            ("max_word_chars".to_owned(), "2".to_owned()),
+        ]);
+        let mut metadata_bytes = Vec::new();
+        into_writer(&metadata, &mut metadata_bytes).unwrap();
+        let mut writer = cdb::CDBWriter::create(path.to_string_lossy().as_ref()).unwrap();
+        writer.add(META_KEY, &metadata_bytes).unwrap();
+        writer.add("天地".as_bytes(), &[1, 0, 1, 0, 0xff]).unwrap();
+        writer.finish().unwrap();
+        let dictionary = CdbDictionary::open(&path).unwrap();
+
+        let error = dictionary.lookup("天地").unwrap_err();
+
+        assert!(matches!(
+            error,
+            super::Error::InvalidUtf8 {
+                field: "reading",
+                ..
+            }
+        ));
+        assert!(std::error::Error::source(&error).is_some());
     }
 
     proptest! {

@@ -12,6 +12,7 @@ description = "Markdown adapter for gukhanmun."
 gukhanmun-core = { path = "../gukhanmun-core" }
 pulldown-cmark = { version = "0.13.3", default-features = false }
 pulldown-cmark-to-cmark = "22.0.0"
+thiserror = "2.0.18"
 
 [dev-dependencies]
 proptest = "1.9.0"

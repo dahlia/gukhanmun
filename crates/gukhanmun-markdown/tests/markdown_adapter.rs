@@ -16,7 +16,8 @@
 
 use gukhanmun_core::{MapDictionary, RenderMode, RenderedToken};
 use gukhanmun_markdown::{
-    MarkdownScopeData, MarkdownVariant, convert_markdown, read_markdown, write_markdown,
+    MarkdownError, MarkdownScopeData, MarkdownVariant, convert_markdown, read_markdown,
+    write_markdown,
 };
 use proptest::prelude::*;
 use pulldown_cmark::{Event, Parser};
@@ -224,6 +225,13 @@ fn writer_preserves_rendered_verbatim_as_raw_markdown() {
     .unwrap();
 
     assert_eq!(output, "<span>漢字</span>");
+}
+
+#[test]
+fn markdown_error_preserves_serialization_source() {
+    let error = MarkdownError::from(pulldown_cmark_to_cmark::Error::UnexpectedEvent);
+
+    assert!(std::error::Error::source(&error).is_some());
 }
 
 proptest! {

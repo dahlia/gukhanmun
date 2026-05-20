@@ -82,5 +82,6 @@ fn main() -> Result<()> {
         metadata: cli.metadata.into_iter().collect::<BTreeMap<_, _>>(),
     };
 
-    build_dictionary(&cli.inputs, cli.output, &options)
+    build_dictionary(&cli.inputs, cli.output, &options)?;
+    Ok(())
 }

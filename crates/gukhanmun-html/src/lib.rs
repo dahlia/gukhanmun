@@ -20,8 +20,8 @@
 #![deny(missing_docs)]
 
 use gukhanmun_core::{
-    ContextWindow, EngineOptions, HanjaDictionary, InputToken, RenderMode, RenderedToken, Scope,
-    ScopeData, mark_homophones, process_tokens_with_options, render_tokens,
+    ContextWindow, EngineOptions, HanjaDictionary, InputToken, Recovery, RenderMode, RenderedToken,
+    Scope, ScopeData, mark_homophones, process_tokens_with_options, render_tokens,
 };
 
 /// Adapter-owned scope data for HTML fragments.
@@ -75,6 +75,31 @@ impl ScopeData for HtmlScopeData {
     }
 }
 
+/// Error returned while reading or writing HTML fragments.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum HtmlError {
+    /// A tag-like construct could not be parsed as an HTML tag.
+    #[error("malformed HTML tag at byte {position}: {snippet}")]
+    MalformedTag {
+        /// Byte position of the malformed construct.
+        position: usize,
+
+        /// Source text for the malformed construct.
+        snippet: String,
+    },
+
+    /// A construct that requires an explicit terminator reached end of input.
+    #[error("unclosed HTML {construct} at byte {position}")]
+    UnclosedConstruct {
+        /// Human-readable construct name.
+        construct: &'static str,
+
+        /// Byte position where the construct started.
+        position: usize,
+    },
+}
+
 /// Reads an HTML fragment into the core input-token stream.
 ///
 /// The scanner is fragment-oriented and intentionally does not implement full
@@ -83,6 +108,26 @@ impl ScopeData for HtmlScopeData {
 /// malformed constructs as ordinary text.
 pub fn read_html_fragment(input: &str) -> Vec<InputToken<HtmlScopeData>> {
     Scanner::new(input).scan()
+}
+
+/// Reads an HTML fragment with an explicit recovery policy.
+///
+/// `Recovery::Strict` rejects malformed tag-like constructs. `Recovery::Lenient`
+/// logs the first malformed construct, then returns the same recovered token
+/// stream as [`read_html_fragment`].
+pub fn try_read_html_fragment(
+    input: &str,
+    recovery: Recovery,
+) -> Result<Vec<InputToken<HtmlScopeData>>, HtmlError> {
+    if let Err(error) = validate_html_fragment_strict(input) {
+        match recovery {
+            Recovery::Strict => return Err(error),
+            Recovery::Lenient => {
+                tracing::warn!(error = %error, "recovering from malformed HTML fragment");
+            }
+        }
+    }
+    Ok(read_html_fragment(input))
 }
 
 /// Writes rendered HTML tokens back to a fragment string.
@@ -140,6 +185,43 @@ where
     let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
     let rendered_tokens = render_tokens(output_tokens, mode);
     write_html_fragment(rendered_tokens)
+}
+
+/// Converts an HTML fragment with an explicit recovery policy.
+pub fn try_convert_html_fragment<D>(
+    input: &str,
+    dictionary: &D,
+    mode: RenderMode,
+    recovery: Recovery,
+) -> Result<String, HtmlError>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    try_convert_html_fragment_with_options(
+        input,
+        dictionary,
+        mode,
+        EngineOptions::default(),
+        recovery,
+    )
+}
+
+/// Converts an HTML fragment with explicit engine options and recovery policy.
+pub fn try_convert_html_fragment_with_options<D>(
+    input: &str,
+    dictionary: &D,
+    mode: RenderMode,
+    options: EngineOptions,
+    recovery: Recovery,
+) -> Result<String, HtmlError>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    let input_tokens = try_read_html_fragment(input, recovery)?;
+    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
+    let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
+    let rendered_tokens = render_tokens(output_tokens, mode);
+    Ok(write_html_fragment(rendered_tokens))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -365,6 +447,100 @@ impl ElementContext {
 fn parse_start_tag_name(input: &str, start: usize) -> Option<(usize, usize)> {
     let name_start = start.checked_add(1)?;
     parse_tag_name(input, name_start)
+}
+
+fn validate_html_fragment_strict(input: &str) -> Result<(), HtmlError> {
+    let mut position = 0;
+    while position < input.len() {
+        if !input[position..].starts_with('<') {
+            position = input[position..]
+                .find('<')
+                .map_or(input.len(), |offset| position + offset);
+            continue;
+        }
+
+        if let Some(end) = validate_delimited_construct(input, position, "<!--", "-->")? {
+            position = end;
+            continue;
+        }
+        if let Some(end) = validate_delimited_construct(input, position, "<![CDATA[", "]]>")? {
+            position = end;
+            continue;
+        }
+        if input[position..].starts_with("</") {
+            let Some((_, _)) = parse_end_tag_name(input, position) else {
+                return Err(malformed_tag(input, position));
+            };
+            let Some(end_position) = find_tag_end(input, position) else {
+                return Err(HtmlError::UnclosedConstruct {
+                    construct: "end tag",
+                    position,
+                });
+            };
+            position = end_position + 1;
+            continue;
+        }
+        if input[position..].starts_with("<!") || input[position..].starts_with("<?") {
+            let Some(end_position) = find_tag_end(input, position) else {
+                return Err(HtmlError::UnclosedConstruct {
+                    construct: "declaration",
+                    position,
+                });
+            };
+            position = end_position + 1;
+            continue;
+        }
+
+        let Some((name_start, name_end)) = parse_start_tag_name(input, position) else {
+            return Err(malformed_tag(input, position));
+        };
+        let Some(end_position) = find_tag_end(input, position) else {
+            return Err(HtmlError::UnclosedConstruct {
+                construct: "start tag",
+                position,
+            });
+        };
+        let tag_name = input[name_start..name_end].to_ascii_lowercase();
+        position = end_position + 1;
+        if is_raw_text_tag(&tag_name) {
+            let Some(close_offset) = find_raw_text_end_tag(&input[position..], &tag_name) else {
+                return Err(HtmlError::UnclosedConstruct {
+                    construct: "raw text element",
+                    position,
+                });
+            };
+            position += close_offset;
+        }
+    }
+    Ok(())
+}
+
+fn validate_delimited_construct(
+    input: &str,
+    position: usize,
+    start: &'static str,
+    end: &str,
+) -> Result<Option<usize>, HtmlError> {
+    if !input[position..].starts_with(start) {
+        return Ok(None);
+    }
+    let Some(end_offset) = input[position + start.len()..].find(end) else {
+        return Err(HtmlError::UnclosedConstruct {
+            construct: start,
+            position,
+        });
+    };
+    Ok(Some(position + start.len() + end_offset + end.len()))
+}
+
+fn malformed_tag(input: &str, position: usize) -> HtmlError {
+    let source_end = input[position + 1..]
+        .find('>')
+        .map_or(input.len(), |offset| position + 1 + offset + 1);
+    HtmlError::MalformedTag {
+        position,
+        snippet: input[position..source_end].to_owned(),
+    }
 }
 
 fn parse_end_tag_name(input: &str, start: usize) -> Option<(usize, usize)> {
