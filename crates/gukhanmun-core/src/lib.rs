@@ -153,6 +153,11 @@ pub trait ScopeData: Clone + 'static {
     fn is_block_boundary(&self) -> bool {
         false
     }
+
+    /// Returns whether this scope resets section-oriented stateful stages.
+    fn is_section_boundary(&self) -> bool {
+        false
+    }
 }
 
 /// A structural scope in the format-neutral token stream.
@@ -658,7 +663,23 @@ where
     S: ScopeData,
     D: HanjaDictionary + ?Sized,
 {
-    process_tokens_with_options(tokens, dictionary, EngineOptions::default())
+    process_tokens_iter(tokens, dictionary).collect()
+}
+
+/// Processes input tokens lazily through the default engine options.
+///
+/// The returned iterator owns the tokens that are ready after the supplied
+/// input stream has been consumed. For true incremental processing, use
+/// [`Engine`] directly and call [`Engine::push_token`] as chunks arrive.
+pub fn process_tokens_iter<S, D>(
+    tokens: impl IntoIterator<Item = InputToken<S>>,
+    dictionary: &D,
+) -> alloc::vec::IntoIter<OutputToken<S>>
+where
+    S: ScopeData,
+    D: HanjaDictionary + ?Sized,
+{
+    process_tokens_with_options(tokens, dictionary, EngineOptions::default()).into_iter()
 }
 
 /// Processes input tokens with explicit hanja conversion engine options.
@@ -674,14 +695,32 @@ where
     S: ScopeData,
     D: HanjaDictionary + ?Sized,
 {
+    let mut engine = Engine::collecting(dictionary, options);
     let mut output = Vec::new();
-    let mut scopes = Vec::new();
 
     for token in tokens {
-        process_input_token(token, dictionary, options, &mut scopes, &mut output);
+        output.extend(engine.push_token(token));
     }
 
+    output.extend(engine.finish());
     output
+}
+
+/// Processes input tokens lazily through explicit engine options.
+///
+/// This convenience adapter preserves the existing collect-into-`Vec` behavior
+/// while exposing an iterator-shaped API for callers that compose pipeline
+/// stages. Use [`Engine`] for chunk-by-chunk output.
+pub fn process_tokens_iter_with_options<S, D>(
+    tokens: impl IntoIterator<Item = InputToken<S>>,
+    dictionary: &D,
+    options: EngineOptions,
+) -> alloc::vec::IntoIter<OutputToken<S>>
+where
+    S: ScopeData,
+    D: HanjaDictionary + ?Sized,
+{
+    process_tokens_with_options(tokens, dictionary, options).into_iter()
 }
 
 /// Processes fallible input tokens with default engine options.
@@ -719,69 +758,425 @@ where
     D: HanjaDictionary + ?Sized,
 {
     let mut output = Vec::new();
-    let mut scopes = Vec::new();
+    let mut engine = Engine::collecting(dictionary, options);
 
     for token in tokens {
         match token {
-            Ok(token) => process_input_token(token, dictionary, options, &mut scopes, &mut output),
+            Ok(token) => output.extend(engine.push_token(token)),
             Err(error) => match recovery {
                 Recovery::Strict => return Err(error.into_parts().1),
                 Recovery::Lenient => {
                     let (original, error) = error.into_parts();
                     tracing::warn!(error = %error, "recovering from input reader error");
-                    output.push(OutputToken::Verbatim(original));
+                    output.extend(engine.push_token(InputToken::Verbatim(original)));
                 }
             },
         }
     }
 
+    output.extend(engine.finish());
     Ok(output)
 }
 
-fn process_input_token<S, D>(
-    token: InputToken<S>,
-    dictionary: &D,
-    options: EngineOptions,
-    scopes: &mut Vec<Scope<S>>,
-    output: &mut Vec<OutputToken<S>>,
-) where
+/// Stateful hanja conversion engine for chunked token streams.
+///
+/// `Engine` is the low-level streaming surface. Call [`Engine::push_token`] for
+/// each incoming token and then [`Engine::finish`] once the upstream reader is
+/// exhausted. When the dictionary reports a maximum word length, text chunks are
+/// buffered only at the tail so dictionary matches can cross chunk boundaries
+/// without requiring the whole document in memory. A trailing fallback hanja run
+/// is also kept buffered until a non-convertible boundary or EOF so render modes
+/// that expose annotation spans match one-shot conversion. Dictionaries with an
+/// unknown maximum keep hanja-containing text until a non-convertible boundary
+/// or EOF so long custom entries remain observable.
+pub struct Engine<'a, S, D>
+where
     S: ScopeData,
     D: HanjaDictionary + ?Sized,
 {
-    match token {
-        InputToken::Open(scope) => {
-            scopes.push(scope.clone());
-            output.push(OutputToken::Open(scope));
+    dictionary: &'a D,
+    options: EngineOptions,
+    scopes: Vec<Scope<S>>,
+    pending_text: String,
+    pending_unflushable_fallback_run_bytes: Option<usize>,
+    fallback_state: FallbackState,
+    incremental_flush: bool,
+}
+
+impl<'a, S, D> Engine<'a, S, D>
+where
+    S: ScopeData,
+    D: HanjaDictionary + ?Sized,
+{
+    /// Creates a streaming engine with default options.
+    pub fn new(dictionary: &'a D) -> Self {
+        Self::with_options(dictionary, EngineOptions::default())
+    }
+
+    /// Creates a streaming engine with explicit conversion options.
+    pub fn with_options(dictionary: &'a D, options: EngineOptions) -> Self {
+        Self::with_incremental_flush(dictionary, options, true)
+    }
+
+    fn collecting(dictionary: &'a D, options: EngineOptions) -> Self {
+        Self::with_incremental_flush(dictionary, options, false)
+    }
+
+    fn with_incremental_flush(
+        dictionary: &'a D,
+        options: EngineOptions,
+        incremental_flush: bool,
+    ) -> Self {
+        Self {
+            dictionary,
+            options,
+            scopes: Vec::new(),
+            pending_text: String::new(),
+            pending_unflushable_fallback_run_bytes: None,
+            fallback_state: FallbackState::default(),
+            incremental_flush,
         }
-        InputToken::Close => {
-            scopes.pop();
-            output.push(OutputToken::Close);
-        }
-        InputToken::Text(text) => {
-            if scopes
-                .last()
-                .is_some_and(|scope| scope.data().is_preserve())
-            {
-                output.push(OutputToken::Text(text));
-            } else {
-                process_text(&text, dictionary, options, output);
+    }
+
+    /// Pushes one input token and returns output tokens that are now safe to
+    /// emit.
+    pub fn push_token(&mut self, token: InputToken<S>) -> Vec<OutputToken<S>> {
+        let mut output = Vec::new();
+        match token {
+            InputToken::Open(scope) => {
+                self.flush_into(&mut output);
+                if scope.data().is_block_boundary() {
+                    self.reset_fallback_context();
+                }
+                self.scopes.push(scope.clone());
+                output.push(OutputToken::Open(scope));
+            }
+            InputToken::Close => {
+                self.flush_into(&mut output);
+                let closes_block_boundary = self
+                    .scopes
+                    .pop()
+                    .is_some_and(|scope| scope.data().is_block_boundary());
+                output.push(OutputToken::Close);
+                if closes_block_boundary {
+                    self.reset_fallback_context();
+                }
+            }
+            InputToken::Text(text) => {
+                if self
+                    .scopes
+                    .last()
+                    .is_some_and(|scope| scope.data().is_preserve())
+                {
+                    self.flush_into(&mut output);
+                    self.reset_fallback_context();
+                    output.push(OutputToken::Text(text));
+                } else {
+                    let previous_pending_bytes = self.pending_text.len();
+                    self.pending_text.push_str(&text);
+                    if self
+                        .pending_unflushable_fallback_run_bytes
+                        .is_some_and(|bytes| bytes == previous_pending_bytes)
+                    {
+                        self.pending_unflushable_fallback_run_bytes = Some(previous_pending_bytes);
+                    } else {
+                        self.pending_unflushable_fallback_run_bytes = None;
+                    }
+                    if self.incremental_flush {
+                        self.flush_safe_into(&mut output);
+                    }
+                }
+            }
+            InputToken::Verbatim(text) => {
+                self.flush_into(&mut output);
+                self.reset_fallback_context();
+                output.push(OutputToken::Verbatim(text));
             }
         }
-        InputToken::Verbatim(text) => output.push(OutputToken::Verbatim(text)),
+        output
+    }
+
+    /// Flushes all pending text without ending the engine.
+    pub fn flush(&mut self) -> Vec<OutputToken<S>> {
+        let mut output = Vec::new();
+        self.flush_into(&mut output);
+        output
+    }
+
+    /// Finishes the stream and returns every remaining output token.
+    pub fn finish(mut self) -> Vec<OutputToken<S>> {
+        self.flush()
+    }
+
+    /// Returns the number of Unicode scalar values currently buffered.
+    pub fn buffered_chars(&self) -> usize {
+        self.pending_text.chars().count()
+    }
+
+    fn tail_bound(&self) -> Option<usize> {
+        self.dictionary.max_word_chars().filter(|bound| *bound > 0)
+    }
+
+    fn flush_safe_into(&mut self, output: &mut Vec<OutputToken<S>>) {
+        if self.pending_text.is_empty() {
+            return;
+        }
+        if !self.pending_text.chars().any(is_hanja) {
+            self.flush_non_hanja_safe_into(output);
+            return;
+        }
+
+        let Some(bound) = self.tail_bound() else {
+            let Some(flush_end) = safe_unknown_bound_flush_end(&self.pending_text) else {
+                return;
+            };
+            self.flush_prefix_into(flush_end, output);
+            if !self.pending_text.chars().any(is_hanja) {
+                self.flush_non_hanja_safe_into(output);
+            }
+            return;
+        };
+        let buffered_chars = self.buffered_chars();
+        if buffered_chars <= bound {
+            return;
+        }
+
+        if self.extends_unflushable_fallback_run(bound) {
+            self.pending_unflushable_fallback_run_bytes = Some(self.pending_text.len());
+            return;
+        }
+
+        let safe_chars = buffered_chars.saturating_sub(bound).saturating_add(1);
+        let segments = segment_text(&self.pending_text, self.dictionary);
+        let mut flush_end = 0;
+        let mut flush_segments = Vec::new();
+        for segment in &segments {
+            let (byte_start, byte_end) = segment_bounds(segment);
+            let start_chars = self.pending_text[..byte_start].chars().count();
+            let end_chars = self.pending_text[..byte_end].chars().count();
+            if byte_start > flush_end || (start_chars > safe_chars && flush_end > 0) {
+                break;
+            }
+            if end_chars > safe_chars {
+                break;
+            }
+            flush_end = byte_end;
+            flush_segments.push(segment.clone());
+        }
+
+        // Fallback runs render as one annotation in non-default render modes.
+        // Keep a trailing fallback run buffered because the next chunk may
+        // extend it, even when the dictionary lookahead bound is only one char.
+        if let Some(fallback_start) = trailing_fallback_run_start(&segments, flush_end) {
+            flush_end = fallback_start;
+            while flush_segments
+                .last()
+                .is_some_and(|segment| segment_bounds(segment).1 > flush_end)
+            {
+                flush_segments.pop();
+            }
+        }
+
+        if flush_end > 0 {
+            self.pending_unflushable_fallback_run_bytes = None;
+            self.flush_segments_prefix_into(flush_end, &flush_segments, output);
+            if !self.pending_text.chars().any(is_hanja) {
+                self.flush_non_hanja_safe_into(output);
+            }
+        } else if trailing_fallback_run_start(&segments, self.pending_text.len()) == Some(0) {
+            self.pending_unflushable_fallback_run_bytes = Some(self.pending_text.len());
+        }
+    }
+
+    fn extends_unflushable_fallback_run(&self, bound: usize) -> bool {
+        let Some(previous_bytes) = self.pending_unflushable_fallback_run_bytes else {
+            return false;
+        };
+        if previous_bytes == 0
+            || previous_bytes > self.pending_text.len()
+            || !self.pending_text.is_char_boundary(previous_bytes)
+        {
+            return false;
+        }
+
+        let appended = &self.pending_text[previous_bytes..];
+        if appended.is_empty() {
+            return true;
+        }
+        if appended.chars().any(|ch| !is_hanja(ch)) {
+            return false;
+        }
+
+        // The existing prefix was already segmented as one fallback run.  Only
+        // the old suffix that can participate in a cross-chunk dictionary match
+        // and the newly appended text need to be inspected here.
+        let probe_start = suffix_start_for_char_count(
+            &self.pending_text[..previous_bytes],
+            bound.saturating_sub(1),
+        );
+        let probe = &self.pending_text[probe_start..];
+        segment_text(probe, self.dictionary)
+            .iter()
+            .all(|segment| matches!(segment, Segment::Fallback { .. }))
+    }
+
+    fn flush_non_hanja_safe_into(&mut self, output: &mut Vec<OutputToken<S>>) {
+        let flush_end = match self.tail_bound() {
+            Some(bound) => safe_non_hanja_flush_end(&self.pending_text, bound),
+            None => safe_unknown_bound_flush_end(&self.pending_text),
+        };
+        if let Some(flush_end) = flush_end {
+            self.flush_prefix_into(flush_end, output);
+        }
+    }
+
+    fn flush_prefix_into(&mut self, flush_end: usize, output: &mut Vec<OutputToken<S>>) {
+        if flush_end == self.pending_text.len() {
+            self.flush_into(output);
+            return;
+        }
+        self.pending_unflushable_fallback_run_bytes = None;
+        let prefix = self.pending_text[..flush_end].to_string();
+        let segments = segment_text(&prefix, self.dictionary);
+        self.flush_segments_prefix_into(flush_end, &segments, output);
+    }
+
+    fn flush_segments_prefix_into(
+        &mut self,
+        flush_end: usize,
+        segments: &[Segment],
+        output: &mut Vec<OutputToken<S>>,
+    ) {
+        let prefix = self.pending_text[..flush_end].to_string();
+        process_segments_with_state(
+            &prefix,
+            segments,
+            self.dictionary,
+            self.options,
+            &mut self.fallback_state,
+            output,
+        );
+        self.pending_text.replace_range(..flush_end, "");
+    }
+
+    fn flush_into(&mut self, output: &mut Vec<OutputToken<S>>) {
+        if self.pending_text.is_empty() {
+            return;
+        }
+        self.pending_unflushable_fallback_run_bytes = None;
+        let text = core::mem::take(&mut self.pending_text);
+        process_text_with_state(
+            &text,
+            self.dictionary,
+            self.options,
+            &mut self.fallback_state,
+            output,
+        );
+    }
+
+    fn reset_fallback_context(&mut self) {
+        self.fallback_state = FallbackState::default();
     }
 }
 
-fn process_text<S, D>(
+fn safe_non_hanja_flush_end(text: &str, bound: usize) -> Option<usize> {
+    if text.is_empty() {
+        return None;
+    }
+
+    let keep_chars = bound.saturating_sub(1);
+    let span_start = text
+        .char_indices()
+        .rfind(|(_, ch)| ch.is_whitespace())
+        .map_or(0, |(index, ch)| index + ch.len_utf8());
+    let suffix = &text[span_start..];
+    let suffix_chars = suffix.chars().count();
+    if suffix_chars <= keep_chars {
+        return (span_start > 0).then_some(span_start);
+    }
+
+    let flush_suffix_chars = suffix_chars - keep_chars;
+    let flush_end = suffix
+        .char_indices()
+        .nth(flush_suffix_chars)
+        .map_or(text.len(), |(index, _)| span_start + index);
+    (flush_end > 0).then_some(flush_end)
+}
+
+fn safe_unknown_bound_flush_end(text: &str) -> Option<usize> {
+    text.char_indices()
+        .rfind(|(_, ch)| ch.is_whitespace())
+        .map(|(index, ch)| index + ch.len_utf8())
+}
+
+fn suffix_start_for_char_count(text: &str, count: usize) -> usize {
+    if count == 0 {
+        return text.len();
+    }
+
+    text.char_indices()
+        .rev()
+        .nth(count.saturating_sub(1))
+        .map_or(0, |(index, _)| index)
+}
+
+fn trailing_fallback_run_start(segments: &[Segment], split_byte: usize) -> Option<usize> {
+    if split_byte == 0 {
+        return None;
+    }
+
+    for (index, segment) in segments.iter().enumerate() {
+        let (byte_start, byte_end) = segment_bounds(segment);
+        if byte_end != split_byte {
+            continue;
+        }
+        if !matches!(segment, Segment::Fallback { .. }) {
+            return None;
+        }
+        if let Some(next) = segments.get(index + 1)
+            && !matches!(next, Segment::Fallback { .. })
+        {
+            return None;
+        }
+
+        let mut run_start = byte_start;
+        for previous in segments[..index].iter().rev() {
+            let (previous_start, previous_end) = segment_bounds(previous);
+            if previous_end != run_start || !matches!(previous, Segment::Fallback { .. }) {
+                break;
+            }
+            run_start = previous_start;
+        }
+        return (run_start < split_byte).then_some(run_start);
+    }
+
+    None
+}
+
+fn process_text_with_state<S, D>(
     text: &str,
     dictionary: &D,
     options: EngineOptions,
+    fallback_state: &mut FallbackState,
     output: &mut Vec<OutputToken<S>>,
 ) where
     D: HanjaDictionary + ?Sized,
 {
     let segments = segment_text(text, dictionary);
+    process_segments_with_state(text, &segments, dictionary, options, fallback_state, output);
+}
+
+fn process_segments_with_state<S, D>(
+    text: &str,
+    segments: &[Segment],
+    _dictionary: &D,
+    options: EngineOptions,
+    fallback_state: &mut FallbackState,
+    output: &mut Vec<OutputToken<S>>,
+) where
+    D: HanjaDictionary + ?Sized,
+{
     let mut index = 0;
-    let mut fallback_state = FallbackState::default();
 
     while index < segments.len() {
         match &segments[index] {
@@ -802,9 +1197,9 @@ fn process_text<S, D>(
                     from_dictionary: true,
                 }));
                 if should_preserve_dictionary_context(source, reading, options) {
-                    update_fallback_state_for_reading(reading, &mut fallback_state);
+                    update_fallback_state_for_reading(reading, fallback_state);
                 } else {
-                    fallback_state = FallbackState::default();
+                    *fallback_state = FallbackState::default();
                 }
                 index += 1;
             }
@@ -820,7 +1215,7 @@ fn process_text<S, D>(
                 process_fallback_text(
                     &text[*byte_start..fallback_end],
                     options,
-                    &mut fallback_state,
+                    fallback_state,
                     output,
                 );
                 index += 1;
@@ -831,10 +1226,28 @@ fn process_text<S, D>(
             } => {
                 let text_segment = &text[*byte_start..*byte_end];
                 push_text(output, text_segment);
-                update_fallback_state_for_text(text_segment, &mut fallback_state);
+                update_fallback_state_for_text(text_segment, fallback_state);
                 index += 1;
             }
         }
+    }
+}
+
+fn segment_bounds(segment: &Segment) -> (usize, usize) {
+    match segment {
+        Segment::Dictionary {
+            byte_start,
+            byte_end,
+            ..
+        }
+        | Segment::Fallback {
+            byte_start,
+            byte_end,
+        }
+        | Segment::Text {
+            byte_start,
+            byte_end,
+        } => (*byte_start, *byte_end),
     }
 }
 
@@ -867,7 +1280,11 @@ fn update_fallback_state_for_text(text: &str, state: &mut FallbackState) {
         return;
     }
 
-    if text.chars().all(char::is_whitespace) {
+    if text
+        .chars()
+        .last()
+        .is_some_and(|character| character.is_whitespace())
+    {
         *state = FallbackState::default();
         return;
     }
@@ -986,8 +1403,12 @@ pub enum RenderMode {
 /// The context boundary used by stateful annotation middlewares.
 ///
 /// `PerBlock` resets when a scope reports [`ScopeData::is_block_boundary`].
-/// Plain-text streams have no block scopes, so they behave like one document
-/// context.
+/// `PerSection` resets when a later scope reports
+/// [`ScopeData::is_section_boundary`].  Plain-text streams have no block or
+/// section scopes, so those windows behave like one document context.  This is
+/// required for exact homophone rendering because a later plain-text line can
+/// make an earlier annotation ambiguous after it would otherwise have been
+/// written.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ContextWindow {
     /// Disable the middleware and leave tokens unchanged.
@@ -995,6 +1416,9 @@ pub enum ContextWindow {
 
     /// Reset state at format-adapter block boundaries.
     PerBlock,
+
+    /// Reset state at format-adapter section boundaries.
+    PerSection,
 
     /// Use the entire token stream as one context.
     PerDocument,
@@ -1046,7 +1470,7 @@ pub fn mark_homophones<S>(
 where
     S: ScopeData,
 {
-    apply_contexts(tokens, window, mark_homophones_in_context)
+    ContextMiddleware::new(window, mark_homophones_in_context).process(tokens)
 }
 
 /// Clears repeat gloss requirements after the first occurrence of each hanja.
@@ -1061,7 +1485,78 @@ pub fn filter_first_occurrences<S>(
 where
     S: ScopeData,
 {
-    apply_contexts(tokens, window, filter_first_occurrences_in_context)
+    ContextMiddleware::new(window, filter_first_occurrences_in_context).process(tokens)
+}
+
+type ContextApply<S> = fn(&mut [OutputToken<S>]);
+
+/// Streaming homophone marker middleware.
+///
+/// Context windows that require lookahead buffer only until their configured
+/// boundary. `PerDocument`, and scoped windows on streams that never emit the
+/// corresponding boundary, buffer until [`HomophoneMarker::finish`].  For
+/// example, exact plain-text homophone marking with `PerBlock` is document-wide
+/// because plain text has no block scopes.
+pub struct HomophoneMarker<S>
+where
+    S: ScopeData,
+{
+    inner: ContextMiddleware<S, ContextApply<S>>,
+}
+
+impl<S> HomophoneMarker<S>
+where
+    S: ScopeData,
+{
+    /// Creates a homophone marker for the selected context window.
+    pub fn new(window: ContextWindow) -> Self {
+        Self {
+            inner: ContextMiddleware::new(window, mark_homophones_in_context::<S>),
+        }
+    }
+
+    /// Pushes one output token and returns tokens ready for downstream stages.
+    pub fn push_token(&mut self, token: OutputToken<S>) -> Vec<OutputToken<S>> {
+        self.inner.push_token(token)
+    }
+
+    /// Finishes the middleware and returns buffered tokens.
+    pub fn finish(self) -> Vec<OutputToken<S>> {
+        self.inner.finish()
+    }
+}
+
+/// Streaming first-occurrence middleware.
+///
+/// Repeated annotations inside a context have `first_in_context` cleared and
+/// presentation requirements removed once the context is flushed.
+pub struct FirstOccurrenceFilter<S>
+where
+    S: ScopeData,
+{
+    inner: ContextMiddleware<S, ContextApply<S>>,
+}
+
+impl<S> FirstOccurrenceFilter<S>
+where
+    S: ScopeData,
+{
+    /// Creates a first-occurrence filter for the selected context window.
+    pub fn new(window: ContextWindow) -> Self {
+        Self {
+            inner: ContextMiddleware::new(window, filter_first_occurrences_in_context::<S>),
+        }
+    }
+
+    /// Pushes one output token and returns tokens ready for downstream stages.
+    pub fn push_token(&mut self, token: OutputToken<S>) -> Vec<OutputToken<S>> {
+        self.inner.push_token(token)
+    }
+
+    /// Finishes the middleware and returns buffered tokens.
+    pub fn finish(self) -> Vec<OutputToken<S>> {
+        self.inner.finish()
+    }
 }
 
 /// Applies literal user directives to annotation policy flags.
@@ -1088,64 +1583,85 @@ pub fn apply_user_directives<S>(
         .collect()
 }
 
-fn apply_contexts<S>(
-    tokens: impl IntoIterator<Item = OutputToken<S>>,
-    window: ContextWindow,
-    mut apply: impl FnMut(&mut [OutputToken<S>]),
-) -> Vec<OutputToken<S>>
+struct ContextMiddleware<S, F>
 where
     S: ScopeData,
+    F: FnMut(&mut [OutputToken<S>]),
 {
-    match window {
-        ContextWindow::Off => tokens.into_iter().collect(),
-        ContextWindow::PerDocument => {
-            let mut tokens = tokens.into_iter().collect::<Vec<_>>();
-            apply(&mut tokens);
-            tokens
-        }
-        ContextWindow::PerBlock => {
-            let mut output = Vec::new();
-            let mut context = Vec::new();
-            let mut scope_boundaries = Vec::new();
-
-            for token in tokens {
-                match &token {
-                    OutputToken::Open(scope) => {
-                        let is_boundary = scope.data().is_block_boundary();
-                        if is_boundary {
-                            flush_context(&mut context, &mut output, &mut apply);
-                        }
-                        scope_boundaries.push(is_boundary);
-                        context.push(token);
-                    }
-                    OutputToken::Close => {
-                        let closes_boundary = scope_boundaries.pop().unwrap_or(false);
-                        context.push(token);
-                        if closes_boundary {
-                            flush_context(&mut context, &mut output, &mut apply);
-                        }
-                    }
-                    _ => context.push(token),
-                }
-            }
-
-            flush_context(&mut context, &mut output, &mut apply);
-            output
-        }
-    }
+    window: ContextWindow,
+    apply: F,
+    context: Vec<OutputToken<S>>,
+    scope_boundaries: Vec<bool>,
 }
 
-fn flush_context<S>(
-    context: &mut Vec<OutputToken<S>>,
-    output: &mut Vec<OutputToken<S>>,
-    apply: &mut impl FnMut(&mut [OutputToken<S>]),
-) {
-    if context.is_empty() {
-        return;
+impl<S, F> ContextMiddleware<S, F>
+where
+    S: ScopeData,
+    F: FnMut(&mut [OutputToken<S>]),
+{
+    fn new(window: ContextWindow, apply: F) -> Self {
+        Self {
+            window,
+            apply,
+            context: Vec::new(),
+            scope_boundaries: Vec::new(),
+        }
     }
 
-    apply(context);
-    output.append(context);
+    fn process(mut self, tokens: impl IntoIterator<Item = OutputToken<S>>) -> Vec<OutputToken<S>> {
+        let mut output = Vec::new();
+        for token in tokens {
+            output.extend(self.push_token(token));
+        }
+        output.extend(self.finish());
+        output
+    }
+
+    fn push_token(&mut self, token: OutputToken<S>) -> Vec<OutputToken<S>> {
+        let mut output = Vec::new();
+        match self.window {
+            ContextWindow::Off => output.push(token),
+            ContextWindow::PerDocument => self.context.push(token),
+            ContextWindow::PerBlock | ContextWindow::PerSection => match &token {
+                OutputToken::Open(scope) => {
+                    let is_boundary = match self.window {
+                        ContextWindow::PerBlock => scope.data().is_block_boundary(),
+                        ContextWindow::PerSection => scope.data().is_section_boundary(),
+                        ContextWindow::Off | ContextWindow::PerDocument => false,
+                    };
+                    if is_boundary {
+                        self.flush_context(&mut output);
+                    }
+                    self.scope_boundaries.push(is_boundary);
+                    self.context.push(token);
+                }
+                OutputToken::Close => {
+                    let closes_boundary = self.scope_boundaries.pop().unwrap_or(false);
+                    self.context.push(token);
+                    if closes_boundary && self.window == ContextWindow::PerBlock {
+                        self.flush_context(&mut output);
+                    }
+                }
+                _ => self.context.push(token),
+            },
+        }
+        output
+    }
+
+    fn finish(mut self) -> Vec<OutputToken<S>> {
+        let mut output = Vec::new();
+        self.flush_context(&mut output);
+        output
+    }
+
+    fn flush_context(&mut self, output: &mut Vec<OutputToken<S>>) {
+        if self.context.is_empty() {
+            return;
+        }
+
+        (self.apply)(&mut self.context);
+        output.append(&mut self.context);
+    }
 }
 
 fn mark_homophones_in_context<S>(tokens: &mut [OutputToken<S>]) {
@@ -1196,18 +1712,26 @@ pub fn render_tokens<S>(
     tokens: impl IntoIterator<Item = OutputToken<S>>,
     mode: RenderMode,
 ) -> Vec<RenderedToken<S>> {
-    tokens
-        .into_iter()
-        .map(|token| match token {
-            OutputToken::Open(scope) => RenderedToken::Open(scope),
-            OutputToken::Close => RenderedToken::Close,
-            OutputToken::Text(text) => RenderedToken::Text(text),
-            OutputToken::Verbatim(text) => RenderedToken::Verbatim(text),
-            OutputToken::Annotated(annotation) => {
-                RenderedToken::Text(render_annotation(&annotation, mode))
-            }
-        })
-        .collect()
+    render_tokens_iter(tokens, mode).collect()
+}
+
+/// Renders engine output tokens into annotation-free tokens as an iterator.
+///
+/// The renderer performs no buffering; every output token maps to one rendered
+/// token in the current plain-text rendering modes.
+pub fn render_tokens_iter<S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    mode: RenderMode,
+) -> impl Iterator<Item = RenderedToken<S>> {
+    tokens.into_iter().map(move |token| match token {
+        OutputToken::Open(scope) => RenderedToken::Open(scope),
+        OutputToken::Close => RenderedToken::Close,
+        OutputToken::Text(text) => RenderedToken::Text(text),
+        OutputToken::Verbatim(text) => RenderedToken::Verbatim(text),
+        OutputToken::Annotated(annotation) => {
+            RenderedToken::Text(render_annotation(&annotation, mode))
+        }
+    })
 }
 
 fn render_annotation(annotation: &Annotation, mode: RenderMode) -> String {

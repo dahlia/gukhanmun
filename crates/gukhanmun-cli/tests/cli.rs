@@ -16,6 +16,10 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::{Read, Write};
+use std::process::{Command as StdCommand, Stdio};
+use std::sync::mpsc;
+use std::time::Duration;
 
 use assert_cmd::Command;
 use gukhanmun_mkdict::{BuildOptions, DictionaryFormat, MergePolicy, build_dictionary};
@@ -64,6 +68,55 @@ fn ko_kp_preset_disables_bundled_stdict_and_initial_sound_law() {
         .assert()
         .success()
         .stdout("북경 래일\n");
+}
+
+#[test]
+fn ko_kp_plain_stdin_writes_ready_output_before_eof() {
+    assert_plain_stdin_writes_before_eof(["--preset", "ko-kp"], "北\n", "북\n");
+}
+
+fn assert_plain_stdin_writes_before_eof<const N: usize>(
+    args: [&str; N],
+    input: &str,
+    expected: &str,
+) {
+    let mut child = StdCommand::new(assert_cmd::cargo::cargo_bin("gukhanmun"))
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = child.stdout.take().unwrap();
+    let (sender, receiver) = mpsc::channel();
+    let expected_len = expected.len();
+
+    let reader = std::thread::spawn(move || {
+        let mut buffer = vec![0; expected_len];
+        let result = stdout.read_exact(&mut buffer).map(|()| buffer);
+        sender.send(result).unwrap();
+    });
+
+    stdin.write_all(input.as_bytes()).unwrap();
+    stdin.flush().unwrap();
+
+    let buffer = match receiver.recv_timeout(Duration::from_secs(2)) {
+        Ok(result) => result.unwrap(),
+        Err(error) => {
+            child.kill().unwrap();
+            drop(stdin);
+            child.wait().unwrap();
+            reader.join().unwrap();
+            panic!("expected ready output before stdin EOF: {error}");
+        }
+    };
+
+    drop(stdin);
+    let status = child.wait().unwrap();
+    reader.join().unwrap();
+
+    assert!(status.success());
+    assert_eq!(buffer, expected.as_bytes());
 }
 
 #[test]
@@ -139,6 +192,55 @@ fn user_dictionary_overrides_bundled_stdict() {
         .assert()
         .success()
         .stdout("사용자 베이징\n");
+}
+
+#[test]
+fn default_plain_stdin_preserves_homophone_context_across_lines() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n漢字\t한자\n翰字\t한자\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--dictionary", dictionary.to_str().unwrap()])
+        .write_stdin("漢字\n翰字\n")
+        .assert()
+        .success()
+        .stdout("한자(漢字)\n한자(翰字)\n");
+}
+
+#[test]
+fn stdin_streaming_preserves_dictionary_matches_across_chunk_boundaries() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n汽車길\t기찻길\n",
+    );
+    let prefix = "a".repeat(8189);
+    let input = format!("{prefix}汽車길\n");
+    let expected = format!("{prefix}기찻길\n");
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--no-stdict", "--dictionary", dictionary.to_str().unwrap()])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .stdout(expected);
+}
+
+#[test]
+fn stdin_reports_invalid_utf8() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .write_stdin(vec![0xff])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("failed to read UTF-8 input"));
 }
 
 #[test]

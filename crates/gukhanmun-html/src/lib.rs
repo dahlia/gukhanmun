@@ -21,7 +21,7 @@
 
 use gukhanmun_core::{
     ContextWindow, EngineOptions, HanjaDictionary, InputToken, Recovery, RenderMode, RenderedToken,
-    Scope, ScopeData, mark_homophones, process_tokens_with_options, render_tokens,
+    Scope, ScopeData, mark_homophones, process_tokens_iter_with_options, render_tokens_iter,
 };
 
 /// Adapter-owned scope data for HTML fragments.
@@ -73,6 +73,10 @@ impl ScopeData for HtmlScopeData {
     fn is_block_boundary(&self) -> bool {
         self.block_boundary
     }
+
+    fn is_section_boundary(&self) -> bool {
+        is_section_boundary_tag(&self.tag_name)
+    }
 }
 
 /// Error returned while reading or writing HTML fragments.
@@ -107,7 +111,16 @@ pub enum HtmlError {
 /// constructs, computes effective preserve flags for scopes, and treats
 /// malformed constructs as ordinary text.
 pub fn read_html_fragment(input: &str) -> Vec<InputToken<HtmlScopeData>> {
-    Scanner::new(input).scan()
+    read_html_fragment_iter(input).collect()
+}
+
+/// Reads an HTML fragment as an iterator over core input tokens.
+///
+/// The current scanner still receives a complete fragment string, but callers
+/// can compose the resulting token stream without depending on a `Vec` return
+/// type.
+pub fn read_html_fragment_iter(input: &str) -> std::vec::IntoIter<InputToken<HtmlScopeData>> {
+    Scanner::new(input).scan().into_iter()
 }
 
 /// Reads an HTML fragment with an explicit recovery policy.
@@ -181,9 +194,9 @@ where
     D: HanjaDictionary + ?Sized,
 {
     let input_tokens = read_html_fragment(input);
-    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
+    let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options);
     let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
-    let rendered_tokens = render_tokens(output_tokens, mode);
+    let rendered_tokens = render_tokens_iter(output_tokens, mode);
     write_html_fragment(rendered_tokens)
 }
 
@@ -218,9 +231,9 @@ where
     D: HanjaDictionary + ?Sized,
 {
     let input_tokens = try_read_html_fragment(input, recovery)?;
-    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
+    let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options);
     let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
-    let rendered_tokens = render_tokens(output_tokens, mode);
+    let rendered_tokens = render_tokens_iter(output_tokens, mode);
     Ok(write_html_fragment(rendered_tokens))
 }
 
@@ -780,4 +793,8 @@ fn is_block_boundary_tag(tag_name: &str) -> bool {
             | "tr"
             | "ul"
     )
+}
+
+fn is_section_boundary_tag(tag_name: &str) -> bool {
+    matches!(tag_name, "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
 }

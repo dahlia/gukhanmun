@@ -16,8 +16,8 @@
 
 use gukhanmun_core::{MapDictionary, Recovery, RenderMode};
 use gukhanmun_html::{
-    HtmlError, HtmlScopeData, convert_html_fragment, read_html_fragment, try_convert_html_fragment,
-    write_html_fragment,
+    HtmlError, HtmlScopeData, convert_html_fragment, read_html_fragment, read_html_fragment_iter,
+    try_convert_html_fragment, write_html_fragment,
 };
 use proptest::prelude::*;
 
@@ -131,6 +131,16 @@ fn void_and_self_closing_tags_do_not_gain_extra_end_tags() {
         });
 
     assert_eq!(write_html_fragment(rendered), input);
+}
+
+#[test]
+fn html_reader_iterator_matches_vec_reader() {
+    let input = "<p lang=ko>漢字</p><pre>北京</pre>";
+
+    assert_eq!(
+        read_html_fragment_iter(input).collect::<Vec<_>>(),
+        read_html_fragment(input)
+    );
 }
 
 #[test]

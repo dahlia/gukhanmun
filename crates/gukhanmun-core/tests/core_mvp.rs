@@ -15,12 +15,13 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use gukhanmun_core::{
-    Annotation, ChainDictionary, ContextWindow, EngineOptions, Error as CoreError, HanjaDictionary,
-    InputToken, MapDictionary, MatchMark, NumeralStrategy, OutputToken, PlainScopeData,
-    RecoverableInputError, Recovery, RenderMode, RenderedToken, Scope, ScopeData, UnihanCharDict,
-    UserDirectives, apply_user_directives, convert_plain_text, convert_plain_text_with_options,
-    filter_first_occurrences, mark_homophones, process_fallible_tokens, process_tokens,
-    read_plain_text, render_tokens, write_plain_text,
+    Annotation, ChainDictionary, ContextWindow, Engine, EngineOptions, Error as CoreError,
+    HanjaDictionary, InputToken, MapDictionary, MatchMark, NumeralStrategy, OutputToken,
+    PlainScopeData, RecoverableInputError, Recovery, RenderMode, RenderedToken, Scope, ScopeData,
+    UnihanCharDict, UserDirectives, apply_user_directives, convert_plain_text,
+    convert_plain_text_with_options, filter_first_occurrences, mark_homophones,
+    process_fallible_tokens, process_tokens, process_tokens_iter, read_plain_text, render_tokens,
+    render_tokens_iter, write_plain_text,
 };
 use proptest::prelude::*;
 use std::cell::Cell;
@@ -415,7 +416,7 @@ fn whitespace_bounds_dictionary_lookup_windows() {
 }
 
 #[test]
-fn mixed_script_lookup_does_not_cross_text_tokens() {
+fn mixed_script_lookup_can_cross_text_chunk_boundaries() {
     let tokens = vec![
         InputToken::<PlainScopeData>::Text("汽車".into()),
         InputToken::Text("길".into()),
@@ -425,7 +426,7 @@ fn mixed_script_lookup_does_not_cross_text_tokens() {
         RenderMode::HangulHanjaParens,
     );
 
-    assert_eq!(write_plain_text(output), "기차(汽車)길");
+    assert_eq!(write_plain_text(output), "기찻길(汽車길)");
 }
 
 #[test]
@@ -440,6 +441,291 @@ fn mixed_script_lookup_does_not_cross_verbatim_tokens() {
     );
 
     assert_eq!(write_plain_text(output), "기차(汽車)길");
+}
+
+#[test]
+fn verbatim_boundaries_reset_fallback_context() {
+    let tokens = vec![
+        InputToken::<PlainScopeData>::Text("각".into()),
+        InputToken::Verbatim("`x`".into()),
+        InputToken::Text("律".into()),
+    ];
+    let output = render_tokens(
+        process_tokens(tokens, &MapDictionary::new()),
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(write_plain_text(output), "각`x`율");
+}
+
+#[test]
+fn preserved_scope_boundaries_reset_fallback_context() {
+    let tokens = vec![
+        InputToken::Text("각".into()),
+        InputToken::Open(Scope::new(TestScopeData {
+            preserve: true,
+            block_boundary: false,
+        })),
+        InputToken::Text("x".into()),
+        InputToken::Close,
+        InputToken::Text("律".into()),
+    ];
+    let output = render_tokens(
+        process_tokens(tokens, &MapDictionary::new()),
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(write_plain_text(output), "각x율");
+}
+
+#[test]
+fn block_boundaries_reset_fallback_context() {
+    let block = TestScopeData {
+        preserve: false,
+        block_boundary: true,
+    };
+    let tokens = vec![
+        InputToken::Open(Scope::new(block.clone())),
+        InputToken::Text("各".into()),
+        InputToken::Close,
+        InputToken::Open(Scope::new(block)),
+        InputToken::Text("律".into()),
+        InputToken::Close,
+    ];
+    let output = render_tokens(
+        process_tokens(tokens, &MapDictionary::new()),
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(write_plain_text(output), "각율");
+}
+
+#[test]
+fn streaming_engine_matches_one_shot_across_mixed_script_chunks() {
+    let dict = mixed_script_dictionary();
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+    let mut output = Vec::new();
+
+    output.extend(engine.push_token(InputToken::Text("汽".into())));
+    assert!(output.is_empty());
+    output.extend(engine.push_token(InputToken::Text("車".into())));
+    output.extend(engine.push_token(InputToken::Text("길".into())));
+    output.extend(engine.finish());
+
+    let rendered = render_tokens(output, RenderMode::HangulHanjaParens);
+
+    assert_eq!(write_plain_text(rendered), "기찻길(汽車길)");
+}
+
+#[test]
+fn streaming_engine_preserves_non_hanja_prefix_for_mixed_script_match() {
+    let mut dict = MapDictionary::new();
+    dict.insert("가羅", "가라");
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+    let mut output = Vec::new();
+
+    output.extend(engine.push_token(InputToken::Text("가".into())));
+    output.extend(engine.push_token(InputToken::Text("羅".into())));
+    output.extend(engine.finish());
+    let chunked = write_plain_text(render_tokens(output, RenderMode::HangulHanjaParens));
+
+    assert_eq!(
+        chunked,
+        convert_plain_text("가羅", &dict, RenderMode::HangulHanjaParens)
+    );
+    assert_eq!(chunked, "가라(가羅)");
+}
+
+#[test]
+fn streaming_engine_flushes_at_structural_boundaries() {
+    let dict = mixed_script_dictionary();
+    let mut engine = Engine::new(&dict);
+    let mut output = Vec::new();
+
+    output.extend(engine.push_token(InputToken::<PlainScopeData>::Text("汽車".into())));
+    output.extend(engine.push_token(InputToken::Verbatim("길".into())));
+    output.extend(engine.finish());
+
+    let rendered = render_tokens(output, RenderMode::HangulHanjaParens);
+
+    assert_eq!(write_plain_text(rendered), "기차(汽車)길");
+}
+
+#[test]
+fn streaming_engine_preserves_long_unknown_dictionary_match() {
+    let dict = CountingDictionary::without_max_word_chars(vec![(
+        "龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜",
+        "긴항목",
+    )]);
+    let input = "龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜龜";
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+    let mut output = Vec::new();
+
+    for ch in input.chars() {
+        output.extend(engine.push_token(InputToken::Text(ch.to_string())));
+    }
+    output.extend(engine.finish());
+    let chunked = write_plain_text(render_tokens(output, RenderMode::HangulOnly));
+
+    assert_eq!(input.chars().count(), 36);
+    assert_eq!(
+        chunked,
+        convert_plain_text(input, &dict, RenderMode::HangulOnly)
+    );
+    assert_eq!(chunked, "긴항목");
+}
+
+#[test]
+fn streaming_engine_flushes_unknown_dictionary_at_whitespace_boundaries() {
+    let dict = CountingDictionary::without_max_word_chars(Vec::new());
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+
+    let output = engine.push_token(InputToken::Text("北\n".into()));
+    let chunked = write_plain_text(render_tokens(output, RenderMode::HangulOnly));
+
+    assert_eq!(chunked, "북\n");
+    assert_eq!(engine.buffered_chars(), 0);
+}
+
+#[test]
+fn streaming_engine_waits_for_overlapping_tail_matches() {
+    let mut dict = MapDictionary::new();
+    dict.insert("乙丙丁", "왼쪽");
+    dict.insert("丙丁戊", "오른쪽");
+
+    let input = "甲乙丙丁戊";
+    let one_shot = convert_plain_text(input, &dict, RenderMode::HangulOnly);
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+    let mut output = Vec::new();
+    for ch in input.chars() {
+        output.extend(engine.push_token(InputToken::Text(ch.to_string())));
+    }
+    output.extend(engine.finish());
+    let chunked = write_plain_text(render_tokens(output, RenderMode::HangulOnly));
+
+    assert_eq!(one_shot, "갑을오른쪽");
+    assert_eq!(chunked, one_shot);
+}
+
+#[test]
+fn streaming_engine_does_not_split_long_fallback_numeral_runs() {
+    let input = "六".repeat(40);
+    let dict = MapDictionary::new();
+    let one_shot = convert_plain_text(&input, &dict, RenderMode::HangulOnly);
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+    let mut output = Vec::new();
+
+    for ch in input.chars() {
+        output.extend(engine.push_token(InputToken::Text(ch.to_string())));
+    }
+    output.extend(engine.finish());
+    let chunked = write_plain_text(render_tokens(output, RenderMode::HangulOnly));
+
+    assert_eq!(one_shot, format!("육{}", "륙".repeat(39)));
+    assert_eq!(chunked, one_shot);
+}
+
+#[test]
+fn streaming_engine_does_not_split_long_fallback_annotation_runs() {
+    let input = "天地玄黃";
+    let mut dict = MapDictionary::new();
+    dict.insert("甲乙丙", "갑을병");
+    let one_shot = convert_plain_text(input, &dict, RenderMode::HangulHanjaParens);
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+    let mut output = Vec::new();
+
+    for ch in input.chars() {
+        output.extend(engine.push_token(InputToken::Text(ch.to_string())));
+    }
+    output.extend(engine.finish());
+    let chunked = write_plain_text(render_tokens(output, RenderMode::HangulHanjaParens));
+
+    assert_eq!(one_shot, "천지현황(天地玄黃)");
+    assert_eq!(chunked, one_shot);
+}
+
+#[test]
+fn streaming_engine_keeps_tail_fallback_run_for_one_char_dictionary() {
+    let input = "天地玄";
+    let mut dict = MapDictionary::new();
+    dict.insert("甲", "갑");
+    let one_shot = convert_plain_text(input, &dict, RenderMode::HangulHanjaParens);
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+    let mut output = Vec::new();
+
+    for ch in input.chars() {
+        output.extend(engine.push_token(InputToken::Text(ch.to_string())));
+    }
+    output.extend(engine.finish());
+    let chunked = write_plain_text(render_tokens(output, RenderMode::HangulHanjaParens));
+
+    assert_eq!(one_shot, "천지현(天地玄)");
+    assert_eq!(chunked, one_shot);
+}
+
+#[test]
+fn streaming_engine_does_not_resegment_buffered_fallback_run_quadratically() {
+    let input = "天".repeat(64);
+    let dict = CountingDictionary::new(vec![("甲", "갑")]);
+    let mut expected_dict = MapDictionary::new();
+    expected_dict.insert("甲", "갑");
+    let one_shot = convert_plain_text(&input, &expected_dict, RenderMode::HangulHanjaParens);
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+    let mut output = Vec::new();
+
+    for ch in input.chars() {
+        output.extend(engine.push_token(InputToken::Text(ch.to_string())));
+    }
+    output.extend(engine.finish());
+    let chunked = write_plain_text(render_tokens(output, RenderMode::HangulHanjaParens));
+
+    assert_eq!(chunked, one_shot);
+    assert!(
+        dict.lookup_count() <= input.chars().count() * 2 + 1,
+        "lookup count should stay linear, got {}",
+        dict.lookup_count()
+    );
+}
+
+#[test]
+fn streaming_engine_fallback_fast_path_still_detects_tail_dictionary_match() {
+    let input = "玄玄玄天地";
+    let mut dict = MapDictionary::new();
+    dict.insert("天地", "천지");
+    let one_shot = convert_plain_text(input, &dict, RenderMode::HangulHanjaParens);
+    let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+    let mut output = Vec::new();
+
+    for ch in input.chars() {
+        output.extend(engine.push_token(InputToken::Text(ch.to_string())));
+    }
+    output.extend(engine.finish());
+    let chunked = write_plain_text(render_tokens(output, RenderMode::HangulHanjaParens));
+
+    assert_eq!(one_shot, "현현현(玄玄玄)천지(天地)");
+    assert_eq!(chunked, one_shot);
+}
+
+proptest! {
+    #[test]
+    fn chunked_plain_text_matches_one_shot(
+        chunks in prop::collection::vec("[가-힣A-Za-z .,!?]{0,8}|漢字|天地|汽|車|길|色|깔|論", 0..32)
+    ) {
+        let dict = mixed_script_dictionary();
+        let input = chunks.concat();
+        let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+        let mut output = Vec::new();
+
+        for chunk in chunks {
+            output.extend(engine.push_token(InputToken::Text(chunk)));
+        }
+        output.extend(engine.finish());
+
+        let chunked = write_plain_text(render_tokens(output, RenderMode::HangulOnly));
+        let one_shot = convert_plain_text(&input, &dict, RenderMode::HangulOnly);
+
+        prop_assert_eq!(chunked, one_shot);
+    }
 }
 
 #[test]
@@ -474,6 +760,21 @@ impl ScopeData for TestScopeData {
 
     fn is_block_boundary(&self) -> bool {
         self.block_boundary
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TestSectionScopeData {
+    section_boundary: bool,
+}
+
+impl ScopeData for TestSectionScopeData {
+    fn is_preserve(&self) -> bool {
+        false
+    }
+
+    fn is_section_boundary(&self) -> bool {
+        self.section_boundary
     }
 }
 
@@ -539,6 +840,24 @@ fn strict_recovery_returns_reader_error_and_stops() {
         .expect_err("strict recovery must return the reader error");
 
     assert!(matches!(error, CoreError::Internal("reader failed")));
+}
+
+#[test]
+fn lenient_recovery_resets_fallback_context_after_bad_region() {
+    let tokens = vec![
+        Ok(InputToken::<PlainScopeData>::Text("각".into())),
+        Err(RecoverableInputError::new(
+            "<x>".into(),
+            CoreError::Internal("reader failed"),
+        )),
+        Ok(InputToken::Text("律".into())),
+    ];
+
+    let output = process_fallible_tokens(tokens, &MapDictionary::new(), Recovery::Lenient)
+        .expect("lenient recovery should keep processing after recoverable regions");
+    let rendered = render_tokens(output, RenderMode::HangulOnly);
+
+    assert_eq!(write_plain_text(rendered), "각<x>율");
 }
 
 proptest! {
@@ -893,6 +1212,35 @@ fn renderer_removes_annotations_from_the_stream() {
 }
 
 #[test]
+fn token_iterator_apis_match_vec_convenience_apis() {
+    let tokens = read_plain_text("天地와 漢字");
+
+    let iter_output = process_tokens_iter(tokens.clone(), &sample_dictionary()).collect::<Vec<_>>();
+    let vec_output = process_tokens(tokens, &sample_dictionary());
+    assert_eq!(iter_output, vec_output);
+
+    let iter_rendered =
+        render_tokens_iter(vec_output.clone(), RenderMode::HangulHanjaParens).collect::<Vec<_>>();
+    let vec_rendered = render_tokens(vec_output, RenderMode::HangulHanjaParens);
+    assert_eq!(iter_rendered, vec_rendered);
+}
+
+#[test]
+fn render_tokens_iter_is_lazy() {
+    let consumed = Cell::new(0);
+    let tokens = (0..3).map(|index| {
+        consumed.set(consumed.get() + 1);
+        OutputToken::<PlainScopeData>::Text(index.to_string())
+    });
+
+    let mut rendered = render_tokens_iter(tokens, RenderMode::HangulOnly);
+
+    assert_eq!(consumed.get(), 0);
+    assert_eq!(rendered.next(), Some(RenderedToken::Text("0".into())));
+    assert_eq!(consumed.get(), 1);
+}
+
+#[test]
 fn homophone_marker_uses_forms_that_appear_in_the_same_context() {
     let tokens = vec![
         OutputToken::<PlainScopeData>::Annotated(annotation("漢字", "한자")),
@@ -962,6 +1310,41 @@ fn homophone_marker_resets_at_nested_block_boundaries() {
     let marked = mark_homophones(tokens.clone(), ContextWindow::PerBlock);
 
     assert_eq!(marked, tokens);
+}
+
+#[test]
+fn homophone_marker_keeps_heading_and_body_in_same_section() {
+    let heading = TestSectionScopeData {
+        section_boundary: true,
+    };
+    let tokens = vec![
+        OutputToken::Open(Scope::new(heading)),
+        OutputToken::Annotated(annotation("漢字", "한자")),
+        OutputToken::Close,
+        OutputToken::Text("\n".into()),
+        OutputToken::Annotated(annotation("翰字", "한자")),
+    ];
+
+    let marked = mark_homophones(tokens, ContextWindow::PerSection);
+
+    assert_eq!(
+        marked,
+        vec![
+            OutputToken::Open(Scope::new(TestSectionScopeData {
+                section_boundary: true
+            })),
+            OutputToken::Annotated(Annotation {
+                homophone: true,
+                ..annotation("漢字", "한자")
+            }),
+            OutputToken::Close,
+            OutputToken::Text("\n".into()),
+            OutputToken::Annotated(Annotation {
+                homophone: true,
+                ..annotation("翰字", "한자")
+            }),
+        ]
+    );
 }
 
 #[test]
@@ -1040,6 +1423,50 @@ fn first_occurrence_filter_resets_at_nested_block_boundaries() {
     let filtered = filter_first_occurrences(tokens.clone(), ContextWindow::PerBlock);
 
     assert_eq!(filtered, tokens);
+}
+
+#[test]
+fn first_occurrence_filter_keeps_heading_and_body_in_same_section() {
+    let heading = TestSectionScopeData {
+        section_boundary: true,
+    };
+    let required = || Annotation {
+        require_hanja: true,
+        require_hangul: true,
+        ..annotation("漢字", "한자")
+    };
+    let tokens = vec![
+        OutputToken::Open(Scope::new(heading)),
+        OutputToken::Annotated(required()),
+        OutputToken::Close,
+        OutputToken::Text("\n".into()),
+        OutputToken::Annotated(required()),
+    ];
+
+    let filtered = filter_first_occurrences(tokens, ContextWindow::PerSection);
+
+    assert_eq!(
+        filtered,
+        vec![
+            OutputToken::Open(Scope::new(TestSectionScopeData {
+                section_boundary: true
+            })),
+            OutputToken::Annotated(Annotation {
+                require_hanja: true,
+                require_hangul: true,
+                first_in_context: true,
+                ..annotation("漢字", "한자")
+            }),
+            OutputToken::Close,
+            OutputToken::Text("\n".into()),
+            OutputToken::Annotated(Annotation {
+                require_hanja: false,
+                require_hangul: false,
+                first_in_context: false,
+                ..annotation("漢字", "한자")
+            }),
+        ]
+    );
 }
 
 #[test]

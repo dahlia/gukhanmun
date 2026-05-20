@@ -22,8 +22,9 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, ValueEnum};
 use gukhanmun_cdb::CdbDictionary;
 use gukhanmun_core::{
-    ChainDictionary, ContextWindow, EngineOptions, HanjaDictionary, NumeralStrategy, RenderMode,
-    mark_homophones, process_tokens_with_options, read_plain_text, render_tokens, write_plain_text,
+    ChainDictionary, ContextWindow, Engine, EngineOptions, HanjaDictionary, InputToken,
+    NumeralStrategy, OutputToken, PlainScopeData, RenderMode, mark_homophones,
+    process_tokens_iter_with_options, render_tokens_iter, write_plain_text,
 };
 use gukhanmun_fst::FstDictionary;
 use gukhanmun_html::{read_html_fragment, write_html_fragment};
@@ -387,38 +388,215 @@ fn convert_document(
 }
 
 fn convert_plain_stream(
-    mut input: impl BufRead,
-    mut output: impl Write,
+    input: impl BufRead,
+    output: impl Write,
     dictionary: &CliDictionary,
     options: ResolvedOptions,
 ) -> Result<()> {
-    let mut line = String::new();
+    let engine = Engine::<PlainScopeData, _>::with_options(dictionary, options.engine);
+    if options.homophone_window == ContextWindow::Off {
+        return convert_plain_stream_without_homophone_lookahead(
+            input,
+            output,
+            engine,
+            options.rendering,
+        );
+    }
+    // Plain text has no block or section scopes.  For homophone correctness,
+    // PerBlock and PerSection therefore behave like a document-wide window:
+    // a later line can force disambiguating hanja on an earlier line, and stdout
+    // cannot revise bytes already written.  Only the Off path can stream ready
+    // output before EOF without changing rendering semantics.
+    convert_plain_stream_with_document_homophone_lookahead(
+        input,
+        output,
+        engine,
+        options.homophone_window,
+        options.rendering,
+    )
+}
+
+fn convert_plain_stream_with_document_homophone_lookahead(
+    mut input: impl BufRead,
+    mut output: impl Write,
+    mut engine: Engine<PlainScopeData, CliDictionary>,
+    homophone_window: ContextWindow,
+    rendering: RenderMode,
+) -> Result<()> {
+    let mut output_tokens = Vec::new();
+    let mut bytes = [0; 8192];
+    let mut pending = Vec::new();
+
     loop {
-        line.clear();
-        let bytes = input
-            .read_line(&mut line)
-            .context("failed to read UTF-8 input")?;
-        if bytes == 0 {
+        let bytes_read = input
+            .read(&mut bytes)
+            .context("failed to read input stream")?;
+        if bytes_read == 0 {
             break;
         }
 
-        let converted = convert_plain_line(&line, dictionary, options);
-        output
-            .write_all(converted.as_bytes())
-            .context("failed to write output")?;
+        pending.extend_from_slice(&bytes[..bytes_read]);
+        process_utf8_prefix(&mut pending, &mut engine, &mut output_tokens)?;
     }
+    flush_utf8_tail(&mut pending, &mut engine, &mut output_tokens)?;
+    output_tokens.extend(engine.finish());
+
+    let output_tokens = mark_homophones(output_tokens, homophone_window);
+    write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
     output.flush().context("failed to flush output")
 }
 
-fn convert_plain_line(line: &str, dictionary: &CliDictionary, options: ResolvedOptions) -> String {
-    let input_tokens = read_plain_text(line);
-    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options.engine);
-    let output_tokens = match options.homophone_window {
-        ContextWindow::Off => output_tokens,
-        window => mark_homophones(output_tokens, window),
-    };
-    let rendered_tokens = render_tokens(output_tokens, options.rendering);
-    write_plain_text(rendered_tokens)
+fn convert_plain_stream_without_homophone_lookahead(
+    mut input: impl BufRead,
+    mut output: impl Write,
+    mut engine: Engine<PlainScopeData, CliDictionary>,
+    rendering: RenderMode,
+) -> Result<()> {
+    let mut bytes = [0; 8192];
+    let mut pending = Vec::new();
+
+    loop {
+        let bytes_read = input
+            .read(&mut bytes)
+            .context("failed to read input stream")?;
+        if bytes_read == 0 {
+            break;
+        }
+
+        pending.extend_from_slice(&bytes[..bytes_read]);
+        let mut output_tokens = Vec::new();
+        process_utf8_prefix_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| {
+            Ok(())
+        })?;
+        write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
+    }
+    let mut output_tokens = Vec::new();
+    flush_utf8_tail_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| Ok(()))?;
+    output_tokens.extend(engine.finish());
+    write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
+    output.flush().context("failed to flush output")
+}
+
+fn write_plain_stream_chunk(
+    output: &mut impl Write,
+    output_tokens: Vec<OutputToken<PlainScopeData>>,
+    rendering: RenderMode,
+) -> Result<()> {
+    if output_tokens.is_empty() {
+        return Ok(());
+    }
+
+    let converted = write_plain_text(render_tokens_iter(output_tokens, rendering));
+    output
+        .write_all(converted.as_bytes())
+        .context("failed to write output")?;
+    output.flush().context("failed to flush output")
+}
+
+fn process_utf8_prefix(
+    pending: &mut Vec<u8>,
+    engine: &mut Engine<PlainScopeData, CliDictionary>,
+    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
+) -> Result<()> {
+    process_utf8_prefix_with(pending, |text| {
+        output.extend(engine.push_token(InputToken::Text(text.to_owned())));
+        Ok(())
+    })
+}
+
+fn process_utf8_prefix_flushing_lines(
+    pending: &mut Vec<u8>,
+    engine: &mut Engine<PlainScopeData, CliDictionary>,
+    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
+    mut on_completed_line: impl FnMut(&mut Vec<OutputToken<PlainScopeData>>) -> Result<()>,
+) -> Result<()> {
+    process_utf8_prefix_with(pending, |text| {
+        push_plain_text_flushing_lines(text, engine, output, &mut on_completed_line)
+    })
+}
+
+fn process_utf8_prefix_with(
+    pending: &mut Vec<u8>,
+    mut push_text: impl FnMut(&str) -> Result<()>,
+) -> Result<()> {
+    match std::str::from_utf8(pending) {
+        Ok(text) => {
+            push_text(text)?;
+            pending.clear();
+            Ok(())
+        }
+        Err(error) if error.error_len().is_none() => {
+            let valid_up_to = error.valid_up_to();
+            if valid_up_to > 0 {
+                let text = std::str::from_utf8(&pending[..valid_up_to])
+                    .expect("valid_up_to marks valid UTF-8");
+                push_text(text)?;
+                pending.drain(..valid_up_to);
+            }
+            Ok(())
+        }
+        Err(_) => bail!("failed to read UTF-8 input"),
+    }
+}
+
+fn flush_utf8_tail(
+    pending: &mut Vec<u8>,
+    engine: &mut Engine<PlainScopeData, CliDictionary>,
+    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
+) -> Result<()> {
+    if pending.is_empty() {
+        return Ok(());
+    }
+    let text =
+        std::str::from_utf8(pending).map_err(|_| anyhow::anyhow!("failed to read UTF-8 input"))?;
+    output.extend(engine.push_token(InputToken::Text(text.to_owned())));
+    pending.clear();
+    Ok(())
+}
+
+fn flush_utf8_tail_flushing_lines(
+    pending: &mut Vec<u8>,
+    engine: &mut Engine<PlainScopeData, CliDictionary>,
+    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
+    mut on_completed_line: impl FnMut(&mut Vec<OutputToken<PlainScopeData>>) -> Result<()>,
+) -> Result<()> {
+    if pending.is_empty() {
+        return Ok(());
+    }
+    let text =
+        std::str::from_utf8(pending).map_err(|_| anyhow::anyhow!("failed to read UTF-8 input"))?;
+    push_plain_text_flushing_lines(text, engine, output, &mut on_completed_line)?;
+    pending.clear();
+    Ok(())
+}
+
+fn push_plain_text_flushing_lines<F>(
+    text: &str,
+    engine: &mut Engine<PlainScopeData, CliDictionary>,
+    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
+    on_completed_line: &mut F,
+) -> Result<()>
+where
+    F: FnMut(&mut Vec<OutputToken<PlainScopeData>>) -> Result<()>,
+{
+    let mut start = 0;
+    for (index, ch) in text.char_indices() {
+        if ch != '\n' {
+            continue;
+        }
+
+        let end = index + ch.len_utf8();
+        output.extend(engine.push_token(InputToken::Text(text[start..end].to_owned())));
+        output.extend(engine.flush());
+        on_completed_line(output)?;
+        start = end;
+    }
+
+    if start < text.len() {
+        output.extend(engine.push_token(InputToken::Text(text[start..].to_owned())));
+    }
+
+    Ok(())
 }
 
 fn convert_html(
@@ -432,12 +610,12 @@ fn convert_html(
         .read_to_string(&mut content)
         .context("failed to read UTF-8 input")?;
     let input_tokens = read_html_fragment(&content);
-    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options.engine);
+    let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options.engine);
     let output_tokens = match options.homophone_window {
-        ContextWindow::Off => output_tokens,
+        ContextWindow::Off => output_tokens.collect(),
         window => mark_homophones(output_tokens, window),
     };
-    let rendered_tokens = render_tokens(output_tokens, options.rendering);
+    let rendered_tokens = render_tokens_iter(output_tokens, options.rendering);
     let converted = write_html_fragment(rendered_tokens);
     output
         .write_all(converted.as_bytes())
@@ -469,12 +647,12 @@ fn convert_markdown_stream(
         .read_to_string(&mut content)
         .context("failed to read UTF-8 input")?;
     let input_tokens = read_markdown(&content, variant);
-    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options.engine);
+    let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options.engine);
     let output_tokens = match options.homophone_window {
-        ContextWindow::Off => output_tokens,
+        ContextWindow::Off => output_tokens.collect(),
         window => mark_homophones(output_tokens, window),
     };
-    let rendered_tokens = render_tokens(output_tokens, options.rendering);
+    let rendered_tokens = render_tokens_iter(output_tokens, options.rendering);
     let converted =
         write_markdown(rendered_tokens).context("failed to serialize Markdown output")?;
     let converted = hongdown::format(&converted, &markdown_format_options())

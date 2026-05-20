@@ -64,13 +64,22 @@ markup. The *Writer* serializes the IR back to the target format. A user
 replacing one stage does not perturb the others; the boundaries are explicit
 values, not method calls.
 
-*Streaming is the default*. Operations that fundamentally require buffering,
-notably per-document homophone disambiguation, are opt-in modes. The default
-configuration buffers only within a contiguous conversion span that contains
-hanja (usually a handful of characters in typical text) and within a single
-text token. This makes Gukhanmun usable inside servers that process large
-documents or live streams, and it makes the WebAssembly build a viable target
-for in-page conversion of long articles.
+*Streaming is the default where correctness allows it*. Operations that
+fundamentally require lookahead buffer until the relevant context boundary. In
+HTML and Markdown, the default per-block homophone window usually reaches that
+boundary at paragraphs, list items, headings, and similar scopes. Plain text has
+no block scopes, so the same default window is document-wide: an annotation on a
+later line can force disambiguating hanja on an earlier line, and a byte stream
+cannot revise text already written to stdout. Callers that require immediate
+plain-text output can disable homophone marking, accepting the corresponding
+loss of disambiguation.
+
+Streaming conversion also preserves fallback annotation spans exactly. A
+trailing run of fallback hanja is held until a following non-convertible
+boundary or EOF, even when the dictionary's maximum word length is shorter.
+This can make fallback-only hanja input less eager than dictionary lookahead
+alone would require, but it keeps render modes such as `hangul-hanja-parens`
+equivalent to one-shot conversion.
 
 
 Architecture
@@ -480,13 +489,17 @@ context window. The window is one of `per-block` (default), `per-document`, or
 `is_block_boundary()` returns true, which is typically a paragraph or a list
 item. Per-document windows buffer the whole stream and are appropriate only
 when the input is small or when full accuracy matters more than latency.
+Plain text has no block scopes, so `per-block` is document-wide there. This is
+intentional: if `漢字` appears on line 1 and `翰字` appears on line 100, both
+lines must render with disambiguating hanja, and a streaming writer cannot
+retroactively rewrite line 1 after line 100 is seen.
 
 `FirstOccurrenceFilter` clears `require_hanja` and `require_hangul` on
 annotations after their first occurrence within a configurable context, leaving
 the first occurrence as-is so the reader still encounters the gloss once. The
 context is one of `per-block`, `per-section`, or `per-document`. The section
 variant resets at any heading boundary, which the HTML and Markdown adapters
-expose through `is_block_boundary()` on heading scopes.
+expose through `is_section_boundary()` on heading scopes.
 
 `UserDirectives` applies a user-supplied set of rules. A rule is a predicate
 over the hanja form plus an action: set `require_hanja`, set `require_hangul`,
@@ -616,7 +629,11 @@ than an event stream; we preferred event streams for the streaming property.
 
 The plain-text adapter wraps the entire input in a single scope and emits one
 `Text` token. The output is the concatenation of `Text` tokens. Ruby rendering
-is not meaningful in plain text and falls back to parens.
+is not meaningful in plain text and falls back to parens.  The CLI can stream
+plain text before EOF only when no document-wide middleware can change already
+rendered output. In practice, the `ko-kp` preset streams because homophone
+marking is off, while the default `ko-kr` preset keeps the plain-text output
+until EOF so cross-line homophones are rendered correctly.
 
 
 Distribution
@@ -709,9 +726,18 @@ stream. Within the engine, a chunk that ends in the middle of a conversion
 span, or close enough to a hanja character that a mixed-script dictionary key
 could still cross the boundary, causes that trailing span to be held until the
 next chunk arrives; everything before that point is flushed eagerly. The
-trailing-span buffer is bounded by the dictionary's `max_word_chars` plus a
-small constant for the lattice's outgoing state, typically a few dozen
-characters.
+dictionary lookahead part of that buffer is bounded by the dictionary's
+`max_word_chars` plus a small constant for the lattice's outgoing state,
+typically a few dozen characters. Fallback-only hanja runs are deliberately not
+split at chunk boundaries, because render modes that show source hanja expose
+annotation grouping; those runs flush at a later non-convertible boundary or
+EOF.
+
+Stateful middlewares can add their own lookahead requirement. A homophone marker
+with a document-wide context, including plain-text `per-block` where no block
+scopes exist, must buffer until EOF to preserve exact rendering. Disabling that
+middleware restores early streaming but also disables cross-line homophone
+disambiguation.
 
 We chose strings rather than `Uint8Array` for the streaming type because the
 engine fundamentally works on Unicode scalar values: byte-level chunking would

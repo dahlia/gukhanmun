@@ -21,7 +21,7 @@
 
 use gukhanmun_core::{
     ContextWindow, EngineOptions, HanjaDictionary, InputToken, RenderMode, RenderedToken, Scope,
-    ScopeData, mark_homophones, process_tokens_with_options, render_tokens,
+    ScopeData, mark_homophones, process_tokens_iter_with_options, render_tokens_iter,
 };
 use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd};
 
@@ -60,6 +60,10 @@ impl ScopeData for MarkdownScopeData {
 
     fn is_block_boundary(&self) -> bool {
         self.block_boundary
+    }
+
+    fn is_section_boundary(&self) -> bool {
+        matches!(&self.node, MarkdownNode::Container(Tag::Heading { .. }))
     }
 }
 
@@ -103,7 +107,19 @@ pub enum MarkdownVariant {
 /// preserved-tag policy affects text until the corresponding inline HTML close
 /// tag is read.  Pass [`MarkdownVariant::Gfm`] to enable GFM extensions.
 pub fn read_markdown(input: &str, variant: MarkdownVariant) -> Vec<InputToken<MarkdownScopeData>> {
-    Reader::new(input, variant).read()
+    read_markdown_iter(input, variant).collect()
+}
+
+/// Reads Markdown as an iterator over core input tokens.
+///
+/// `pulldown-cmark` still parses from a complete `&str`, but this API lets the
+/// rest of the Gukhanmun pipeline compose token streams without a `Vec`
+/// boundary at the adapter edge.
+pub fn read_markdown_iter(
+    input: &str,
+    variant: MarkdownVariant,
+) -> std::vec::IntoIter<InputToken<MarkdownScopeData>> {
+    Reader::new(input, variant).read().into_iter()
 }
 
 /// Writes rendered Markdown tokens back to Markdown text.
@@ -144,9 +160,9 @@ where
     D: HanjaDictionary + ?Sized,
 {
     let input_tokens = read_markdown(input, variant);
-    let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
+    let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options);
     let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
-    let rendered_tokens = render_tokens(output_tokens, mode);
+    let rendered_tokens = render_tokens_iter(output_tokens, mode);
     write_markdown(rendered_tokens)
 }
 

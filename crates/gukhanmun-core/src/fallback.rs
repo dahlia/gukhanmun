@@ -325,7 +325,7 @@ fn is_positional_numeral(ch: char) -> bool {
     )
 }
 
-fn is_hanja_numeral(ch: char) -> bool {
+pub(crate) fn is_hanja_numeral(ch: char) -> bool {
     numeral_reading(ch).is_some()
 }
 

@@ -17,7 +17,7 @@
 use gukhanmun_core::{MapDictionary, RenderMode, RenderedToken};
 use gukhanmun_markdown::{
     MarkdownError, MarkdownScopeData, MarkdownVariant, convert_markdown, read_markdown,
-    write_markdown,
+    read_markdown_iter, write_markdown,
 };
 use proptest::prelude::*;
 use pulldown_cmark::{Event, Parser};
@@ -225,6 +225,16 @@ fn writer_preserves_rendered_verbatim_as_raw_markdown() {
     .unwrap();
 
     assert_eq!(output, "<span>漢字</span>");
+}
+
+#[test]
+fn markdown_reader_iterator_matches_vec_reader() {
+    let input = "# 漢字\n\n<q lang=ja>北京</q>\n";
+
+    assert_eq!(
+        read_markdown_iter(input, MarkdownVariant::CommonMark).collect::<Vec<_>>(),
+        read_markdown(input, MarkdownVariant::CommonMark)
+    );
 }
 
 #[test]
