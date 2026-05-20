@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/gukhanmun-cli",
+    "crates/gukhanmun-cdb",
     "crates/gukhanmun-core",
     "crates/gukhanmun-fst",
     "crates/gukhanmun-html",

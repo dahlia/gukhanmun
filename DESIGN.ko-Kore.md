@@ -393,8 +393,8 @@ INPUT FORMATS:
     jsonl   {"hanja":..., "hangul":..., "requireHanja":..., ...}
 
 OPTIONS:
-    -o, --output PATH               base output path
-    -f, --format FMT                cdb|fst|both       (default: both)
+    -o, --output PATH               output path
+    -f, --format FMT                cdb|fst            (default: fst)
         --merge STRATEGY            first-wins|last-wins|error
         --metadata KEY=VAL          embedded metadata
         --validate                  round-trip verification
@@ -402,9 +402,10 @@ OPTIONS:
 ~~~~
 
 이 동일한 바이너리를 *gukhanmun-stdict*의 빌드 스크립트도 呼出해서 內藏
-《標準國語大辭典》 CDB·FST 파일을 만든다. 卽 末端 使用者와 라이브러리 自體가
-같은 빌드 經路를 共有하는 셈이다. 빌드 經路의 버그는 라이브러리 自身의 統合
-테스트에 먼저 걸린다.
+《標準國語大辭典》 FST 파일을 만든다. CDB 백엔드는 使用者가 빌드하는 辭典에
+對해 같은 正規化 入力과 檢證 經路를 使用한다. 卽 末端 使用者와 라이브러리
+自體가 같은 빌드 經路를 共有하는 셈이다. 빌드 經路의 버그는 라이브러리 自身의
+統合 테스트에 먼저 걸린다.
 
 
 미들웨어
@@ -576,8 +577,7 @@ Rust 코드는 Cargo 워크스페이스로 다음과 같이 構成된다:
      -  *gukhanmun-markdown/*: `pulldown-cmark` 위에 얹은 Markdown 어댑터.
      -  *gukhanmun-cdb/*: CDB-trie 辭典 백엔드.
      -  *gukhanmun-fst/*: FST 辭典 백엔드.
-     -  *gukhanmun-stdict/*: 內藏된 《標準國語大辭典》을 바이트 配列로 提供하고,
-        適切한 백엔드에 넘기는 헬퍼를 提供.
+     -  *gukhanmun-stdict/*: 內藏된 《標準國語大辭典》을 FST 바이트 配列로 提供.
      -  *gukhanmun-mkdict/*: TSV·CSV·JSONL 入力에서 CDB·FST 辭典을 빌드하는 CLI.
      -  *gukhanmun/*: 우산 라이브러리 크레이트. 기능 플래그에 따라 다른
         크레이트들을 再露出하고, 高水準 `Builder` API와 우산 `Error` 列擧型을

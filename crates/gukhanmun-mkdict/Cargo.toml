@@ -17,9 +17,13 @@ path = "src/main.rs"
 anyhow = "1.0.102"
 ciborium = "0.2.2"
 clap = { version = "4.6.1", features = ["derive"] }
+cdb = "0.6.0"
+csv = "1.4.0"
 fst = "0.4.7"
+gukhanmun-cdb = { path = "../gukhanmun-cdb" }
 gukhanmun-fst = { path = "../gukhanmun-fst" }
 serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
 time = { version = "0.3.47", features = ["formatting"] }
 
 [dev-dependencies]

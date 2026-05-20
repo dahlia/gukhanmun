@@ -126,6 +126,44 @@ fn user_dictionary_overrides_bundled_stdict() {
 }
 
 #[test]
+fn cdb_user_dictionary_overrides_bundled_stdict() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture_with_format(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukcdb"),
+        "hanja\thangul\n漢字\t사용자\n",
+        DictionaryFormat::Cdb,
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--dictionary", dictionary.to_str().unwrap()])
+        .write_stdin("漢字 北京\n")
+        .assert()
+        .success()
+        .stdout("사용자 베이징\n");
+}
+
+#[test]
+fn extensionless_cdb_user_dictionary_loads_from_file_contents() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture_with_format(
+        temp.path().join("user.tsv"),
+        temp.path().join("user-dict"),
+        "hanja\thangul\n漢字\t사용자\n",
+        DictionaryFormat::Cdb,
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--dictionary", dictionary.to_str().unwrap()])
+        .write_stdin("漢字 北京\n")
+        .assert()
+        .success()
+        .stdout("사용자 베이징\n");
+}
+
+#[test]
 fn later_user_dictionary_has_higher_priority_than_earlier_dictionary() {
     let temp = tempdir().unwrap();
     let first = build_dictionary_fixture(
@@ -190,12 +228,21 @@ fn build_dictionary_fixture(
     output: std::path::PathBuf,
     tsv: &str,
 ) -> std::path::PathBuf {
+    build_dictionary_fixture_with_format(input, output, tsv, DictionaryFormat::Fst)
+}
+
+fn build_dictionary_fixture_with_format(
+    input: std::path::PathBuf,
+    output: std::path::PathBuf,
+    tsv: &str,
+    format: DictionaryFormat,
+) -> std::path::PathBuf {
     fs::write(&input, tsv).unwrap();
     build_dictionary(
         &[input],
         &output,
         &BuildOptions {
-            format: DictionaryFormat::Fst,
+            format,
             merge: MergePolicy::Error,
             validate: true,
             max_key_bytes: gukhanmun_mkdict::DEFAULT_MAX_KEY_BYTES,

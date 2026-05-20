@@ -432,8 +432,8 @@ INPUT FORMATS:
     jsonl   {"hanja":..., "hangul":..., "requireHanja":..., ...}
 
 OPTIONS:
-    -o, --output PATH               base output path
-    -f, --format FMT                cdb|fst|both       (default: both)
+    -o, --output PATH               output path
+    -f, --format FMT                cdb|fst            (default: fst)
         --merge STRATEGY            first-wins|last-wins|error
         --metadata KEY=VAL          embedded metadata
         --validate                  round-trip verification
@@ -441,9 +441,10 @@ OPTIONS:
 ~~~~
 
 The same binary is invoked by *gukhanmun-stdict*'s build script to produce the
-bundled *Standard Korean Language Dictionary* CDB and FST files, so end-users
-and the library itself share the build path. Bugs in the build path get caught
-by the library's own integration tests before they reach users.
+bundled *Standard Korean Language Dictionary* FST file, so end-users and the
+library itself share the build path.  The CDB backend uses the same normalized
+inputs and validation path for user-built dictionaries.  Bugs in the build path
+get caught by the library's own integration tests before they reach users.
 
 
 Middlewares
@@ -634,8 +635,7 @@ The Rust source is organized as a Cargo workspace with the following layout:
      -  *gukhanmun-cdb/*: CDB-trie dictionary backend.
      -  *gukhanmun-fst/*: FST dictionary backend.
      -  *gukhanmun-stdict/*: bundled *Standard Korean Language Dictionary* as
-        embedded byte arrays, with helpers that hand them to the appropriate
-        backend.
+        an embedded FST byte array.
      -  *gukhanmun-mkdict/*: CLI for building CDB and FST dictionaries from
         TSV, CSV, or JSONL inputs.
      -  *gukhanmun/*: the umbrella library crate. Re-exports from the others

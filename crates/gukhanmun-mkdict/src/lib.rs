@@ -1,8 +1,8 @@
 //! Dictionary builder support for `gukhanmun-mkdict`.
 //!
-//! The crate owns the canonical TSV parser and writer for the first on-disk
-//! FST dictionary format. Runtime lookup is handled by the `gukhanmun-fst`
-//! backend crate.
+//! The crate owns parsers for normalized dictionary inputs and writers for the
+//! first on-disk FST and CDB dictionary formats. Runtime lookup is handled by
+//! backend crates.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use ciborium::ser::into_writer;
 use fst::MapBuilder;
+use gukhanmun_cdb::CdbDictionary;
 use gukhanmun_fst::FstDictionary;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -29,8 +30,16 @@ const MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
 const VALUE_MARK_SHIFT: u64 = 16;
 const VALUE_OFFSET_SHIFT: u64 = 24;
 const VALUE_MAX_OFFSET: u64 = (1u64 << 40) - 1;
-const RESERVED_METADATA_KEYS: &[&str] =
-    &["entry_count", "version", "max_word_chars", "max_key_bytes"];
+const RESERVED_METADATA_KEYS: &[&str] = &[
+    "entry_count",
+    "version",
+    "max_word_chars",
+    "max_key_bytes",
+    "prefix_count",
+];
+const CDB_META_KEY: &[u8] = b"__gukhanmun_meta__";
+const CDB_MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
+const CDB_MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
 
 /// The maximum accepted UTF-8 key length when the CLI option is omitted.
 pub const DEFAULT_MAX_KEY_BYTES: usize = 1024;
@@ -40,6 +49,9 @@ pub const DEFAULT_MAX_KEY_BYTES: usize = 1024;
 pub enum DictionaryFormat {
     /// Build the FST dictionary file format.
     Fst,
+
+    /// Build the CDB-trie dictionary file format.
+    Cdb,
 }
 
 /// Conflict policy used when the same hanja key appears more than once.
@@ -130,7 +142,7 @@ impl Default for BuildOptions {
     }
 }
 
-/// Builds a dictionary file from canonical TSV inputs.
+/// Builds a dictionary file from normalized TSV, CSV, or JSONL inputs.
 pub fn build_dictionary(
     input_paths: &[PathBuf],
     output_path: impl AsRef<Path>,
@@ -140,20 +152,32 @@ pub fn build_dictionary(
         !input_paths.is_empty(),
         "at least one input file is required"
     );
-    match options.format {
-        DictionaryFormat::Fst => {}
-    }
-
     let entries = read_and_merge_inputs(input_paths, options)?;
     let metadata = build_metadata(&options.metadata, &entries)?;
-    let bytes = build_fst_bytes(&entries, &metadata)?;
-    fs::write(output_path.as_ref(), &bytes)
-        .with_context(|| format!("failed to write {}", output_path.as_ref().display()))?;
+    match options.format {
+        DictionaryFormat::Fst => {
+            let bytes = build_fst_bytes(&entries, &metadata)?;
+            fs::write(output_path.as_ref(), &bytes)
+                .with_context(|| format!("failed to write {}", output_path.as_ref().display()))?;
 
-    if options.validate {
-        let dictionary = FstDictionary::open(output_path.as_ref())
-            .with_context(|| format!("failed to validate {}", output_path.as_ref().display()))?;
-        validate_round_trip(&entries, &dictionary)?;
+            if options.validate {
+                let dictionary = FstDictionary::open(output_path.as_ref()).with_context(|| {
+                    format!("failed to validate {}", output_path.as_ref().display())
+                })?;
+                validate_fst_round_trip(&entries, &dictionary)?;
+            }
+        }
+        DictionaryFormat::Cdb => {
+            reject_reserved_cdb_keys(&entries)?;
+            build_cdb_file(&entries, &metadata, output_path.as_ref())?;
+
+            if options.validate {
+                let dictionary = CdbDictionary::open(output_path.as_ref()).with_context(|| {
+                    format!("failed to validate {}", output_path.as_ref().display())
+                })?;
+                validate_cdb_round_trip(&entries, &dictionary)?;
+            }
+        }
     }
 
     Ok(())
@@ -168,7 +192,7 @@ fn read_and_merge_inputs(
     for path in input_paths {
         let file =
             fs::File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
-        let entries = parse_tsv(BufReader::new(file), path, options.max_key_bytes)?;
+        let entries = parse_input(BufReader::new(file), path, options.max_key_bytes)?;
         for entry in entries {
             match (options.merge, merged.contains_key(entry.hanja())) {
                 (MergePolicy::Error, true) => bail!("duplicate entry for `{}`", entry.hanja()),
@@ -181,6 +205,29 @@ fn read_and_merge_inputs(
     }
 
     Ok(merged.into_values().collect())
+}
+
+fn reject_reserved_cdb_keys(entries: &[DictionaryEntry]) -> Result<()> {
+    for entry in entries {
+        ensure!(
+            entry.hanja().as_bytes() != CDB_META_KEY,
+            "`{}` is reserved for CDB metadata",
+            entry.hanja()
+        );
+    }
+    Ok(())
+}
+
+fn parse_input(
+    reader: impl BufRead,
+    path: &Path,
+    max_key_bytes: usize,
+) -> Result<Vec<DictionaryEntry>> {
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("csv") => parse_csv(reader, path, max_key_bytes),
+        Some("jsonl") => parse_jsonl(reader, path, max_key_bytes),
+        _ => parse_tsv(reader, path, max_key_bytes),
+    }
 }
 
 fn parse_tsv(
@@ -218,6 +265,63 @@ fn parse_tsv(
     Ok(entries)
 }
 
+fn parse_csv(
+    reader: impl BufRead,
+    path: &Path,
+    max_key_bytes: usize,
+) -> Result<Vec<DictionaryEntry>> {
+    let mut reader = csv::Reader::from_reader(reader);
+    let header = reader
+        .headers()
+        .with_context(|| format!("failed to read CSV header from {}", path.display()))?
+        .iter()
+        .collect::<Vec<_>>()
+        .join("\t");
+    let columns = parse_header_with_format(&header, "CSV")?;
+    let mut entries = Vec::new();
+
+    for (index, record) in reader.records().enumerate() {
+        let location = format!("{}:{}", path.display(), index + 2);
+        let record = record.with_context(|| format!("failed to read CSV record at {location}"))?;
+        let fields = record.iter().collect::<Vec<_>>();
+        entries.push(parse_fields(&fields, &columns, max_key_bytes, &location)?);
+    }
+
+    Ok(entries)
+}
+
+fn parse_jsonl(
+    reader: impl BufRead,
+    path: &Path,
+    max_key_bytes: usize,
+) -> Result<Vec<DictionaryEntry>> {
+    let mut entries = Vec::new();
+    for (index, line) in reader.lines().enumerate() {
+        let line_number = index + 1;
+        let line = line.with_context(|| format!("failed to read {}", path.display()))?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let record: JsonLineEntry = serde_json::from_str(&line).with_context(|| {
+            format!(
+                "failed to parse JSONL record at {}:{line_number}",
+                path.display()
+            )
+        })?;
+        entries.push(normalize_entry(
+            &record.hanja,
+            &record.hangul,
+            EntryMark {
+                require_hanja: record.require_hanja,
+                require_hangul: record.require_hangul,
+            },
+            max_key_bytes,
+            &format!("{}:{line_number}", path.display()),
+        )?);
+    }
+    Ok(entries)
+}
+
 #[derive(Clone, Debug)]
 struct HeaderColumns {
     hanja: usize,
@@ -228,6 +332,10 @@ struct HeaderColumns {
 }
 
 fn parse_header(header: &str) -> Result<HeaderColumns> {
+    parse_header_with_format(header, "TSV")
+}
+
+fn parse_header_with_format(header: &str, format_name: &str) -> Result<HeaderColumns> {
     let columns = header.split('\t').collect::<Vec<_>>();
     let mut seen = BTreeSet::new();
     let mut hanja = None;
@@ -238,18 +346,18 @@ fn parse_header(header: &str) -> Result<HeaderColumns> {
     for (index, column) in columns.iter().enumerate() {
         ensure!(
             !column.is_empty(),
-            "TSV header contains an empty column name"
+            "{format_name} header contains an empty column name"
         );
         ensure!(
             seen.insert(*column),
-            "TSV header contains duplicate `{column}` column"
+            "{format_name} header contains duplicate `{column}` column"
         );
         match *column {
             "hanja" => hanja = Some(index),
             "hangul" => hangul = Some(index),
             "require_hanja" => require_hanja = Some(index),
             "require_hangul" => require_hangul = Some(index),
-            extra => eprintln!("ignoring unsupported TSV column `{extra}`"),
+            extra => eprintln!("ignoring unsupported {format_name} column `{extra}`"),
         }
     }
 
@@ -269,6 +377,15 @@ fn parse_row(
     location: &str,
 ) -> Result<DictionaryEntry> {
     let fields = line.split('\t').collect::<Vec<_>>();
+    parse_fields(&fields, columns, max_key_bytes, location)
+}
+
+fn parse_fields(
+    fields: &[&str],
+    columns: &HeaderColumns,
+    max_key_bytes: usize,
+    location: &str,
+) -> Result<DictionaryEntry> {
     ensure!(
         fields.len() >= columns.column_count,
         "{location}: expected {} TSV fields, got {}",
@@ -278,6 +395,28 @@ fn parse_row(
 
     let hanja = fields[columns.hanja];
     let hangul = fields[columns.hangul];
+    let require_hanja = parse_optional_bool(fields, columns.require_hanja, location)?;
+    let require_hangul = parse_optional_bool(fields, columns.require_hangul, location)?;
+
+    normalize_entry(
+        hanja,
+        hangul,
+        EntryMark {
+            require_hanja,
+            require_hangul,
+        },
+        max_key_bytes,
+        location,
+    )
+}
+
+fn normalize_entry(
+    hanja: &str,
+    hangul: &str,
+    mark: EntryMark,
+    max_key_bytes: usize,
+    location: &str,
+) -> Result<DictionaryEntry> {
     ensure!(!hanja.is_empty(), "{location}: `hanja` must not be empty");
     ensure!(!hangul.is_empty(), "{location}: `hangul` must not be empty");
     ensure!(
@@ -285,17 +424,7 @@ fn parse_row(
         "{location}: key `{hanja}` exceeds --max-key-bytes={max_key_bytes}"
     );
 
-    let require_hanja = parse_optional_bool(fields.as_slice(), columns.require_hanja, location)?;
-    let require_hangul = parse_optional_bool(fields.as_slice(), columns.require_hangul, location)?;
-
-    Ok(DictionaryEntry::new(
-        hanja,
-        hangul,
-        EntryMark {
-            require_hanja,
-            require_hangul,
-        },
-    ))
+    Ok(DictionaryEntry::new(hanja, hangul, mark))
 }
 
 fn parse_optional_bool(fields: &[&str], index: Option<usize>, location: &str) -> Result<bool> {
@@ -435,7 +564,84 @@ fn build_fst_bytes(
     Ok(output)
 }
 
-fn validate_round_trip(entries: &[DictionaryEntry], dictionary: &FstDictionary) -> Result<()> {
+fn build_cdb_file(
+    entries: &[DictionaryEntry],
+    metadata: &BTreeMap<String, String>,
+    output_path: &Path,
+) -> Result<()> {
+    let records = build_cdb_records(entries);
+    let mut metadata = metadata.clone();
+    metadata.insert("prefix_count".to_owned(), records.len().to_string());
+    let mut metadata_bytes = Vec::new();
+    into_writer(&metadata, &mut metadata_bytes).context("failed to encode dictionary metadata")?;
+
+    let output_name = output_path.to_str().ok_or_else(|| {
+        anyhow!(
+            "CDB output path must be valid UTF-8: {}",
+            output_path.display()
+        )
+    })?;
+    let mut writer = cdb::CDBWriter::create(output_name)
+        .with_context(|| format!("failed to create {}", output_path.display()))?;
+    writer
+        .add(CDB_META_KEY, &metadata_bytes)
+        .context("failed to add CDB metadata record")?;
+    for (key, record) in records {
+        let value = encode_cdb_record(record.as_ref())?;
+        writer
+            .add(key.as_bytes(), &value)
+            .with_context(|| format!("failed to add CDB record `{key}`"))?;
+    }
+    writer
+        .finish()
+        .with_context(|| format!("failed to finish {}", output_path.display()))
+}
+
+fn build_cdb_records(entries: &[DictionaryEntry]) -> BTreeMap<String, Option<DictionaryEntry>> {
+    let mut records = BTreeMap::new();
+    for entry in entries {
+        let mut prefix = String::new();
+        for ch in entry.hanja().chars() {
+            prefix.push(ch);
+            records.entry(prefix.clone()).or_insert(None);
+        }
+        records.insert(entry.hanja().to_owned(), Some(entry.clone()));
+    }
+    records
+}
+
+fn encode_cdb_record(entry: Option<&DictionaryEntry>) -> Result<Vec<u8>> {
+    let mut output = Vec::new();
+    match entry {
+        Some(entry) => {
+            let reading_len = u16::try_from(entry.reading().len())
+                .with_context(|| format!("reading for `{}` is too long", entry.hanja()))?;
+            output.push(1);
+            output.push(encode_cdb_mark(entry.mark()));
+            output.extend_from_slice(&reading_len.to_le_bytes());
+            output.extend_from_slice(entry.reading().as_bytes());
+        }
+        None => {
+            output.push(0);
+            output.push(0);
+            output.extend_from_slice(&0u16.to_le_bytes());
+        }
+    }
+    Ok(output)
+}
+
+fn encode_cdb_mark(mark: EntryMark) -> u8 {
+    let mut encoded = 0;
+    if mark.require_hanja {
+        encoded |= CDB_MARK_REQUIRE_HANJA;
+    }
+    if mark.require_hangul {
+        encoded |= CDB_MARK_REQUIRE_HANGUL;
+    }
+    encoded
+}
+
+fn validate_fst_round_trip(entries: &[DictionaryEntry], dictionary: &FstDictionary) -> Result<()> {
     ensure!(
         dictionary.entry_count() == entries.len() as u64,
         "round-trip validation failed: entry count mismatch"
@@ -457,6 +663,40 @@ fn validate_round_trip(entries: &[DictionaryEntry], dictionary: &FstDictionary) 
         );
     }
     Ok(())
+}
+
+fn validate_cdb_round_trip(entries: &[DictionaryEntry], dictionary: &CdbDictionary) -> Result<()> {
+    ensure!(
+        dictionary.entry_count() == entries.len() as u64,
+        "round-trip validation failed: entry count mismatch"
+    );
+    for entry in entries {
+        let actual = dictionary.lookup(entry.hanja())?.ok_or_else(|| {
+            anyhow!(
+                "round-trip validation failed: `{}` is missing",
+                entry.hanja()
+            )
+        })?;
+        let mark = actual.mark();
+        ensure!(
+            actual.reading() == entry.reading()
+                && mark.require_hanja == entry.mark().require_hanja
+                && mark.require_hangul == entry.mark().require_hangul,
+            "round-trip validation failed for `{}`",
+            entry.hanja()
+        );
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct JsonLineEntry {
+    hanja: String,
+    hangul: String,
+    #[serde(default, alias = "requireHanja")]
+    require_hanja: bool,
+    #[serde(default, alias = "requireHangul")]
+    require_hangul: bool,
 }
 
 fn encode_value(reading_len: u16, mark: EntryMark, reading_offset: u64) -> u64 {

@@ -39,6 +39,7 @@ struct Cli {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum CliFormat {
     Fst,
+    Cdb,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -53,6 +54,7 @@ fn main() -> Result<()> {
     let options = BuildOptions {
         format: match cli.format {
             CliFormat::Fst => DictionaryFormat::Fst,
+            CliFormat::Cdb => DictionaryFormat::Cdb,
         },
         merge: match cli.merge {
             CliMergePolicy::Error => MergePolicy::Error,

@@ -1,9 +1,9 @@
 Dictionary Format
 =================
 
-This document specifies the canonical dictionary input format consumed by
-`gukhanmun-mkdict` and the first FST dictionary file layout produced from that
-input. It is the boundary between dictionary extractors, user-maintained
+This document specifies the normalized dictionary input formats consumed by
+`gukhanmun-mkdict` and the FST/CDB dictionary file layouts produced from those
+inputs. It is the boundary between dictionary extractors, user-maintained
 glossaries, and backend builders.
 
 
@@ -42,6 +42,28 @@ hanja	hangul	require_hanja	require_hangul	category
 ~~~~
 
 
+CSV and JSONL input
+-------------------
+
+`gukhanmun-mkdict` chooses the input parser from each file extension.  `.tsv`
+uses the canonical TSV parser, `.csv` uses the CSV parser, `.jsonl` uses the
+JSON Lines parser, and unknown extensions are treated as TSV for compatibility.
+
+CSV files use the same header names as TSV:
+
+~~~~ csv
+hanja,hangul,require_hanja,require_hangul
+天地,천지,true,false
+~~~~
+
+Each JSONL line is one object.  The boolean fields accept either snake\_case or
+camelCase spellings:
+
+~~~~ json
+{"hanja":"漢字","hangul":"한자","requireHanja":false,"requireHangul":true}
+~~~~
+
+
 Merge policy
 ------------
 
@@ -53,8 +75,8 @@ When multiple input files are supplied, or when one input file repeats a
  -  `last-wins`: replace earlier entries with the last duplicate.
 
 After merging, entries are sorted by UTF-8 key bytes before backend encoding.
-This makes the generated FST deterministic for the same normalized inputs and
-metadata.
+This makes generated FST and CDB artifacts deterministic for the same
+normalized inputs and metadata.
 
 
 Build metadata
@@ -71,10 +93,11 @@ Every generated backend file embeds CBOR metadata. The minimum keys are:
 | `version`        | Dictionary file format version.                                              |
 | `max_word_chars` | Maximum key length in Unicode scalar values.                                 |
 | `max_key_bytes`  | Maximum key length in UTF-8 bytes.                                           |
+| `prefix_count`   | CDB only: number of prefix records.                                          |
 
-`entry_count`, `version`, `max_word_chars`, and `max_key_bytes` are reserved
-and cannot be supplied with `--metadata`. Other `--metadata KEY=VAL` pairs are
-preserved as string values.
+`entry_count`, `version`, `max_word_chars`, `max_key_bytes`, and
+`prefix_count` are reserved and cannot be supplied with `--metadata`. Other
+`--metadata KEY=VAL` pairs are preserved as string values.
 
 For reproducible builds, the builder does not use the current clock by default.
 If `build_date` is not passed explicitly and `SOURCE_DATE_EPOCH` is set, the
@@ -119,9 +142,28 @@ The reading bytes are stored in the reading string table, not in the FST value,
 because FST values are fixed-width integers.
 
 
+CDB backend file
+----------------
+
+The CDB backend format is `cdb`.  It uses a trie embedded in CDB key space:
+each prefix of each dictionary key is written as a CDB key.  Prefix records
+that are complete dictionary entries carry the reading and mark bits; prefix
+records that only lead to longer entries carry no reading.
+
+| Offset | Size          | Field                                                               |
+| ------ | ------------- | ------------------------------------------------------------------- |
+| 0      | 1             | `is_complete` (`1` if this prefix is itself an entry).              |
+| 1      | 1             | Mark bitfield: bit 0 is `require_hanja`, bit 1 is `require_hangul`. |
+| 2      | 2             | Reading length in UTF-8 bytes, little-endian; `0` for non-complete. |
+| 4      | `reading_len` | Reading bytes.                                                      |
+
+The metadata CBOR map is stored under the reserved key
+`__gukhanmun_meta__`.
+
+
 Validation
 ----------
 
 With `--validate`, `gukhanmun-mkdict` writes the output, opens it again with
-the `gukhanmun-fst` backend, and checks that every merged TSV entry can be
-recovered with the same reading and mark bits. Validation failure is fatal.
+the selected backend, and checks that every merged entry can be recovered with
+the same reading and mark bits. Validation failure is fatal.

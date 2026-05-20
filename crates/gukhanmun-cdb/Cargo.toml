@@ -1,0 +1,18 @@
+[package]
+name = "gukhanmun-cdb"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "CDB dictionary backend for gukhanmun."
+
+[dependencies]
+cdb = "0.6.0"
+ciborium = "0.2.2"
+gukhanmun-core = { path = "../gukhanmun-core" }
+
+[dev-dependencies]
+proptest = "1.9.0"
+tempfile = "3.27.0"
