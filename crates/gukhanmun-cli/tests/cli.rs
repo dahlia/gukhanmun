@@ -49,6 +49,58 @@ fn rendering_option_selects_parenthesized_output() {
 }
 
 #[test]
+fn segmentation_option_selects_eager_longest_match() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n行事\t행사\n行事場\t행사장\n場所\t장소\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-stdict",
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--rendering",
+            "hangul-hanja-parens",
+            "--segmentation",
+            "eager",
+        ])
+        .write_stdin("行事場所\n")
+        .assert()
+        .success()
+        .stdout("행사장(行事場)소(所)\n");
+}
+
+#[test]
+fn short_segmentation_option_selects_eager_longest_match() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n行事\t행사\n行事場\t행사장\n場所\t장소\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-stdict",
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--rendering",
+            "hangul-hanja-parens",
+            "-s",
+            "eager",
+        ])
+        .write_stdin("行事場所\n")
+        .assert()
+        .success()
+        .stdout("행사장(行事場)소(所)\n");
+}
+
+#[test]
 fn no_stdict_uses_fallback_only_conversion() {
     Command::cargo_bin("gukhanmun")
         .unwrap()

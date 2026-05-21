@@ -501,6 +501,10 @@ fn khangul_reading(ch: char) -> Option<&'static str> {
 /// reading and are not rewritten by fallback orthography rules.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct EngineOptions {
+    /// How hanja-containing spans are split into dictionary and fallback
+    /// segments.
+    pub segmentation: SegmentationStrategy,
+
     /// Whether fallback readings should apply South Korean initial sound law.
     pub initial_sound_law: bool,
 
@@ -511,10 +515,28 @@ pub struct EngineOptions {
 impl Default for EngineOptions {
     fn default() -> Self {
         Self {
+            segmentation: SegmentationStrategy::Lattice,
             initial_sound_law: true,
             numeral_strategy: NumeralStrategy::HangulPhonetic,
         }
     }
+}
+
+/// Strategy used to segment hanja-containing spans.
+///
+/// `Lattice` considers every dictionary path and chooses the best coverage,
+/// while `Eager` greedily takes the longest match at each cursor.  The eager
+/// strategy can reduce work for callers that prefer speed over segmentation
+/// accuracy.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SegmentationStrategy {
+    /// Use dynamic programming to maximize dictionary coverage.
+    #[default]
+    Lattice,
+
+    /// Use left-to-right eager longest-match segmentation.
+    Eager,
 }
 
 /// Strategy for rendering hanja numerals encountered in fallback text.
@@ -947,7 +969,11 @@ where
         }
 
         let safe_chars = buffered_chars.saturating_sub(bound).saturating_add(1);
-        let segments = segment_text(&self.pending_text, self.dictionary);
+        let segments = segment_text(
+            &self.pending_text,
+            self.dictionary,
+            self.options.segmentation,
+        );
         let mut flush_end = 0;
         let mut flush_segments = Vec::new();
         for segment in &segments {
@@ -1015,7 +1041,7 @@ where
             bound.saturating_sub(1),
         );
         let probe = &self.pending_text[probe_start..];
-        segment_text(probe, self.dictionary)
+        segment_text(probe, self.dictionary, self.options.segmentation)
             .iter()
             .all(|segment| matches!(segment, Segment::Fallback { .. }))
     }
@@ -1037,7 +1063,7 @@ where
         }
         self.pending_unflushable_fallback_run_bytes = None;
         let prefix = self.pending_text[..flush_end].to_string();
-        let segments = segment_text(&prefix, self.dictionary);
+        let segments = segment_text(&prefix, self.dictionary, self.options.segmentation);
         self.flush_segments_prefix_into(flush_end, &segments, output);
     }
 
@@ -1162,7 +1188,7 @@ fn process_text_with_state<S, D>(
 ) where
     D: HanjaDictionary + ?Sized,
 {
-    let segments = segment_text(text, dictionary);
+    let segments = segment_text(text, dictionary, options.segmentation);
     process_segments_with_state(text, &segments, dictionary, options, fallback_state, output);
 }
 

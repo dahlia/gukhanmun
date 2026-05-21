@@ -17,7 +17,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::{HanjaDictionary, MatchMark, is_hanja};
+use crate::{HanjaDictionary, Match, MatchMark, SegmentationStrategy, is_hanja};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Segment {
@@ -78,7 +78,11 @@ impl Score {
     }
 }
 
-pub(crate) fn segment_text<D>(text: &str, dictionary: &D) -> Vec<Segment>
+pub(crate) fn segment_text<D>(
+    text: &str,
+    dictionary: &D,
+    strategy: SegmentationStrategy,
+) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
 {
@@ -93,7 +97,9 @@ where
         let span_end = next_span_end(&text[cursor..], cursor);
         let span = &text[cursor..span_end];
         if span.chars().any(is_hanja) {
-            segments.extend(segment_span(span, cursor, dictionary));
+            segments.extend(segment_span_with_strategy(
+                span, cursor, dictionary, strategy,
+            ));
         } else {
             segments.push(Segment::Text {
                 byte_start: cursor,
@@ -106,7 +112,22 @@ where
     segments
 }
 
-fn segment_span<D>(span: &str, byte_offset: usize, dictionary: &D) -> Vec<Segment>
+fn segment_span_with_strategy<D>(
+    span: &str,
+    byte_offset: usize,
+    dictionary: &D,
+    strategy: SegmentationStrategy,
+) -> Vec<Segment>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    match strategy {
+        SegmentationStrategy::Lattice => segment_span_lattice(span, byte_offset, dictionary),
+        SegmentationStrategy::Eager => segment_span_eager(span, byte_offset, dictionary),
+    }
+}
+
+fn segment_span_lattice<D>(span: &str, byte_offset: usize, dictionary: &D) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
 {
@@ -192,6 +213,97 @@ where
     }
 
     backtrack(&best)
+}
+
+fn segment_span_eager<D>(span: &str, byte_offset: usize, dictionary: &D) -> Vec<Segment>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    let boundaries = char_boundaries(span);
+    let char_count = boundaries.len().saturating_sub(1);
+    let max_word_chars = dictionary.max_word_chars();
+    let mut segments = Vec::new();
+    let mut start_char = 0;
+
+    while start_char < char_count {
+        let byte_start = boundaries[start_char];
+        let lookup = lookup_suffix(span, &boundaries, start_char, max_word_chars);
+
+        if lookup.chars().any(is_hanja)
+            && let Some((matched, end_char)) =
+                longest_match(span, &boundaries, start_char, lookup, dictionary)
+        {
+            let byte_end = byte_start + matched.byte_len;
+            segments.push(Segment::Dictionary {
+                byte_start: byte_offset + byte_start,
+                byte_end: byte_offset + byte_end,
+                reading: matched.reading,
+                mark: matched.mark,
+            });
+            start_char = end_char;
+            continue;
+        }
+
+        let current = span[byte_start..]
+            .chars()
+            .next()
+            .expect("start_char is within the text");
+        let end_char = start_char + 1;
+        let byte_end = boundaries[end_char];
+        if is_hanja(current) {
+            segments.push(Segment::Fallback {
+                byte_start: byte_offset + byte_start,
+                byte_end: byte_offset + byte_end,
+            });
+        } else {
+            segments.push(Segment::Text {
+                byte_start: byte_offset + byte_start,
+                byte_end: byte_offset + byte_end,
+            });
+        }
+        start_char = end_char;
+    }
+
+    segments
+}
+
+fn longest_match<D>(
+    span: &str,
+    boundaries: &[usize],
+    start_char: usize,
+    lookup: &str,
+    dictionary: &D,
+) -> Option<(Match, usize)>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    let byte_start = boundaries[start_char];
+    let char_count = boundaries.len().saturating_sub(1);
+    let mut best: Option<(Match, usize)> = None;
+
+    for matched in dictionary.matches_at(lookup) {
+        let Some(byte_end) = byte_start.checked_add(matched.byte_len) else {
+            continue;
+        };
+        let Ok(end_char) = boundaries.binary_search(&byte_end) else {
+            continue;
+        };
+        if end_char <= start_char || end_char > char_count {
+            continue;
+        }
+        if !span[byte_start..byte_end].chars().any(is_hanja) {
+            continue;
+        }
+        if best
+            .as_ref()
+            .is_some_and(|(current, _)| current.byte_len >= matched.byte_len)
+        {
+            continue;
+        }
+        best = Some((matched, end_char));
+    }
+
+    best
 }
 
 fn next_span_end(suffix: &str, byte_offset: usize) -> usize {
@@ -292,29 +404,55 @@ fn backtrack(best: &[Option<BestPath>]) -> Vec<Segment> {
 #[cfg(test)]
 mod tests {
     use super::{Segment, segment_text};
-    use crate::MapDictionary;
+    use crate::{MapDictionary, SegmentationStrategy};
+    use alloc::vec::Vec;
     use proptest::prelude::*;
 
     proptest! {
         #[test]
-        fn segments_cover_the_input_without_gaps(input in "[가-힣一-龥]{0,8}") {
+        fn lattice_segments_cover_the_input_without_gaps(input in "[가-힣一-龥]{0,8}") {
             let dict = MapDictionary::new();
-            let segments = segment_text(&input, &dict);
-            let mut cursor = 0;
-
-            for segment in segments {
-                let (byte_start, byte_end) = match segment {
-                    Segment::Dictionary { byte_start, byte_end, .. }
-                    | Segment::Fallback { byte_start, byte_end }
-                    | Segment::Text { byte_start, byte_end } => (byte_start, byte_end),
-                };
-
-                prop_assert_eq!(byte_start, cursor);
-                prop_assert!(byte_end > byte_start);
-                cursor = byte_end;
-            }
-
-            prop_assert_eq!(cursor, input.len());
+            let segments = segment_text(&input, &dict, SegmentationStrategy::Lattice);
+            assert_segments_cover_input(&input, segments)?;
         }
+
+        #[test]
+        fn eager_segments_cover_the_input_without_gaps(input in "[가-힣一-龥]{0,8}") {
+            let dict = MapDictionary::new();
+            let segments = segment_text(&input, &dict, SegmentationStrategy::Eager);
+            assert_segments_cover_input(&input, segments)?;
+        }
+    }
+
+    fn assert_segments_cover_input(
+        input: &str,
+        segments: Vec<Segment>,
+    ) -> Result<(), TestCaseError> {
+        let mut cursor = 0;
+
+        for segment in segments {
+            let (byte_start, byte_end) = match segment {
+                Segment::Dictionary {
+                    byte_start,
+                    byte_end,
+                    ..
+                }
+                | Segment::Fallback {
+                    byte_start,
+                    byte_end,
+                }
+                | Segment::Text {
+                    byte_start,
+                    byte_end,
+                } => (byte_start, byte_end),
+            };
+
+            prop_assert_eq!(byte_start, cursor);
+            prop_assert!(byte_end > byte_start);
+            cursor = byte_end;
+        }
+
+        prop_assert_eq!(cursor, input.len());
+        Ok(())
     }
 }

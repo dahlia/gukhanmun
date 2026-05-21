@@ -23,8 +23,8 @@ use clap::{Parser, ValueEnum};
 use gukhanmun_cdb::CdbDictionary;
 use gukhanmun_core::{
     ChainDictionary, ContextWindow, Engine, EngineOptions, HanjaDictionary, InputToken,
-    NumeralStrategy, OutputToken, PlainScopeData, RenderMode, mark_homophones,
-    process_tokens_iter_with_options, render_tokens_iter, write_plain_text,
+    NumeralStrategy, OutputToken, PlainScopeData, RenderMode, SegmentationStrategy,
+    mark_homophones, process_tokens_iter_with_options, render_tokens_iter, write_plain_text,
 };
 use gukhanmun_fst::FstDictionary;
 use gukhanmun_html::{read_html_fragment, write_html_fragment};
@@ -73,6 +73,12 @@ struct Cli {
     #[arg(short, long, value_enum)]
     rendering: Option<Rendering>,
 
+    /// Segmentation strategy for hanja-containing spans.  lattice (default)
+    /// chooses the best path through all dictionary matches.  eager greedily
+    /// takes the longest match at each cursor for lower overhead.
+    #[arg(short = 's', long, value_enum, default_value_t = Segmentation::Lattice)]
+    segmentation: Segmentation,
+
     /// Path to a user-supplied dictionary file (.gukfst or .gukcdb).  May be
     /// repeated; later dictionaries take priority over earlier ones and over the
     /// bundled Standard Korean Dictionary (標準國語大辭典).
@@ -111,6 +117,12 @@ enum Rendering {
     HangulHanjaParens,
     HanjaHangulParens,
     Original,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum Segmentation {
+    Lattice,
+    Eager,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -282,6 +294,7 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
             engine: EngineOptions {
                 initial_sound_law: true,
                 numeral_strategy: NumeralStrategy::HangulPhonetic,
+                ..EngineOptions::default()
             },
             bundled_stdict: true,
             homophone_window: ContextWindow::PerBlock,
@@ -291,6 +304,7 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
             engine: EngineOptions {
                 initial_sound_law: false,
                 numeral_strategy: NumeralStrategy::HangulPhonetic,
+                ..EngineOptions::default()
             },
             bundled_stdict: false,
             homophone_window: ContextWindow::Off,
@@ -300,6 +314,7 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
     if let Some(rendering) = cli.rendering {
         options.rendering = rendering.into();
     }
+    options.engine.segmentation = cli.segmentation.into();
     if cli.no_stdict {
         options.bundled_stdict = false;
     }
@@ -670,6 +685,15 @@ impl From<Rendering> for RenderMode {
             Rendering::HangulHanjaParens => Self::HangulHanjaParens,
             Rendering::HanjaHangulParens => Self::HanjaHangulParens,
             Rendering::Original => Self::Original,
+        }
+    }
+}
+
+impl From<Segmentation> for SegmentationStrategy {
+    fn from(segmentation: Segmentation) -> Self {
+        match segmentation {
+            Segmentation::Lattice => Self::Lattice,
+            Segmentation::Eager => Self::Eager,
         }
     }
 }

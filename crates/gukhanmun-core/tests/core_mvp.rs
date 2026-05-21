@@ -18,8 +18,8 @@ use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, Engine, EngineOptions, Error as CoreError,
     HanjaDictionary, InputToken, MapDictionary, MatchMark, NumeralStrategy, OutputToken,
     PlainScopeData, RecoverableInputError, Recovery, RenderMode, RenderedToken, Scope, ScopeData,
-    UnihanCharDict, UserDirectives, apply_user_directives, convert_plain_text,
-    convert_plain_text_with_options, filter_first_occurrences, mark_homophones,
+    SegmentationStrategy, UnihanCharDict, UserDirectives, apply_user_directives,
+    convert_plain_text, convert_plain_text_with_options, filter_first_occurrences, mark_homophones,
     process_fallible_tokens, process_tokens, process_tokens_iter, read_plain_text, render_tokens,
     render_tokens_iter, write_plain_text,
 };
@@ -101,6 +101,13 @@ fn annotation(hanja: &str, reading: &str) -> Annotation {
         require_hangul: false,
         first_in_context: true,
         from_dictionary: true,
+    }
+}
+
+fn eager_options() -> EngineOptions {
+    EngineOptions {
+        segmentation: SegmentationStrategy::Eager,
+        ..EngineOptions::default()
     }
 }
 
@@ -229,6 +236,7 @@ fn unihan_char_dictionary_matches_fallback_canonical_reading_without_initial_sou
     let no_law = EngineOptions {
         initial_sound_law: false,
         numeral_strategy: NumeralStrategy::HangulPhonetic,
+        ..EngineOptions::default()
     };
     let cases = ["龍", "馬", "漢", "字", "\u{349A}"];
 
@@ -317,6 +325,30 @@ fn lattice_prefers_two_dictionary_words_over_longer_prefix_plus_fallback() {
 }
 
 #[test]
+fn eager_takes_longest_prefix_even_when_lattice_covers_more_dictionary_text() {
+    let output = convert_plain_text_with_options(
+        "行事場所",
+        &segmentation_dictionary(),
+        RenderMode::HangulHanjaParens,
+        eager_options(),
+    );
+
+    assert_eq!(output, "행사장(行事場)소(所)");
+}
+
+#[test]
+fn eager_keeps_valid_long_match_when_it_covers_the_run() {
+    let output = convert_plain_text_with_options(
+        "行事場入口",
+        &segmentation_dictionary(),
+        RenderMode::HangulHanjaParens,
+        eager_options(),
+    );
+
+    assert_eq!(output, "행사장(行事場)입구(入口)");
+}
+
+#[test]
 fn lattice_prefers_whole_dictionary_word_over_component_split() {
     let mut dict = MapDictionary::new();
     dict.insert("天", "천");
@@ -347,6 +379,18 @@ fn lattice_consumes_mixed_script_dictionary_entries_as_one_annotation() {
 
         assert_eq!(output, expected);
     }
+}
+
+#[test]
+fn eager_consumes_mixed_script_dictionary_entries_as_one_annotation() {
+    let output = convert_plain_text_with_options(
+        "汽車길",
+        &mixed_script_dictionary(),
+        RenderMode::HangulHanjaParens,
+        eager_options(),
+    );
+
+    assert_eq!(output, "기찻길(汽車길)");
 }
 
 #[test]
@@ -922,6 +966,7 @@ fn fallback_uses_pre_initial_sound_law_khangul_reading_as_canonical() {
     let no_law = EngineOptions {
         initial_sound_law: false,
         numeral_strategy: NumeralStrategy::HangulPhonetic,
+        ..EngineOptions::default()
     };
     let output = convert_plain_text_with_options(
         "龍",
@@ -946,6 +991,7 @@ fn fallback_keeps_pre_initial_readings_inside_words() {
     let no_law = EngineOptions {
         initial_sound_law: false,
         numeral_strategy: NumeralStrategy::HangulPhonetic,
+        ..EngineOptions::default()
     };
     let output = convert_plain_text_with_options(
         "老",
@@ -992,6 +1038,7 @@ fn fallback_initial_sound_law_can_be_disabled() {
     let options = EngineOptions {
         initial_sound_law: false,
         numeral_strategy: NumeralStrategy::HangulPhonetic,
+        ..EngineOptions::default()
     };
     let output = convert_plain_text_with_options(
         "來日 良質 力量",
@@ -1008,6 +1055,7 @@ fn fallback_numerals_honor_initial_sound_law_option() {
     let no_law = EngineOptions {
         initial_sound_law: false,
         numeral_strategy: NumeralStrategy::HangulPhonetic,
+        ..EngineOptions::default()
     };
 
     let default_cases = [
