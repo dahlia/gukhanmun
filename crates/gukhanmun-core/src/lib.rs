@@ -276,6 +276,10 @@ pub struct Annotation {
     /// Whether this is the first occurrence in the active context window.
     pub first_in_context: bool,
 
+    /// Whether renderers should collapse this annotation to its primary plain
+    /// text form instead of adding annotation markup or parentheses.
+    pub skip_annotation: bool,
+
     /// Whether this annotation came from a dictionary match.
     pub from_dictionary: bool,
 }
@@ -1220,6 +1224,7 @@ fn process_segments_with_state<S, D>(
                     require_hanja: mark.require_hanja,
                     require_hangul: mark.require_hangul,
                     first_in_context: true,
+                    skip_annotation: false,
                     from_dictionary: true,
                 }));
                 if should_preserve_dictionary_context(source, reading, options) {
@@ -1293,6 +1298,7 @@ fn process_fallback_text<S>(
                     require_hanja: false,
                     require_hangul: false,
                     first_in_context: true,
+                    skip_annotation: false,
                     from_dictionary: false,
                 }));
             }
@@ -1450,18 +1456,30 @@ pub enum ContextWindow {
     PerDocument,
 }
 
-/// Literal user rules that force annotation presentation flags.
-///
-/// This early directive type intentionally supports only literal hanja sets.
-/// It adjusts policy flags and leaves rendering form decisions to
-/// [`render_tokens`].
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct UserDirectives {
-    require_hanja: BTreeSet<String>,
-    require_hangul: BTreeSet<String>,
+/// Action applied when a user directive predicate matches an annotation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DirectiveAction {
+    /// Require rendered output to keep the original hanja visible.
+    RequireHanja,
+
+    /// Require rendered output to include a hangul gloss.
+    RequireHangul,
+
+    /// Collapse the annotation to plain primary text for the active renderer.
+    SkipAnnotation,
 }
 
-impl UserDirectives {
+/// User rules that adjust annotation presentation policy.
+///
+/// Literal helpers cover common hanja-form rules.  Callers that need richer
+/// matching can add closure predicates over the whole [`Annotation`], which
+/// keeps the core API independent of CLI-only pattern syntaxes.
+#[derive(Default)]
+pub struct UserDirectives<'a> {
+    rules: Vec<UserDirectiveRule<'a>>,
+}
+
+impl<'a> UserDirectives<'a> {
     /// Creates an empty directive set.
     pub fn new() -> Self {
         Self::default()
@@ -1469,34 +1487,84 @@ impl UserDirectives {
 
     /// Marks a literal hanja form as requiring visible hanja in output.
     pub fn require_hanja(&mut self, hanja: impl Into<String>) {
-        self.require_hanja.insert(hanja.into());
+        self.add_literal(hanja, DirectiveAction::RequireHanja);
     }
 
     /// Marks a literal hanja form as requiring a visible hangul gloss.
     pub fn require_hangul(&mut self, hanja: impl Into<String>) {
-        self.require_hangul.insert(hanja.into());
+        self.add_literal(hanja, DirectiveAction::RequireHangul);
     }
 
-    /// Returns whether no literal directive rules are configured.
+    /// Marks a literal hanja form as not receiving annotation rendering.
+    pub fn skip_annotation(&mut self, hanja: impl Into<String>) {
+        self.add_literal(hanja, DirectiveAction::SkipAnnotation);
+    }
+
+    /// Adds a literal hanja-form directive.
+    pub fn add_literal(&mut self, hanja: impl Into<String>, action: DirectiveAction) {
+        self.rules.push(UserDirectiveRule {
+            predicate: UserDirectivePredicate::Literal(hanja.into()),
+            action,
+        });
+    }
+
+    /// Adds a predicate directive over the complete annotation metadata.
+    pub fn add_predicate(
+        &mut self,
+        predicate: impl Fn(&Annotation) -> bool + 'a,
+        action: DirectiveAction,
+    ) {
+        self.rules.push(UserDirectiveRule {
+            predicate: UserDirectivePredicate::Predicate(Box::new(predicate)),
+            action,
+        });
+    }
+
+    /// Returns whether no directive rules are configured.
     pub fn is_empty(&self) -> bool {
-        self.require_hanja.is_empty() && self.require_hangul.is_empty()
+        self.rules.is_empty()
+    }
+}
+
+struct UserDirectiveRule<'a> {
+    predicate: UserDirectivePredicate<'a>,
+    action: DirectiveAction,
+}
+
+enum UserDirectivePredicate<'a> {
+    Literal(String),
+    Predicate(Box<dyn Fn(&Annotation) -> bool + 'a>),
+}
+
+impl UserDirectivePredicate<'_> {
+    fn matches(&self, annotation: &Annotation) -> bool {
+        match self {
+            Self::Literal(hanja) => annotation.hanja == *hanja,
+            Self::Predicate(predicate) => predicate(annotation),
+        }
     }
 }
 
 /// Sets `homophone` on dictionary annotations sharing a reading in context.
 ///
-/// The marker looks only at dictionary-backed annotations that actually appear
-/// in the stream. It does not ask the dictionary whether other unseen words
-/// share the same reading, and it ignores fallback annotations because those
-/// are phonetic fragments rather than known lexical homophones.
-pub fn mark_homophones<S>(
+/// The marker asks the supplied dictionary whether another unseen word shares
+/// the same reading and also preserves the context-local fallback heuristic for
+/// dictionaries that do not expose homophone metadata.  Fallback annotations
+/// are ignored because they are phonetic fragments rather than known lexical
+/// homophones.
+pub fn mark_homophones<S, D>(
     tokens: impl IntoIterator<Item = OutputToken<S>>,
+    dictionary: &D,
     window: ContextWindow,
 ) -> Vec<OutputToken<S>>
 where
     S: ScopeData,
+    D: HanjaDictionary + ?Sized,
 {
-    ContextMiddleware::new(window, mark_homophones_in_context).process(tokens)
+    ContextMiddleware::new(window, |tokens| {
+        mark_homophones_in_context(tokens, dictionary);
+    })
+    .process(tokens)
 }
 
 /// Clears repeat gloss requirements after the first occurrence of each hanja.
@@ -1515,6 +1583,7 @@ where
 }
 
 type ContextApply<S> = fn(&mut [OutputToken<S>]);
+type HomophoneApply<'a, S> = Box<dyn FnMut(&mut [OutputToken<S>]) + 'a>;
 
 /// Streaming homophone marker middleware.
 ///
@@ -1523,21 +1592,29 @@ type ContextApply<S> = fn(&mut [OutputToken<S>]);
 /// corresponding boundary, buffer until [`HomophoneMarker::finish`].  For
 /// example, exact plain-text homophone marking with `PerBlock` is document-wide
 /// because plain text has no block scopes.
-pub struct HomophoneMarker<S>
+pub struct HomophoneMarker<'a, S>
 where
     S: ScopeData,
 {
-    inner: ContextMiddleware<S, ContextApply<S>>,
+    inner: ContextMiddleware<S, HomophoneApply<'a, S>>,
 }
 
-impl<S> HomophoneMarker<S>
+impl<'a, S> HomophoneMarker<'a, S>
 where
     S: ScopeData,
 {
     /// Creates a homophone marker for the selected context window.
-    pub fn new(window: ContextWindow) -> Self {
+    pub fn new<D>(dictionary: &'a D, window: ContextWindow) -> Self
+    where
+        D: HanjaDictionary + ?Sized,
+    {
         Self {
-            inner: ContextMiddleware::new(window, mark_homophones_in_context::<S>),
+            inner: ContextMiddleware::new(
+                window,
+                Box::new(move |tokens| {
+                    mark_homophones_in_context(tokens, dictionary);
+                }),
+            ),
         }
     }
 
@@ -1590,17 +1667,21 @@ where
 /// Rules only set flags; they do not render, remove, or reorder tokens.
 pub fn apply_user_directives<S>(
     tokens: impl IntoIterator<Item = OutputToken<S>>,
-    directives: &UserDirectives,
+    directives: &UserDirectives<'_>,
 ) -> Vec<OutputToken<S>> {
     tokens
         .into_iter()
         .map(|token| match token {
             OutputToken::Annotated(mut annotation) => {
-                if directives.require_hanja.contains(&annotation.hanja) {
-                    annotation.require_hanja = true;
-                }
-                if directives.require_hangul.contains(&annotation.hanja) {
-                    annotation.require_hangul = true;
+                for rule in &directives.rules {
+                    if !rule.predicate.matches(&annotation) {
+                        continue;
+                    }
+                    match rule.action {
+                        DirectiveAction::RequireHanja => annotation.require_hanja = true,
+                        DirectiveAction::RequireHangul => annotation.require_hangul = true,
+                        DirectiveAction::SkipAnnotation => annotation.skip_annotation = true,
+                    }
                 }
                 OutputToken::Annotated(annotation)
             }
@@ -1690,7 +1771,10 @@ where
     }
 }
 
-fn mark_homophones_in_context<S>(tokens: &mut [OutputToken<S>]) {
+fn mark_homophones_in_context<S, D>(tokens: &mut [OutputToken<S>], dictionary: &D)
+where
+    D: HanjaDictionary + ?Sized,
+{
     let mut forms_by_reading = BTreeMap::<String, BTreeSet<String>>::new();
 
     for token in tokens.iter() {
@@ -1707,9 +1791,10 @@ fn mark_homophones_in_context<S>(tokens: &mut [OutputToken<S>]) {
     for token in tokens.iter_mut() {
         if let OutputToken::Annotated(annotation) = token {
             annotation.homophone = annotation.from_dictionary
-                && forms_by_reading
-                    .get(&annotation.reading)
-                    .is_some_and(|forms| forms.len() > 1);
+                && (dictionary.has_homophone(&annotation.hanja, &annotation.reading)
+                    || forms_by_reading
+                        .get(&annotation.reading)
+                        .is_some_and(|forms| forms.len() > 1));
         }
     }
 }
@@ -1762,6 +1847,12 @@ pub fn render_tokens_iter<S>(
 
 fn render_annotation(annotation: &Annotation, mode: RenderMode) -> String {
     match mode {
+        RenderMode::HangulOnly | RenderMode::HangulHanjaParens if annotation.skip_annotation => {
+            annotation.reading.clone()
+        }
+        RenderMode::HanjaHangulParens | RenderMode::Original if annotation.skip_annotation => {
+            annotation.hanja.clone()
+        }
         RenderMode::HangulOnly if annotation.require_hanja || annotation.homophone => {
             parens(&annotation.reading, &annotation.hanja)
         }
@@ -1810,7 +1901,7 @@ where
 {
     let input_tokens = read_plain_text(input);
     let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
-    let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
+    let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
     let rendered_tokens = render_tokens(output_tokens, mode);
     write_plain_text(rendered_tokens)
 }

@@ -22,8 +22,9 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, ValueEnum};
 use gukhanmun_cdb::CdbDictionary;
 use gukhanmun_core::{
-    ChainDictionary, ContextWindow, Engine, EngineOptions, HanjaDictionary, InputToken,
-    NumeralStrategy, OutputToken, PlainScopeData, RenderMode, SegmentationStrategy,
+    ChainDictionary, ContextWindow, DirectiveAction, Engine, EngineOptions, HanjaDictionary,
+    InputToken, NumeralStrategy, OutputToken, PlainScopeData, RenderMode, ScopeData,
+    SegmentationStrategy, UserDirectives, apply_user_directives, filter_first_occurrences,
     mark_homophones, process_tokens_iter_with_options, render_tokens_iter, write_plain_text,
 };
 use gukhanmun_fst::FstDictionary;
@@ -73,6 +74,17 @@ struct Cli {
     #[arg(short, long, value_enum)]
     rendering: Option<Rendering>,
 
+    /// Homophone disambiguation context.  off disables homophone marking;
+    /// per-block resets at block scopes; per-section resets at headings;
+    /// per-document uses one window for the full input.
+    #[arg(long, value_enum)]
+    disambiguation: Option<CliContextWindow>,
+
+    /// Context for clearing repeated dictionary presentation requirements.
+    /// off leaves every occurrence as marked by dictionaries and directives.
+    #[arg(long, value_enum)]
+    first_occurrence: Option<CliContextWindow>,
+
     /// Segmentation strategy for hanja-containing spans.  lattice (default)
     /// chooses the best path through all dictionary matches.  eager greedily
     /// takes the longest match at each cursor for lower overhead.
@@ -96,6 +108,34 @@ struct Cli {
     /// Disable the initial sound law (頭音法則), overriding the preset default.
     #[arg(short = 'I', long, visible_alias = "no-dueum")]
     no_initial_sound_law: bool,
+
+    /// Require visible hanja for a literal hanja form.  May be repeated.
+    #[arg(long = "require-hanja", value_name = "HANJA")]
+    require_hanja: Vec<String>,
+
+    /// Require visible hanja for hanja forms matched by a CLI glob pattern.
+    /// The pattern supports `*` for any sequence and `?` for one character.
+    #[arg(long = "require-hanja-glob", value_name = "PATTERN")]
+    require_hanja_glob: Vec<String>,
+
+    /// Require a hangul gloss for a literal hanja form.  May be repeated.
+    #[arg(long = "require-hangul", value_name = "HANJA")]
+    require_hangul: Vec<String>,
+
+    /// Require a hangul gloss for hanja forms matched by a CLI glob pattern.
+    /// The pattern supports `*` for any sequence and `?` for one character.
+    #[arg(long = "require-hangul-glob", value_name = "PATTERN")]
+    require_hangul_glob: Vec<String>,
+
+    /// Collapse annotation rendering for a literal hanja form.  May be repeated.
+    #[arg(long = "skip-annotation", value_name = "HANJA")]
+    skip_annotation: Vec<String>,
+
+    /// Collapse annotation rendering for hanja forms matched by a CLI glob
+    /// pattern.  The pattern supports `*` for any sequence and `?` for one
+    /// character.
+    #[arg(long = "skip-annotation-glob", value_name = "PATTERN")]
+    skip_annotation_glob: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -125,12 +165,21 @@ enum Segmentation {
     Eager,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum CliContextWindow {
+    Off,
+    PerBlock,
+    PerSection,
+    PerDocument,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ResolvedOptions {
     rendering: RenderMode,
     engine: EngineOptions,
     bundled_stdict: bool,
     homophone_window: ContextWindow,
+    first_occurrence_window: ContextWindow,
 }
 
 fn main() -> Result<()> {
@@ -140,6 +189,7 @@ fn main() -> Result<()> {
 
 fn run(cli: Cli) -> Result<()> {
     let options = resolve_options(&cli)?;
+    let directives = build_user_directives(&cli);
     let dictionary = load_dictionary(&cli.dictionaries, options.bundled_stdict)?;
     let format = cli.format.unwrap_or_else(|| {
         cli.input
@@ -151,7 +201,14 @@ fn run(cli: Cli) -> Result<()> {
     if let (Some(input_path), Some(output_path)) = (&cli.input, &cli.output)
         && is_same_existing_file(input_path, output_path)?
     {
-        return convert_file_in_place(input_path, output_path, &dictionary, options, format);
+        return convert_file_in_place(
+            input_path,
+            output_path,
+            &dictionary,
+            options,
+            &directives,
+            format,
+        );
     }
 
     let input: Box<dyn BufRead> = match &cli.input {
@@ -170,7 +227,7 @@ fn run(cli: Cli) -> Result<()> {
         None => Box::new(BufWriter::new(io::stdout().lock())),
     };
 
-    convert_document(input, output, &dictionary, options, format)
+    convert_document(input, output, &dictionary, options, &directives, format)
 }
 
 fn convert_file_in_place(
@@ -178,6 +235,7 @@ fn convert_file_in_place(
     output_path: &Path,
     dictionary: &CliDictionary,
     options: ResolvedOptions,
+    directives: &UserDirectives<'_>,
     format: Format,
 ) -> Result<()> {
     let original_permissions = fs::metadata(input_path)
@@ -198,7 +256,7 @@ fn convert_file_in_place(
                 .with_context(|| format!("failed to open input {}", input_path.display()))?,
         );
         let output = BufWriter::new(temp_file);
-        convert_document(input, output, dictionary, options, format)?;
+        convert_document(input, output, dictionary, options, directives, format)?;
         fs::rename(&temp_path, output_path).with_context(|| {
             format!(
                 "failed to replace {} with temporary output {}",
@@ -298,6 +356,7 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
             },
             bundled_stdict: true,
             homophone_window: ContextWindow::PerBlock,
+            first_occurrence_window: ContextWindow::Off,
         },
         Preset::KoKp => ResolvedOptions {
             rendering: RenderMode::HangulOnly,
@@ -308,11 +367,18 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
             },
             bundled_stdict: false,
             homophone_window: ContextWindow::Off,
+            first_occurrence_window: ContextWindow::Off,
         },
     };
 
     if let Some(rendering) = cli.rendering {
         options.rendering = rendering.into();
+    }
+    if let Some(disambiguation) = cli.disambiguation {
+        options.homophone_window = disambiguation.into();
+    }
+    if let Some(first_occurrence) = cli.first_occurrence {
+        options.first_occurrence_window = first_occurrence.into();
     }
     options.engine.segmentation = cli.segmentation.into();
     if cli.no_stdict {
@@ -326,6 +392,65 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
     }
 
     Ok(options)
+}
+
+fn build_user_directives(cli: &Cli) -> UserDirectives<'static> {
+    let mut directives = UserDirectives::new();
+    add_literal_directives(
+        &mut directives,
+        &cli.require_hanja,
+        DirectiveAction::RequireHanja,
+    );
+    add_glob_directives(
+        &mut directives,
+        &cli.require_hanja_glob,
+        DirectiveAction::RequireHanja,
+    );
+    add_literal_directives(
+        &mut directives,
+        &cli.require_hangul,
+        DirectiveAction::RequireHangul,
+    );
+    add_glob_directives(
+        &mut directives,
+        &cli.require_hangul_glob,
+        DirectiveAction::RequireHangul,
+    );
+    add_literal_directives(
+        &mut directives,
+        &cli.skip_annotation,
+        DirectiveAction::SkipAnnotation,
+    );
+    add_glob_directives(
+        &mut directives,
+        &cli.skip_annotation_glob,
+        DirectiveAction::SkipAnnotation,
+    );
+    directives
+}
+
+fn add_literal_directives(
+    directives: &mut UserDirectives<'static>,
+    values: &[String],
+    action: DirectiveAction,
+) {
+    for value in values {
+        directives.add_literal(value.clone(), action);
+    }
+}
+
+fn add_glob_directives(
+    directives: &mut UserDirectives<'static>,
+    patterns: &[String],
+    action: DirectiveAction,
+) {
+    for pattern in patterns {
+        let pattern = pattern.clone();
+        directives.add_predicate(
+            move |annotation| glob_matches(&pattern, &annotation.hanja),
+            action,
+        );
+    }
 }
 
 fn parse_format(s: &str) -> Result<Format, String> {
@@ -391,13 +516,14 @@ fn convert_document(
     output: impl Write,
     dictionary: &CliDictionary,
     options: ResolvedOptions,
+    directives: &UserDirectives<'_>,
     format: Format,
 ) -> Result<()> {
     match format {
-        Format::PlainText => convert_plain_stream(input, output, dictionary, options),
-        Format::Html => convert_html(input, output, dictionary, options),
+        Format::PlainText => convert_plain_stream(input, output, dictionary, options, directives),
+        Format::Html => convert_html(input, output, dictionary, options, directives),
         Format::Markdown(variant) => {
-            convert_markdown_stream(input, output, dictionary, options, variant)
+            convert_markdown_stream(input, output, dictionary, options, directives, variant)
         }
     }
 }
@@ -407,14 +533,18 @@ fn convert_plain_stream(
     output: impl Write,
     dictionary: &CliDictionary,
     options: ResolvedOptions,
+    directives: &UserDirectives<'_>,
 ) -> Result<()> {
     let engine = Engine::<PlainScopeData, _>::with_options(dictionary, options.engine);
-    if options.homophone_window == ContextWindow::Off {
+    if options.homophone_window == ContextWindow::Off
+        && options.first_occurrence_window == ContextWindow::Off
+    {
         return convert_plain_stream_without_homophone_lookahead(
             input,
             output,
             engine,
             options.rendering,
+            directives,
         );
     }
     // Plain text has no block or section scopes.  For homophone correctness,
@@ -426,7 +556,9 @@ fn convert_plain_stream(
         input,
         output,
         engine,
-        options.homophone_window,
+        dictionary,
+        options,
+        directives,
         options.rendering,
     )
 }
@@ -435,7 +567,9 @@ fn convert_plain_stream_with_document_homophone_lookahead(
     mut input: impl BufRead,
     mut output: impl Write,
     mut engine: Engine<PlainScopeData, CliDictionary>,
-    homophone_window: ContextWindow,
+    dictionary: &CliDictionary,
+    options: ResolvedOptions,
+    directives: &UserDirectives<'_>,
     rendering: RenderMode,
 ) -> Result<()> {
     let mut output_tokens = Vec::new();
@@ -456,7 +590,7 @@ fn convert_plain_stream_with_document_homophone_lookahead(
     flush_utf8_tail(&mut pending, &mut engine, &mut output_tokens)?;
     output_tokens.extend(engine.finish());
 
-    let output_tokens = mark_homophones(output_tokens, homophone_window);
+    let output_tokens = apply_annotation_policy(output_tokens, dictionary, options, directives);
     write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
     output.flush().context("failed to flush output")
 }
@@ -466,6 +600,7 @@ fn convert_plain_stream_without_homophone_lookahead(
     mut output: impl Write,
     mut engine: Engine<PlainScopeData, CliDictionary>,
     rendering: RenderMode,
+    directives: &UserDirectives<'_>,
 ) -> Result<()> {
     let mut bytes = [0; 8192];
     let mut pending = Vec::new();
@@ -483,11 +618,17 @@ fn convert_plain_stream_without_homophone_lookahead(
         process_utf8_prefix_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| {
             Ok(())
         })?;
+        if !directives.is_empty() {
+            output_tokens = apply_user_directives(output_tokens, directives);
+        }
         write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
     }
     let mut output_tokens = Vec::new();
     flush_utf8_tail_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| Ok(()))?;
     output_tokens.extend(engine.finish());
+    if !directives.is_empty() {
+        output_tokens = apply_user_directives(output_tokens, directives);
+    }
     write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
     output.flush().context("failed to flush output")
 }
@@ -506,6 +647,30 @@ fn write_plain_stream_chunk(
         .write_all(converted.as_bytes())
         .context("failed to write output")?;
     output.flush().context("failed to flush output")
+}
+
+fn apply_annotation_policy<S>(
+    output_tokens: impl IntoIterator<Item = OutputToken<S>>,
+    dictionary: &CliDictionary,
+    options: ResolvedOptions,
+    directives: &UserDirectives<'_>,
+) -> Vec<OutputToken<S>>
+where
+    S: ScopeData,
+{
+    let output_tokens = match options.homophone_window {
+        ContextWindow::Off => output_tokens.into_iter().collect(),
+        window => mark_homophones(output_tokens, dictionary, window),
+    };
+    let output_tokens = match options.first_occurrence_window {
+        ContextWindow::Off => output_tokens,
+        window => filter_first_occurrences(output_tokens, window),
+    };
+    if directives.is_empty() {
+        output_tokens
+    } else {
+        apply_user_directives(output_tokens, directives)
+    }
 }
 
 fn process_utf8_prefix(
@@ -619,6 +784,7 @@ fn convert_html(
     mut output: impl Write,
     dictionary: &CliDictionary,
     options: ResolvedOptions,
+    directives: &UserDirectives<'_>,
 ) -> Result<()> {
     let mut content = String::new();
     input
@@ -626,10 +792,7 @@ fn convert_html(
         .context("failed to read UTF-8 input")?;
     let input_tokens = read_html_fragment(&content);
     let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options.engine);
-    let output_tokens = match options.homophone_window {
-        ContextWindow::Off => output_tokens.collect(),
-        window => mark_homophones(output_tokens, window),
-    };
+    let output_tokens = apply_annotation_policy(output_tokens, dictionary, options, directives);
     let rendered_tokens = render_tokens_iter(output_tokens, options.rendering);
     let converted = write_html_fragment(rendered_tokens);
     output
@@ -655,6 +818,7 @@ fn convert_markdown_stream(
     mut output: impl Write,
     dictionary: &CliDictionary,
     options: ResolvedOptions,
+    directives: &UserDirectives<'_>,
     variant: MarkdownVariant,
 ) -> Result<()> {
     let mut content = String::new();
@@ -663,10 +827,7 @@ fn convert_markdown_stream(
         .context("failed to read UTF-8 input")?;
     let input_tokens = read_markdown(&content, variant);
     let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options.engine);
-    let output_tokens = match options.homophone_window {
-        ContextWindow::Off => output_tokens.collect(),
-        window => mark_homophones(output_tokens, window),
-    };
+    let output_tokens = apply_annotation_policy(output_tokens, dictionary, options, directives);
     let rendered_tokens = render_tokens_iter(output_tokens, options.rendering);
     let converted =
         write_markdown(rendered_tokens).context("failed to serialize Markdown output")?;
@@ -696,6 +857,43 @@ impl From<Segmentation> for SegmentationStrategy {
             Segmentation::Eager => Self::Eager,
         }
     }
+}
+
+impl From<CliContextWindow> for ContextWindow {
+    fn from(window: CliContextWindow) -> Self {
+        match window {
+            CliContextWindow::Off => Self::Off,
+            CliContextWindow::PerBlock => Self::PerBlock,
+            CliContextWindow::PerSection => Self::PerSection,
+            CliContextWindow::PerDocument => Self::PerDocument,
+        }
+    }
+}
+
+fn glob_matches(pattern: &str, text: &str) -> bool {
+    let pattern = pattern.chars().collect::<Vec<_>>();
+    let text = text.chars().collect::<Vec<_>>();
+    let mut matches = vec![vec![false; text.len() + 1]; pattern.len() + 1];
+    matches[pattern.len()][text.len()] = true;
+
+    for pattern_index in (0..pattern.len()).rev() {
+        for text_index in (0..=text.len()).rev() {
+            matches[pattern_index][text_index] = match pattern[pattern_index] {
+                '*' => {
+                    matches[pattern_index + 1][text_index]
+                        || (text_index < text.len() && matches[pattern_index][text_index + 1])
+                }
+                '?' => text_index < text.len() && matches[pattern_index + 1][text_index + 1],
+                character => {
+                    text_index < text.len()
+                        && character == text[text_index]
+                        && matches[pattern_index + 1][text_index + 1]
+                }
+            };
+        }
+    }
+
+    matches[0][0]
 }
 
 fn load_dictionary(user_paths: &[PathBuf], bundled_stdict: bool) -> Result<CliDictionary> {

@@ -161,7 +161,7 @@ where
 {
     let input_tokens = read_markdown(input, variant);
     let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options);
-    let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
+    let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
     let rendered_tokens = render_tokens_iter(output_tokens, mode);
     write_markdown(rendered_tokens)
 }

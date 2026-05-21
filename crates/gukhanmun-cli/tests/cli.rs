@@ -34,7 +34,7 @@ fn converts_stdin_to_stdout_with_bundled_stdict_by_default() {
         .write_stdin("漢字 北京 標識 一分錢 布告하다 佈告하다\n")
         .assert()
         .success()
-        .stdout("한자 베이징 표지 일푼전 포고하다(布告하다) 포고하다(佈告하다)\n");
+        .stdout("한자(漢字) 베이징 표지(標識) 일푼전 포고하다(布告하다) 포고하다(佈告하다)\n");
 }
 
 #[test]
@@ -180,7 +180,13 @@ fn reads_from_file_and_writes_to_output_file() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args([input.to_str().unwrap(), "-o", output.to_str().unwrap()])
+        .args([
+            "--disambiguation",
+            "off",
+            input.to_str().unwrap(),
+            "-o",
+            output.to_str().unwrap(),
+        ])
         .assert()
         .success()
         .stdout("");
@@ -196,7 +202,13 @@ fn same_input_and_output_path_is_replaced_after_successful_conversion() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args([path.to_str().unwrap(), "-o", path.to_str().unwrap()])
+        .args([
+            "--disambiguation",
+            "off",
+            path.to_str().unwrap(),
+            "-o",
+            path.to_str().unwrap(),
+        ])
         .assert()
         .success()
         .stdout("");
@@ -216,7 +228,13 @@ fn same_input_and_output_path_preserves_file_permissions() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args([path.to_str().unwrap(), "-o", path.to_str().unwrap()])
+        .args([
+            "--disambiguation",
+            "off",
+            path.to_str().unwrap(),
+            "-o",
+            path.to_str().unwrap(),
+        ])
         .assert()
         .success()
         .stdout("");
@@ -239,7 +257,12 @@ fn user_dictionary_overrides_bundled_stdict() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--dictionary", dictionary.to_str().unwrap()])
+        .args([
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+        ])
         .write_stdin("漢字 北京\n")
         .assert()
         .success()
@@ -262,6 +285,168 @@ fn default_plain_stdin_preserves_homophone_context_across_lines() {
         .assert()
         .success()
         .stdout("한자(漢字)\n한자(翰字)\n");
+}
+
+#[test]
+fn disambiguation_off_suppresses_dictionary_homophones() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n漢字\t한자\n翰字\t한자\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+        ])
+        .write_stdin("漢字\n")
+        .assert()
+        .success()
+        .stdout("한자\n");
+}
+
+#[test]
+fn disambiguation_per_document_marks_dictionary_homophones() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n漢字\t한자\n翰字\t한자\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "per-document",
+        ])
+        .write_stdin("漢字\n")
+        .assert()
+        .success()
+        .stdout("한자(漢字)\n");
+}
+
+#[test]
+fn first_occurrence_per_document_clears_repeated_required_hanja() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\trequire_hanja\n漢字\t한자\ttrue\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-stdict",
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+            "--first-occurrence",
+            "per-document",
+        ])
+        .write_stdin("漢字 漢字\n")
+        .assert()
+        .success()
+        .stdout("한자(漢字) 한자\n");
+}
+
+#[test]
+fn first_occurrence_per_section_resets_at_html_headings() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\trequire_hanja\n漢字\t한자\ttrue\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--no-stdict",
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+            "--first-occurrence",
+            "per-section",
+        ])
+        .write_stdin("<h1>漢字</h1><p>漢字</p><h2>漢字</h2>")
+        .assert()
+        .success()
+        .stdout("<h1>한자(漢字)</h1><p>한자</p><h2>한자(漢字)</h2>");
+}
+
+#[test]
+fn directive_literal_requires_hanja() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--no-stdict", "--require-hanja", "漢字"])
+        .write_stdin("漢字 天地\n")
+        .assert()
+        .success()
+        .stdout("한자(漢字) 천지\n");
+}
+
+#[test]
+fn directive_glob_requires_hangul_in_original_mode() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-stdict",
+            "--rendering",
+            "original",
+            "--require-hangul-glob",
+            "*字",
+        ])
+        .write_stdin("漢字 天地\n")
+        .assert()
+        .success()
+        .stdout("漢字(한자) 天地\n");
+}
+
+#[test]
+fn skip_directive_collapses_hangul_primary_renderer() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-stdict",
+            "--rendering",
+            "hangul-hanja-parens",
+            "--skip-annotation",
+            "漢字",
+        ])
+        .write_stdin("漢字\n")
+        .assert()
+        .success()
+        .stdout("한자\n");
+}
+
+#[test]
+fn skip_directive_glob_collapses_hanja_primary_renderer() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-stdict",
+            "--rendering",
+            "hanja-hangul-parens",
+            "--skip-annotation-glob",
+            "*字",
+        ])
+        .write_stdin("漢字 天地\n")
+        .assert()
+        .success()
+        .stdout("漢字 天地(천지)\n");
 }
 
 #[test]
@@ -307,7 +492,12 @@ fn cdb_user_dictionary_overrides_bundled_stdict() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--dictionary", dictionary.to_str().unwrap()])
+        .args([
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+        ])
         .write_stdin("漢字 北京\n")
         .assert()
         .success()
@@ -326,7 +516,12 @@ fn extensionless_cdb_user_dictionary_loads_from_file_contents() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--dictionary", dictionary.to_str().unwrap()])
+        .args([
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+        ])
         .write_stdin("漢字 北京\n")
         .assert()
         .success()
@@ -377,7 +572,7 @@ fn missing_dictionary_path_reports_a_human_readable_error() {
 fn format_text_html_converts_html_input() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--format", "text/html"])
+        .args(["--format", "text/html", "--disambiguation", "off"])
         .write_stdin("<p>漢字</p>")
         .assert()
         .success()
@@ -388,7 +583,7 @@ fn format_text_html_converts_html_input() {
 fn format_text_markdown_converts_markdown_input() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--format", "text/markdown"])
+        .args(["--format", "text/markdown", "--disambiguation", "off"])
         .write_stdin("# 漢字\n")
         .assert()
         .success()
@@ -414,7 +609,12 @@ fn format_text_markdown_does_not_transform_punctuation() {
 fn format_text_markdown_gfm_variant_with_space_enables_gfm_extensions() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--format", "text/markdown; variant=GFM"])
+        .args([
+            "--format",
+            "text/markdown; variant=GFM",
+            "--disambiguation",
+            "off",
+        ])
         .write_stdin("~~漢字~~\n")
         .assert()
         .success()
@@ -425,7 +625,12 @@ fn format_text_markdown_gfm_variant_with_space_enables_gfm_extensions() {
 fn format_text_markdown_gfm_variant_no_space_enables_gfm_extensions() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--format", "text/markdown;variant=GFM"])
+        .args([
+            "--format",
+            "text/markdown;variant=GFM",
+            "--disambiguation",
+            "off",
+        ])
         .write_stdin("~~漢字~~\n")
         .assert()
         .success()
@@ -436,7 +641,12 @@ fn format_text_markdown_gfm_variant_no_space_enables_gfm_extensions() {
 fn format_text_markdown_gfm_variant_extra_whitespace_and_unknown_param() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--format", "text/markdown;   foo=bar;   variant=GFM"])
+        .args([
+            "--format",
+            "text/markdown;   foo=bar;   variant=GFM",
+            "--disambiguation",
+            "off",
+        ])
         .write_stdin("~~漢字~~\n")
         .assert()
         .success()
@@ -452,7 +662,13 @@ fn html_extension_infers_html_format() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args([input.to_str().unwrap(), "-o", output.to_str().unwrap()])
+        .args([
+            "--disambiguation",
+            "off",
+            input.to_str().unwrap(),
+            "-o",
+            output.to_str().unwrap(),
+        ])
         .assert()
         .success();
 
@@ -468,7 +684,13 @@ fn md_extension_infers_markdown_format() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args([input.to_str().unwrap(), "-o", output.to_str().unwrap()])
+        .args([
+            "--disambiguation",
+            "off",
+            input.to_str().unwrap(),
+            "-o",
+            output.to_str().unwrap(),
+        ])
         .assert()
         .success();
 
@@ -484,7 +706,13 @@ fn unknown_extension_falls_back_to_plain_text() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args([input.to_str().unwrap(), "-o", output.to_str().unwrap()])
+        .args([
+            "--disambiguation",
+            "off",
+            input.to_str().unwrap(),
+            "-o",
+            output.to_str().unwrap(),
+        ])
         .assert()
         .success();
 

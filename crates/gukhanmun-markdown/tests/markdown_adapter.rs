@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use gukhanmun_core::{MapDictionary, RenderMode, RenderedToken};
+use gukhanmun_core::{HanjaDictionary, MapDictionary, Match, RenderMode, RenderedToken};
 use gukhanmun_markdown::{
     MarkdownError, MarkdownScopeData, MarkdownVariant, convert_markdown, read_markdown,
     read_markdown_iter, write_markdown,
@@ -29,6 +29,18 @@ fn dictionary() -> MapDictionary {
     dict.insert("布告하다", "포고하다");
     dict.insert("佈告하다", "포고하다");
     dict
+}
+
+struct ContextOnlyDictionary(MapDictionary);
+
+impl HanjaDictionary for ContextOnlyDictionary {
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        self.0.matches_at(s)
+    }
+
+    fn max_word_chars(&self) -> Option<usize> {
+        self.0.max_word_chars()
+    }
 }
 
 fn events(markdown: &str) -> Vec<Event<'static>> {
@@ -187,7 +199,7 @@ fn nested_inline_html_korean_lang_overrides_non_korean_ancestor() {
 fn block_scopes_reset_homophone_marking() {
     let output = convert_markdown(
         "布告하다\n\n佈告하다\n\n- 布告하다 佈告하다\n",
-        &dictionary(),
+        &ContextOnlyDictionary(dictionary()),
         RenderMode::HangulOnly,
         MarkdownVariant::CommonMark,
     )

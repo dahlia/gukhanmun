@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use gukhanmun_core::{MapDictionary, Recovery, RenderMode};
+use gukhanmun_core::{HanjaDictionary, MapDictionary, Match, Recovery, RenderMode};
 use gukhanmun_html::{
     HtmlError, HtmlScopeData, convert_html_fragment, read_html_fragment, read_html_fragment_iter,
     try_convert_html_fragment, write_html_fragment,
@@ -28,6 +28,18 @@ fn dictionary() -> MapDictionary {
     dict.insert("布告하다", "포고하다");
     dict.insert("佈告하다", "포고하다");
     dict
+}
+
+struct ContextOnlyDictionary(MapDictionary);
+
+impl HanjaDictionary for ContextOnlyDictionary {
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        self.0.matches_at(s)
+    }
+
+    fn max_word_chars(&self) -> Option<usize> {
+        self.0.max_word_chars()
+    }
 }
 
 #[test]
@@ -147,7 +159,7 @@ fn html_reader_iterator_matches_vec_reader() {
 fn block_scopes_reset_homophone_marking() {
     let output = convert_html_fragment(
         "<p>布告하다</p><p>佈告하다</p><div>布告하다 佈告하다</div>",
-        &dictionary(),
+        &ContextOnlyDictionary(dictionary()),
         RenderMode::HangulOnly,
     );
 

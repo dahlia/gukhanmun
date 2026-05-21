@@ -195,7 +195,7 @@ where
 {
     let input_tokens = read_html_fragment(input);
     let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options);
-    let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
+    let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
     let rendered_tokens = render_tokens_iter(output_tokens, mode);
     write_html_fragment(rendered_tokens)
 }
@@ -232,7 +232,7 @@ where
 {
     let input_tokens = try_read_html_fragment(input, recovery)?;
     let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options);
-    let output_tokens = mark_homophones(output_tokens, ContextWindow::PerBlock);
+    let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
     let rendered_tokens = render_tokens_iter(output_tokens, mode);
     Ok(write_html_fragment(rendered_tokens))
 }
