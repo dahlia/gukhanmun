@@ -19,7 +19,7 @@ use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use clap::{Parser, ValueEnum};
+use clap::{Args, Parser, ValueEnum};
 use gukhanmun_cdb::CdbDictionary;
 use gukhanmun_core::{
     ChainDictionary, ContextWindow, DirectiveAction, Engine, EngineOptions, HanjaDictionary,
@@ -41,6 +41,25 @@ type CliDictionary = ChainDictionary<Box<dyn HanjaDictionary>>;
     about = "Convert Korean mixed-script plain text into hangul text."
 )]
 struct Cli {
+    #[command(flatten)]
+    io: IoArgs,
+
+    #[command(flatten)]
+    language: LanguageArgs,
+
+    #[command(flatten)]
+    conversion: ConversionArgs,
+
+    #[command(flatten)]
+    rendering: RenderingPolicyArgs,
+
+    #[command(flatten)]
+    directives: DirectiveArgs,
+}
+
+#[derive(Debug, Args)]
+#[command(next_help_heading = "Input/output")]
+struct IoArgs {
     /// Input file to read from; reads from standard input when omitted.
     #[arg(value_name = "INPUT")]
     input: Option<PathBuf>,
@@ -59,13 +78,49 @@ struct Cli {
     /// lists).  Unrecognised parameters are ignored.
     #[arg(short, long, value_name = "MIME", value_parser = parse_format)]
     format: Option<Format>,
+}
 
+#[derive(Debug, Args)]
+#[command(next_help_heading = "Language and dictionaries")]
+struct LanguageArgs {
     /// Language variant preset.  ko-kr (default) enables the bundled Standard
     /// Korean Dictionary (標準國語大辭典) and the initial sound law (頭音法則).  ko-kp disables
     /// both, targeting North Korean orthography.
     #[arg(short, long, value_enum, default_value_t = Preset::KoKr)]
     preset: Preset,
 
+    /// Path to a user-supplied dictionary file (.gukfst or .gukcdb).  May be
+    /// repeated; later dictionaries take priority over earlier ones and over the
+    /// bundled Standard Korean Dictionary (標準國語大辭典).
+    #[arg(short = 'd', long = "dictionary", value_name = "PATH")]
+    dictionaries: Vec<PathBuf>,
+
+    /// Disable the bundled Standard Korean Dictionary (標準國語大辭典).
+    #[arg(short = 'S', long)]
+    no_stdict: bool,
+}
+
+#[derive(Debug, Args)]
+#[command(next_help_heading = "Conversion")]
+struct ConversionArgs {
+    /// Segmentation strategy for hanja-containing spans.  lattice (default)
+    /// chooses the best path through all dictionary matches.  eager greedily
+    /// takes the longest match at each cursor for lower overhead.
+    #[arg(short = 's', long, value_enum, default_value_t = Segmentation::Lattice)]
+    segmentation: Segmentation,
+
+    /// Enable the initial sound law (頭音法則), overriding the preset default.
+    #[arg(short = 'i', long, visible_alias = "dueum")]
+    initial_sound_law: bool,
+
+    /// Disable the initial sound law (頭音法則), overriding the preset default.
+    #[arg(short = 'I', long, visible_alias = "no-dueum")]
+    no_initial_sound_law: bool,
+}
+
+#[derive(Debug, Args)]
+#[command(next_help_heading = "Rendering policy")]
+struct RenderingPolicyArgs {
     /// Controls how hanja annotations appear in the output.  hangul-only
     /// (default for most presets) emits hangul, adding parenthesized hanja only
     /// when disambiguation requires it.  hangul-hanja-parens always emits
@@ -84,31 +139,11 @@ struct Cli {
     /// off leaves every occurrence as marked by dictionaries and directives.
     #[arg(long, value_enum)]
     first_occurrence: Option<CliContextWindow>,
+}
 
-    /// Segmentation strategy for hanja-containing spans.  lattice (default)
-    /// chooses the best path through all dictionary matches.  eager greedily
-    /// takes the longest match at each cursor for lower overhead.
-    #[arg(short = 's', long, value_enum, default_value_t = Segmentation::Lattice)]
-    segmentation: Segmentation,
-
-    /// Path to a user-supplied dictionary file (.gukfst or .gukcdb).  May be
-    /// repeated; later dictionaries take priority over earlier ones and over the
-    /// bundled Standard Korean Dictionary (標準國語大辭典).
-    #[arg(short = 'd', long = "dictionary", value_name = "PATH")]
-    dictionaries: Vec<PathBuf>,
-
-    /// Disable the bundled Standard Korean Dictionary (標準國語大辭典).
-    #[arg(short = 'S', long)]
-    no_stdict: bool,
-
-    /// Enable the initial sound law (頭音法則), overriding the preset default.
-    #[arg(short = 'i', long, visible_alias = "dueum")]
-    initial_sound_law: bool,
-
-    /// Disable the initial sound law (頭音法則), overriding the preset default.
-    #[arg(short = 'I', long, visible_alias = "no-dueum")]
-    no_initial_sound_law: bool,
-
+#[derive(Debug, Args)]
+#[command(next_help_heading = "User directives")]
+struct DirectiveArgs {
     /// Require visible hanja for a literal hanja form.  May be repeated.
     #[arg(long = "require-hanja", value_name = "HANJA")]
     require_hanja: Vec<String>,
@@ -190,15 +225,16 @@ fn main() -> Result<()> {
 fn run(cli: Cli) -> Result<()> {
     let options = resolve_options(&cli)?;
     let directives = build_user_directives(&cli);
-    let dictionary = load_dictionary(&cli.dictionaries, options.bundled_stdict)?;
-    let format = cli.format.unwrap_or_else(|| {
-        cli.input
+    let dictionary = load_dictionary(&cli.language.dictionaries, options.bundled_stdict)?;
+    let format = cli.io.format.unwrap_or_else(|| {
+        cli.io
+            .input
             .as_deref()
             .map(detect_format)
             .unwrap_or(Format::PlainText)
     });
 
-    if let (Some(input_path), Some(output_path)) = (&cli.input, &cli.output)
+    if let (Some(input_path), Some(output_path)) = (&cli.io.input, &cli.io.output)
         && is_same_existing_file(input_path, output_path)?
     {
         return convert_file_in_place(
@@ -211,7 +247,7 @@ fn run(cli: Cli) -> Result<()> {
         );
     }
 
-    let input: Box<dyn BufRead> = match &cli.input {
+    let input: Box<dyn BufRead> = match &cli.io.input {
         Some(path) => {
             Box::new(BufReader::new(fs::File::open(path).with_context(|| {
                 format!("failed to open input {}", path.display())
@@ -219,7 +255,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         None => Box::new(BufReader::new(io::stdin().lock())),
     };
-    let output: Box<dyn Write> = match &cli.output {
+    let output: Box<dyn Write> = match &cli.io.output {
         Some(path) => Box::new(BufWriter::new(
             fs::File::create(path)
                 .with_context(|| format!("failed to create output {}", path.display()))?,
@@ -342,11 +378,11 @@ fn same_file_metadata(_left: &fs::Metadata, _right: &fs::Metadata) -> bool {
 }
 
 fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
-    if cli.initial_sound_law && cli.no_initial_sound_law {
+    if cli.conversion.initial_sound_law && cli.conversion.no_initial_sound_law {
         bail!("--initial-sound-law and --no-initial-sound-law cannot be used together");
     }
 
-    let mut options = match cli.preset {
+    let mut options = match cli.language.preset {
         Preset::KoKr => ResolvedOptions {
             rendering: RenderMode::HangulOnly,
             engine: EngineOptions {
@@ -371,23 +407,23 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
         },
     };
 
-    if let Some(rendering) = cli.rendering {
+    if let Some(rendering) = cli.rendering.rendering {
         options.rendering = rendering.into();
     }
-    if let Some(disambiguation) = cli.disambiguation {
+    if let Some(disambiguation) = cli.rendering.disambiguation {
         options.homophone_window = disambiguation.into();
     }
-    if let Some(first_occurrence) = cli.first_occurrence {
+    if let Some(first_occurrence) = cli.rendering.first_occurrence {
         options.first_occurrence_window = first_occurrence.into();
     }
-    options.engine.segmentation = cli.segmentation.into();
-    if cli.no_stdict {
+    options.engine.segmentation = cli.conversion.segmentation.into();
+    if cli.language.no_stdict {
         options.bundled_stdict = false;
     }
-    if cli.initial_sound_law {
+    if cli.conversion.initial_sound_law {
         options.engine.initial_sound_law = true;
     }
-    if cli.no_initial_sound_law {
+    if cli.conversion.no_initial_sound_law {
         options.engine.initial_sound_law = false;
     }
 
@@ -398,32 +434,32 @@ fn build_user_directives(cli: &Cli) -> UserDirectives<'static> {
     let mut directives = UserDirectives::new();
     add_literal_directives(
         &mut directives,
-        &cli.require_hanja,
+        &cli.directives.require_hanja,
         DirectiveAction::RequireHanja,
     );
     add_glob_directives(
         &mut directives,
-        &cli.require_hanja_glob,
+        &cli.directives.require_hanja_glob,
         DirectiveAction::RequireHanja,
     );
     add_literal_directives(
         &mut directives,
-        &cli.require_hangul,
+        &cli.directives.require_hangul,
         DirectiveAction::RequireHangul,
     );
     add_glob_directives(
         &mut directives,
-        &cli.require_hangul_glob,
+        &cli.directives.require_hangul_glob,
         DirectiveAction::RequireHangul,
     );
     add_literal_directives(
         &mut directives,
-        &cli.skip_annotation,
+        &cli.directives.skip_annotation,
         DirectiveAction::SkipAnnotation,
     );
     add_glob_directives(
         &mut directives,
-        &cli.skip_annotation_glob,
+        &cli.directives.skip_annotation_glob,
         DirectiveAction::SkipAnnotation,
     );
     directives

@@ -38,6 +38,30 @@ fn converts_stdin_to_stdout_with_bundled_stdict_by_default() {
 }
 
 #[test]
+fn help_groups_options_by_pipeline_area() {
+    let assert = Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .arg("--help")
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+
+    for heading in [
+        "Input/output:",
+        "Language and dictionaries:",
+        "Conversion:",
+        "Rendering policy:",
+        "User directives:",
+    ] {
+        assert!(stdout.contains(heading), "missing help heading {heading}");
+    }
+    assert!(stdout.find("Input/output:") < stdout.find("Language and dictionaries:"));
+    assert!(stdout.find("Language and dictionaries:") < stdout.find("Conversion:"));
+    assert!(stdout.find("Conversion:") < stdout.find("Rendering policy:"));
+    assert!(stdout.find("Rendering policy:") < stdout.find("User directives:"));
+}
+
+#[test]
 fn rendering_option_selects_parenthesized_output() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
