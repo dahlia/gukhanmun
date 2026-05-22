@@ -21,7 +21,8 @@ use gukhanmun_core::{
     RenderedToken, Scope, ScopeData, SegmentationStrategy, UnihanCharDict, UserDirectives,
     apply_user_directives, convert_plain_text, convert_plain_text_with_options,
     filter_first_occurrences, mark_homophones, process_fallible_tokens, process_tokens,
-    process_tokens_iter, read_plain_text, render_tokens, render_tokens_iter, write_plain_text,
+    process_tokens_iter, process_tokens_with_options, read_plain_text, render_tokens,
+    render_tokens_iter, write_plain_text,
 };
 use proptest::prelude::*;
 use std::cell::Cell;
@@ -1252,6 +1253,201 @@ fn fallback_phoneticizes_hanja_numerals() {
         let output = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
 
         assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn positional_arabic_numerals_convert_digit_only_runs() {
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::PositionalArabic,
+        ..EngineOptions::default()
+    };
+    let cases = [
+        ("二〇一六年", "2016년"),
+        ("貳〇壹陸年", "2016년"),
+        ("十一月", "십일월"),
+    ];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text_with_options(
+            input,
+            &MapDictionary::new(),
+            RenderMode::HangulOnly,
+            options,
+        );
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn positional_arabic_does_not_split_additive_numerals() {
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::PositionalArabic,
+        ..EngineOptions::default()
+    };
+    let cases = ["二十", "一百二十三"];
+
+    for input in cases {
+        let output = convert_plain_text_with_options(
+            input,
+            &MapDictionary::new(),
+            RenderMode::HangulOnly,
+            options,
+        );
+        let fallback = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        assert_eq!(output, fallback);
+    }
+}
+
+#[test]
+fn additive_arabic_numerals_parse_place_markers() {
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::AdditiveArabic,
+        ..EngineOptions::default()
+    };
+    let cases = [
+        ("二〇一六年", "이공일륙년"),
+        ("十一月", "11월"),
+        ("一千二百三十四", "1234"),
+        ("參佰拾圓", "310원"),
+        ("拾萬圓", "100000원"),
+    ];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text_with_options(
+            input,
+            &MapDictionary::new(),
+            RenderMode::HangulOnly,
+            options,
+        );
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn smart_numerals_choose_arabic_only_for_structured_numbers() {
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::Smart,
+        ..EngineOptions::default()
+    };
+    let cases = [
+        ("二〇一六年", "2016년"),
+        ("十一月", "11월"),
+        ("一千二百三十四", "1234"),
+        ("六", "육"),
+        ("陸", "육"),
+    ];
+
+    for (input, expected) in cases {
+        let output = convert_plain_text_with_options(
+            input,
+            &MapDictionary::new(),
+            RenderMode::HangulOnly,
+            options,
+        );
+
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn dictionary_matches_take_precedence_over_numeral_strategies() {
+    let mut dict = MapDictionary::new();
+    dict.insert("十一月", "동짓달");
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::Smart,
+        ..EngineOptions::default()
+    };
+
+    let output = convert_plain_text_with_options("十一月", &dict, RenderMode::HangulOnly, options);
+
+    assert_eq!(output, "동짓달");
+}
+
+#[test]
+fn dictionary_matches_preserve_context_after_arabic_numeral_fallback_equivalents() {
+    let mut dict = MapDictionary::new();
+    dict.insert("二〇一六", "2016");
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::PositionalArabic,
+        ..EngineOptions::default()
+    };
+
+    let output =
+        convert_plain_text_with_options("二〇一六年", &dict, RenderMode::HangulOnly, options);
+
+    assert_eq!(output, "2016년");
+}
+
+#[test]
+fn arabic_numerals_emit_plain_text_not_annotations() {
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::Smart,
+        ..EngineOptions::default()
+    };
+    let output = process_tokens_with_options(
+        [InputToken::Text("十一月".into())],
+        &MapDictionary::new(),
+        options,
+    );
+
+    assert_eq!(
+        output,
+        vec![
+            OutputToken::<PlainScopeData>::Text("11".into()),
+            OutputToken::Annotated(Annotation {
+                hanja: "月".into(),
+                reading: "월".into(),
+                homophone: false,
+                require_hanja: false,
+                require_hangul: false,
+                first_in_context: true,
+                skip_annotation: false,
+                from_dictionary: false,
+            }),
+        ]
+    );
+}
+
+#[test]
+fn additive_arabic_overflow_falls_back_to_hangul_phonetic() {
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::AdditiveArabic,
+        ..EngineOptions::default()
+    };
+    let input = "九千澗九千澗";
+    let output = convert_plain_text_with_options(
+        input,
+        &MapDictionary::new(),
+        RenderMode::HangulOnly,
+        options,
+    );
+    let fallback = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+    assert_eq!(output, fallback);
+}
+
+#[test]
+fn additive_arabic_rejects_explicit_zero_before_large_units() {
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::AdditiveArabic,
+        ..EngineOptions::default()
+    };
+    let cases = ["零萬", "一億零萬"];
+
+    for input in cases {
+        let output = convert_plain_text_with_options(
+            input,
+            &MapDictionary::new(),
+            RenderMode::HangulOnly,
+            options,
+        );
+        let fallback = convert_plain_text(input, &MapDictionary::new(), RenderMode::HangulOnly);
+
+        assert_eq!(output, fallback);
     }
 }
 

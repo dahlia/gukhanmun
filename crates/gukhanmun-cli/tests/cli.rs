@@ -59,6 +59,7 @@ fn help_groups_options_by_pipeline_area() {
     assert!(stdout.find("Language and dictionaries:") < stdout.find("Conversion:"));
     assert!(stdout.find("Conversion:") < stdout.find("Rendering policy:"));
     assert!(stdout.find("Rendering policy:") < stdout.find("User directives:"));
+    assert!(stdout.contains("--numerals <NUMERALS>"));
 }
 
 #[test]
@@ -122,6 +123,28 @@ fn short_segmentation_option_selects_eager_longest_match() {
         .assert()
         .success()
         .stdout("행사장(行事場)소(所)\n");
+}
+
+#[test]
+fn numeral_option_selects_positional_arabic_conversion() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--no-stdict", "--numerals", "positional-arabic"])
+        .write_stdin("二〇一六年\n")
+        .assert()
+        .success()
+        .stdout("2016년\n");
+}
+
+#[test]
+fn numeral_option_selects_smart_conversion() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--no-stdict", "--numerals", "smart"])
+        .write_stdin("十一月 一千二百三十四\n")
+        .assert()
+        .success()
+        .stdout("11월 1234\n");
 }
 
 #[test]

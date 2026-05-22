@@ -23,6 +23,7 @@ use crate::{EngineOptions, NumeralStrategy};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum FallbackPart {
     Annotation { hanja: String, reading: String },
+    ReadingText(String),
     Text(String),
 }
 
@@ -58,11 +59,19 @@ pub(crate) fn phoneticize_fallback_run_with_state(
             options.initial_sound_law,
         ) {
             state.starts_word = false;
-            state.previous_reading = numeral.reading.chars().last();
-            parts.push(FallbackPart::Annotation {
-                hanja: chars[index..numeral.next_index].iter().collect(),
-                reading: numeral.reading,
-            });
+            match numeral.part {
+                NumeralPart::AnnotationReading(reading) => {
+                    state.previous_reading = reading.chars().last();
+                    parts.push(FallbackPart::Annotation {
+                        hanja: chars[index..numeral.next_index].iter().collect(),
+                        reading,
+                    });
+                }
+                NumeralPart::Text(text) => {
+                    state.previous_reading = text.chars().last();
+                    push_reading_text(&mut parts, text);
+                }
+            }
             index = numeral.next_index;
             continue;
         }
@@ -94,6 +103,7 @@ pub(crate) fn fallback_reading_for_run(run: &str, options: EngineOptions) -> Opt
     for part in phoneticize_fallback_run_with_state(run, options, &mut state) {
         match part {
             FallbackPart::Annotation { reading, .. } => output.push_str(&reading),
+            FallbackPart::ReadingText(text) => output.push_str(&text),
             FallbackPart::Text(_) => return None,
         }
     }
@@ -138,7 +148,13 @@ fn phoneticize_non_numeral_chunk(
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct NumeralMatch {
     next_index: usize,
-    reading: String,
+    part: NumeralPart,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum NumeralPart {
+    AnnotationReading(String),
+    Text(String),
 }
 
 fn numeral_at(
@@ -151,7 +167,18 @@ fn numeral_at(
         NumeralStrategy::HangulPhonetic => {
             hangul_phonetic_numeral_at(chars, index, initial_sound_law)
         }
+        NumeralStrategy::PositionalArabic => positional_arabic_numeral_at(chars, index)
+            .or_else(|| hangul_phonetic_numeral_at(chars, index, initial_sound_law)),
+        NumeralStrategy::AdditiveArabic => additive_arabic_numeral_at(chars, index)
+            .or_else(|| hangul_phonetic_numeral_at(chars, index, initial_sound_law)),
+        NumeralStrategy::Smart => smart_numeral_at(chars, index, initial_sound_law),
     }
+}
+
+fn smart_numeral_at(chars: &[char], index: usize, initial_sound_law: bool) -> Option<NumeralMatch> {
+    additive_arabic_numeral_at(chars, index)
+        .or_else(|| positional_arabic_numeral_at_min_len(chars, index, 4))
+        .or_else(|| hangul_phonetic_numeral_at(chars, index, initial_sound_law))
 }
 
 fn hangul_phonetic_numeral_at(
@@ -176,7 +203,7 @@ fn hangul_phonetic_numeral_at(
         push_numeral_readings(&mut reading, &chars[index + 1..end], initial_sound_law);
         return Some(NumeralMatch {
             next_index: end,
-            reading,
+            part: NumeralPart::AnnotationReading(reading),
         });
     }
 
@@ -195,8 +222,135 @@ fn hangul_phonetic_numeral_at(
     push_numeral_readings(&mut reading, &chars[index..end], initial_sound_law);
     Some(NumeralMatch {
         next_index: end,
-        reading,
+        part: NumeralPart::AnnotationReading(reading),
     })
+}
+
+fn positional_arabic_numeral_at(chars: &[char], index: usize) -> Option<NumeralMatch> {
+    positional_arabic_numeral_at_min_len(chars, index, 1)
+}
+
+fn positional_arabic_numeral_at_min_len(
+    chars: &[char],
+    index: usize,
+    min_len: usize,
+) -> Option<NumeralMatch> {
+    let ch = *chars.get(index)?;
+    digit_value(ch)?;
+
+    let mut end = index + 1;
+    while chars
+        .get(end)
+        .and_then(|&current| digit_value(current))
+        .is_some()
+    {
+        end += 1;
+    }
+    let len = end - index;
+    if len < min_len {
+        return None;
+    }
+    if chars
+        .get(end)
+        .is_some_and(|&current| is_hanja_numeral(current))
+    {
+        return None;
+    }
+
+    let mut text = String::new();
+    for &ch in &chars[index..end] {
+        let digit = digit_value(ch).expect("checked by digit-only scan");
+        text.push(char::from_digit(digit.into(), 10).expect("hanja digit values are decimal"));
+    }
+    Some(NumeralMatch {
+        next_index: end,
+        part: NumeralPart::Text(text),
+    })
+}
+
+fn additive_arabic_numeral_at(chars: &[char], index: usize) -> Option<NumeralMatch> {
+    let ch = *chars.get(index)?;
+    if !is_hanja_numeral(ch) {
+        return None;
+    }
+
+    let mut end = index + 1;
+    while chars
+        .get(end)
+        .is_some_and(|&current| is_hanja_numeral(current))
+    {
+        end += 1;
+    }
+    let value = parse_additive_numeral(&chars[index..end])?;
+    Some(NumeralMatch {
+        next_index: end,
+        part: NumeralPart::Text(value.to_string()),
+    })
+}
+
+fn parse_additive_numeral(chars: &[char]) -> Option<u128> {
+    let mut total = 0u128;
+    let mut section = 0u128;
+    let mut current_digit = None;
+    let mut last_small_unit = None;
+    let mut last_large_unit = None;
+    let mut has_place_marker = false;
+
+    for &ch in chars {
+        if let Some(digit) = digit_value(ch) {
+            let digit = u128::from(digit);
+            if let Some(previous) = current_digit
+                && previous != 0
+            {
+                return None;
+            }
+            current_digit = Some(digit);
+            continue;
+        }
+
+        if let Some(unit) = small_place_value(ch) {
+            if last_small_unit.is_some_and(|previous| unit >= previous) {
+                return None;
+            }
+            let digit = current_digit.take().unwrap_or(1);
+            if digit == 0 {
+                return None;
+            }
+            section = section.checked_add(digit.checked_mul(unit)?)?;
+            last_small_unit = Some(unit);
+            has_place_marker = true;
+            continue;
+        }
+
+        if let Some(unit) = large_place_value(ch) {
+            if last_large_unit.is_some_and(|previous| unit >= previous) {
+                return None;
+            }
+            let digit = current_digit.take();
+            if digit == Some(0) {
+                return None;
+            }
+            section = section.checked_add(digit.unwrap_or(0))?;
+            if section == 0 {
+                section = 1;
+            }
+            total = total.checked_add(section.checked_mul(unit)?)?;
+            section = 0;
+            last_small_unit = None;
+            last_large_unit = Some(unit);
+            has_place_marker = true;
+            continue;
+        }
+
+        return None;
+    }
+
+    if !has_place_marker {
+        return None;
+    }
+
+    section = section.checked_add(current_digit.unwrap_or(0))?;
+    total.checked_add(section)
 }
 
 fn push_numeral_readings(output: &mut String, chars: &[char], initial_sound_law: bool) {
@@ -223,6 +377,47 @@ fn initial_sound_numeral_reading(ch: char) -> Option<&'static str> {
         '六' | '陸' | '陆' => "육",
         _ => return None,
     })
+}
+
+fn digit_value(ch: char) -> Option<u8> {
+    Some(match ch {
+        '零' | '〇' => 0,
+        '一' | '壹' | '壱' | '弌' | '夁' => 1,
+        '二' | '貳' | '贰' | '弐' | '弍' | '貮' => 2,
+        '三' | '參' | '叁' | '参' | '弎' | '叄' => 3,
+        '四' | '肆' | '䦉' => 4,
+        '五' | '伍' => 5,
+        '六' | '陸' | '陆' => 6,
+        '七' | '柒' | '漆' => 7,
+        '八' | '捌' => 8,
+        '九' | '玖' => 9,
+        _ => return None,
+    })
+}
+
+fn small_place_value(ch: char) -> Option<u128> {
+    Some(match ch {
+        '十' | '拾' => 10,
+        '百' | '佰' | '陌' => 100,
+        '千' | '仟' | '阡' => 1000,
+        _ => return None,
+    })
+}
+
+fn large_place_value(ch: char) -> Option<u128> {
+    let exponent = match ch {
+        '萬' | '万' => 4,
+        '億' => 8,
+        '兆' => 12,
+        '京' => 16,
+        '垓' => 20,
+        '秭' => 24,
+        '穰' => 28,
+        '溝' => 32,
+        '澗' => 36,
+        _ => return None,
+    };
+    10u128.checked_pow(exponent)
 }
 
 fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
@@ -287,42 +482,7 @@ fn positional_numeral_reading(ch: char) -> Option<&'static str> {
 }
 
 fn is_positional_numeral(ch: char) -> bool {
-    matches!(
-        ch,
-        '零' | '〇'
-            | '一'
-            | '壹'
-            | '壱'
-            | '弌'
-            | '夁'
-            | '二'
-            | '貳'
-            | '贰'
-            | '弐'
-            | '弍'
-            | '貮'
-            | '三'
-            | '參'
-            | '叁'
-            | '参'
-            | '弎'
-            | '叄'
-            | '四'
-            | '肆'
-            | '䦉'
-            | '五'
-            | '伍'
-            | '六'
-            | '陸'
-            | '陆'
-            | '七'
-            | '柒'
-            | '漆'
-            | '八'
-            | '捌'
-            | '九'
-            | '玖'
-    )
+    digit_value(ch).is_some()
 }
 
 pub(crate) fn is_hanja_numeral(ch: char) -> bool {
@@ -421,6 +581,17 @@ fn push_text(parts: &mut Vec<FallbackPart>, text: String) {
     match parts.last_mut() {
         Some(FallbackPart::Text(existing)) => existing.push_str(&text),
         _ => parts.push(FallbackPart::Text(text)),
+    }
+}
+
+fn push_reading_text(parts: &mut Vec<FallbackPart>, text: String) {
+    if text.is_empty() {
+        return;
+    }
+
+    match parts.last_mut() {
+        Some(FallbackPart::ReadingText(existing)) => existing.push_str(&text),
+        _ => parts.push(FallbackPart::ReadingText(text)),
     }
 }
 

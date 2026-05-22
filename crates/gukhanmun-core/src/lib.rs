@@ -612,7 +612,32 @@ pub enum SegmentationStrategy {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NumeralStrategy {
     /// Render hanja numerals as their hangul phonetic readings.
+    ///
+    /// This strategy emits fallback annotations so renderers can still expose
+    /// the original hanja in annotation-oriented render modes.
     HangulPhonetic,
+
+    /// Normalize positional digit-only hanja numerals to Arabic digits.
+    ///
+    /// Arabic normalization emits plain text rather than annotations. Renderers
+    /// and user directives therefore cannot later recover the original numeral
+    /// hanja for the normalized span.
+    PositionalArabic,
+
+    /// Normalize additive hanja numerals with place markers to Arabic digits.
+    ///
+    /// This parser handles small units such as `十`, `百`, and `千` and large
+    /// units through `澗`. Malformed or overflowing numerals fall back to
+    /// [`NumeralStrategy::HangulPhonetic`] for that run.
+    AdditiveArabic,
+
+    /// Choose Arabic normalization for common numeric contexts and otherwise
+    /// keep hangul phonetic fallback behavior.
+    ///
+    /// Well-formed additive numerals are normalized to Arabic. Pure positional
+    /// digit runs are normalized only when they contain at least four digits,
+    /// matching common year notation. Other numerals remain hangul annotations.
+    Smart,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1376,6 +1401,7 @@ fn process_fallback_text<S>(
                     from_dictionary: false,
                 }));
             }
+            FallbackPart::ReadingText(text) => push_text(output, &text),
             FallbackPart::Text(text) => push_text(output, &text),
         }
     }

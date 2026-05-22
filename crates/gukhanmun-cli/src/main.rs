@@ -109,6 +109,13 @@ struct ConversionArgs {
     #[arg(short = 's', long, value_enum, default_value_t = Segmentation::Lattice)]
     segmentation: Segmentation,
 
+    /// Numeral conversion strategy for fallback hanja numerals.
+    /// hangul-phonetic (default) emits hangul annotations; positional-arabic
+    /// normalizes digit-only runs; additive-arabic normalizes place-marker
+    /// numerals; smart chooses Arabic only for common numeric forms.
+    #[arg(long, visible_alias = "numeral-strategy", value_enum)]
+    numerals: Option<Numerals>,
+
     /// Enable the initial sound law (頭音法則), overriding the preset default.
     #[arg(short = 'i', long, visible_alias = "dueum")]
     initial_sound_law: bool,
@@ -198,6 +205,14 @@ enum Rendering {
 enum Segmentation {
     Lattice,
     Eager,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum Numerals {
+    HangulPhonetic,
+    PositionalArabic,
+    AdditiveArabic,
+    Smart,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -417,6 +432,9 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
         options.first_occurrence_window = first_occurrence.into();
     }
     options.engine.segmentation = cli.conversion.segmentation.into();
+    if let Some(numerals) = cli.conversion.numerals {
+        options.engine.numeral_strategy = numerals.into();
+    }
     if cli.language.no_stdict {
         options.bundled_stdict = false;
     }
@@ -891,6 +909,17 @@ impl From<Segmentation> for SegmentationStrategy {
         match segmentation {
             Segmentation::Lattice => Self::Lattice,
             Segmentation::Eager => Self::Eager,
+        }
+    }
+}
+
+impl From<Numerals> for NumeralStrategy {
+    fn from(numerals: Numerals) -> Self {
+        match numerals {
+            Numerals::HangulPhonetic => Self::HangulPhonetic,
+            Numerals::PositionalArabic => Self::PositionalArabic,
+            Numerals::AdditiveArabic => Self::AdditiveArabic,
+            Numerals::Smart => Self::Smart,
         }
     }
 }
