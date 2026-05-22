@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use ciborium::de::from_reader;
-use gukhanmun_core::{HanjaDictionary, Match, MatchMark};
+use gukhanmun_core::{DictionaryRecord, HanjaDictionary, Match, MatchMark};
 
 const META_KEY: &[u8] = b"__gukhanmun_meta__";
 const MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
@@ -116,6 +116,30 @@ impl HanjaDictionary for CdbDictionary {
 
     fn max_word_chars(&self) -> Option<usize> {
         self.max_word_chars
+    }
+
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        let mut records = Vec::new();
+        for record in self.cdb.iter() {
+            let Ok((key, value)) = record else {
+                continue;
+            };
+            if key == META_KEY {
+                continue;
+            }
+            let Ok(Some(entry)) = decode_record(&value) else {
+                continue;
+            };
+            let Ok(hanja) = String::from_utf8(key) else {
+                continue;
+            };
+            records.push(DictionaryRecord {
+                hanja,
+                reading: entry.reading,
+                mark: entry.mark,
+            });
+        }
+        Some(Box::new(records.into_iter()))
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {

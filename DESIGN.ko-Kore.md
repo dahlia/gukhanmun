@@ -121,17 +121,19 @@ pulldown-cmark 이벤트의 變種, 等)의 內容에 對하여는 아무것도 
     한글 讀音, 그리고 이 變換이 왜 일어났고 後續 段階가 그것을 어떻게 다룰지를
     描寫하는 플래그를 들고 있다.
 
-`Annotation`은 다섯 個의 플래그를 들고 있다. `homophone`은 같은 한글 讀音을
-가진 다른 漢字 單語가 辭典에 存在함을 辭典이 알려줄 때 設定되며, 이 境遇 出力을
-읽는 사람이 한글만으로는 元 漢字를 復元할 수 없다. `require_hanja`는 出處
-辭典이나 使用者 指示에 依해 原 漢字를 한글 옆에 함께 表示할 것이 要求되는
-境遇에 設定된다. `require_hangul`은 그 反對 方向이다; 出力에서는 漢字를 그대로
-維持하지만 한글 倂記가 必要한 境遇에 設定되며, 國漢文 表記를 그대로 두고 어려운
-漢字만 補助 表記하는 **Original** 렌더링 모드에서 使用된다.
-`first_in_context`는 設定된 文脈 窓 內에서 該當 漢字語의 첫 番째 登場일 때
-設定되며, 文脈은 設定에 따라 블록·섹션·文書 中 하나이다. `from_dictionary`는
-辭典 一致인지 글字 單位 폴백인지를 區分한다. 디버깅 用途로 렌더러가 이 둘을
-다르게 標識하도록 選擇할 수 있다.
+`Annotation`은 政策 플래그들을 들고 있다. `homophone`은 有效 辭典 項目 集合이나
+現在 文脈이 같은 한글 讀音을 가진 다른 漢字 單語가 있음을 알려줄 때 設定되며,
+이 境遇 出力을 읽는 사람이 한글만으로는 元 漢字를 復元할 수 없다.
+`require_hanja`는 出處 辭典이나 使用者 指示에 依해 原 漢字를 한글 옆에 함께
+表示할 것이 要求되는 境遇에 設定된다. `require_hangul`은 그 反對 方向이다;
+出力에서는 漢字를 그대로 維持하지만 한글 倂記가 必要한 境遇에 設定되며, 國漢文
+表記를 그대로 두고 어려운 漢字만 補助 表記하는 **Original** 렌더링 모드에서
+使用된다. `skip_annotation`은 렌더러가 註解를 붙이지 않고 主 表記의 純粹
+텍스트만 내보내길 원하는 使用者 指示에 依해 設定된다. `first_in_context`는
+設定된 文脈 窓 內에서 該當 漢字語의 첫 番째 登場일 때 設定되며, 文脈은 設定에
+따라 블록·섹션·文書 中 하나이다. `from_dictionary`는 辭典 一致인지 글字 單位
+폴백인지를 區分한다. 디버깅 用途로 렌더러가 이 둘을 다르게 標識하도록 選擇할 수
+있다.
 
 `InputToken`과 `OutputToken`을 別個의 타입으로 둔 것은 이 IR에서 가장 큰 形態
 上 決定이다. 우리가 檢討했던 代案은 `Annotated` 變種을 처음부터 包含하는 單一
@@ -299,8 +301,14 @@ pub trait HanjaDictionary {
     /// 라티스의 終了 條件으로 使用된다.
     fn max_word_chars(&self) -> Option<usize> { None }
 
+    /// 배치 政策 index를 만들 만큼 效率的으로 列擧할 수 있을 때의 完整한 項目들.
+    fn entries<'a>(&'a self)
+        -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>>
+    { None }
+
     /// 同一한 한글 讀音을 가진 다른 漢字 單語가 있는가?
-    /// homophone-marker 미들웨어가 使用한다.
+    /// 便宜 API이다. homophone-marker 미들웨어는 反復 全體 走査를 피하려고
+    /// entries()를 使用한다.
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool { false }
 }
 ~~~~
@@ -437,8 +445,11 @@ Gukhanmun에서는 미들웨어가 `OutputToken` 흐름에 對한 狀態 維持 
 
 ### 內藏 미들웨어
 
-`HomophoneMarker`는 흐름을 走査하면서, 設定된 文脈 窓 內에서 다른 漢字 表記와
-한글 讀音을 共有하는 註解에 `homophone = true`를 設定한다. 窓은
+`HomophoneMarker`는 흐름을 走査하면서, 有效 辭典 項目 集合이나 設定된 文脈 窓
+內에서 다른 漢字 表記와 한글 讀音을 共有하는 註解에 `homophone = true`를
+設定한다. 백엔드가 項目 列擧를 露出하면 `HanjaDictionary::entries()`로
+reading-to-hanja index를 한 번 만든다. 照會 專用 辭典은 `has_homophone()`으로
+fallback하며 文脈 內 표시도 계속 받는다. 窓은
 `per-block`(基本값)·`per-document`·`off` 셋 中 하나이다. per-block 窓은 다음
 「`is_block_boundary()`가 true를 返還하는 스코프」가 나올 때까지만 버퍼링하며,
 普通 한 段落이나 한 리스트 項目 程度이다. per-document 窓은 흐름 全體를

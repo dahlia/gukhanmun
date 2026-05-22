@@ -16,12 +16,12 @@
 
 use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, EngineOptions,
-    Error as CoreError, HanjaDictionary, InputToken, MapDictionary, MatchMark, NumeralStrategy,
-    OutputToken, PlainScopeData, RecoverableInputError, Recovery, RenderMode, RenderedToken, Scope,
-    ScopeData, SegmentationStrategy, UnihanCharDict, UserDirectives, apply_user_directives,
-    convert_plain_text, convert_plain_text_with_options, filter_first_occurrences, mark_homophones,
-    process_fallible_tokens, process_tokens, process_tokens_iter, read_plain_text, render_tokens,
-    render_tokens_iter, write_plain_text,
+    Error as CoreError, HanjaDictionary, InputToken, MapDictionary, Match, MatchMark,
+    NumeralStrategy, OutputToken, PlainScopeData, RecoverableInputError, Recovery, RenderMode,
+    RenderedToken, Scope, ScopeData, SegmentationStrategy, UnihanCharDict, UserDirectives,
+    apply_user_directives, convert_plain_text, convert_plain_text_with_options,
+    filter_first_occurrences, mark_homophones, process_fallible_tokens, process_tokens,
+    process_tokens_iter, read_plain_text, render_tokens, render_tokens_iter, write_plain_text,
 };
 use proptest::prelude::*;
 use std::cell::Cell;
@@ -298,6 +298,44 @@ fn chain_dictionary_reports_homophones_from_any_dictionary() {
     second.insert("漢字", "한자");
     second.insert("翰字", "한자");
     let chain = ChainDictionary::from_iter([first, second]);
+
+    assert!(chain.has_homophone("漢字", "한자"));
+    assert!(!chain.has_homophone("天地", "천지"));
+}
+
+#[test]
+fn chain_dictionary_homophones_respect_higher_priority_overrides() {
+    let mut high = MapDictionary::new();
+    high.insert("翰字", "하자");
+    let mut low = MapDictionary::new();
+    low.insert("漢字", "한자");
+    low.insert("翰字", "한자");
+    let chain = ChainDictionary::from_iter([high, low]);
+
+    assert!(!chain.has_homophone("漢字", "한자"));
+    assert!(!chain.has_homophone("翰字", "하자"));
+}
+
+#[test]
+fn chain_dictionary_homophones_fall_back_for_lookup_only_dictionaries() {
+    struct LookupOnlyHomophoneDictionary;
+
+    impl HanjaDictionary for LookupOnlyHomophoneDictionary {
+        fn matches_at<'a>(&'a self, _s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            Box::new(std::iter::empty())
+        }
+
+        fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+            hanja == "漢字" && reading == "한자"
+        }
+    }
+
+    let mut enumerable = MapDictionary::new();
+    enumerable.insert("天地", "천지");
+    let chain = ChainDictionary::from_iter([
+        Box::new(enumerable) as Box<dyn HanjaDictionary>,
+        Box::new(LookupOnlyHomophoneDictionary),
+    ]);
 
     assert!(chain.has_homophone("漢字", "한자"));
     assert!(!chain.has_homophone("天地", "천지"));
@@ -1349,6 +1387,91 @@ fn homophone_marker_uses_dictionary_homophones_even_when_other_form_is_absent() 
 }
 
 #[test]
+fn homophone_marker_respects_chain_dictionary_homophone_overrides() {
+    let mut high = MapDictionary::new();
+    high.insert("翰字", "하자");
+    let mut low = MapDictionary::new();
+    low.insert("漢字", "한자");
+    low.insert("翰字", "한자");
+    let dictionary = ChainDictionary::from_iter([high, low]);
+    let tokens = vec![OutputToken::<PlainScopeData>::Annotated(annotation(
+        "漢字", "한자",
+    ))];
+
+    let marked = mark_homophones(tokens.clone(), &dictionary, ContextWindow::PerDocument);
+
+    assert_eq!(marked, tokens);
+}
+
+#[test]
+fn homophone_marker_falls_back_to_lookup_only_dictionary_homophones() {
+    struct LookupOnlyHomophoneDictionary;
+
+    impl HanjaDictionary for LookupOnlyHomophoneDictionary {
+        fn matches_at<'a>(&'a self, _s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            Box::new(std::iter::empty())
+        }
+
+        fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+            hanja == "漢字" && reading == "한자"
+        }
+    }
+
+    let tokens = vec![OutputToken::<PlainScopeData>::Annotated(annotation(
+        "漢字", "한자",
+    ))];
+
+    let marked = mark_homophones(
+        tokens,
+        &LookupOnlyHomophoneDictionary,
+        ContextWindow::PerDocument,
+    );
+
+    assert_eq!(
+        marked,
+        vec![OutputToken::Annotated(Annotation {
+            homophone: true,
+            ..annotation("漢字", "한자")
+        })]
+    );
+}
+
+#[test]
+fn homophone_marker_preserves_mixed_chain_lookup_fallbacks() {
+    struct LookupOnlyHomophoneDictionary;
+
+    impl HanjaDictionary for LookupOnlyHomophoneDictionary {
+        fn matches_at<'a>(&'a self, _s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            Box::new(std::iter::empty())
+        }
+
+        fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+            hanja == "漢字" && reading == "한자"
+        }
+    }
+
+    let mut enumerable = MapDictionary::new();
+    enumerable.insert("天地", "천지");
+    let dictionary = ChainDictionary::from_iter([
+        Box::new(enumerable) as Box<dyn HanjaDictionary>,
+        Box::new(LookupOnlyHomophoneDictionary),
+    ]);
+    let tokens = vec![OutputToken::<PlainScopeData>::Annotated(annotation(
+        "漢字", "한자",
+    ))];
+
+    let marked = mark_homophones(tokens, &dictionary, ContextWindow::PerDocument);
+
+    assert_eq!(
+        marked,
+        vec![OutputToken::Annotated(Annotation {
+            homophone: true,
+            ..annotation("漢字", "한자")
+        })]
+    );
+}
+
+#[test]
 fn homophone_marker_off_ignores_dictionary_homophones() {
     let mut dictionary = MapDictionary::new();
     dictionary.insert("漢字", "한자");
@@ -1358,6 +1481,31 @@ fn homophone_marker_off_ignores_dictionary_homophones() {
     ))];
 
     let marked = mark_homophones(tokens.clone(), &dictionary, ContextWindow::Off);
+
+    assert_eq!(marked, tokens);
+}
+
+#[test]
+fn homophone_marker_off_does_not_build_dictionary_index() {
+    struct EntriesPanicDictionary;
+
+    impl HanjaDictionary for EntriesPanicDictionary {
+        fn matches_at<'a>(&'a self, _s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            Box::new(std::iter::empty())
+        }
+
+        fn entries<'a>(
+            &'a self,
+        ) -> Option<Box<dyn Iterator<Item = gukhanmun_core::DictionaryRecord> + 'a>> {
+            panic!("entries should not be called when homophone marking is off");
+        }
+    }
+
+    let tokens = vec![OutputToken::<PlainScopeData>::Annotated(annotation(
+        "漢字", "한자",
+    ))];
+
+    let marked = mark_homophones(tokens.clone(), &EntriesPanicDictionary, ContextWindow::Off);
 
     assert_eq!(marked, tokens);
 }

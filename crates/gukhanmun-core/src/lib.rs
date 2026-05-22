@@ -294,6 +294,25 @@ pub struct MatchMark {
     pub require_hangul: bool,
 }
 
+/// A complete dictionary entry exposed for batch policy analysis.
+///
+/// Conversion only needs prefix lookup through [`HanjaDictionary::matches_at`],
+/// but middlewares such as homophone marking need to reason about the effective
+/// entry set without repeatedly probing the dictionary. Backends that can
+/// enumerate entries should return these records from
+/// [`HanjaDictionary::entries`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DictionaryRecord {
+    /// The hanja spelling stored as a dictionary key.
+    pub hanja: String,
+
+    /// The hangul reading selected for this hanja spelling.
+    pub reading: String,
+
+    /// Dictionary-provided rendering constraints for this entry.
+    pub mark: MatchMark,
+}
+
 /// A dictionary match that starts at the queried cursor position.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Match {
@@ -321,9 +340,20 @@ pub trait HanjaDictionary {
         None
     }
 
+    /// Enumerates complete dictionary entries when the backend supports it.
+    ///
+    /// The default returns `None`, which keeps custom lookup-only dictionaries
+    /// valid. Homophone-aware middlewares use this as an optional batch path so
+    /// built-in backends can avoid per-token full-dictionary scans.
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        None
+    }
+
     /// Returns whether another hanja spelling has the same hangul reading.
-    fn has_homophone(&self, _hanja: &str, _reading: &str) -> bool {
-        false
+    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        self.entries().is_some_and(|mut entries| {
+            entries.any(|record| record.hanja != hanja && record.reading == reading)
+        })
     }
 }
 
@@ -337,6 +367,10 @@ where
 
     fn max_word_chars(&self) -> Option<usize> {
         (**self).max_word_chars()
+    }
+
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        (**self).entries()
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
@@ -354,6 +388,10 @@ where
 
     fn max_word_chars(&self) -> Option<usize> {
         (**self).max_word_chars()
+    }
+
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        (**self).entries()
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
@@ -385,6 +423,16 @@ impl HanjaDictionary for UnihanCharDict {
 
     fn max_word_chars(&self) -> Option<usize> {
         Some(1)
+    }
+
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        Some(Box::new(KHANGUL_READINGS.iter().map(|(hanja, reading)| {
+            DictionaryRecord {
+                hanja: hanja.to_string(),
+                reading: reading.to_string(),
+                mark: MatchMark::default(),
+            }
+        })))
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
@@ -484,7 +532,23 @@ where
         max
     }
 
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        let mut records = BTreeMap::<String, DictionaryRecord>::new();
+
+        for dictionary in &self.dictionaries {
+            for record in dictionary.entries()? {
+                records.entry(record.hanja.clone()).or_insert(record);
+            }
+        }
+
+        Some(Box::new(records.into_values()))
+    }
+
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        if let Some(mut records) = self.entries() {
+            return records.any(|record| record.hanja != hanja && record.reading == reading);
+        }
+
         self.dictionaries
             .iter()
             .any(|dictionary| dictionary.has_homophone(hanja, reading))
@@ -627,6 +691,16 @@ impl HanjaDictionary for MapDictionary {
 
     fn max_word_chars(&self) -> Option<usize> {
         self.max_word_chars
+    }
+
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        Some(Box::new(self.entries.iter().map(|(hanja, entry)| {
+            DictionaryRecord {
+                hanja: hanja.clone(),
+                reading: entry.reading.clone(),
+                mark: entry.mark,
+            }
+        })))
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
@@ -1545,13 +1619,13 @@ impl UserDirectivePredicate<'_> {
     }
 }
 
-/// Sets `homophone` on dictionary annotations sharing a reading in context.
+/// Sets `homophone` on dictionary annotations sharing a reading.
 ///
-/// The marker asks the supplied dictionary whether another unseen word shares
-/// the same reading and also preserves the context-local fallback heuristic for
-/// dictionaries that do not expose homophone metadata.  Fallback annotations
-/// are ignored because they are phonetic fragments rather than known lexical
-/// homophones.
+/// The marker builds one optional homophone index from the supplied dictionary
+/// and falls back to [`HanjaDictionary::has_homophone`] for lookup-only
+/// dictionaries. It also preserves the context-local heuristic. Fallback
+/// annotations are ignored because they are phonetic fragments rather than
+/// known lexical homophones.
 pub fn mark_homophones<S, D>(
     tokens: impl IntoIterator<Item = OutputToken<S>>,
     dictionary: &D,
@@ -1561,8 +1635,14 @@ where
     S: ScopeData,
     D: HanjaDictionary + ?Sized,
 {
+    if window == ContextWindow::Off {
+        return tokens.into_iter().collect();
+    }
+
+    let index = HomophoneIndex::from_dictionary(dictionary);
+    let lookup_fallback = index.is_none().then_some(dictionary);
     ContextMiddleware::new(window, |tokens| {
-        mark_homophones_in_context(tokens, dictionary);
+        mark_homophones_in_context(tokens, index.as_ref(), lookup_fallback);
     })
     .process(tokens)
 }
@@ -1608,11 +1688,17 @@ where
     where
         D: HanjaDictionary + ?Sized,
     {
+        let index = if window == ContextWindow::Off {
+            None
+        } else {
+            HomophoneIndex::from_dictionary(dictionary)
+        };
+        let lookup_fallback = index.is_none().then_some(dictionary);
         Self {
             inner: ContextMiddleware::new(
                 window,
                 Box::new(move |tokens| {
-                    mark_homophones_in_context(tokens, dictionary);
+                    mark_homophones_in_context(tokens, index.as_ref(), lookup_fallback);
                 }),
             ),
         }
@@ -1771,8 +1857,38 @@ where
     }
 }
 
-fn mark_homophones_in_context<S, D>(tokens: &mut [OutputToken<S>], dictionary: &D)
-where
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct HomophoneIndex {
+    forms_by_reading: BTreeMap<String, BTreeSet<String>>,
+}
+
+impl HomophoneIndex {
+    fn from_dictionary<D>(dictionary: &D) -> Option<Self>
+    where
+        D: HanjaDictionary + ?Sized,
+    {
+        let mut forms_by_reading = BTreeMap::<String, BTreeSet<String>>::new();
+        for record in dictionary.entries()? {
+            forms_by_reading
+                .entry(record.reading)
+                .or_default()
+                .insert(record.hanja);
+        }
+        Some(Self { forms_by_reading })
+    }
+
+    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        self.forms_by_reading
+            .get(reading)
+            .is_some_and(|forms| forms.iter().any(|form| form != hanja))
+    }
+}
+
+fn mark_homophones_in_context<S, D>(
+    tokens: &mut [OutputToken<S>],
+    index: Option<&HomophoneIndex>,
+    lookup_fallback: Option<&D>,
+) where
     D: HanjaDictionary + ?Sized,
 {
     let mut forms_by_reading = BTreeMap::<String, BTreeSet<String>>::new();
@@ -1791,10 +1907,13 @@ where
     for token in tokens.iter_mut() {
         if let OutputToken::Annotated(annotation) = token {
             annotation.homophone = annotation.from_dictionary
-                && (dictionary.has_homophone(&annotation.hanja, &annotation.reading)
-                    || forms_by_reading
-                        .get(&annotation.reading)
-                        .is_some_and(|forms| forms.len() > 1));
+                && (index.is_some_and(|index| {
+                    index.has_homophone(&annotation.hanja, &annotation.reading)
+                }) || lookup_fallback.is_some_and(|dictionary| {
+                    dictionary.has_homophone(&annotation.hanja, &annotation.reading)
+                }) || forms_by_reading
+                    .get(&annotation.reading)
+                    .is_some_and(|forms| forms.len() > 1));
         }
     }
 }

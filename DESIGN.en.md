@@ -133,14 +133,16 @@ The token coming out of the engine is one of:
     hangul reading, and flags describing why the conversion happened and what
     subsequent stages might want to do with it.
 
-The `Annotation` carries five flags. `homophone` is set when the dictionary
-indicates another hanja word shares this hangul reading, so a reader of the
-rendered output cannot recover the word from hangul alone. `require_hanja` is
-set when the source dictionary or a user directive demands the original hanja
-be shown alongside the hangul. `require_hangul` is set in the opposite
-direction: the source preserves the hanja in the output, but a hangul gloss is
-required (used for the *Original* rendering mode that keeps mixed script as the
-default presentation). `first_in_context` is set when this is the first
+The `Annotation` carries policy flags. `homophone` is set when the effective
+dictionary entry set or the active context indicates another hanja word shares
+this hangul reading, so a reader of the rendered output cannot recover the word
+from hangul alone. `require_hanja` is set when the source dictionary or a user
+directive demands the original hanja be shown alongside the hangul.
+`require_hangul` is set in the opposite direction: the source preserves the
+hanja in the output, but a hangul gloss is required (used for the *Original*
+rendering mode that keeps mixed script as the default presentation).
+`skip_annotation` is set by user directives that want the renderer to emit only
+the primary plain text form. `first_in_context` is set when this is the first
 occurrence of the hanja word within the current context window, where the
 window is a block, a section, or the document depending on configuration.
 `from_dictionary` distinguishes a dictionary match from a
@@ -333,8 +335,15 @@ pub trait HanjaDictionary {
     /// Used as the lattice termination bound.
     fn max_word_chars(&self) -> Option<usize> { None }
 
+    /// Complete entries, when the backend can enumerate them efficiently
+    /// enough to build a batch policy index.
+    fn entries<'a>(&'a self)
+        -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>>
+    { None }
+
     /// Is there another hanja word with the same hangul reading?
-    /// Used by the homophone-marker middleware.
+    /// Convenience API; the homophone-marker middleware uses entries() to
+    /// avoid repeated full-dictionary scans.
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool { false }
 }
 ~~~~
@@ -483,9 +492,13 @@ stateless translator from `Annotated` tokens to concrete text and markup.
 ### Built-in middlewares
 
 `HomophoneMarker` scans the stream and sets `homophone = true` on annotations
-whose hangul reading is shared by another hanja form within the configured
-context window. The window is one of `per-block` (default), `per-document`, or
-`off`. Per-block windows buffer only until the next scope whose
+whose hangul reading is shared by another hanja form in the effective
+dictionary entry set or within the configured context window. It builds a
+single reading-to-hanja index from `HanjaDictionary::entries()` when the
+backend exposes entries; lookup-only dictionaries fall back to
+`has_homophone()` and still get context-local marking. The window is one of
+`per-block` (default), `per-document`, or `off`. Per-block windows buffer only
+until the next scope whose
 `is_block_boundary()` returns true, which is typically a paragraph or a list
 item. Per-document windows buffer the whole stream and are appropriate only
 when the input is small or when full accuracy matters more than latency.

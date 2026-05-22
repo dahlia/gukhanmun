@@ -27,7 +27,7 @@ use std::path::Path;
 use ciborium::de::from_reader;
 use fst::automaton::Automaton;
 use fst::{IntoStreamer, Map, Streamer};
-use gukhanmun_core::{HanjaDictionary, Match, MatchMark};
+use gukhanmun_core::{DictionaryRecord, HanjaDictionary, Match, MatchMark};
 
 const MAGIC: &[u8; 8] = b"GUKHMFST";
 const FORMAT_VERSION: u32 = 1;
@@ -159,6 +159,24 @@ impl HanjaDictionary for FstDictionary {
 
     fn max_word_chars(&self) -> Option<usize> {
         self.max_word_chars
+    }
+
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        let mut stream = self.map.stream();
+        let mut records = Vec::new();
+        while let Some((key, encoded)) = stream.next() {
+            let Ok(hanja) = std::str::from_utf8(key) else {
+                continue;
+            };
+            if let Ok(entry) = self.decode_entry(encoded) {
+                records.push(DictionaryRecord {
+                    hanja: hanja.to_owned(),
+                    reading: entry.reading,
+                    mark: entry.mark,
+                });
+            }
+        }
+        Some(Box::new(records.into_iter()))
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
