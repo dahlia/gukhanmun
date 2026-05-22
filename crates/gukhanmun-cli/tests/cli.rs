@@ -223,7 +223,7 @@ fn reads_from_file_and_writes_to_output_file() {
     let temp = tempdir().unwrap();
     let input = temp.path().join("input.txt");
     let output = temp.path().join("output.txt");
-    fs::write(&input, "漢字\n").unwrap();
+    fs::write(&input, "北京\n").unwrap();
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
@@ -238,14 +238,14 @@ fn reads_from_file_and_writes_to_output_file() {
         .success()
         .stdout("");
 
-    assert_eq!(fs::read_to_string(output).unwrap(), "한자\n");
+    assert_eq!(fs::read_to_string(output).unwrap(), "베이징\n");
 }
 
 #[test]
 fn same_input_and_output_path_is_replaced_after_successful_conversion() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("text.txt");
-    fs::write(&path, "漢字\n北京\n").unwrap();
+    fs::write(&path, "北京\n上海\n").unwrap();
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
@@ -260,7 +260,7 @@ fn same_input_and_output_path_is_replaced_after_successful_conversion() {
         .success()
         .stdout("");
 
-    assert_eq!(fs::read_to_string(path).unwrap(), "한자\n베이징\n");
+    assert_eq!(fs::read_to_string(path).unwrap(), "베이징\n상하이\n");
 }
 
 #[cfg(unix)]
@@ -270,7 +270,7 @@ fn same_input_and_output_path_preserves_file_permissions() {
 
     let temp = tempdir().unwrap();
     let path = temp.path().join("private.txt");
-    fs::write(&path, "漢字\n").unwrap();
+    fs::write(&path, "北京\n").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
 
     Command::cargo_bin("gukhanmun")
@@ -286,7 +286,7 @@ fn same_input_and_output_path_preserves_file_permissions() {
         .success()
         .stdout("");
 
-    assert_eq!(fs::read_to_string(&path).unwrap(), "한자\n");
+    assert_eq!(fs::read_to_string(&path).unwrap(), "베이징\n");
     assert_eq!(
         fs::metadata(&path).unwrap().permissions().mode() & 0o777,
         0o600
@@ -620,10 +620,10 @@ fn format_text_html_converts_html_input() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args(["--format", "text/html", "--disambiguation", "off"])
-        .write_stdin("<p>漢字</p>")
+        .write_stdin("<p>北京</p>")
         .assert()
         .success()
-        .stdout("<p>한자</p>");
+        .stdout("<p>베이징</p>");
 }
 
 #[test]
@@ -631,10 +631,10 @@ fn format_text_markdown_converts_markdown_input() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args(["--format", "text/markdown", "--disambiguation", "off"])
-        .write_stdin("# 漢字\n")
+        .write_stdin("# 北京\n")
         .assert()
         .success()
-        .stdout("한자\n====\n");
+        .stdout("베이징\n======\n");
 }
 
 #[test]
@@ -662,10 +662,10 @@ fn format_text_markdown_gfm_variant_with_space_enables_gfm_extensions() {
             "--disambiguation",
             "off",
         ])
-        .write_stdin("~~漢字~~\n")
+        .write_stdin("~~北京~~\n")
         .assert()
         .success()
-        .stdout("~~한자~~\n");
+        .stdout("~~베이징~~\n");
 }
 
 #[test]
@@ -678,10 +678,10 @@ fn format_text_markdown_gfm_variant_no_space_enables_gfm_extensions() {
             "--disambiguation",
             "off",
         ])
-        .write_stdin("~~漢字~~\n")
+        .write_stdin("~~北京~~\n")
         .assert()
         .success()
-        .stdout("~~한자~~\n");
+        .stdout("~~베이징~~\n");
 }
 
 #[test]
@@ -694,10 +694,10 @@ fn format_text_markdown_gfm_variant_extra_whitespace_and_unknown_param() {
             "--disambiguation",
             "off",
         ])
-        .write_stdin("~~漢字~~\n")
+        .write_stdin("~~北京~~\n")
         .assert()
         .success()
-        .stdout("~~한자~~\n");
+        .stdout("~~베이징~~\n");
 }
 
 #[test]
@@ -705,7 +705,7 @@ fn html_extension_infers_html_format() {
     let temp = tempdir().unwrap();
     let input = temp.path().join("doc.html");
     let output = temp.path().join("out.html");
-    fs::write(&input, "<p>漢字</p>").unwrap();
+    fs::write(&input, "<p>北京</p>").unwrap();
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
@@ -719,7 +719,7 @@ fn html_extension_infers_html_format() {
         .assert()
         .success();
 
-    assert_eq!(fs::read_to_string(output).unwrap(), "<p>한자</p>");
+    assert_eq!(fs::read_to_string(output).unwrap(), "<p>베이징</p>");
 }
 
 #[test]
@@ -727,7 +727,7 @@ fn md_extension_infers_markdown_format() {
     let temp = tempdir().unwrap();
     let input = temp.path().join("doc.md");
     let output = temp.path().join("out.md");
-    fs::write(&input, "# 漢字\n").unwrap();
+    fs::write(&input, "# 北京\n").unwrap();
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
@@ -741,7 +741,7 @@ fn md_extension_infers_markdown_format() {
         .assert()
         .success();
 
-    assert_eq!(fs::read_to_string(output).unwrap(), "한자\n====\n");
+    assert_eq!(fs::read_to_string(output).unwrap(), "베이징\n======\n");
 }
 
 #[test]
@@ -749,7 +749,7 @@ fn unknown_extension_falls_back_to_plain_text() {
     let temp = tempdir().unwrap();
     let input = temp.path().join("doc.txt");
     let output = temp.path().join("out.txt");
-    fs::write(&input, "漢字\n").unwrap();
+    fs::write(&input, "北京\n").unwrap();
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
@@ -763,7 +763,7 @@ fn unknown_extension_falls_back_to_plain_text() {
         .assert()
         .success();
 
-    assert_eq!(fs::read_to_string(output).unwrap(), "한자\n");
+    assert_eq!(fs::read_to_string(output).unwrap(), "베이징\n");
 }
 
 proptest! {
@@ -810,6 +810,8 @@ fn build_dictionary_fixture_with_format(
             validate: true,
             max_key_bytes: gukhanmun_mkdict::DEFAULT_MAX_KEY_BYTES,
             metadata: BTreeMap::new(),
+            rules: Vec::new(),
+            allow_unmatched_rules: false,
         },
     )
     .unwrap();

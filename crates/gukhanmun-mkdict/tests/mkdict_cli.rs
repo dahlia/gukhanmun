@@ -257,6 +257,8 @@ fn cdb_output_rejects_non_utf8_paths() {
             validate: true,
             max_key_bytes: gukhanmun_mkdict::DEFAULT_MAX_KEY_BYTES,
             metadata: BTreeMap::new(),
+            rules: Vec::new(),
+            allow_unmatched_rules: false,
         },
     )
     .unwrap_err();
@@ -335,6 +337,148 @@ fn first_and_last_wins_merge_policies_are_explicit() {
             .reading(),
         "천디"
     );
+}
+
+#[test]
+fn rules_flag_applies_marks_to_fst_and_cdb_builds() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dict.tsv");
+    let rules = temp.path().join("rules.tsv");
+    let fst_output = temp.path().join("dict.gukfst");
+    let cdb_output = temp.path().join("dict.gukcdb");
+    fs::write(
+        &input,
+        "hanja\thangul\n漢字\t한자\n天地\t천지\n史記\t사기\n詐欺\t사기\n書冊\t서책\n",
+    )
+    .unwrap();
+    fs::write(
+        &rules,
+        "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+         entry\t漢字\ttrue\tfalse\thomophone-heavy\n\
+         char\t天\ttrue\tfalse\trare hanja\n\
+         reading\t사기\ttrue\tfalse\tambiguous reading\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            fst_output.to_str().unwrap(),
+            "--rules",
+            rules.to_str().unwrap(),
+            "--validate",
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            cdb_output.to_str().unwrap(),
+            "--format",
+            "cdb",
+            "--rules",
+            rules.to_str().unwrap(),
+            "--validate",
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let fst = FstDictionary::open(&fst_output).unwrap();
+    assert!(fst.lookup("漢字").unwrap().unwrap().mark().require_hanja);
+    assert!(fst.lookup("天地").unwrap().unwrap().mark().require_hanja);
+    assert!(fst.lookup("史記").unwrap().unwrap().mark().require_hanja);
+    assert!(fst.lookup("詐欺").unwrap().unwrap().mark().require_hanja);
+    assert!(!fst.lookup("書冊").unwrap().unwrap().mark().require_hanja);
+
+    let cdb = CdbDictionary::open(&cdb_output).unwrap();
+    assert!(cdb.lookup("漢字").unwrap().unwrap().mark().require_hanja);
+    assert!(cdb.lookup("天地").unwrap().unwrap().mark().require_hanja);
+    assert!(cdb.lookup("史記").unwrap().unwrap().mark().require_hanja);
+    assert!(cdb.lookup("詐欺").unwrap().unwrap().mark().require_hanja);
+    assert!(!cdb.lookup("書冊").unwrap().unwrap().mark().require_hanja);
+}
+
+#[test]
+fn rules_flag_rejects_unmatched_rules_by_default() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dict.tsv");
+    let rules = temp.path().join("rules.tsv");
+    let output = temp.path().join("dict.gukfst");
+    fs::write(&input, "hanja\thangul\n漢字\t한자\n").unwrap();
+    fs::write(
+        &rules,
+        "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+         entry\t天地\ttrue\tfalse\tmissing\n\
+         char\t驟\ttrue\tfalse\tmissing\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            output.to_str().unwrap(),
+            "--rules",
+            rules.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("2 unmatched"));
+
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            output.to_str().unwrap(),
+            "--rules",
+            rules.to_str().unwrap(),
+            "--allow-unmatched-rules",
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+}
+
+#[test]
+fn rules_flag_rejects_duplicate_rules_across_files() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dict.tsv");
+    let rules_a = temp.path().join("rules-a.tsv");
+    let rules_b = temp.path().join("rules-b.tsv");
+    let output = temp.path().join("dict.gukfst");
+    fs::write(&input, "hanja\thangul\n漢字\t한자\n").unwrap();
+    fs::write(
+        &rules_a,
+        "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+         entry\t漢字\ttrue\tfalse\tfirst\n",
+    )
+    .unwrap();
+    fs::write(
+        &rules_b,
+        "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+         entry\t漢字\tfalse\ttrue\tsecond\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            output.to_str().unwrap(),
+            "--rules",
+            rules_a.to_str().unwrap(),
+            "--rules",
+            rules_b.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("duplicate rule"));
 }
 
 proptest::proptest! {

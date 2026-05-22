@@ -67,5 +67,43 @@ substantive definitions for the same hanja spelling.  Bracketed loanword hanja
 spellings are preferred over native Sino-Korean readings for the same key, and
 otherwise the first reading encountered in sorted dump shard order is kept.
 
-The current snapshot does not derive `require_hanja` or `require_hangul`
-automatically; both flags are `false` for every generated row.
+The extractor itself writes `require_hanja` and `require_hangul` as `false` for
+every row.  Annotation marks are layered on later by the rules file (see
+below) so the canonical TSV remains a pure hanja↔hangul mapping.
+
+
+Annotation rules
+----------------
+
+`crates/gukhanmun-stdict/data/rules.tsv` lists hand-curated rules that
+OR-merge `require_hanja` / `require_hangul` marks into dictionary entries at
+build time.  The stdict crate's `build.rs` passes the rules file to
+`gukhanmun-mkdict`, so the embedded FST ships with the marks already encoded.
+
+The format is a TSV with the columns `kind`, `pattern`, `require_hanja`,
+`require_hangul`, `reason`.  Three kinds of rule are supported:
+
+ -  `entry` — `pattern` matches one dictionary entry whose hanja key equals
+    `pattern` exactly.
+ -  `char` — `pattern` is a single hanja character; every entry containing
+    that character is marked.
+ -  `reading` — `pattern` is a hangul reading; every entry with that reading
+    is marked.
+
+A rule must set at least one of `require_hanja` / `require_hangul`, must
+include a non-empty `reason`, and must match at least one entry.  Multiple
+rules that touch the same entry are OR-merged.  Stale rules that match no
+entry fail the build so that the rules file does not drift out of sync with
+the dictionary; pass `--allow-unmatched-rules` to `gukhanmun-mkdict` if the
+rule file is shared with a smaller dictionary.
+
+To add or edit a rule, update *rules.tsv* and run:
+
+~~~~ sh
+cargo test -p gukhanmun-stdict
+~~~~
+
+The test suite rebuilds the bundled FST, verifies the marks land on
+representative entries, and exercises `convert_plain_text` end to end with
+`RenderMode::HangulOnly` to confirm that a marked entry renders as
+`한글(漢字)`.

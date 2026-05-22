@@ -417,9 +417,22 @@ OPTIONS:
         --metadata KEY=VAL          embedded metadata
         --validate                  round-trip verification
         --max-key-bytes N           reject pathologically long entries
+        --rules PATH                annotation rules TSV (repeatable)
+        --allow-unmatched-rules     accept rules that match no entries
 ~~~~
 
-이 동일한 바이너리를 *gukhanmun-stdict*의 빌드 스크립트도 呼出해서 內藏
+規則(rules) 파일은 `kind`, `pattern`, `require_hanja`, `require_hangul`,
+`reason` 컬럼을 갖는 TSV이다. `kind`는 세 種類의 셀렉터를 고른다.
+`entry`는 漢字 키 全體와 正確히  一致하는 單一 엔트리, `char`는 `pattern`이
+單一 漢字 글字일 때 그 글字를 包含하는 모든 엔트리, `reading`은 `pattern`이
+한글 reading일 때 같은 reading을 가진 모든 엔트리를 表示한다. 같은 엔트리에
+닿는 여러 規則의 表示 비트는 OR-merge된다. 각 規則은 `require_hanja` 및
+`require_hangul` 中 하나 以上을 設定해야 하고 `reason`이 비어 있으면 안 되며,
+實際로 매칭되는 엔트리가 0個이면 빌드를 失敗시킨다(規則 파일이 辭典과 어긋나
+사라진 stale rule을 방지). 더 작은 辭典과 規則 파일을 共有하는 境遇
+`--allow-unmatched-rules`로 迂廻한다.
+
+이 同一한 바이너리를 *gukhanmun-stdict*의 빌드 스크립트도 呼出해서 內藏
 《標準國語大辭典》 FST 파일을 만든다. CDB 백엔드는 使用者가 빌드하는 辭典에
 對해 같은 正規化 入力과 檢證 經路를 使用한다. 卽 末端 使用者와 라이브러리
 自體가 같은 빌드 經路를 共有하는 셈이다. 빌드 經路의 버그는 라이브러리 自身의

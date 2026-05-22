@@ -1,0 +1,12 @@
+kind	pattern	require_hanja	require_hangul	reason
+entry	漢字	true	false	homonymous with several rare hanja words sharing the same reading
+entry	天地	true	false	homonymous: 天地 vs. 天池 vs. 天帝 etc. share 천지
+entry	史記	true	false	common homonym of 詐欺 / 士氣 / 事記 etc.
+entry	詐欺	true	false	common homonym of 史記 / 士氣 / 事記 etc.
+entry	會議	true	false	homonym of 懷疑 / 會意 / 回議
+entry	懷疑	true	false	homonym of 會議 / 會意 / 回議
+reading	사기	true	false	highly ambiguous reading shared by 27 hanja entries
+reading	회의	true	false	common homophone reading shared by 4 hanja entries
+char	驟	true	false	rare hanja unfamiliar to general readers
+char	鬱	true	false	rare hanja unfamiliar to general readers
+char	龜	true	false	rare hanja with multiple readings (귀/구/균)

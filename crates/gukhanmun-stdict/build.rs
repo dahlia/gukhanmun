@@ -24,9 +24,11 @@ use gukhanmun_mkdict::{BuildOptions, DictionaryFormat, MergePolicy, build_dictio
 fn main() -> Result<()> {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("manifest dir"));
     let input = manifest_dir.join("data").join("stdict.tsv");
+    let rules = manifest_dir.join("data").join("rules.tsv");
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("out dir")).join("stdict.gukfst");
 
     println!("cargo:rerun-if-changed={}", input.display());
+    println!("cargo:rerun-if-changed={}", rules.display());
     build_dictionary(
         &[input],
         output,
@@ -43,6 +45,8 @@ fn main() -> Result<()> {
                 ),
                 ("build_date".to_owned(), "2026-05-06T00:00:00Z".to_owned()),
             ]),
+            rules: vec![rules],
+            allow_unmatched_rules: false,
         },
     )?;
 

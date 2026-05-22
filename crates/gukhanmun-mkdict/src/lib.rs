@@ -211,6 +211,353 @@ impl DictionaryEntry {
     pub fn mark(&self) -> EntryMark {
         self.mark
     }
+
+    /// Replaces the dictionary-provided rendering constraints in place.
+    pub fn set_mark(&mut self, mark: EntryMark) {
+        self.mark = mark;
+    }
+}
+
+/// Selector kind used by a rules-file row.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum RuleKind {
+    /// Match a single dictionary entry whose hanja key equals `pattern`.
+    Entry,
+
+    /// Match every dictionary entry that contains the single hanja character
+    /// in `pattern`.
+    Char,
+
+    /// Match every dictionary entry whose hangul reading equals `pattern`.
+    Reading,
+}
+
+impl RuleKind {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "entry" => Some(Self::Entry),
+            "char" => Some(Self::Char),
+            "reading" => Some(Self::Reading),
+            _ => None,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Entry => "entry",
+            Self::Char => "char",
+            Self::Reading => "reading",
+        }
+    }
+}
+
+/// One row from a rules file: a selector that picks dictionary entries and the
+/// mark bits to OR into their [`EntryMark`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Rule {
+    kind: RuleKind,
+    pattern: String,
+    mark: EntryMark,
+    reason: String,
+    location: String,
+}
+
+impl Rule {
+    /// Creates a rule for programmatic callers.  Callers must enforce the
+    /// `char` single-character invariant themselves; [`parse_rules_file`] does
+    /// this for TSV inputs.
+    pub fn new(
+        kind: RuleKind,
+        pattern: impl Into<String>,
+        mark: EntryMark,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            kind,
+            pattern: pattern.into(),
+            mark,
+            reason: reason.into(),
+            location: "<programmatic>".to_owned(),
+        }
+    }
+
+    /// Returns the selector kind.
+    pub fn kind(&self) -> RuleKind {
+        self.kind
+    }
+
+    /// Returns the selector pattern.
+    pub fn pattern(&self) -> &str {
+        &self.pattern
+    }
+
+    /// Returns the mark bits the rule contributes.
+    pub fn mark(&self) -> EntryMark {
+        self.mark
+    }
+
+    /// Returns the human-readable reason this rule exists.
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+
+    /// Returns the source location used for error reporting.
+    pub fn location(&self) -> &str {
+        &self.location
+    }
+}
+
+/// Parses a rules TSV file.
+///
+/// The expected header is `kind`, `pattern`, `require_hanja`,
+/// `require_hangul`, `reason` in any column order.  Unknown columns are
+/// ignored with a warning printed to stderr, mirroring how dictionary inputs
+/// are parsed.  Duplicate `(kind, pattern)` pairs are rejected.
+pub fn parse_rules_file(path: &Path) -> Result<Vec<Rule>> {
+    let file =
+        fs::File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    parse_rules_reader(BufReader::new(file), path)
+}
+
+fn parse_rules_reader(reader: impl BufRead, path: &Path) -> Result<Vec<Rule>> {
+    let mut lines = reader.lines();
+    let header = loop {
+        let Some(line) = lines.next() else {
+            bail!("{} is empty", path.display());
+        };
+        let line = line.with_context(|| format!("failed to read {}", path.display()))?;
+        if !line.is_empty() {
+            break line;
+        }
+    };
+    let columns = parse_rules_header(&header)?;
+    let mut rules = Vec::new();
+    let mut seen = BTreeSet::<(RuleKind, String)>::new();
+
+    for (index, line) in lines.enumerate() {
+        let line_number = index + 2;
+        let line = line.with_context(|| format!("failed to read {}", path.display()))?;
+        if line.is_empty() {
+            continue;
+        }
+        let location = format!("{}:{line_number}", path.display());
+        let rule = parse_rule_row(&line, &columns, &location)?;
+        if !seen.insert((rule.kind, rule.pattern.clone())) {
+            bail!(
+                "{}: duplicate rule for kind `{}` and pattern `{}`",
+                location,
+                rule.kind.as_str(),
+                rule.pattern,
+            );
+        }
+        rules.push(rule);
+    }
+
+    Ok(rules)
+}
+
+#[derive(Clone, Debug)]
+struct RulesHeaderColumns {
+    kind: usize,
+    pattern: usize,
+    require_hanja: usize,
+    require_hangul: usize,
+    reason: usize,
+    column_count: usize,
+}
+
+fn parse_rules_header(header: &str) -> Result<RulesHeaderColumns> {
+    let columns = header.split('\t').collect::<Vec<_>>();
+    let mut seen = BTreeSet::new();
+    let mut kind = None;
+    let mut pattern = None;
+    let mut require_hanja = None;
+    let mut require_hangul = None;
+    let mut reason = None;
+
+    for (index, column) in columns.iter().enumerate() {
+        ensure!(
+            !column.is_empty(),
+            "rules TSV header contains an empty column name"
+        );
+        ensure!(
+            seen.insert(*column),
+            "rules TSV header contains duplicate `{column}` column"
+        );
+        match *column {
+            "kind" => kind = Some(index),
+            "pattern" => pattern = Some(index),
+            "require_hanja" => require_hanja = Some(index),
+            "require_hangul" => require_hangul = Some(index),
+            "reason" => reason = Some(index),
+            extra => eprintln!("ignoring unsupported rules TSV column `{extra}`"),
+        }
+    }
+
+    Ok(RulesHeaderColumns {
+        kind: kind.ok_or_else(|| Error::message("rules TSV missing required `kind` column"))?,
+        pattern: pattern
+            .ok_or_else(|| Error::message("rules TSV missing required `pattern` column"))?,
+        require_hanja: require_hanja
+            .ok_or_else(|| Error::message("rules TSV missing required `require_hanja` column"))?,
+        require_hangul: require_hangul
+            .ok_or_else(|| Error::message("rules TSV missing required `require_hangul` column"))?,
+        reason: reason
+            .ok_or_else(|| Error::message("rules TSV missing required `reason` column"))?,
+        column_count: columns.len(),
+    })
+}
+
+fn parse_rule_row(line: &str, columns: &RulesHeaderColumns, location: &str) -> Result<Rule> {
+    let fields = line.split('\t').collect::<Vec<_>>();
+    ensure!(
+        fields.len() >= columns.column_count,
+        "{location}: expected {} TSV fields, got {}",
+        columns.column_count,
+        fields.len()
+    );
+
+    let kind_field = fields[columns.kind];
+    let kind = RuleKind::parse(kind_field).ok_or_else(|| {
+        Error::message(format!(
+            "{location}: unknown rule kind `{kind_field}`; expected `entry`, `char`, or `reading`"
+        ))
+    })?;
+    let pattern = fields[columns.pattern];
+    ensure!(
+        !pattern.is_empty(),
+        "{location}: `pattern` must not be empty"
+    );
+    if matches!(kind, RuleKind::Char) {
+        let char_count = pattern.chars().count();
+        ensure!(
+            char_count == 1,
+            "{location}: `char` rule pattern `{pattern}` must be exactly one character (got {char_count})"
+        );
+    }
+    let require_hanja = parse_required_bool(fields[columns.require_hanja], location)?;
+    let require_hangul = parse_required_bool(fields[columns.require_hangul], location)?;
+    ensure!(
+        require_hanja || require_hangul,
+        "{location}: rule must set at least one of `require_hanja` or `require_hangul`"
+    );
+    let reason = fields[columns.reason].trim();
+    ensure!(
+        !reason.is_empty(),
+        "{location}: `reason` must not be empty so future maintainers can audit the rule"
+    );
+
+    Ok(Rule {
+        kind,
+        pattern: pattern.to_owned(),
+        mark: EntryMark {
+            require_hanja,
+            require_hangul,
+        },
+        reason: reason.to_owned(),
+        location: location.to_owned(),
+    })
+}
+
+fn parse_required_bool(value: &str, location: &str) -> Result<bool> {
+    match value {
+        "true" | "1" => Ok(true),
+        "false" | "0" | "" => Ok(false),
+        other => bail!("{location}: invalid boolean value `{other}`"),
+    }
+}
+
+/// Applies parsed rules to dictionary entries by OR-merging their mark bits.
+///
+/// When `allow_unmatched` is false, all rules that matched no entry are
+/// collected and reported as a single error so editors can fix them in one
+/// pass.  When true, unmatched rules are silently ignored (useful for partial
+/// dictionaries shared across builds).
+pub fn apply_rules(
+    entries: &mut [DictionaryEntry],
+    rules: &[Rule],
+    allow_unmatched: bool,
+) -> Result<()> {
+    if rules.is_empty() {
+        return Ok(());
+    }
+
+    let mut char_needles: Vec<Option<char>> = Vec::with_capacity(rules.len());
+    for rule in rules {
+        ensure!(
+            !rule.pattern.is_empty(),
+            "{}: rule pattern must not be empty",
+            rule.location,
+        );
+        ensure!(
+            rule.mark.require_hanja || rule.mark.require_hangul,
+            "{}: rule must set at least one of `require_hanja` or `require_hangul`",
+            rule.location,
+        );
+        match rule.kind {
+            RuleKind::Char => {
+                let mut chars = rule.pattern.chars();
+                let needle = chars.next().expect("non-empty pattern checked above");
+                ensure!(
+                    chars.next().is_none(),
+                    "{}: `char` rule pattern `{}` must be exactly one character",
+                    rule.location,
+                    rule.pattern,
+                );
+                char_needles.push(Some(needle));
+            }
+            _ => char_needles.push(None),
+        }
+    }
+    let mut matched = vec![false; rules.len()];
+
+    for entry in entries.iter_mut() {
+        let hanja = entry.hanja().to_owned();
+        let reading = entry.reading().to_owned();
+        for (i, rule) in rules.iter().enumerate() {
+            let hit = match rule.kind {
+                RuleKind::Entry => hanja == rule.pattern,
+                RuleKind::Char => {
+                    let needle = char_needles[i].expect("char rule needle populated above");
+                    hanja.contains(needle)
+                }
+                RuleKind::Reading => reading == rule.pattern,
+            };
+            if hit {
+                matched[i] = true;
+                let mut mark = entry.mark();
+                mark.require_hanja |= rule.mark.require_hanja;
+                mark.require_hangul |= rule.mark.require_hangul;
+                entry.set_mark(mark);
+            }
+        }
+    }
+
+    if !allow_unmatched {
+        let mut unmatched = rules
+            .iter()
+            .zip(matched.iter())
+            .filter(|(_, hit)| !**hit)
+            .map(|(rule, _)| {
+                format!(
+                    "{}: rule `{}={}` matched no entries",
+                    rule.location,
+                    rule.kind.as_str(),
+                    rule.pattern,
+                )
+            })
+            .collect::<Vec<_>>();
+        if !unmatched.is_empty() {
+            unmatched.sort();
+            bail!(
+                "{} unmatched rule(s):\n  {}",
+                unmatched.len(),
+                unmatched.join("\n  ")
+            );
+        }
+    }
+
+    Ok(())
 }
 
 /// Options controlling dictionary file construction.
@@ -230,6 +577,13 @@ pub struct BuildOptions {
 
     /// User-supplied metadata values embedded in the output file.
     pub metadata: BTreeMap<String, String>,
+
+    /// Paths to rules TSV files whose entries OR-merge marks into the
+    /// dictionary entries before serialization.
+    pub rules: Vec<PathBuf>,
+
+    /// Allow rules that match no entries to pass instead of erroring.
+    pub allow_unmatched_rules: bool,
 }
 
 impl Default for BuildOptions {
@@ -240,6 +594,8 @@ impl Default for BuildOptions {
             validate: false,
             max_key_bytes: DEFAULT_MAX_KEY_BYTES,
             metadata: BTreeMap::new(),
+            rules: Vec::new(),
+            allow_unmatched_rules: false,
         }
     }
 }
@@ -254,7 +610,25 @@ pub fn build_dictionary(
         !input_paths.is_empty(),
         "at least one input file is required"
     );
-    let entries = read_and_merge_inputs(input_paths, options)?;
+    let mut entries = read_and_merge_inputs(input_paths, options)?;
+    if !options.rules.is_empty() {
+        let mut rules = Vec::new();
+        let mut seen = BTreeSet::<(RuleKind, String)>::new();
+        for path in &options.rules {
+            for rule in parse_rules_file(path)? {
+                if !seen.insert((rule.kind, rule.pattern.clone())) {
+                    bail!(
+                        "{}: duplicate rule for kind `{}` and pattern `{}`",
+                        rule.location,
+                        rule.kind.as_str(),
+                        rule.pattern,
+                    );
+                }
+                rules.push(rule);
+            }
+        }
+        apply_rules(&mut entries, &rules, options.allow_unmatched_rules)?;
+    }
     let metadata = build_metadata(&options.metadata, &entries)?;
     match options.format {
         DictionaryFormat::Fst => {
@@ -887,5 +1261,300 @@ mod tests {
         let error = build_metadata(&metadata, &[]).unwrap_err();
 
         assert!(error.to_string().contains("reserved"));
+    }
+
+    fn parse_rules_str(input: &str) -> Result<Vec<Rule>> {
+        parse_rules_reader(input.as_bytes(), Path::new("rules.tsv"))
+    }
+
+    #[test]
+    fn parses_minimal_rules_tsv() {
+        let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+                     entry\t漢字\ttrue\tfalse\thomophone\n\
+                     char\t驟\ttrue\tfalse\trare hanja\n\
+                     reading\t사기\ttrue\tfalse\tcommon homophone\n";
+
+        let rules = parse_rules_str(input).unwrap();
+
+        assert_eq!(rules.len(), 3);
+        assert_eq!(rules[0].kind(), RuleKind::Entry);
+        assert_eq!(rules[0].pattern(), "漢字");
+        assert!(rules[0].mark().require_hanja);
+        assert!(!rules[0].mark().require_hangul);
+        assert_eq!(rules[0].reason(), "homophone");
+        assert_eq!(rules[1].kind(), RuleKind::Char);
+        assert_eq!(rules[2].kind(), RuleKind::Reading);
+    }
+
+    #[test]
+    fn rejects_unknown_rule_kind() {
+        let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+                     glob\t漢*\ttrue\tfalse\tnope\n";
+
+        let error = parse_rules_str(input).unwrap_err();
+
+        assert!(
+            error.to_string().contains("unknown rule kind `glob`"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn rejects_char_rule_with_multiple_characters() {
+        let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+                     char\t漢字\ttrue\tfalse\tnope\n";
+
+        let error = parse_rules_str(input).unwrap_err();
+
+        assert!(
+            error.to_string().contains("must be exactly one character"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn rejects_rule_with_empty_reason() {
+        let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+                     entry\t漢字\ttrue\tfalse\t\n";
+
+        let error = parse_rules_str(input).unwrap_err();
+
+        assert!(error.to_string().contains("reason"), "{error}");
+    }
+
+    #[test]
+    fn rejects_rule_with_no_mark_bits_set() {
+        let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+                     entry\t漢字\tfalse\tfalse\tno-op\n";
+
+        let error = parse_rules_str(input).unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("at least one of `require_hanja` or `require_hangul`"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_rule_keys() {
+        let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+                     entry\t漢字\ttrue\tfalse\tfirst\n\
+                     entry\t漢字\tfalse\ttrue\tsecond\n";
+
+        let error = parse_rules_str(input).unwrap_err();
+
+        assert!(error.to_string().contains("duplicate rule"), "{error}");
+    }
+
+    #[test]
+    fn allows_overlapping_rules_across_kinds() {
+        let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+                     entry\t漢字\ttrue\tfalse\thomophone entry\n\
+                     char\t漢\ttrue\tfalse\trare character\n";
+
+        let rules = parse_rules_str(input).unwrap();
+
+        assert_eq!(rules.len(), 2);
+    }
+
+    fn entry(hanja: &str, reading: &str) -> DictionaryEntry {
+        DictionaryEntry::new(hanja, reading, EntryMark::default())
+    }
+
+    #[test]
+    fn apply_rules_or_merges_marks_across_kinds() {
+        let mut entries = vec![
+            entry("漢字", "한자"),
+            entry("天地", "천지"),
+            entry("史記", "사기"),
+            entry("詐欺", "사기"),
+        ];
+        let rules = vec![
+            Rule::new(
+                RuleKind::Entry,
+                "漢字",
+                EntryMark {
+                    require_hanja: true,
+                    require_hangul: false,
+                },
+                "homophone-heavy entry",
+            ),
+            Rule::new(
+                RuleKind::Char,
+                "天",
+                EntryMark {
+                    require_hanja: true,
+                    require_hangul: false,
+                },
+                "rare hanja",
+            ),
+            Rule::new(
+                RuleKind::Reading,
+                "사기",
+                EntryMark {
+                    require_hanja: true,
+                    require_hangul: false,
+                },
+                "ambiguous reading",
+            ),
+        ];
+
+        apply_rules(&mut entries, &rules, false).unwrap();
+
+        assert!(
+            entries[0].mark().require_hanja,
+            "entry rule applied to 漢字"
+        );
+        assert!(entries[1].mark().require_hanja, "char rule applied to 天地");
+        assert!(
+            entries[2].mark().require_hanja,
+            "reading rule applied to 史記"
+        );
+        assert!(
+            entries[3].mark().require_hanja,
+            "reading rule applied to 詐欺"
+        );
+    }
+
+    #[test]
+    fn apply_rules_or_merges_multiple_rules_on_one_entry() {
+        let mut entries = vec![entry("漢字", "한자")];
+        let rules = vec![
+            Rule::new(
+                RuleKind::Entry,
+                "漢字",
+                EntryMark {
+                    require_hanja: true,
+                    require_hangul: false,
+                },
+                "entry-level",
+            ),
+            Rule::new(
+                RuleKind::Reading,
+                "한자",
+                EntryMark {
+                    require_hanja: false,
+                    require_hangul: true,
+                },
+                "reading-level",
+            ),
+        ];
+
+        apply_rules(&mut entries, &rules, false).unwrap();
+
+        let mark = entries[0].mark();
+        assert!(mark.require_hanja);
+        assert!(mark.require_hangul);
+    }
+
+    #[test]
+    fn apply_rules_reports_all_unmatched_rules_in_one_error() {
+        let mut entries = vec![entry("漢字", "한자")];
+        let rules = vec![
+            Rule::new(
+                RuleKind::Entry,
+                "天地",
+                EntryMark {
+                    require_hanja: true,
+                    require_hangul: false,
+                },
+                "missing entry",
+            ),
+            Rule::new(
+                RuleKind::Char,
+                "驟",
+                EntryMark {
+                    require_hanja: true,
+                    require_hangul: false,
+                },
+                "missing char",
+            ),
+        ];
+
+        let error = apply_rules(&mut entries, &rules, false).unwrap_err();
+
+        let text = error.to_string();
+        assert!(text.contains("entry=天地"), "{text}");
+        assert!(text.contains("char=驟"), "{text}");
+        assert!(text.contains("2 unmatched"), "{text}");
+    }
+
+    #[test]
+    fn apply_rules_rejects_programmatic_char_rule_with_multiple_characters() {
+        let mut entries = vec![entry("漢字", "한자")];
+        let rules = vec![Rule::new(
+            RuleKind::Char,
+            "漢字",
+            EntryMark {
+                require_hanja: true,
+                require_hangul: false,
+            },
+            "programmatic mistake",
+        )];
+
+        let error = apply_rules(&mut entries, &rules, false).unwrap_err();
+
+        assert!(
+            error.to_string().contains("must be exactly one character"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn apply_rules_rejects_programmatic_empty_pattern() {
+        let mut entries = vec![entry("漢字", "한자")];
+        let rules = vec![Rule::new(
+            RuleKind::Entry,
+            "",
+            EntryMark {
+                require_hanja: true,
+                require_hangul: false,
+            },
+            "programmatic mistake",
+        )];
+
+        let error = apply_rules(&mut entries, &rules, false).unwrap_err();
+
+        assert!(error.to_string().contains("must not be empty"), "{error}");
+    }
+
+    #[test]
+    fn apply_rules_rejects_programmatic_no_mark_bits() {
+        let mut entries = vec![entry("漢字", "한자")];
+        let rules = vec![Rule::new(
+            RuleKind::Entry,
+            "漢字",
+            EntryMark::default(),
+            "programmatic mistake",
+        )];
+
+        let error = apply_rules(&mut entries, &rules, false).unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("at least one of `require_hanja` or `require_hangul`"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn apply_rules_allows_unmatched_when_configured() {
+        let mut entries = vec![entry("漢字", "한자")];
+        let rules = vec![Rule::new(
+            RuleKind::Entry,
+            "天地",
+            EntryMark {
+                require_hanja: true,
+                require_hangul: false,
+            },
+            "missing entry",
+        )];
+
+        apply_rules(&mut entries, &rules, true).unwrap();
+
+        assert!(!entries[0].mark().require_hanja);
     }
 }

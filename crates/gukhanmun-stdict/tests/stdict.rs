@@ -115,6 +115,45 @@ fn bundled_dictionary_converts_stdict_entries() {
     );
 }
 
+#[test]
+fn bundled_rules_set_require_hanja_marks() {
+    let dict = gukhanmun_stdict::ko_kr();
+
+    let entries = [
+        // entry-kind rules
+        "漢字", "天地", "史記", "詐欺",
+        // reading-kind rules: every 사기-reading entry should be marked,
+        // not only those listed by entry rules.
+        "士氣", "事機", // reading-kind rules: 회의-reading entries.
+        "會意", "回議", // char-kind rules: entries containing rare hanja.
+        "馳驟", "勃鬱", "交龜",
+    ];
+    for hanja in entries {
+        let entry = dict
+            .lookup(hanja)
+            .unwrap()
+            .unwrap_or_else(|| panic!("no exact match for `{hanja}` in bundled stdict"));
+        assert!(
+            entry.mark().require_hanja,
+            "require_hanja not set for `{hanja}`"
+        );
+    }
+}
+
+#[test]
+fn bundled_rules_drive_hangul_only_rendering_with_disambiguating_hanja() {
+    let dict = gukhanmun_stdict::ko_kr();
+
+    assert_eq!(
+        convert_plain_text("漢字", dict, RenderMode::HangulOnly),
+        "한자(漢字)"
+    );
+    assert_eq!(
+        convert_plain_text("史記", dict, RenderMode::HangulOnly),
+        "사기(史記)"
+    );
+}
+
 proptest! {
     #[test]
     fn generated_single_hanja_items_extract_deterministically(

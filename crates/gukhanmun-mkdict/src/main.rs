@@ -50,6 +50,17 @@ struct Cli {
 
     #[arg(long = "metadata", value_parser = parse_metadata_arg)]
     metadata: Vec<(String, String)>,
+
+    /// Path to a rules TSV file whose entries OR-merge marks into the
+    /// dictionary entries before serialization.  May be repeated.
+    #[arg(long = "rules", value_name = "PATH")]
+    rules: Vec<PathBuf>,
+
+    /// Treat rules that match no dictionary entry as a warning instead of an
+    /// error.  Useful for partial dictionaries that share a rules file with a
+    /// larger build.
+    #[arg(long)]
+    allow_unmatched_rules: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -80,6 +91,8 @@ fn main() -> Result<()> {
         validate: cli.validate,
         max_key_bytes: cli.max_key_bytes,
         metadata: cli.metadata.into_iter().collect::<BTreeMap<_, _>>(),
+        rules: cli.rules,
+        allow_unmatched_rules: cli.allow_unmatched_rules,
     };
 
     build_dictionary(&cli.inputs, cli.output, &options)?;
