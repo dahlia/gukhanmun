@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use gukhanmun_core::{HanjaDictionary, MapDictionary, Match, Recovery, RenderMode};
+use gukhanmun_core::{
+    HanjaDictionary, MapDictionary, Match, OriginalGloss, Recovery, RenderMode, RenderOptions,
+    RubyBase,
+};
 use gukhanmun_html::{
     HtmlError, HtmlScopeData, convert_html_fragment, read_html_fragment, read_html_fragment_iter,
     try_convert_html_fragment, write_html_fragment,
@@ -240,4 +243,106 @@ fn html_scope_data_exposes_effective_flags() {
 
     assert!(scopes[0].is_preserve());
     assert!(!scopes[1].is_preserve());
+}
+
+#[test]
+fn ruby_on_hangul_emits_ruby_element_inside_paragraph() {
+    let output = convert_html_fragment(
+        "<p>漢字 만세</p>",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHangul),
+    );
+
+    assert_eq!(output, "<p><ruby>한자<rt>漢字</rt></ruby> 만세</p>");
+}
+
+#[test]
+fn ruby_on_hanja_emits_hanja_base_in_ruby_element() {
+    let output = convert_html_fragment(
+        "<p>漢字</p>",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHanja),
+    );
+
+    assert_eq!(output, "<p><ruby>漢字<rt>한자</rt></ruby></p>");
+}
+
+#[test]
+fn ruby_mode_leaves_preserved_tag_text_untouched() {
+    let output = convert_html_fragment(
+        "<p><code>漢字</code><pre>漢字</pre></p>",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHangul),
+    );
+
+    assert_eq!(output, "<p><code>漢字</code><pre>漢字</pre></p>");
+}
+
+#[test]
+fn ruby_mode_skips_non_korean_lang_scope() {
+    let output = convert_html_fragment(
+        "<p lang=\"ja\">漢字 <span lang=ko>漢字</span></p>",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHangul),
+    );
+
+    assert_eq!(
+        output,
+        "<p lang=\"ja\">漢字 <span lang=ko><ruby>한자<rt>漢字</rt></ruby></span></p>"
+    );
+}
+
+#[test]
+fn ruby_emits_inline_markup_for_root_level_text() {
+    let output = convert_html_fragment("漢字", &dictionary(), RenderMode::Ruby(RubyBase::OnHangul));
+
+    assert_eq!(output, "<ruby>한자<rt>漢字</rt></ruby>");
+}
+
+#[test]
+fn ruby_inside_text_only_elements_falls_back_to_parens() {
+    let output = convert_html_fragment(
+        "<title>漢字</title><p>漢字<option>漢字</option></p>",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHangul),
+    );
+
+    assert_eq!(
+        output,
+        "<title>한자(漢字)</title><p><ruby>한자<rt>漢字</rt></ruby><option>한자(漢字)</option></p>"
+    );
+}
+
+#[test]
+fn ruby_writer_escapes_hostile_dictionary_readings() {
+    let mut dict = MapDictionary::new();
+    dict.insert("漢字", "<script>alert(1)</script>");
+
+    let output = convert_html_fragment("<p>漢字</p>", &dict, RenderMode::Ruby(RubyBase::OnHangul));
+
+    assert_eq!(
+        output,
+        "<p><ruby>&lt;script&gt;alert(1)&lt;/script&gt;<rt>漢字</rt></ruby></p>"
+    );
+}
+
+#[test]
+fn original_mode_with_ruby_gloss_uses_ruby_for_required_hangul_entries() {
+    let mut dict = MapDictionary::new();
+    dict.insert_marked(
+        "漢字",
+        "한자",
+        gukhanmun_core::MatchMark {
+            require_hanja: false,
+            require_hangul: true,
+        },
+    );
+    let options = RenderOptions {
+        mode: RenderMode::Original,
+        original_gloss: OriginalGloss::Ruby,
+    };
+
+    let output = convert_html_fragment("<p>漢字</p>", &dict, options);
+
+    assert_eq!(output, "<p><ruby>漢字<rt>한자</rt></ruby></p>");
 }

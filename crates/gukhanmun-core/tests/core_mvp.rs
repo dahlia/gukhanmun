@@ -17,12 +17,12 @@
 use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, EngineOptions,
     Error as CoreError, HanjaDictionary, InputToken, MapDictionary, Match, MatchMark,
-    NumeralStrategy, OutputToken, PlainScopeData, RecoverableInputError, Recovery, RenderMode,
-    RenderedToken, Scope, ScopeData, SegmentationStrategy, UnihanCharDict, UserDirectives,
-    apply_user_directives, convert_plain_text, convert_plain_text_with_options,
-    filter_first_occurrences, mark_homophones, process_fallible_tokens, process_tokens,
-    process_tokens_iter, process_tokens_with_options, read_plain_text, render_tokens,
-    render_tokens_iter, write_plain_text,
+    NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData, RecoverableInputError, Recovery,
+    RenderMode, RenderOptions, RenderedToken, RubyBase, Scope, ScopeData, SegmentationStrategy,
+    UnihanCharDict, UserDirectives, apply_user_directives, convert_plain_text,
+    convert_plain_text_with_options, filter_first_occurrences, mark_homophones,
+    process_fallible_tokens, process_tokens, process_tokens_iter, process_tokens_with_options,
+    read_plain_text, render_tokens, render_tokens_iter, write_plain_text,
 };
 use proptest::prelude::*;
 use std::cell::Cell;
@@ -2285,4 +2285,410 @@ impl HanjaDictionary for MaxOnlyDictionary {
     fn max_word_chars(&self) -> Option<usize> {
         self.max_word_chars
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct MarkupTestScopeData {
+    allows_inline_markup: bool,
+    preserve: bool,
+}
+
+impl MarkupTestScopeData {
+    fn inline() -> Self {
+        Self {
+            allows_inline_markup: true,
+            preserve: false,
+        }
+    }
+
+    fn no_inline() -> Self {
+        Self {
+            allows_inline_markup: false,
+            preserve: false,
+        }
+    }
+}
+
+impl ScopeData for MarkupTestScopeData {
+    fn is_preserve(&self) -> bool {
+        self.preserve
+    }
+
+    fn allows_inline_markup(&self) -> bool {
+        self.allows_inline_markup
+    }
+}
+
+fn ruby_annotation() -> Annotation {
+    annotation("漢字", "한자")
+}
+
+#[test]
+fn render_options_default_uses_hangul_only_and_parens_gloss() {
+    let options = RenderOptions::default();
+
+    assert_eq!(options.mode, RenderMode::HangulOnly);
+    assert_eq!(options.original_gloss, OriginalGloss::Parens);
+}
+
+#[test]
+fn render_options_from_render_mode_preserves_mode_with_parens_gloss() {
+    let options: RenderOptions = RenderMode::HangulHanjaParens.into();
+
+    assert_eq!(options.mode, RenderMode::HangulHanjaParens);
+    assert_eq!(options.original_gloss, OriginalGloss::Parens);
+}
+
+#[test]
+fn plain_scope_data_disallows_inline_markup() {
+    let scope = PlainScopeData;
+
+    assert!(!scope.allows_inline_markup());
+}
+
+#[test]
+fn ruby_on_hangul_emits_inline_markup_in_allowing_scope() {
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+    ];
+
+    let rendered = render_tokens(tokens, RenderMode::Ruby(RubyBase::OnHangul));
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Ruby {
+                base: "한자".into(),
+                rt: "漢字".into()
+            },
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn ruby_on_hanja_emits_inline_markup_in_allowing_scope() {
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+    ];
+
+    let rendered = render_tokens(tokens, RenderMode::Ruby(RubyBase::OnHanja));
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Ruby {
+                base: "漢字".into(),
+                rt: "한자".into()
+            },
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn ruby_falls_back_to_parens_when_inline_markup_disallowed() {
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+    ];
+
+    let rendered_on_hangul = render_tokens(tokens.clone(), RenderMode::Ruby(RubyBase::OnHangul));
+    assert_eq!(
+        rendered_on_hangul,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+            RenderedToken::Text("한자(漢字)".into()),
+            RenderedToken::Close,
+        ]
+    );
+
+    let rendered_on_hanja = render_tokens(tokens, RenderMode::Ruby(RubyBase::OnHanja));
+    assert_eq!(
+        rendered_on_hanja,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+            RenderedToken::Text("漢字(한자)".into()),
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn ruby_at_top_level_without_open_scope_emits_ruby_for_markup_capable_adapters() {
+    // No scope means the renderer cannot prove anything about the active
+    // adapter, so it defaults to "inline markup allowed".  Plain text is
+    // covered by the explicit PlainScopeData test below; HTML and Markdown
+    // adapters that emit text outside any scope (e.g. bare fragment input)
+    // therefore receive a structured Ruby token rather than a parens
+    // fallback, and the adapter's writer decides how to serialize it.
+    let tokens: Vec<OutputToken<MarkupTestScopeData>> =
+        vec![OutputToken::Annotated(ruby_annotation())];
+
+    let rendered = render_tokens(tokens, RenderMode::Ruby(RubyBase::OnHangul));
+
+    assert_eq!(
+        rendered,
+        vec![RenderedToken::Ruby {
+            base: "한자".into(),
+            rt: "漢字".into(),
+        }]
+    );
+}
+
+#[test]
+fn ruby_falls_back_when_any_ancestor_disallows_inline_markup() {
+    // An inner scope that allows inline markup must not re-enable ruby output
+    // once an outer scope has disallowed it. This protects against adapters
+    // like Markdown where an emphasis container inside an HTML text-only
+    // element would otherwise look like it permits markup at the current
+    // cursor.
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+        OutputToken::Close,
+    ];
+
+    let rendered = render_tokens(tokens, RenderMode::Ruby(RubyBase::OnHangul));
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Text("한자(漢字)".into()),
+            RenderedToken::Close,
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn ruby_recovers_after_a_disallowing_scope_closes() {
+    // Once the disallowing ancestor closes, subsequent annotations in
+    // allow-inline-markup scopes recover and emit a real ruby token.
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+        OutputToken::Close,
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+    ];
+
+    let rendered = render_tokens(tokens, RenderMode::Ruby(RubyBase::OnHangul));
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Text("한자(漢字)".into()),
+            RenderedToken::Close,
+            RenderedToken::Close,
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Ruby {
+                base: "한자".into(),
+                rt: "漢字".into(),
+            },
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn renderer_pops_scope_on_close_so_outer_scope_governs_next_annotation() {
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+    ];
+
+    let rendered = render_tokens(tokens, RenderMode::Ruby(RubyBase::OnHangul));
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+            RenderedToken::Text("한자(漢字)".into()),
+            RenderedToken::Close,
+            RenderedToken::Ruby {
+                base: "한자".into(),
+                rt: "漢字".into()
+            },
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn extra_close_tokens_do_not_panic() {
+    let tokens: Vec<OutputToken<MarkupTestScopeData>> = vec![
+        OutputToken::Close,
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+        OutputToken::Close,
+    ];
+
+    let rendered = render_tokens(tokens, RenderMode::Ruby(RubyBase::OnHangul));
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Close,
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Ruby {
+                base: "한자".into(),
+                rt: "漢字".into()
+            },
+            RenderedToken::Close,
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn ruby_uses_parens_in_plain_text_pipeline() {
+    let output = convert_plain_text(
+        "天地玄黃과 漢字",
+        &sample_dictionary(),
+        RenderMode::Ruby(RubyBase::OnHangul),
+    );
+
+    assert_eq!(output, "천지(天地)현황(玄黃)과 한자(漢字)");
+}
+
+#[test]
+fn ruby_skip_annotation_collapses_to_primary_form() {
+    let annotation = Annotation {
+        skip_annotation: true,
+        ..ruby_annotation()
+    };
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Annotated(annotation),
+        OutputToken::Close,
+    ];
+
+    let rendered_on_hangul = render_tokens(tokens.clone(), RenderMode::Ruby(RubyBase::OnHangul));
+    assert_eq!(
+        rendered_on_hangul,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Text("한자".into()),
+            RenderedToken::Close,
+        ]
+    );
+
+    let rendered_on_hanja = render_tokens(tokens, RenderMode::Ruby(RubyBase::OnHanja));
+    assert_eq!(
+        rendered_on_hanja,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Text("漢字".into()),
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn original_with_ruby_gloss_emits_inline_markup_for_required_hangul() {
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Annotated(Annotation {
+            require_hangul: true,
+            ..ruby_annotation()
+        }),
+        OutputToken::Annotated(ruby_annotation()),
+        OutputToken::Close,
+    ];
+
+    let options = RenderOptions {
+        mode: RenderMode::Original,
+        original_gloss: OriginalGloss::Ruby,
+    };
+    let rendered = render_tokens(tokens, options);
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Ruby {
+                base: "漢字".into(),
+                rt: "한자".into()
+            },
+            RenderedToken::Text("漢字".into()),
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn original_with_ruby_gloss_falls_back_to_parens_in_disallowing_scope() {
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+        OutputToken::Annotated(Annotation {
+            require_hangul: true,
+            ..ruby_annotation()
+        }),
+        OutputToken::Close,
+    ];
+
+    let options = RenderOptions {
+        mode: RenderMode::Original,
+        original_gloss: OriginalGloss::Ruby,
+    };
+    let rendered = render_tokens(tokens, options);
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
+            RenderedToken::Text("漢字(한자)".into()),
+            RenderedToken::Close,
+        ]
+    );
+}
+
+#[test]
+fn original_with_parens_gloss_keeps_existing_behavior() {
+    let tokens = vec![
+        OutputToken::Open(Scope::new(MarkupTestScopeData::inline())),
+        OutputToken::Annotated(Annotation {
+            require_hangul: true,
+            ..ruby_annotation()
+        }),
+        OutputToken::Close,
+    ];
+
+    let options = RenderOptions {
+        mode: RenderMode::Original,
+        original_gloss: OriginalGloss::Parens,
+    };
+    let rendered = render_tokens(tokens, options);
+
+    assert_eq!(
+        rendered,
+        vec![
+            RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
+            RenderedToken::Text("漢字(한자)".into()),
+            RenderedToken::Close,
+        ]
+    );
 }

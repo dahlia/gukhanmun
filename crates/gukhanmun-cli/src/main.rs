@@ -23,9 +23,10 @@ use clap::{Args, Parser, ValueEnum};
 use gukhanmun_cdb::CdbDictionary;
 use gukhanmun_core::{
     ChainDictionary, ContextWindow, DirectiveAction, Engine, EngineOptions, HanjaDictionary,
-    InputToken, NumeralStrategy, OutputToken, PlainScopeData, RenderMode, ScopeData,
-    SegmentationStrategy, UserDirectives, apply_user_directives, filter_first_occurrences,
-    mark_homophones, process_tokens_iter_with_options, render_tokens_iter, write_plain_text,
+    InputToken, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData, RenderMode,
+    RenderOptions, RubyBase, ScopeData, SegmentationStrategy, UserDirectives,
+    apply_user_directives, filter_first_occurrences, mark_homophones,
+    process_tokens_iter_with_options, render_tokens_iter, write_plain_text,
 };
 use gukhanmun_fst::FstDictionary;
 use gukhanmun_html::{read_html_fragment, write_html_fragment};
@@ -131,10 +132,19 @@ struct RenderingPolicyArgs {
     /// Controls how hanja annotations appear in the output.  hangul-only
     /// (default for most presets) emits hangul, adding parenthesized hanja only
     /// when disambiguation requires it.  hangul-hanja-parens always emits
-    /// 한글(漢字).  hanja-hangul-parens always emits 漢字(한글).  original keeps
-    /// the source hanja, adding a hangul gloss only where required.
+    /// 한글(漢字).  hanja-hangul-parens always emits 漢字(한글).  ruby-on-hangul
+    /// and ruby-on-hanja emit a `ruby` element with hangul or hanja as the
+    /// base; scopes that disallow inline markup fall back to parens.  original
+    /// keeps the source hanja, adding a hangul gloss only where required.
     #[arg(short, long, value_enum)]
     rendering: Option<Rendering>,
+
+    /// Gloss form used by the original renderer.  parens (default) emits
+    /// 漢字(한글); ruby emits a `ruby` element with hanja as the base and
+    /// hangul as the rt gloss, falling back to parens in scopes that disallow
+    /// inline markup.  Only valid with --rendering original.
+    #[arg(long = "original-gloss", value_enum)]
+    original_gloss: Option<OriginalGlossArg>,
 
     /// Homophone disambiguation context.  off disables homophone marking;
     /// per-block resets at block scopes; per-section resets at headings;
@@ -198,7 +208,15 @@ enum Rendering {
     HangulOnly,
     HangulHanjaParens,
     HanjaHangulParens,
+    RubyOnHangul,
+    RubyOnHanja,
     Original,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum OriginalGlossArg {
+    Parens,
+    Ruby,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -225,7 +243,7 @@ enum CliContextWindow {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ResolvedOptions {
-    rendering: RenderMode,
+    rendering: RenderOptions,
     engine: EngineOptions,
     bundled_stdict: bool,
     homophone_window: ContextWindow,
@@ -399,7 +417,7 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
 
     let mut options = match cli.language.preset {
         Preset::KoKr => ResolvedOptions {
-            rendering: RenderMode::HangulOnly,
+            rendering: RenderOptions::default(),
             engine: EngineOptions {
                 initial_sound_law: true,
                 numeral_strategy: NumeralStrategy::HangulPhonetic,
@@ -410,7 +428,7 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
             first_occurrence_window: ContextWindow::Off,
         },
         Preset::KoKp => ResolvedOptions {
-            rendering: RenderMode::HangulOnly,
+            rendering: RenderOptions::default(),
             engine: EngineOptions {
                 initial_sound_law: false,
                 numeral_strategy: NumeralStrategy::HangulPhonetic,
@@ -423,7 +441,13 @@ fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
     };
 
     if let Some(rendering) = cli.rendering.rendering {
-        options.rendering = rendering.into();
+        options.rendering.mode = rendering.into();
+    }
+    if let Some(gloss) = cli.rendering.original_gloss {
+        if !matches!(options.rendering.mode, RenderMode::Original) {
+            bail!("--original-gloss is only valid with --rendering original");
+        }
+        options.rendering.original_gloss = gloss.into();
     }
     if let Some(disambiguation) = cli.rendering.disambiguation {
         options.homophone_window = disambiguation.into();
@@ -624,7 +648,7 @@ fn convert_plain_stream_with_document_homophone_lookahead(
     dictionary: &CliDictionary,
     options: ResolvedOptions,
     directives: &UserDirectives<'_>,
-    rendering: RenderMode,
+    rendering: RenderOptions,
 ) -> Result<()> {
     let mut output_tokens = Vec::new();
     let mut bytes = [0; 8192];
@@ -653,7 +677,7 @@ fn convert_plain_stream_without_homophone_lookahead(
     mut input: impl BufRead,
     mut output: impl Write,
     mut engine: Engine<PlainScopeData, CliDictionary>,
-    rendering: RenderMode,
+    rendering: RenderOptions,
     directives: &UserDirectives<'_>,
 ) -> Result<()> {
     let mut bytes = [0; 8192];
@@ -690,7 +714,7 @@ fn convert_plain_stream_without_homophone_lookahead(
 fn write_plain_stream_chunk(
     output: &mut impl Write,
     output_tokens: Vec<OutputToken<PlainScopeData>>,
-    rendering: RenderMode,
+    rendering: RenderOptions,
 ) -> Result<()> {
     if output_tokens.is_empty() {
         return Ok(());
@@ -899,7 +923,18 @@ impl From<Rendering> for RenderMode {
             Rendering::HangulOnly => Self::HangulOnly,
             Rendering::HangulHanjaParens => Self::HangulHanjaParens,
             Rendering::HanjaHangulParens => Self::HanjaHangulParens,
+            Rendering::RubyOnHangul => Self::Ruby(RubyBase::OnHangul),
+            Rendering::RubyOnHanja => Self::Ruby(RubyBase::OnHanja),
             Rendering::Original => Self::Original,
+        }
+    }
+}
+
+impl From<OriginalGlossArg> for OriginalGloss {
+    fn from(arg: OriginalGlossArg) -> Self {
+        match arg {
+            OriginalGlossArg::Parens => Self::Parens,
+            OriginalGlossArg::Ruby => Self::Ruby,
         }
     }
 }

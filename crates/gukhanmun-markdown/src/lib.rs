@@ -20,7 +20,7 @@
 #![deny(missing_docs)]
 
 use gukhanmun_core::{
-    ContextWindow, EngineOptions, HanjaDictionary, InputToken, RenderMode, RenderedToken, Scope,
+    ContextWindow, EngineOptions, HanjaDictionary, InputToken, RenderOptions, RenderedToken, Scope,
     ScopeData, mark_homophones, process_tokens_iter_with_options, render_tokens_iter,
 };
 use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd};
@@ -136,33 +136,38 @@ pub fn write_markdown(
 }
 
 /// Converts Markdown with default engine options.
-pub fn convert_markdown<D>(
+///
+/// `render` accepts either a [`gukhanmun_core::RenderMode`] or a fully
+/// constructed [`RenderOptions`] value.
+pub fn convert_markdown<D, R>(
     input: &str,
     dictionary: &D,
-    mode: RenderMode,
+    render: R,
     variant: MarkdownVariant,
 ) -> Result<String, MarkdownError>
 where
     D: HanjaDictionary + ?Sized,
+    R: Into<RenderOptions>,
 {
-    convert_markdown_with_options(input, dictionary, mode, EngineOptions::default(), variant)
+    convert_markdown_with_options(input, dictionary, render, EngineOptions::default(), variant)
 }
 
 /// Converts Markdown with explicit engine options.
-pub fn convert_markdown_with_options<D>(
+pub fn convert_markdown_with_options<D, R>(
     input: &str,
     dictionary: &D,
-    mode: RenderMode,
+    render: R,
     options: EngineOptions,
     variant: MarkdownVariant,
 ) -> Result<String, MarkdownError>
 where
     D: HanjaDictionary + ?Sized,
+    R: Into<RenderOptions>,
 {
     let input_tokens = read_markdown(input, variant);
     let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options);
     let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
-    let rendered_tokens = render_tokens_iter(output_tokens, mode);
+    let rendered_tokens = render_tokens_iter(output_tokens, render);
     write_markdown(rendered_tokens)
 }
 
@@ -195,6 +200,7 @@ enum LeafNode {
 struct HtmlContext {
     tag_name: String,
     tag_preserve: bool,
+    text_only_ancestor: bool,
     lang: Option<String>,
 }
 
@@ -259,9 +265,17 @@ impl<'a> Reader<'a> {
     fn open_container(&mut self, tag: Tag<'static>) {
         let intrinsic_preserve = matches!(tag, Tag::CodeBlock(_) | Tag::HtmlBlock);
         let preserve = intrinsic_preserve || self.active_html_preserve();
+        // Markup permission is independent of `preserve`: preserve-only
+        // ancestors (code blocks, non-Korean lang scopes) skip text
+        // conversion, so no annotation arises that would emit markup, but
+        // they do not structurally forbid markup at deeper allow-markup
+        // positions. The actual restriction is HTML5's text-only content
+        // model, inherited from ancestor inline HTML such as `<title>` or
+        // `<option>`.
+        let allows_inline_markup = !self.active_html_text_only_ancestor();
         let scope = MarkdownScopeData {
             preserve,
-            allows_inline_markup: !preserve,
+            allows_inline_markup,
             block_boundary: is_markdown_block_boundary(&tag),
             node: MarkdownNode::Container(tag.clone()),
         };
@@ -323,6 +337,16 @@ impl<'a> Reader<'a> {
         self.html_stack.last().is_some_and(HtmlContext::preserve)
     }
 
+    /// Returns `true` when any enclosing inline HTML element has a text-only
+    /// content model. The lookup walks the whole stack rather than only the
+    /// top because Markdown containers (emphasis, list items, …) may sit
+    /// between the text-only element and the current cursor.
+    fn active_html_text_only_ancestor(&self) -> bool {
+        self.html_stack
+            .iter()
+            .any(|context| context.text_only_ancestor)
+    }
+
     fn push_leaf(&mut self, node: LeafNode) {
         self.flush_pending_reopen();
         let scope = MarkdownScopeData {
@@ -366,7 +390,11 @@ impl<'a> Reader<'a> {
         let omit_end_tag = self_closing || is_void_tag(&tag_name);
         let scope = MarkdownScopeData {
             preserve: context.preserve(),
-            allows_inline_markup: !context.preserve(),
+            // Decoupled from `preserve` for the same reason as in the HTML
+            // adapter: preserve disables text conversion, but does not
+            // restrict markup at deeper positions where conversion resumes.
+            allows_inline_markup: !is_text_only_content_tag(&tag_name)
+                && !context.text_only_ancestor,
             block_boundary: false,
             node: MarkdownNode::InlineHtmlElement {
                 raw_start: html.to_owned(),
@@ -406,6 +434,10 @@ impl<'a> Reader<'a> {
             .html_stack
             .last()
             .is_some_and(|context| context.tag_preserve);
+        let parent_text_only_ancestor = self
+            .html_stack
+            .last()
+            .is_some_and(|context| context.text_only_ancestor);
         let tag_preserve = parent_tag_preserve || is_preserved_tag(tag_name);
         let lang = extract_lang(raw_attributes).or_else(|| {
             self.html_stack
@@ -415,6 +447,7 @@ impl<'a> Reader<'a> {
         HtmlContext {
             tag_name: tag_name.to_owned(),
             tag_preserve,
+            text_only_ancestor: parent_text_only_ancestor || is_text_only_content_tag(tag_name),
             lang,
         }
     }
@@ -517,10 +550,34 @@ fn rendered_tokens_to_events(
             }
             RenderedToken::Text(text) => events.push(Event::Text(CowStr::from(text))),
             RenderedToken::Verbatim(text) => events.push(Event::InlineHtml(CowStr::from(text))),
+            RenderedToken::Ruby { base, rt } => {
+                let mut markup = String::with_capacity(base.len() + rt.len() + 25);
+                markup.push_str("<ruby>");
+                push_escaped_html_text(&mut markup, &base);
+                markup.push_str("<rt>");
+                push_escaped_html_text(&mut markup, &rt);
+                markup.push_str("</rt></ruby>");
+                events.push(Event::InlineHtml(CowStr::from(markup)));
+            }
         }
     }
 
     events
+}
+
+/// Appends `input` to `output`, escaping characters that have special meaning
+/// in HTML element content. Mirrors the escape rules in the HTML adapter so
+/// that inline-HTML emitted from a `RenderedToken::Ruby` token cannot be
+/// broken out of by hostile dictionary readings or source text.
+fn push_escaped_html_text(output: &mut String, input: &str) {
+    for ch in input.chars() {
+        match ch {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            other => output.push(other),
+        }
+    }
 }
 
 fn emit_open(data: &MarkdownScopeData, events: &mut Vec<Event<'static>>) {
@@ -753,6 +810,13 @@ fn decode_basic_entities(value: &str) -> String {
 fn is_korean_lang(lang: &str) -> bool {
     let lang = lang.to_ascii_lowercase();
     lang == "ko" || lang == "kor" || lang.starts_with("ko-") || lang.starts_with("kor-")
+}
+
+/// HTML5 elements whose content model is text-only. Inline markup such as
+/// `<ruby>` is invalid inside them, so scopes wrapping these tags report
+/// `allows_inline_markup = false` and renderers fall back to parens.
+fn is_text_only_content_tag(tag_name: &str) -> bool {
+    matches!(tag_name, "title" | "option")
 }
 
 fn is_preserved_tag(tag_name: &str) -> bool {

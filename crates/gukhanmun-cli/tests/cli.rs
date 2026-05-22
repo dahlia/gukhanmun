@@ -74,6 +74,61 @@ fn rendering_option_selects_parenthesized_output() {
 }
 
 #[test]
+fn ruby_rendering_in_plain_text_falls_back_to_parens() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--rendering", "ruby-on-hangul"])
+        .write_stdin("漢字\n")
+        .assert()
+        .success()
+        .stdout("한자(漢字)\n");
+}
+
+#[test]
+fn ruby_rendering_in_html_emits_ruby_element() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--rendering", "ruby-on-hangul", "--format", "text/html"])
+        .write_stdin("<p>漢字</p>")
+        .assert()
+        .success()
+        .stdout("<p><ruby>한자<rt>漢字</rt></ruby></p>");
+}
+
+#[test]
+fn original_with_ruby_gloss_uses_ruby_element_in_html_when_required() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--rendering",
+            "original",
+            "--original-gloss",
+            "ruby",
+            "--format",
+            "text/html",
+            "--require-hangul",
+            "漢字",
+        ])
+        .write_stdin("<p>漢字</p>")
+        .assert()
+        .success()
+        .stdout("<p><ruby>漢字<rt>한자</rt></ruby></p>");
+}
+
+#[test]
+fn original_gloss_rejected_without_original_rendering() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--original-gloss", "ruby"])
+        .write_stdin("漢字\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "--original-gloss is only valid with --rendering original",
+        ));
+}
+
+#[test]
 fn segmentation_option_selects_eager_longest_match() {
     let temp = tempdir().unwrap();
     let dictionary = build_dictionary_fixture(

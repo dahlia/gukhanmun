@@ -35,6 +35,7 @@ use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::marker::PhantomData;
 
 use fallback::{
     FallbackPart, FallbackState, fallback_reading_for_run, phoneticize_fallback_run_with_state,
@@ -145,6 +146,19 @@ pub trait ScopeData: Clone + 'static {
     fn is_preserve(&self) -> bool;
 
     /// Returns whether inline markup may be inserted inside this scope.
+    ///
+    /// This flag is about *structural* permission for markup at the current
+    /// position, not about whether the engine actually converts text here.
+    /// A scope may legitimately set [`Self::is_preserve`] to `true` (so no
+    /// annotation is produced) while still reporting `true` for this method,
+    /// because preserve does not by itself restrict what a deeper non-preserved
+    /// child may emit. Adapters should return `false` only when an HTML5
+    /// text-only content model (such as `<title>` or `<option>`) or an
+    /// analogous host rule actually forbids markup at this position.
+    ///
+    /// Scope-aware renderers treat inline markup as allowed only when *every*
+    /// open ancestor reports `true`; a nested allow-markup scope cannot
+    /// re-enable markup that an ancestor has forbidden.
     fn allows_inline_markup(&self) -> bool {
         true
     }
@@ -248,6 +262,26 @@ pub enum RenderedToken<S> {
 
     /// Verbatim text ready for serialization.
     Verbatim(String),
+
+    /// A structural ruby annotation pairing a base text with an `rt` gloss.
+    ///
+    /// Writers serialize this in a format-appropriate way: HTML emits a
+    /// `<ruby>` element, Markdown emits inline HTML, and plain text falls back
+    /// to parenthesized text. Because the variant carries the base and gloss
+    /// as separate strings rather than pre-built markup, each writer is
+    /// responsible for escaping the contents according to its own rules — the
+    /// renderer never injects raw HTML produced by string concatenation.
+    ///
+    /// Renderers only emit this variant when the active scope reports
+    /// [`ScopeData::allows_inline_markup`] as `true`; scopes that disallow
+    /// inline markup receive a plain `Text` fallback instead.
+    Ruby {
+        /// Base text shown as the primary side of the ruby annotation.
+        base: String,
+
+        /// Gloss text shown in the `rt` position.
+        rt: String,
+    },
 }
 
 /// Metadata for a dictionary-backed hanja conversion.
@@ -737,13 +771,20 @@ impl HanjaDictionary for MapDictionary {
 
 /// Scope data used by the plain-text adapter.
 ///
-/// Plain text has no preserved regions, markup restrictions, or block
-/// boundaries in this MVP adapter.
+/// Plain text has no preserved regions or block boundaries, and inline markup
+/// such as `<ruby>` is not meaningful in a plain-text stream. Reporting
+/// [`ScopeData::allows_inline_markup`] as `false` lets scope-aware renderers
+/// fall back to parenthesized text before any [`RenderedToken::Ruby`] reaches
+/// the plain-text writer.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlainScopeData;
 
 impl ScopeData for PlainScopeData {
     fn is_preserve(&self) -> bool {
+        false
+    }
+
+    fn allows_inline_markup(&self) -> bool {
         false
     }
 }
@@ -764,12 +805,18 @@ pub fn read_plain_text(input: &str) -> Vec<InputToken<PlainScopeData>> {
 ///
 /// Structural tokens are ignored because plain text has no serialized scope
 /// markers. `Text` and `Verbatim` tokens are concatenated in stream order.
+/// `Ruby` tokens are not expected because [`PlainScopeData`] disallows inline
+/// markup, but they are defensively serialized as `base(rt)` rather than
+/// dropped silently if one ever reaches the writer.
 pub fn write_plain_text<S>(tokens: impl IntoIterator<Item = RenderedToken<S>>) -> String {
     let mut output = String::new();
     for token in tokens {
         match token {
             RenderedToken::Open(_) | RenderedToken::Close => {}
             RenderedToken::Text(text) | RenderedToken::Verbatim(text) => output.push_str(&text),
+            RenderedToken::Ruby { base, rt } => {
+                output.push_str(&parens(&base, &rt));
+            }
         }
     }
     output
@@ -1528,8 +1575,79 @@ pub enum RenderMode {
     /// parentheses.
     HanjaHangulParens,
 
+    /// Emits a `<ruby>` element pairing hangul reading and source hanja.
+    ///
+    /// The [`RubyBase`] sub-mode chooses which side becomes the base text.
+    /// When the active scope reports
+    /// [`ScopeData::allows_inline_markup`] as `false`, the renderer falls back
+    /// to parenthesized text so that adapters which cannot embed markup still
+    /// receive a sensible surface form.
+    Ruby(RubyBase),
+
     /// Emits original hanja, adding a hangul gloss only when requested.
     Original,
+}
+
+/// Selects which side of a `<ruby>` element is the base text.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RubyBase {
+    /// `<ruby>hangul<rt>hanja</rt></ruby>`; hangul is the base, hanja is the gloss.
+    OnHangul,
+
+    /// `<ruby>hanja<rt>hangul</rt></ruby>`; hanja is the base, hangul is the gloss.
+    OnHanja,
+}
+
+/// Form for the gloss attached to annotations in [`RenderMode::Original`].
+///
+/// `Original` keeps the source hanja as primary text and only attaches a
+/// hangul gloss when the annotation flags or a user directive demand one.
+/// This option controls how that gloss appears. Because `Original` always
+/// treats hanja as primary, the ruby form uses hanja as the base and hangul
+/// as the `rt` gloss; there is no sub-mode to flip the sides.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum OriginalGloss {
+    /// `hanja(hangul)`; matches the legacy behavior.
+    #[default]
+    Parens,
+
+    /// A `<ruby>` element with hanja as the base and hangul as the `rt`
+    /// gloss, falling back to parens when the active scope disallows inline
+    /// markup.
+    Ruby,
+}
+
+/// Rendering options that combine a [`RenderMode`] with per-mode sub-options.
+///
+/// Most pipelines configure rendering by mode alone, so `RenderOptions`
+/// implements `From<RenderMode>` and `Default` to keep existing call sites
+/// terse. Pipelines that need finer control (such as a ruby gloss in
+/// [`RenderMode::Original`]) construct a `RenderOptions` value directly.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RenderOptions {
+    /// Top-level rendering mode applied to every annotation.
+    pub mode: RenderMode,
+
+    /// Gloss form used by [`RenderMode::Original`]. Ignored by other modes.
+    pub original_gloss: OriginalGloss,
+}
+
+impl Default for RenderOptions {
+    fn default() -> Self {
+        Self {
+            mode: RenderMode::HangulOnly,
+            original_gloss: OriginalGloss::Parens,
+        }
+    }
+}
+
+impl From<RenderMode> for RenderOptions {
+    fn from(mode: RenderMode) -> Self {
+        Self {
+            mode,
+            original_gloss: OriginalGloss::default(),
+        }
+    }
 }
 
 /// The context boundary used by stateful annotation middlewares.
@@ -1963,51 +2081,157 @@ fn filter_first_occurrences_in_context<S>(tokens: &mut [OutputToken<S>]) {
 /// Renders engine output tokens into annotation-free tokens.
 ///
 /// Structural and text tokens pass through. Each annotation is expanded into a
-/// concrete text form according to `mode` and its flags.
-pub fn render_tokens<S>(
+/// concrete rendered token according to the supplied options, the current
+/// scope, and the annotation's flags. `options` accepts either a bare
+/// [`RenderMode`] (via the `From<RenderMode>` impl on [`RenderOptions`]) or a
+/// full [`RenderOptions`] value.
+pub fn render_tokens<S, O>(
     tokens: impl IntoIterator<Item = OutputToken<S>>,
-    mode: RenderMode,
-) -> Vec<RenderedToken<S>> {
-    render_tokens_iter(tokens, mode).collect()
+    options: O,
+) -> Vec<RenderedToken<S>>
+where
+    S: ScopeData,
+    O: Into<RenderOptions>,
+{
+    render_tokens_iter(tokens, options).collect()
 }
 
 /// Renders engine output tokens into annotation-free tokens as an iterator.
 ///
-/// The renderer performs no buffering; every output token maps to one rendered
-/// token in the current plain-text rendering modes.
-pub fn render_tokens_iter<S>(
+/// The renderer maintains a small scope stack so that annotation expansion can
+/// consult the active scope's [`ScopeData::allows_inline_markup`] when
+/// choosing between an inline-markup form and a parenthesized fallback. Every
+/// other token maps one-to-one to its rendered counterpart.
+pub fn render_tokens_iter<S, O>(
     tokens: impl IntoIterator<Item = OutputToken<S>>,
-    mode: RenderMode,
-) -> impl Iterator<Item = RenderedToken<S>> {
-    tokens.into_iter().map(move |token| match token {
-        OutputToken::Open(scope) => RenderedToken::Open(scope),
-        OutputToken::Close => RenderedToken::Close,
-        OutputToken::Text(text) => RenderedToken::Text(text),
-        OutputToken::Verbatim(text) => RenderedToken::Verbatim(text),
-        OutputToken::Annotated(annotation) => {
-            RenderedToken::Text(render_annotation(&annotation, mode))
-        }
-    })
+    options: O,
+) -> impl Iterator<Item = RenderedToken<S>>
+where
+    S: ScopeData,
+    O: Into<RenderOptions>,
+{
+    TokenRenderer {
+        upstream: tokens.into_iter(),
+        options: options.into(),
+        markup_stack: Vec::new(),
+        disallowing_ancestors: 0,
+        _scope: PhantomData,
+    }
 }
 
-fn render_annotation(annotation: &Annotation, mode: RenderMode) -> String {
-    match mode {
-        RenderMode::HangulOnly | RenderMode::HangulHanjaParens if annotation.skip_annotation => {
-            annotation.reading.clone()
-        }
-        RenderMode::HanjaHangulParens | RenderMode::Original if annotation.skip_annotation => {
-            annotation.hanja.clone()
-        }
+struct TokenRenderer<I, S> {
+    upstream: I,
+    options: RenderOptions,
+    /// Cached `allows_inline_markup` value for each open scope. Storing the
+    /// boolean instead of the whole scope keeps the renderer free of an extra
+    /// `S: Clone` bound at this layer (it already requires it via `ScopeData`)
+    /// and avoids the cost of cloning adapter-owned data.
+    markup_stack: Vec<bool>,
+    /// Number of currently open scopes whose `allows_inline_markup` is
+    /// `false`. Inline markup is safe at the current cursor only when this
+    /// counter is zero; otherwise some ancestor forbids markup and a nested
+    /// allow-markup scope cannot override that restriction.
+    disallowing_ancestors: usize,
+    _scope: PhantomData<fn(S)>,
+}
+
+impl<I, S> Iterator for TokenRenderer<I, S>
+where
+    I: Iterator<Item = OutputToken<S>>,
+    S: ScopeData,
+{
+    type Item = RenderedToken<S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let token = self.upstream.next()?;
+        Some(match token {
+            OutputToken::Open(scope) => {
+                let allows = scope.data().allows_inline_markup();
+                if !allows {
+                    self.disallowing_ancestors += 1;
+                }
+                self.markup_stack.push(allows);
+                RenderedToken::Open(scope)
+            }
+            OutputToken::Close => {
+                if let Some(false) = self.markup_stack.pop() {
+                    // Saturating guard for malformed streams that emit more
+                    // Close than Open tokens; the renderer should never
+                    // panic on broken input.
+                    self.disallowing_ancestors = self.disallowing_ancestors.saturating_sub(1);
+                }
+                RenderedToken::Close
+            }
+            OutputToken::Text(text) => RenderedToken::Text(text),
+            OutputToken::Verbatim(text) => RenderedToken::Verbatim(text),
+            OutputToken::Annotated(annotation) => {
+                // Inline markup is allowed only when no open ancestor scope
+                // forbids it. The plain-text reader wraps its input in a
+                // scope whose `allows_inline_markup` is false, so plain text
+                // still falls back to parens; HTML and Markdown root
+                // contexts emit no enclosing scope and therefore start with
+                // an empty stack, leaving annotations free to use markup.
+                let allows_inline_markup = self.disallowing_ancestors == 0;
+                render_annotation(&annotation, &self.options, allows_inline_markup)
+            }
+        })
+    }
+}
+
+fn render_annotation<S>(
+    annotation: &Annotation,
+    options: &RenderOptions,
+    allows_inline_markup: bool,
+) -> RenderedToken<S> {
+    if annotation.skip_annotation {
+        let primary = match options.mode {
+            RenderMode::HangulOnly | RenderMode::HangulHanjaParens => annotation.reading.clone(),
+            RenderMode::HanjaHangulParens | RenderMode::Original => annotation.hanja.clone(),
+            RenderMode::Ruby(RubyBase::OnHangul) => annotation.reading.clone(),
+            RenderMode::Ruby(RubyBase::OnHanja) => annotation.hanja.clone(),
+        };
+        return RenderedToken::Text(primary);
+    }
+
+    match options.mode {
         RenderMode::HangulOnly if annotation.require_hanja || annotation.homophone => {
-            parens(&annotation.reading, &annotation.hanja)
+            RenderedToken::Text(parens(&annotation.reading, &annotation.hanja))
         }
-        RenderMode::HangulOnly => annotation.reading.clone(),
-        RenderMode::HangulHanjaParens => parens(&annotation.reading, &annotation.hanja),
-        RenderMode::HanjaHangulParens => parens(&annotation.hanja, &annotation.reading),
-        RenderMode::Original if annotation.require_hangul => {
-            parens(&annotation.hanja, &annotation.reading)
+        RenderMode::HangulOnly => RenderedToken::Text(annotation.reading.clone()),
+        RenderMode::HangulHanjaParens => {
+            RenderedToken::Text(parens(&annotation.reading, &annotation.hanja))
         }
-        RenderMode::Original => annotation.hanja.clone(),
+        RenderMode::HanjaHangulParens => {
+            RenderedToken::Text(parens(&annotation.hanja, &annotation.reading))
+        }
+        RenderMode::Ruby(base) => render_ruby(annotation, base, allows_inline_markup),
+        RenderMode::Original if annotation.require_hangul => match options.original_gloss {
+            OriginalGloss::Parens => {
+                RenderedToken::Text(parens(&annotation.hanja, &annotation.reading))
+            }
+            // `Original` keeps hanja as the primary text, so its ruby form
+            // always uses hanja as the base regardless of any other setting.
+            OriginalGloss::Ruby => render_ruby(annotation, RubyBase::OnHanja, allows_inline_markup),
+        },
+        RenderMode::Original => RenderedToken::Text(annotation.hanja.clone()),
+    }
+}
+
+fn render_ruby<S>(
+    annotation: &Annotation,
+    base: RubyBase,
+    allows_inline_markup: bool,
+) -> RenderedToken<S> {
+    let (base_text, rt_text) = match base {
+        RubyBase::OnHangul => (&annotation.reading, &annotation.hanja),
+        RubyBase::OnHanja => (&annotation.hanja, &annotation.reading),
+    };
+    if !allows_inline_markup {
+        return RenderedToken::Text(parens(base_text, rt_text));
+    }
+    RenderedToken::Ruby {
+        base: base_text.clone(),
+        rt: rt_text.clone(),
     }
 }
 
@@ -2024,29 +2248,33 @@ fn parens(reading: &str, hanja: &str) -> String {
 ///
 /// This is a convenience for the plain-text MVP path. More capable format
 /// adapters should call the individual stages so they can preserve their own
-/// structural tokens.
-pub fn convert_plain_text<D>(input: &str, dictionary: &D, mode: RenderMode) -> String
+/// structural tokens. The `render` argument accepts either a [`RenderMode`]
+/// (converted via `From<RenderMode>` for [`RenderOptions`]) or a full
+/// [`RenderOptions`] value.
+pub fn convert_plain_text<D, R>(input: &str, dictionary: &D, render: R) -> String
 where
     D: HanjaDictionary + ?Sized,
+    R: Into<RenderOptions>,
 {
-    convert_plain_text_with_options(input, dictionary, mode, EngineOptions::default())
+    convert_plain_text_with_options(input, dictionary, render, EngineOptions::default())
 }
 
 /// Converts plain text with explicit hanja conversion engine options.
 ///
 /// This is the option-aware variant of [`convert_plain_text`].
-pub fn convert_plain_text_with_options<D>(
+pub fn convert_plain_text_with_options<D, R>(
     input: &str,
     dictionary: &D,
-    mode: RenderMode,
+    render: R,
     options: EngineOptions,
 ) -> String
 where
     D: HanjaDictionary + ?Sized,
+    R: Into<RenderOptions>,
 {
     let input_tokens = read_plain_text(input);
     let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
     let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
-    let rendered_tokens = render_tokens(output_tokens, mode);
+    let rendered_tokens = render_tokens(output_tokens, render);
     write_plain_text(rendered_tokens)
 }

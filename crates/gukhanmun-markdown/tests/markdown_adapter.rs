@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use gukhanmun_core::{HanjaDictionary, MapDictionary, Match, RenderMode, RenderedToken};
+use gukhanmun_core::{
+    HanjaDictionary, MapDictionary, Match, OriginalGloss, RenderMode, RenderOptions, RenderedToken,
+    RubyBase,
+};
 use gukhanmun_markdown::{
     MarkdownError, MarkdownScopeData, MarkdownVariant, convert_markdown, read_markdown,
     read_markdown_iter, write_markdown,
@@ -300,4 +303,126 @@ fn gfm_table_converts_hanja_in_cells() {
         output.contains("동"),
         "body cell should be converted: {output}"
     );
+}
+
+#[test]
+fn ruby_on_hangul_emits_inline_html_in_paragraph() {
+    let output = convert_markdown(
+        "漢字 만세\n",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHangul),
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert_eq!(
+        events(&output),
+        events("<ruby>한자<rt>漢字</rt></ruby> 만세\n")
+    );
+}
+
+#[test]
+fn ruby_on_hanja_emits_inline_html_with_hanja_base() {
+    let output = convert_markdown(
+        "漢字\n",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHanja),
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert_eq!(events(&output), events("<ruby>漢字<rt>한자</rt></ruby>\n"));
+}
+
+#[test]
+fn ruby_mode_does_not_touch_code_span_or_block() {
+    let output = convert_markdown(
+        "`漢字`\n\n```text\n北京\n```\n\n漢字\n",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHangul),
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert_eq!(
+        events(&output),
+        events("`漢字`\n\n```text\n北京\n```\n\n<ruby>한자<rt>漢字</rt></ruby>\n")
+    );
+}
+
+#[test]
+fn ruby_inside_inline_html_text_only_element_falls_back_to_parens() {
+    let output = convert_markdown(
+        "Paragraph with <option>漢字</option> inline and 漢字.\n",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHangul),
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert_eq!(
+        events(&output),
+        events(
+            "Paragraph with <option>한자(漢字)</option> inline and <ruby>한자<rt>漢字</rt></ruby>.\n"
+        )
+    );
+}
+
+#[test]
+fn ruby_inside_emphasis_within_text_only_inline_html_falls_back_to_parens() {
+    // Emphasis adds a nested container scope; without ancestor-aware
+    // policy the renderer would see only the emphasis (allows markup) and
+    // emit ruby inside <option>, which is invalid HTML.
+    let output = convert_markdown(
+        "Paragraph <option>**漢字**</option> and 漢字.\n",
+        &dictionary(),
+        RenderMode::Ruby(RubyBase::OnHangul),
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert_eq!(
+        events(&output),
+        events("Paragraph <option>**한자(漢字)**</option> and <ruby>한자<rt>漢字</rt></ruby>.\n")
+    );
+}
+
+#[test]
+fn ruby_writer_escapes_hostile_dictionary_readings() {
+    let mut dict = MapDictionary::new();
+    dict.insert("漢字", "<script>alert(1)</script>");
+
+    let output = convert_markdown(
+        "漢字\n",
+        &dict,
+        RenderMode::Ruby(RubyBase::OnHangul),
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert_eq!(
+        events(&output),
+        events("<ruby>&lt;script&gt;alert(1)&lt;/script&gt;<rt>漢字</rt></ruby>\n")
+    );
+}
+
+#[test]
+fn original_with_ruby_gloss_renders_required_hangul_as_inline_html() {
+    let mut dict = MapDictionary::new();
+    dict.insert_marked(
+        "漢字",
+        "한자",
+        gukhanmun_core::MatchMark {
+            require_hanja: false,
+            require_hangul: true,
+        },
+    );
+    let options = RenderOptions {
+        mode: RenderMode::Original,
+        original_gloss: OriginalGloss::Ruby,
+    };
+
+    let output = convert_markdown("漢字\n", &dict, options, MarkdownVariant::CommonMark).unwrap();
+
+    assert_eq!(events(&output), events("<ruby>漢字<rt>한자</rt></ruby>\n"));
 }

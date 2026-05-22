@@ -20,8 +20,9 @@
 #![deny(missing_docs)]
 
 use gukhanmun_core::{
-    ContextWindow, EngineOptions, HanjaDictionary, InputToken, Recovery, RenderMode, RenderedToken,
-    Scope, ScopeData, mark_homophones, process_tokens_iter_with_options, render_tokens_iter,
+    ContextWindow, EngineOptions, HanjaDictionary, InputToken, Recovery, RenderOptions,
+    RenderedToken, Scope, ScopeData, mark_homophones, process_tokens_iter_with_options,
+    render_tokens_iter,
 };
 
 /// Adapter-owned scope data for HTML fragments.
@@ -146,7 +147,12 @@ pub fn try_read_html_fragment(
 /// Writes rendered HTML tokens back to a fragment string.
 ///
 /// Start tags are emitted from the raw source text captured by the reader.
-/// `Text` and `Verbatim` tokens are passed through without additional escaping.
+/// `Text` and `Verbatim` tokens are passed through without additional
+/// escaping (the reader does not entity-encode `Text` either, so this matches
+/// the original input form). Renderer-emitted `Ruby` tokens are wrapped in a
+/// `<ruby><rt>...</rt></ruby>` element with HTML-special characters escaped
+/// in both the base text and the `rt` gloss; that prevents any user- or
+/// dictionary-supplied reading from breaking out of the markup.
 pub fn write_html_fragment(
     tokens: impl IntoIterator<Item = RenderedToken<HtmlScopeData>>,
 ) -> String {
@@ -169,71 +175,99 @@ pub fn write_html_fragment(
                 }
             }
             RenderedToken::Text(text) | RenderedToken::Verbatim(text) => output.push_str(&text),
+            RenderedToken::Ruby { base, rt } => {
+                output.push_str("<ruby>");
+                push_escaped_html_text(&mut output, &base);
+                output.push_str("<rt>");
+                push_escaped_html_text(&mut output, &rt);
+                output.push_str("</rt></ruby>");
+            }
         }
     }
 
     output
 }
 
+/// Appends `input` to `output`, escaping characters that have special meaning
+/// in HTML element content.
+fn push_escaped_html_text(output: &mut String, input: &str) {
+    for ch in input.chars() {
+        match ch {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            other => output.push(other),
+        }
+    }
+}
+
 /// Converts an HTML fragment with default engine options.
-pub fn convert_html_fragment<D>(input: &str, dictionary: &D, mode: RenderMode) -> String
+///
+/// `render` accepts either a [`gukhanmun_core::RenderMode`] or a fully
+/// constructed [`RenderOptions`] value (see
+/// [`From<RenderMode> for RenderOptions`](RenderOptions#impl-From<RenderMode>-for-RenderOptions)).
+pub fn convert_html_fragment<D, R>(input: &str, dictionary: &D, render: R) -> String
 where
     D: HanjaDictionary + ?Sized,
+    R: Into<RenderOptions>,
 {
-    convert_html_fragment_with_options(input, dictionary, mode, EngineOptions::default())
+    convert_html_fragment_with_options(input, dictionary, render, EngineOptions::default())
 }
 
 /// Converts an HTML fragment with explicit engine options.
-pub fn convert_html_fragment_with_options<D>(
+pub fn convert_html_fragment_with_options<D, R>(
     input: &str,
     dictionary: &D,
-    mode: RenderMode,
+    render: R,
     options: EngineOptions,
 ) -> String
 where
     D: HanjaDictionary + ?Sized,
+    R: Into<RenderOptions>,
 {
     let input_tokens = read_html_fragment(input);
     let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options);
     let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
-    let rendered_tokens = render_tokens_iter(output_tokens, mode);
+    let rendered_tokens = render_tokens_iter(output_tokens, render);
     write_html_fragment(rendered_tokens)
 }
 
 /// Converts an HTML fragment with an explicit recovery policy.
-pub fn try_convert_html_fragment<D>(
+pub fn try_convert_html_fragment<D, R>(
     input: &str,
     dictionary: &D,
-    mode: RenderMode,
+    render: R,
     recovery: Recovery,
 ) -> Result<String, HtmlError>
 where
     D: HanjaDictionary + ?Sized,
+    R: Into<RenderOptions>,
 {
     try_convert_html_fragment_with_options(
         input,
         dictionary,
-        mode,
+        render,
         EngineOptions::default(),
         recovery,
     )
 }
 
 /// Converts an HTML fragment with explicit engine options and recovery policy.
-pub fn try_convert_html_fragment_with_options<D>(
+pub fn try_convert_html_fragment_with_options<D, R>(
     input: &str,
     dictionary: &D,
-    mode: RenderMode,
+    render: R,
     options: EngineOptions,
     recovery: Recovery,
 ) -> Result<String, HtmlError>
 where
     D: HanjaDictionary + ?Sized,
+    R: Into<RenderOptions>,
 {
     let input_tokens = try_read_html_fragment(input, recovery)?;
     let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options);
     let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
-    let rendered_tokens = render_tokens_iter(output_tokens, mode);
+    let rendered_tokens = render_tokens_iter(output_tokens, render);
     Ok(write_html_fragment(rendered_tokens))
 }
 
@@ -241,6 +275,7 @@ where
 struct ElementContext {
     tag_name: String,
     tag_preserve: bool,
+    text_only_ancestor: bool,
     lang: Option<String>,
 }
 
@@ -354,7 +389,19 @@ impl<'a> Scanner<'a> {
             end_tag_name: tag_original.to_owned(),
             omit_end_tag,
             preserve: context.preserve(),
-            allows_inline_markup: !context.preserve(),
+            // `allows_inline_markup` is intentionally independent of
+            // `preserve`. The engine skips text conversion inside preserved
+            // scopes (raw-text tags, non-Korean lang), so no annotation
+            // arises there in the first place. But preserve does not forbid
+            // markup structurally: an inner Korean-lang child can still
+            // override preserve and emit `<ruby>`, and that override would
+            // be defeated if its parent's preserve also pushed
+            // `allows_inline_markup = false` onto the renderer's
+            // disallowing-ancestor stack. Markup permission is therefore
+            // driven only by HTML5 content-model restrictions (title,
+            // option, and any ancestor with a text-only content model).
+            allows_inline_markup: !is_text_only_content_tag(&tag_name)
+                && !context.text_only_ancestor,
             block_boundary: is_block_boundary_tag(&tag_name),
         };
 
@@ -365,6 +412,8 @@ impl<'a> Scanner<'a> {
             self.stack.push(ElementContext {
                 tag_name: tag_name.clone(),
                 tag_preserve: context.tag_preserve,
+                text_only_ancestor: context.text_only_ancestor
+                    || is_text_only_content_tag(&tag_name),
                 lang: context.lang,
             });
             if is_raw_text_tag(&tag_name) {
@@ -380,6 +429,10 @@ impl<'a> Scanner<'a> {
             .stack
             .last()
             .is_some_and(|context| context.tag_preserve);
+        let parent_text_only_ancestor = self
+            .stack
+            .last()
+            .is_some_and(|context| context.text_only_ancestor);
         let tag_preserve = parent_tag_preserve || is_preserved_tag(tag_name);
         let lang = extract_lang(raw_attributes).or_else(|| {
             self.stack
@@ -389,6 +442,7 @@ impl<'a> Scanner<'a> {
         ElementContext {
             tag_name: tag_name.to_owned(),
             tag_preserve,
+            text_only_ancestor: parent_text_only_ancestor,
             lang,
         }
     }
@@ -734,6 +788,15 @@ fn is_preserved_tag(tag_name: &str) -> bool {
         tag_name,
         "pre" | "code" | "kbd" | "script" | "style" | "textarea"
     )
+}
+
+/// HTML5 elements whose content model is text-only (no phrasing or flow
+/// content). Text conversion is still safe inside them — the engine can map
+/// `漢字` to `한자` — but inline markup such as `<ruby>` would produce invalid
+/// content, so the scope reports `allows_inline_markup = false` and renderers
+/// fall back to parens.
+fn is_text_only_content_tag(tag_name: &str) -> bool {
+    matches!(tag_name, "title" | "option")
 }
 
 fn is_raw_text_tag(tag_name: &str) -> bool {
