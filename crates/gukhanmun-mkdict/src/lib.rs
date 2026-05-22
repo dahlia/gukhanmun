@@ -224,9 +224,9 @@ pub enum RuleKind {
     /// Match a single dictionary entry whose hanja key equals `pattern`.
     Entry,
 
-    /// Match every dictionary entry that contains the single hanja character
-    /// in `pattern`.
-    Char,
+    /// Match every dictionary entry whose hanja key contains the hanja
+    /// substring in `pattern`.
+    Contains,
 
     /// Match every dictionary entry whose hangul reading equals `pattern`.
     Reading,
@@ -236,7 +236,7 @@ impl RuleKind {
     fn parse(value: &str) -> Option<Self> {
         match value {
             "entry" => Some(Self::Entry),
-            "char" => Some(Self::Char),
+            "contains" => Some(Self::Contains),
             "reading" => Some(Self::Reading),
             _ => None,
         }
@@ -245,7 +245,7 @@ impl RuleKind {
     fn as_str(self) -> &'static str {
         match self {
             Self::Entry => "entry",
-            Self::Char => "char",
+            Self::Contains => "contains",
             Self::Reading => "reading",
         }
     }
@@ -263,9 +263,13 @@ pub struct Rule {
 }
 
 impl Rule {
-    /// Creates a rule for programmatic callers.  Callers must enforce the
-    /// `char` single-character invariant themselves; [`parse_rules_file`] does
-    /// this for TSV inputs.
+    /// Creates a rule for programmatic callers.
+    ///
+    /// This constructor is unchecked: the pattern, mark bits, and reason are
+    /// stored verbatim.  All semantic validation — non-empty pattern, at least
+    /// one mark bit set, and `contains` patterns that are hanja-only — runs in
+    /// [`apply_rules`], so even programmatically constructed rules surface the
+    /// same errors as rules parsed from a TSV file.
     pub fn new(
         kind: RuleKind,
         pattern: impl Into<String>,
@@ -420,7 +424,7 @@ fn parse_rule_row(line: &str, columns: &RulesHeaderColumns, location: &str) -> R
     let kind_field = fields[columns.kind];
     let kind = RuleKind::parse(kind_field).ok_or_else(|| {
         Error::message(format!(
-            "{location}: unknown rule kind `{kind_field}`; expected `entry`, `char`, or `reading`"
+            "{location}: unknown rule kind `{kind_field}`; expected `entry`, `contains`, or `reading`"
         ))
     })?;
     let pattern = fields[columns.pattern];
@@ -428,13 +432,6 @@ fn parse_rule_row(line: &str, columns: &RulesHeaderColumns, location: &str) -> R
         !pattern.is_empty(),
         "{location}: `pattern` must not be empty"
     );
-    if matches!(kind, RuleKind::Char) {
-        let char_count = pattern.chars().count();
-        ensure!(
-            char_count == 1,
-            "{location}: `char` rule pattern `{pattern}` must be exactly one character (got {char_count})"
-        );
-    }
     let require_hanja = parse_required_bool(fields[columns.require_hanja], location)?;
     let require_hangul = parse_required_bool(fields[columns.require_hangul], location)?;
     ensure!(
@@ -482,7 +479,6 @@ pub fn apply_rules(
         return Ok(());
     }
 
-    let mut char_needles: Vec<Option<char>> = Vec::with_capacity(rules.len());
     for rule in rules {
         ensure!(
             !rule.pattern.is_empty(),
@@ -494,27 +490,15 @@ pub fn apply_rules(
             "{}: rule must set at least one of `require_hanja` or `require_hangul`",
             rule.location,
         );
-        match rule.kind {
-            RuleKind::Char => {
-                let mut chars = rule.pattern.chars();
-                let needle = chars.next().expect("non-empty pattern checked above");
-                ensure!(
-                    chars.next().is_none(),
-                    "{}: `char` rule pattern `{}` must be exactly one character",
-                    rule.location,
-                    rule.pattern,
-                );
-                ensure!(
-                    gukhanmun_core::is_hanja(needle),
-                    "{}: `char` rule pattern `{}` must be a hanja character; \
-                     dictionary keys can be mixed-script so a non-hanja `char` \
-                     rule would silently match unrelated entries",
-                    rule.location,
-                    rule.pattern,
-                );
-                char_needles.push(Some(needle));
-            }
-            _ => char_needles.push(None),
+        if matches!(rule.kind, RuleKind::Contains) {
+            ensure!(
+                rule.pattern.chars().all(gukhanmun_core::is_hanja),
+                "{}: `contains` rule pattern `{}` must consist only of hanja characters; \
+                 dictionary keys can be mixed-script so a pattern with hangul or other \
+                 scripts would silently match unrelated entries",
+                rule.location,
+                rule.pattern,
+            );
         }
     }
     let mut matched = vec![false; rules.len()];
@@ -525,10 +509,7 @@ pub fn apply_rules(
         for (i, rule) in rules.iter().enumerate() {
             let hit = match rule.kind {
                 RuleKind::Entry => hanja == rule.pattern,
-                RuleKind::Char => {
-                    let needle = char_needles[i].expect("char rule needle populated above");
-                    hanja.contains(needle)
-                }
+                RuleKind::Contains => hanja.contains(rule.pattern.as_str()),
                 RuleKind::Reading => reading == rule.pattern,
             };
             if hit {
@@ -1279,7 +1260,7 @@ mod tests {
     fn parses_minimal_rules_tsv() {
         let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
                      entry\t漢字\ttrue\tfalse\thomophone\n\
-                     char\t驟\ttrue\tfalse\trare hanja\n\
+                     contains\t驟\ttrue\tfalse\trare hanja\n\
                      reading\t사기\ttrue\tfalse\tcommon homophone\n";
 
         let rules = parse_rules_str(input).unwrap();
@@ -1290,7 +1271,7 @@ mod tests {
         assert!(rules[0].mark().require_hanja);
         assert!(!rules[0].mark().require_hangul);
         assert_eq!(rules[0].reason(), "homophone");
-        assert_eq!(rules[1].kind(), RuleKind::Char);
+        assert_eq!(rules[1].kind(), RuleKind::Contains);
         assert_eq!(rules[2].kind(), RuleKind::Reading);
     }
 
@@ -1301,38 +1282,28 @@ mod tests {
 
         let error = parse_rules_str(input).unwrap_err();
 
-        assert!(
-            error.to_string().contains("unknown rule kind `glob`"),
-            "{error}"
-        );
+        let text = error.to_string();
+        assert!(text.contains("unknown rule kind `glob`"), "{text}");
+        // Recovery guidance must enumerate the currently accepted kinds.
+        assert!(text.contains("`entry`"), "{text}");
+        assert!(text.contains("`contains`"), "{text}");
+        assert!(text.contains("`reading`"), "{text}");
     }
 
     #[test]
-    fn rejects_char_rule_with_multiple_characters() {
+    fn rejects_contains_rule_with_non_hanja_pattern_from_tsv() {
+        // Mixed-script dictionary keys (e.g. `布告하다`) mean a non-hanja
+        // `contains` pattern would silently mark unrelated entries; reject at
+        // the apply step.
         let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
-                     char\t漢字\ttrue\tfalse\tnope\n";
-
-        let error = parse_rules_str(input).unwrap_err();
-
-        assert!(
-            error.to_string().contains("must be exactly one character"),
-            "{error}"
-        );
-    }
-
-    #[test]
-    fn rejects_char_rule_with_non_hanja_pattern_from_tsv() {
-        // Same invariant as the programmatic test, but driven from the file
-        // parser so the CLI surface is covered.
-        let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
-                     char\t하\ttrue\tfalse\ttypo\n";
+                     contains\t하다\ttrue\tfalse\ttypo\n";
         let rules = parse_rules_str(input).unwrap();
         let mut entries = vec![entry("布告하다", "포고하다")];
 
         let error = apply_rules(&mut entries, &rules, false).unwrap_err();
 
         assert!(
-            error.to_string().contains("must be a hanja character"),
+            error.to_string().contains("must consist only of hanja"),
             "{error}"
         );
     }
@@ -1377,7 +1348,7 @@ mod tests {
     fn allows_overlapping_rules_across_kinds() {
         let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
                      entry\t漢字\ttrue\tfalse\thomophone entry\n\
-                     char\t漢\ttrue\tfalse\trare character\n";
+                     contains\t漢\ttrue\tfalse\trare character\n";
 
         let rules = parse_rules_str(input).unwrap();
 
@@ -1407,7 +1378,7 @@ mod tests {
                 "homophone-heavy entry",
             ),
             Rule::new(
-                RuleKind::Char,
+                RuleKind::Contains,
                 "天",
                 EntryMark {
                     require_hanja: true,
@@ -1432,7 +1403,10 @@ mod tests {
             entries[0].mark().require_hanja,
             "entry rule applied to 漢字"
         );
-        assert!(entries[1].mark().require_hanja, "char rule applied to 天地");
+        assert!(
+            entries[1].mark().require_hanja,
+            "contains rule applied to 天地"
+        );
         assert!(
             entries[2].mark().require_hanja,
             "reading rule applied to 史記"
@@ -1488,13 +1462,13 @@ mod tests {
                 "missing entry",
             ),
             Rule::new(
-                RuleKind::Char,
+                RuleKind::Contains,
                 "驟",
                 EntryMark {
                     require_hanja: true,
                     require_hangul: false,
                 },
-                "missing char",
+                "missing contains",
             ),
         ];
 
@@ -1502,38 +1476,46 @@ mod tests {
 
         let text = error.to_string();
         assert!(text.contains("entry=天地"), "{text}");
-        assert!(text.contains("char=驟"), "{text}");
+        assert!(text.contains("contains=驟"), "{text}");
         assert!(text.contains("2 unmatched"), "{text}");
     }
 
     #[test]
-    fn apply_rules_rejects_programmatic_char_rule_with_multiple_characters() {
-        let mut entries = vec![entry("漢字", "한자")];
+    fn apply_rules_accepts_multi_hanja_contains_pattern() {
+        // `contains` is a substring matcher, so multi-character hanja patterns
+        // mark every entry containing the substring.
+        let mut entries = vec![
+            entry("國民學校", "국민학교"),
+            entry("國民年金", "국민연금"),
+            entry("民國", "민국"),
+        ];
         let rules = vec![Rule::new(
-            RuleKind::Char,
-            "漢字",
+            RuleKind::Contains,
+            "國民",
             EntryMark {
                 require_hanja: true,
                 require_hangul: false,
             },
-            "programmatic mistake",
+            "compound containing 國民",
         )];
 
-        let error = apply_rules(&mut entries, &rules, false).unwrap_err();
+        apply_rules(&mut entries, &rules, false).unwrap();
 
+        assert!(entries[0].mark().require_hanja);
+        assert!(entries[1].mark().require_hanja);
         assert!(
-            error.to_string().contains("must be exactly one character"),
-            "{error}"
+            !entries[2].mark().require_hanja,
+            "民國 does not contain the substring 國民"
         );
     }
 
     #[test]
-    fn apply_rules_rejects_char_rule_with_non_hanja_character() {
-        // Dictionary keys can be mixed-script (e.g. `布告하다`), so a non-hanja
-        // `char` rule such as `하` would silently mark every `~하다` entry.
+    fn apply_rules_rejects_contains_rule_with_non_hanja_character() {
+        // Dictionary keys can be mixed-script (e.g. `布告하다`), so a `contains`
+        // pattern with hangul would silently mark every `~하다` entry.
         let mut entries = vec![entry("布告하다", "포고하다"), entry("漢字", "한자")];
         let rules = vec![Rule::new(
-            RuleKind::Char,
+            RuleKind::Contains,
             "하",
             EntryMark {
                 require_hanja: true,
@@ -1545,7 +1527,7 @@ mod tests {
         let error = apply_rules(&mut entries, &rules, false).unwrap_err();
 
         let text = error.to_string();
-        assert!(text.contains("must be a hanja character"), "{text}");
+        assert!(text.contains("must consist only of hanja"), "{text}");
         assert!(
             !entries[0].mark().require_hanja,
             "the typo'd rule must not silently mark 布告하다"

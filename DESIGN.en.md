@@ -467,14 +467,17 @@ OPTIONS:
 
 A rules file is a TSV with columns `kind`, `pattern`, `require_hanja`,
 `require_hangul`, `reason`. The `kind` selects one of three matchers:
-`entry` (exact hanja key), `char` (any entry containing the single hanja
-character in `pattern`), or `reading` (any entry whose hangul reading equals
-`pattern`). Multiple rules touching the same entry are OR-merged on the mark
-bits. A rule must set at least one of `require_hanja` / `require_hangul`,
-must carry a non-empty `reason`, and must match at least one entry; unmatched
-rules fail the build by default so that the rules file does not drift away
-from the dictionary it annotates. `--allow-unmatched-rules` is a hatch for
-partial dictionaries that share a rules file with a larger build.
+`entry` (exact hanja key), `contains` (any entry whose hanja key contains
+the hanja substring `pattern`), or `reading` (any entry whose hangul reading
+equals `pattern`). `contains` patterns must be hanja-only because dictionary
+keys can be mixed-script (e.g. `布告하다`); accepting a hangul substring
+would silently mark unrelated entries. Multiple rules touching the same
+entry are OR-merged on the mark bits. A rule must set at least one of
+`require_hanja` / `require_hangul`, must carry a non-empty `reason`, and
+must match at least one entry; unmatched rules fail the build by default so
+that the rules file does not drift away from the dictionary it annotates.
+`--allow-unmatched-rules` is a hatch for partial dictionaries that share a
+rules file with a larger build.
 
 The same binary is invoked by *gukhanmun-stdict*'s build script to produce the
 bundled *Standard Korean Language Dictionary* FST file, so end-users and the

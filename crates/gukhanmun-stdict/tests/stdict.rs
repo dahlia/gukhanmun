@@ -125,7 +125,7 @@ fn bundled_rules_set_require_hanja_marks() {
         // reading-kind rules: every 사기-reading entry should be marked,
         // not only those listed by entry rules.
         "士氣", "事機", // reading-kind rules: 회의-reading entries.
-        "會意", "回議", // char-kind rules: entries containing rare hanja.
+        "會意", "回議", // contains-kind rules: entries containing rare hanja.
         "馳驟", "勃鬱", "交龜",
     ];
     for hanja in entries {

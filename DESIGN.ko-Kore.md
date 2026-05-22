@@ -423,14 +423,16 @@ OPTIONS:
 
 規則(rules) 파일은 `kind`, `pattern`, `require_hanja`, `require_hangul`,
 `reason` 컬럼을 갖는 TSV이다. `kind`는 세 種類의 셀렉터를 고른다.
-`entry`는 漢字 키 全體와 正確히  一致하는 單一 엔트리, `char`는 `pattern`이
-單一 漢字 글字일 때 그 글字를 包含하는 모든 엔트리, `reading`은 `pattern`이
-한글 reading일 때 같은 reading을 가진 모든 엔트리를 表示한다. 같은 엔트리에
-닿는 여러 規則의 表示 비트는 OR-merge된다. 각 規則은 `require_hanja` 및
-`require_hangul` 中 하나 以上을 設定해야 하고 `reason`이 비어 있으면 안 되며,
-實際로 매칭되는 엔트리가 0個이면 빌드를 失敗시킨다(規則 파일이 辭典과 어긋나
-사라진 stale rule을 방지). 더 작은 辭典과 規則 파일을 共有하는 境遇
-`--allow-unmatched-rules`로 迂廻한다.
+`entry`는 漢字 키 全體와 正確히 一致하는 單一 엔트리, `contains`는
+`pattern`이 漢字 substring(1字 以上)이면 그것을 包含하는 모든 엔트리,
+`reading`은 `pattern`이 한글 reading일 때 같은 reading을 가진 모든 엔트리를
+表示한다. `contains` pattern은 漢字만 許容한다. 辭典 키가 mixed-script
+(`布告하다` 等)이라 한글이 섞인 substring을 許容하면 無關한 엔트리까지 조용히
+表示되기 때문이다. 같은 엔트리에 닿는 여러 規則의 表示 비트는 OR-merge된다. 각
+規則은 `require_hanja` 및 `require_hangul` 中 하나 以上을 設定해야 하고
+`reason`이 비어 있으면 안 되며, 實際로 매칭되는 엔트리가 0個이면 빌드를
+失敗시킨다(規則 파일이 辭典과 어긋나 사라진 stale rule을 방지). 더 작은 辭典과
+規則 파일을 共有하는 境遇 `--allow-unmatched-rules`로 迂廻한다.
 
 이 同一한 바이너리를 *gukhanmun-stdict*의 빌드 스크립트도 呼出해서 內藏
 《標準國語大辭典》 FST 파일을 만든다. CDB 백엔드는 使用者가 빌드하는 辭典에

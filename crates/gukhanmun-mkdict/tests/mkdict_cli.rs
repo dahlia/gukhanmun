@@ -355,7 +355,7 @@ fn rules_flag_applies_marks_to_fst_and_cdb_builds() {
         &rules,
         "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
          entry\t漢字\ttrue\tfalse\thomophone-heavy\n\
-         char\t天\ttrue\tfalse\trare hanja\n\
+         contains\t天\ttrue\tfalse\trare hanja\n\
          reading\t사기\ttrue\tfalse\tambiguous reading\n",
     )
     .unwrap();
@@ -413,7 +413,7 @@ fn rules_flag_rejects_unmatched_rules_by_default() {
         &rules,
         "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
          entry\t天地\ttrue\tfalse\tmissing\n\
-         char\t驟\ttrue\tfalse\tmissing\n",
+         contains\t驟\ttrue\tfalse\tmissing\n",
     )
     .unwrap();
 

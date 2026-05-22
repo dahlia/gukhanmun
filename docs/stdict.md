@@ -85,8 +85,11 @@ The format is a TSV with the columns `kind`, `pattern`, `require_hanja`,
 
  -  `entry` — `pattern` matches one dictionary entry whose hanja key equals
     `pattern` exactly.
- -  `char` — `pattern` is a single hanja character; every entry containing
-    that character is marked.
+ -  `contains` — `pattern` is a hanja substring (one or more characters);
+    every entry whose hanja key contains the substring is marked.  Patterns
+    must consist only of hanja characters because dictionary keys can be
+    mixed-script (e.g. `布告하다`); a hangul or Latin substring would
+    silently mark unrelated entries.
  -  `reading` — `pattern` is a hangul reading; every entry with that reading
     is marked.
 
