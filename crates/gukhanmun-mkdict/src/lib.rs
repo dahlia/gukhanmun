@@ -504,6 +504,14 @@ pub fn apply_rules(
                     rule.location,
                     rule.pattern,
                 );
+                ensure!(
+                    gukhanmun_core::is_hanja(needle),
+                    "{}: `char` rule pattern `{}` must be a hanja character; \
+                     dictionary keys can be mixed-script so a non-hanja `char` \
+                     rule would silently match unrelated entries",
+                    rule.location,
+                    rule.pattern,
+                );
                 char_needles.push(Some(needle));
             }
             _ => char_needles.push(None),
@@ -1313,6 +1321,23 @@ mod tests {
     }
 
     #[test]
+    fn rejects_char_rule_with_non_hanja_pattern_from_tsv() {
+        // Same invariant as the programmatic test, but driven from the file
+        // parser so the CLI surface is covered.
+        let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
+                     char\t하\ttrue\tfalse\ttypo\n";
+        let rules = parse_rules_str(input).unwrap();
+        let mut entries = vec![entry("布告하다", "포고하다")];
+
+        let error = apply_rules(&mut entries, &rules, false).unwrap_err();
+
+        assert!(
+            error.to_string().contains("must be a hanja character"),
+            "{error}"
+        );
+    }
+
+    #[test]
     fn rejects_rule_with_empty_reason() {
         let input = "kind\tpattern\trequire_hanja\trequire_hangul\treason\n\
                      entry\t漢字\ttrue\tfalse\t\n";
@@ -1499,6 +1524,31 @@ mod tests {
         assert!(
             error.to_string().contains("must be exactly one character"),
             "{error}"
+        );
+    }
+
+    #[test]
+    fn apply_rules_rejects_char_rule_with_non_hanja_character() {
+        // Dictionary keys can be mixed-script (e.g. `布告하다`), so a non-hanja
+        // `char` rule such as `하` would silently mark every `~하다` entry.
+        let mut entries = vec![entry("布告하다", "포고하다"), entry("漢字", "한자")];
+        let rules = vec![Rule::new(
+            RuleKind::Char,
+            "하",
+            EntryMark {
+                require_hanja: true,
+                require_hangul: false,
+            },
+            "typo: meant a rare hanja",
+        )];
+
+        let error = apply_rules(&mut entries, &rules, false).unwrap_err();
+
+        let text = error.to_string();
+        assert!(text.contains("must be a hanja character"), "{text}");
+        assert!(
+            !entries[0].mark().require_hanja,
+            "the typo'd rule must not silently mark 布告하다"
         );
     }
 
