@@ -545,7 +545,12 @@ pub fn run_fixture(fixture: &Fixture) -> RunResult {
     let description = sidecar.and_then(|s| s.description.as_deref());
     match assertion.kind {
         AssertionKind::Exact => {
-            if actual == expected {
+            // Strip a single trailing newline from each side before comparing.
+            // Fixture files conventionally end with one, but several writers
+            // (notably `pulldown-cmark-to-cmark`) emit output without a
+            // terminating newline, and forcing fixture authors to drop the
+            // newline manually would just invite linter / editor friction.
+            if strip_one_trailing_newline(&actual) == strip_one_trailing_newline(&expected) {
                 Ok(())
             } else {
                 Err(annotate(description, diff_message(&expected, &actual)))
@@ -580,6 +585,10 @@ pub fn run_fixture(fixture: &Fixture) -> RunResult {
             }
         }
     }
+}
+
+fn strip_one_trailing_newline(s: &str) -> &str {
+    s.strip_suffix('\n').unwrap_or(s)
 }
 
 fn annotate(description: Option<&str>, body: String) -> String {

@@ -1,0 +1,14 @@
+description = """
+Markdown inline code spans (`` `…` ``) are emitted as Verbatim tokens by
+the adapter, so hanja inside the span passes through while surrounding
+prose still converts.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "學校"
+reading = "학교"
