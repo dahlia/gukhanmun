@@ -61,6 +61,71 @@ pipeline so that `mise run doc` stays useful as an API review gate.
 [mise]: https://mise.jdx.dev/
 
 
+Testing
+-------
+
+The test suite is laid out along the four axes documented in
+[*DESIGN.md*](./DESIGN.en.md):
+
+ -  **Regression fixtures** live under `tests/fixtures/` at the workspace root
+    and are consumed by `cargo test -p gukhanmun --test fixtures`.  Each
+    fixture is an `<stem>.input.<ext>` / `<stem>.expected.<ext>` pair with an
+    optional `<stem>.toml` sidecar describing preset, dictionary records,
+    homophone window, recovery policy, or assertion kind.  Sidecar fields are
+    parsed by `crates/gukhanmun/tests/common/mod.rs`.
+
+ -  **Property-based tests** live in `crates/gukhanmun-core/tests/properties.rs`
+    and share generators with `crates/gukhanmun-core/tests/common/mod.rs`
+    (`arb_hangul_only_string`, `arb_mixed_script_chunks`).  Existing
+    case-driven assertions in `core_mvp.rs` are not replaced; new properties
+    should pull from `common::*` so the generator surface stays consistent.
+
+ -  **Snapshot tests** use `insta` and live in
+    `crates/gukhanmun-core/tests/snapshots.rs`.  The recorded shape is the
+    test-layer projection `common::tokens_to_snapshot_value`, not a derived
+    `Serialize` on the public types — internal renames inside `gukhanmun-core`
+    do not churn `.snap` files automatically.
+
+ -  **CommonMark conformance** lives under `tests/fixtures/commonmark/` and
+    runs through the same fixture harness.  Each case is a hanja-free
+    Markdown input plus the expected pulldown-cmark-to-cmark output, pinning
+    that Gukhanmun does not perturb syntax it has no opinion about.
+
+### Authoring a new fixture
+
+1.  Add `<stem>.input.<ext>` (and `<stem>.toml` if the fixture needs a
+    non-default preset, dictionary, or recovery policy) under
+    `tests/fixtures/<category>/`.
+2.  Run
+    `GUKHANMUN_BLESS_FIXTURES=1 cargo test -p gukhanmun --test fixtures <filter>`
+    once to capture the current converter output as `<stem>.expected.<ext>`.
+3.  Run the same command without `GUKHANMUN_BLESS_FIXTURES=1` to confirm the
+    new baseline holds, then commit the new files.
+
+The harness normalises each fixture stem into a `libtest`-friendly test
+name by replacing hyphens with underscores.  A fixture saved as
+`html/initial-sound-raw.input.html` is therefore reported (and filtered)
+as `html::initial_sound_raw`.
+
+Bless mode tolerates a missing expected file (so the very first run works)
+but only blesses `assertion.kind = "exact"`; `contains` fixtures must list
+their needles in the sidecar.
+
+### Updating an `insta` snapshot
+
+Snapshot updates are interactive — they are not wired into `mise run test`.
+After editing engine behaviour, install `cargo-insta` and review the diff:
+
+~~~~ sh
+cargo install cargo-insta
+cargo insta review
+~~~~
+
+Accept the new baseline only after confirming the diff reflects the
+intended change.  `cargo insta accept` is the non-interactive variant when
+the change is routine and obvious.
+
+
 AI usage
 --------
 
