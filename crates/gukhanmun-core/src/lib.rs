@@ -1742,6 +1742,31 @@ impl<'a> UserDirectives<'a> {
     pub fn is_empty(&self) -> bool {
         self.rules.is_empty()
     }
+
+    /// Applies every configured directive to a single output token.
+    ///
+    /// Non-[`OutputToken::Annotated`] tokens pass through unchanged. For an
+    /// annotation, each matching rule sets the corresponding flag in priority
+    /// of declaration order. This method is the per-token primitive used by
+    /// streaming pipelines that want to apply directives without buffering.
+    pub fn apply<S>(&self, token: OutputToken<S>) -> OutputToken<S> {
+        match token {
+            OutputToken::Annotated(mut annotation) => {
+                for rule in &self.rules {
+                    if !rule.predicate.matches(&annotation) {
+                        continue;
+                    }
+                    match rule.action {
+                        DirectiveAction::RequireHanja => annotation.require_hanja = true,
+                        DirectiveAction::RequireHangul => annotation.require_hangul = true,
+                        DirectiveAction::SkipAnnotation => annotation.skip_annotation = true,
+                    }
+                }
+                OutputToken::Annotated(annotation)
+            }
+            token => token,
+        }
+    }
 }
 
 struct UserDirectiveRule<'a> {
@@ -1899,25 +1924,19 @@ pub fn apply_user_directives<S>(
     tokens: impl IntoIterator<Item = OutputToken<S>>,
     directives: &UserDirectives<'_>,
 ) -> Vec<OutputToken<S>> {
-    tokens
-        .into_iter()
-        .map(|token| match token {
-            OutputToken::Annotated(mut annotation) => {
-                for rule in &directives.rules {
-                    if !rule.predicate.matches(&annotation) {
-                        continue;
-                    }
-                    match rule.action {
-                        DirectiveAction::RequireHanja => annotation.require_hanja = true,
-                        DirectiveAction::RequireHangul => annotation.require_hangul = true,
-                        DirectiveAction::SkipAnnotation => annotation.skip_annotation = true,
-                    }
-                }
-                OutputToken::Annotated(annotation)
-            }
-            token => token,
-        })
-        .collect()
+    apply_user_directives_iter(tokens, directives).collect()
+}
+
+/// Lazily applies literal user directives to an output token stream.
+///
+/// Returns an iterator that walks the input tokens without intermediate
+/// buffering. Use this variant in streaming pipelines that need to chain
+/// directive application with other lazy stages such as [`render_tokens_iter`].
+pub fn apply_user_directives_iter<'a, S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>> + 'a,
+    directives: &'a UserDirectives<'_>,
+) -> impl Iterator<Item = OutputToken<S>> + 'a {
+    tokens.into_iter().map(|token| directives.apply(token))
 }
 
 struct ContextMiddleware<S, F>
