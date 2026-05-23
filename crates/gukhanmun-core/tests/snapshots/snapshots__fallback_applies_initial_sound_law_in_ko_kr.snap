@@ -1,0 +1,18 @@
+---
+source: crates/gukhanmun-core/tests/snapshots.rs
+expression: "common::tokens_to_snapshot_value(&tokens)"
+---
+[
+  {
+    "annotated": {
+      "first_in_context": true,
+      "from_dictionary": false,
+      "hanja": "來日",
+      "homophone": false,
+      "reading": "내일",
+      "require_hangul": false,
+      "require_hanja": false,
+      "skip_annotation": false
+    }
+  }
+]
