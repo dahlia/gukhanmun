@@ -1,3 +1,7 @@
+[settings]
+# Required for the `[hooks]` block below; see https://mise.jdx.dev/hooks.html.
+experimental = true
+
 [tools.rust]
 version = "1.95.0"
 profile = "default"
@@ -9,6 +13,14 @@ version = "0.3.11"
 [tools."github:dahlia/hongdown".platforms]
 linux-x64 = "hongdown-*-x86_64-unknown-linux-musl.tar.bz2"
 linux-arm64 = "hongdown-*-aarch64-unknown-linux-musl.tar.bz2"
+
+# Bootstrap `cargo-insta` for fresh clones.  The version is pinned to the
+# `insta` dev-dependency so the snapshot CLI cannot drift ahead of the
+# library that produced the recorded `.snap` files.  `cargo install` no-ops
+# when the same version is already present, keeping repeat
+# `mise install` invocations cheap.
+[hooks]
+postinstall = "cargo install cargo-insta --version 1.47.2 --locked"
 
 [tasks.check]
 description = "Run fast checks suitable for pre-commit"
@@ -53,3 +65,7 @@ run = "cargo run -p gukhanmun-unihan -- --check"
 [tasks.gukhanmun]
 description = "Run the gukhanmun plain-text CLI"
 run = "cargo run -p gukhanmun-cli --"
+
+[tasks.insta-review]
+description = "Interactively review and accept/reject pending insta snapshots"
+run = "cargo insta review"

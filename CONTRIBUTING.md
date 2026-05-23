@@ -113,17 +113,17 @@ their needles in the sidecar.
 
 ### Updating an `insta` snapshot
 
-Snapshot updates are interactive — they are not wired into `mise run test`.
-After editing engine behaviour, install `cargo-insta` and review the diff:
+`cargo-insta` is installed automatically by `mise install` through the
+`postinstall` hook in `mise.toml`.  After editing engine behaviour, run
+the interactive reviewer:
 
 ~~~~ sh
-cargo install cargo-insta
-cargo insta review
+mise run insta-review
 ~~~~
 
 Accept the new baseline only after confirming the diff reflects the
-intended change.  `cargo insta accept` is the non-interactive variant when
-the change is routine and obvious.
+intended change.  Snapshot review is intentionally not part of `mise run test`
+because it requires a TTY.
 
 
 AI usage
