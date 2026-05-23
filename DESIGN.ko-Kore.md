@@ -967,9 +967,18 @@ true를 返還한다: `pre`, `code`, `kbd`, `script`, `style`, `textarea`.
 태그(`ko-KR`, `ko-Hang`, `ko-Kore`, `kor-KP` 等)가 아닐 때에도 true를 返還한다.
 韓國語 述語는 Seonbi의 `isKorean`과 一致한다.
 
-이 目錄을 擴張하려는 使用者(例: `class="no-translate"` 屬性을 追加)는 自身의
-타입으로 `HtmlScopeData`를 감싸고 `is_preserve()`에 規則을 OR하거나, 엔진의
-`skip` 옵션에 클로저를 넘긴다.
+이 目錄을 擴張하려는 使用者(例: `class="no-translate"` 屬性을 追加)는
+`HtmlReaderOptions`의 `preserve_when` 述語를 `read_html_fragment_with_options`에
+넘긴다. 述語는 各 要素에 對하여 `HtmlElementInfo`(正規 태그 名稱, 始作 태그의
+raw 屬性 슬라이스, 相續된 `lang` 값)를 받아서 `true`를 返還하면 該當 스코프와
+그 後孫을 保存 對象으로 표시한다. 述語로 標識된 스코프는 旣存 保存 태그처럼
+後孫에게 保存 플래그를 相續하므로 子 要素마다 規則을 다시 提示할 必要가 없다.
+CLI는 이 훅을 가장 자주 쓰는 두 가지 形態로 노출한다:
+`--html-preserve-class CLASS`와 `--html-preserve-attr KEY[=VALUE]`(各各 反復
+可能, OR 合成, `--format text/html`에서만 有效). format에 中立인 skip 클로저를
+`EngineOptions`에 두는 代案은 後續 릴리즈에서 다시 檢討한다. 現在 同梱
+어댑터들은 各自의 `ScopeData` 로 保存 規則을 充分히 表現할 수 있어 이번
+範圍에서는 除外했다.
 
 
 CDB-trie 키 스키마

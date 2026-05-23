@@ -1062,9 +1062,19 @@ is anything other than `ko`, `kor`, or a subtag-prefixed Korean form (`ko-KR`,
 Seonbi's `isKorean`.
 
 Users who want to extend the list (for example, to add a project-specific
-`class="no-translate"` attribute) wrap the default `HtmlScopeData` in their own
-type whose `is_preserve()` ORs in the additional rule, or pass a closure to the
-engine's `skip` option.
+`class="no-translate"` attribute) pass an `HtmlReaderOptions` value with a
+`preserve_when` predicate to `read_html_fragment_with_options`. The predicate
+receives an `HtmlElementInfo` view of each opened element — its canonical tag
+name, the raw attribute slice from the start tag, and the inherited `lang`
+value — and returns `true` to preserve the scope. A predicate-matched scope
+inherits its preserve flag to descendants, mirroring how the built-in
+preserved tags propagate, so callers do not have to re-assert the rule on
+every child. The CLI exposes the two most common shapes of this hook as
+`--html-preserve-class CLASS` and `--html-preserve-attr KEY[=VALUE]` (both
+repeatable, OR-composed, valid only with `--format text/html`). A
+format-neutral skip closure on `EngineOptions` is contemplated for a future
+release; it is not implemented today because every adapter that currently
+ships can satisfy its preserve needs through its own `ScopeData`.
 
 
 CDB-trie key scheme

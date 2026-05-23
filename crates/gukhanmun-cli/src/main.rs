@@ -29,7 +29,9 @@ use gukhanmun_core::{
     process_tokens_iter_with_options, render_tokens_iter, write_plain_text,
 };
 use gukhanmun_fst::FstDictionary;
-use gukhanmun_html::{read_html_fragment, write_html_fragment};
+use gukhanmun_html::{
+    HtmlElementInfo, HtmlReaderOptions, read_html_fragment_with_options, write_html_fragment,
+};
 use gukhanmun_markdown::{MarkdownVariant, read_markdown, write_markdown};
 
 const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
@@ -56,6 +58,9 @@ struct Cli {
 
     #[command(flatten)]
     directives: DirectiveArgs,
+
+    #[command(flatten)]
+    html: HtmlArgs,
 }
 
 #[derive(Debug, Args)]
@@ -190,6 +195,28 @@ struct DirectiveArgs {
     skip_annotation_glob: Vec<String>,
 }
 
+#[derive(Debug, Args)]
+#[command(next_help_heading = "HTML")]
+struct HtmlArgs {
+    /// Preserve any HTML element whose `class` attribute contains the given
+    /// CSS class.  Matching elements and their descendants pass through the
+    /// converter untouched, in addition to the built-in preserved tags
+    /// (`pre`, `code`, `kbd`, `script`, `style`, `textarea`) and the
+    /// inherited `lang` rule.  May be repeated.  Only valid with
+    /// `--format text/html`.
+    #[arg(long = "html-preserve-class", value_name = "CLASS")]
+    html_preserve_class: Vec<String>,
+
+    /// Preserve any HTML element matching an attribute predicate.  Accepts
+    /// either `KEY` (matches when the attribute is present with any value or
+    /// none, including as a boolean attribute) or `KEY=VALUE` (matches when
+    /// the attribute is present with the exact value).  Matched elements and
+    /// their descendants pass through untouched.  May be repeated.  Only
+    /// valid with `--format text/html`.
+    #[arg(long = "html-preserve-attr", value_name = "KEY[=VALUE]")]
+    html_preserve_attr: Vec<String>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Format {
     PlainText,
@@ -266,6 +293,7 @@ fn run(cli: Cli) -> Result<()> {
             .map(detect_format)
             .unwrap_or(Format::PlainText)
     });
+    let html_reader_options = build_html_reader_options(&cli.html, format)?;
 
     if let (Some(input_path), Some(output_path)) = (&cli.io.input, &cli.io.output)
         && is_same_existing_file(input_path, output_path)?
@@ -276,6 +304,7 @@ fn run(cli: Cli) -> Result<()> {
             &dictionary,
             options,
             &directives,
+            &html_reader_options,
             format,
         );
     }
@@ -296,7 +325,15 @@ fn run(cli: Cli) -> Result<()> {
         None => Box::new(BufWriter::new(io::stdout().lock())),
     };
 
-    convert_document(input, output, &dictionary, options, &directives, format)
+    convert_document(
+        input,
+        output,
+        &dictionary,
+        options,
+        &directives,
+        &html_reader_options,
+        format,
+    )
 }
 
 fn convert_file_in_place(
@@ -305,6 +342,7 @@ fn convert_file_in_place(
     dictionary: &CliDictionary,
     options: ResolvedOptions,
     directives: &UserDirectives<'_>,
+    html_reader_options: &HtmlReaderOptions<'_>,
     format: Format,
 ) -> Result<()> {
     let original_permissions = fs::metadata(input_path)
@@ -325,7 +363,15 @@ fn convert_file_in_place(
                 .with_context(|| format!("failed to open input {}", input_path.display()))?,
         );
         let output = BufWriter::new(temp_file);
-        convert_document(input, output, dictionary, options, directives, format)?;
+        convert_document(
+            input,
+            output,
+            dictionary,
+            options,
+            directives,
+            html_reader_options,
+            format,
+        )?;
         fs::rename(&temp_path, output_path).with_context(|| {
             format!(
                 "failed to replace {} with temporary output {}",
@@ -531,6 +577,182 @@ fn add_glob_directives(
     }
 }
 
+fn build_html_reader_options(
+    args: &HtmlArgs,
+    format: Format,
+) -> Result<HtmlReaderOptions<'static>> {
+    if !args.html_preserve_class.is_empty() && !matches!(format, Format::Html) {
+        bail!("--html-preserve-class is only valid with --format text/html");
+    }
+    if !args.html_preserve_attr.is_empty() && !matches!(format, Format::Html) {
+        bail!("--html-preserve-attr is only valid with --format text/html");
+    }
+
+    if args.html_preserve_class.is_empty() && args.html_preserve_attr.is_empty() {
+        return Ok(HtmlReaderOptions::new());
+    }
+
+    let classes: Vec<String> = args.html_preserve_class.clone();
+    let attrs: Vec<(String, Option<String>)> = args
+        .html_preserve_attr
+        .iter()
+        .map(|spec| match spec.split_once('=') {
+            Some((key, value)) => (key.to_owned(), Some(value.to_owned())),
+            None => (spec.clone(), None),
+        })
+        .collect();
+
+    Ok(
+        HtmlReaderOptions::new().preserve_when(move |info: &HtmlElementInfo<'_>| -> bool {
+            if !classes.is_empty()
+                && let Some(class_value) = find_attribute_value(info.raw_attributes, "class")
+                && let Some(class_value) = class_value
+                && classes
+                    .iter()
+                    .any(|needle| class_value.split_ascii_whitespace().any(|c| c == needle))
+            {
+                return true;
+            }
+
+            for (key, expected) in &attrs {
+                let Some(value) = find_attribute_value(info.raw_attributes, key) else {
+                    continue;
+                };
+                match expected {
+                    None => return true,
+                    Some(expected) if value.as_deref() == Some(expected.as_str()) => return true,
+                    _ => {}
+                }
+            }
+
+            false
+        }),
+    )
+}
+
+/// Returns the value of the first attribute matching `name` (case-insensitive)
+/// in `raw_attributes`.
+///
+/// The outer `Option` distinguishes attribute absence (`None`) from presence:
+/// `Some(None)` is a boolean attribute (no `=`), `Some(Some(value))` carries
+/// the decoded value.  The scanner is intentionally narrow — it understands
+/// the same attribute shape as [`gukhanmun_html`]'s lang parser but does not
+/// touch DOCTYPE quirks or attribute aliases.
+fn find_attribute_value(raw_attributes: &str, name: &str) -> Option<Option<String>> {
+    let bytes = raw_attributes.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        let name_start = index;
+        while index < bytes.len()
+            && (bytes[index].is_ascii_alphanumeric() || matches!(bytes[index], b'-' | b':' | b'_'))
+        {
+            index += 1;
+        }
+        if name_start == index {
+            index += 1;
+            continue;
+        }
+        let attribute_name = &raw_attributes[name_start..index];
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        let matched = attribute_name.eq_ignore_ascii_case(name);
+        if bytes.get(index) != Some(&b'=') {
+            if matched {
+                return Some(None);
+            }
+            continue;
+        }
+        index += 1;
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        let value = if matches!(bytes.get(index), Some(b'\'' | b'"')) {
+            let quote = bytes[index];
+            index += 1;
+            let value_start = index;
+            while index < bytes.len() && bytes[index] != quote {
+                index += 1;
+            }
+            let value = &raw_attributes[value_start..index];
+            if index < bytes.len() {
+                index += 1;
+            }
+            value
+        } else {
+            let value_start = index;
+            while index < bytes.len() && !bytes[index].is_ascii_whitespace() {
+                index += 1;
+            }
+            &raw_attributes[value_start..index]
+        };
+        if matched {
+            return Some(Some(decode_html_attribute_value(value)));
+        }
+    }
+    None
+}
+
+/// Decodes the common subset of HTML character references that may appear in
+/// an attribute value.
+///
+/// Handles the five named entities mandated by HTML (`&amp;`, `&lt;`, `&gt;`,
+/// `&quot;`, `&apos;`) and decimal/hexadecimal numeric character references
+/// (`&#NNN;` and `&#xHHH;`).  Any malformed or unknown reference is left
+/// verbatim so callers can still match against raw bytes when desired.
+fn decode_html_attribute_value(raw: &str) -> String {
+    let mut output = String::with_capacity(raw.len());
+    let bytes = raw.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] != b'&' {
+            let next = raw[index..]
+                .find('&')
+                .map_or(raw.len(), |offset| index + offset);
+            output.push_str(&raw[index..next]);
+            index = next;
+            continue;
+        }
+        let Some(semi_relative) = raw[index + 1..].find(';') else {
+            output.push_str(&raw[index..]);
+            break;
+        };
+        let semi = index + 1 + semi_relative;
+        let reference = &raw[index + 1..semi];
+        if let Some(ch) = decode_html_entity(reference) {
+            output.push(ch);
+            index = semi + 1;
+        } else {
+            output.push_str(&raw[index..=semi]);
+            index = semi + 1;
+        }
+    }
+    output
+}
+
+fn decode_html_entity(reference: &str) -> Option<char> {
+    match reference {
+        "amp" => Some('&'),
+        "lt" => Some('<'),
+        "gt" => Some('>'),
+        "quot" => Some('"'),
+        "apos" => Some('\''),
+        _ if reference.starts_with('#') => {
+            let digits = &reference[1..];
+            let code = if let Some(hex) = digits.strip_prefix(['x', 'X']) {
+                u32::from_str_radix(hex, 16).ok()?
+            } else {
+                digits.parse::<u32>().ok()?
+            };
+            char::from_u32(code)
+        }
+        _ => None,
+    }
+}
+
 fn parse_format(s: &str) -> Result<Format, String> {
     let mut parts = s.split(';');
     let base = parts.next().unwrap_or("").trim();
@@ -595,11 +817,19 @@ fn convert_document(
     dictionary: &CliDictionary,
     options: ResolvedOptions,
     directives: &UserDirectives<'_>,
+    html_reader_options: &HtmlReaderOptions<'_>,
     format: Format,
 ) -> Result<()> {
     match format {
         Format::PlainText => convert_plain_stream(input, output, dictionary, options, directives),
-        Format::Html => convert_html(input, output, dictionary, options, directives),
+        Format::Html => convert_html(
+            input,
+            output,
+            dictionary,
+            options,
+            directives,
+            html_reader_options,
+        ),
         Format::Markdown(variant) => {
             convert_markdown_stream(input, output, dictionary, options, directives, variant)
         }
@@ -863,12 +1093,13 @@ fn convert_html(
     dictionary: &CliDictionary,
     options: ResolvedOptions,
     directives: &UserDirectives<'_>,
+    html_reader_options: &HtmlReaderOptions<'_>,
 ) -> Result<()> {
     let mut content = String::new();
     input
         .read_to_string(&mut content)
         .context("failed to read UTF-8 input")?;
-    let input_tokens = read_html_fragment(&content);
+    let input_tokens = read_html_fragment_with_options(&content, html_reader_options);
     let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options.engine);
     let output_tokens = apply_annotation_policy(output_tokens, dictionary, options, directives);
     let rendered_tokens = render_tokens_iter(output_tokens, options.rendering);

@@ -15,11 +15,13 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use gukhanmun_core::{
-    HanjaDictionary, MapDictionary, Match, OriginalGloss, Recovery, RenderMode, RenderOptions,
-    RubyBase,
+    ContextWindow, EngineOptions, HanjaDictionary, MapDictionary, Match, OriginalGloss, Recovery,
+    RenderMode, RenderOptions, RubyBase, mark_homophones, process_tokens_iter_with_options,
+    render_tokens_iter,
 };
 use gukhanmun_html::{
-    HtmlError, HtmlScopeData, convert_html_fragment, read_html_fragment, read_html_fragment_iter,
+    HtmlElementInfo, HtmlError, HtmlReaderOptions, HtmlScopeData, convert_html_fragment,
+    read_html_fragment, read_html_fragment_iter, read_html_fragment_with_options,
     try_convert_html_fragment, write_html_fragment,
 };
 use proptest::prelude::*;
@@ -345,4 +347,146 @@ fn original_mode_with_ruby_gloss_uses_ruby_for_required_hangul_entries() {
     let output = convert_html_fragment("<p>漢字</p>", &dict, options);
 
     assert_eq!(output, "<p><ruby>漢字<rt>한자</rt></ruby></p>");
+}
+
+fn convert_with_reader_options(input: &str, options: &HtmlReaderOptions<'_>) -> String {
+    let input_tokens = read_html_fragment_with_options(input, options);
+    let output_tokens =
+        process_tokens_iter_with_options(input_tokens, &dictionary(), EngineOptions::default());
+    let output_tokens = mark_homophones(output_tokens, &dictionary(), ContextWindow::PerBlock);
+    let rendered_tokens = render_tokens_iter(output_tokens, RenderMode::HangulOnly);
+    write_html_fragment(rendered_tokens)
+}
+
+fn class_contains(raw_attributes: &str, needle: &str) -> bool {
+    // Cheap test-only helper: locate `class=` and look for the needle inside the
+    // following quoted or unquoted value.
+    let mut rest = raw_attributes;
+    while let Some(idx) = rest.find("class") {
+        let after = &rest[idx + "class".len()..];
+        let trimmed = after.trim_start();
+        if let Some(after_eq) = trimmed.strip_prefix('=') {
+            let value = after_eq.trim_start();
+            let value = value
+                .strip_prefix('"')
+                .map(|v| v.split('"').next().unwrap_or(""))
+                .or_else(|| {
+                    value
+                        .strip_prefix('\'')
+                        .map(|v| v.split('\'').next().unwrap_or(""))
+                })
+                .unwrap_or_else(|| value.split_whitespace().next().unwrap_or(""));
+            if value.split_ascii_whitespace().any(|cls| cls == needle) {
+                return true;
+            }
+        }
+        rest = &rest[idx + "class".len()..];
+    }
+    false
+}
+
+#[test]
+fn user_predicate_marks_class_as_preserved() {
+    let options = HtmlReaderOptions::new().preserve_when(|info: &HtmlElementInfo<'_>| {
+        class_contains(info.raw_attributes, "no-translate")
+    });
+
+    let output = convert_with_reader_options(
+        "<div class=\"no-translate\">漢字</div><div>漢字</div>",
+        &options,
+    );
+
+    assert_eq!(
+        output,
+        "<div class=\"no-translate\">漢字</div><div>한자</div>"
+    );
+}
+
+#[test]
+fn user_predicate_preserve_is_inherited_by_descendants() {
+    let options = HtmlReaderOptions::new()
+        .preserve_when(|info| class_contains(info.raw_attributes, "no-translate"));
+
+    let output = convert_with_reader_options(
+        "<div class=\"no-translate\"><p>漢字</p><span><em>北京</em></span></div>",
+        &options,
+    );
+
+    assert_eq!(
+        output,
+        "<div class=\"no-translate\"><p>漢字</p><span><em>北京</em></span></div>"
+    );
+}
+
+#[test]
+fn user_predicate_ors_with_lang_and_tag_rules() {
+    let options =
+        HtmlReaderOptions::new().preserve_when(|info| info.raw_attributes.contains("data-no-mt"));
+
+    let output = convert_with_reader_options(
+        "<code>漢字</code><p lang=\"ja\">漢字</p><div data-no-mt>漢字</div><p>漢字</p>",
+        &options,
+    );
+
+    assert_eq!(
+        output,
+        "<code>漢字</code><p lang=\"ja\">漢字</p><div data-no-mt>漢字</div><p>한자</p>"
+    );
+}
+
+#[test]
+fn user_predicate_sees_inherited_lang() {
+    let options = HtmlReaderOptions::new().preserve_when(|info| {
+        // Preserve only when an ancestor or this element sets `lang`.
+        info.lang.is_some() && info.tag_name == "span"
+    });
+
+    let output = convert_with_reader_options(
+        "<span>漢字</span><p lang=\"ko\"><span>漢字</span></p>",
+        &options,
+    );
+
+    assert_eq!(
+        output,
+        "<span>한자</span><p lang=\"ko\"><span>漢字</span></p>"
+    );
+}
+
+#[test]
+fn user_predicate_does_not_alter_raw_serialization() {
+    let options = HtmlReaderOptions::new()
+        .preserve_when(|info| class_contains(info.raw_attributes, "no-translate"));
+
+    let input = "<div class=\"no-translate\" data-x=\"1\">漢字</div>";
+    let output = convert_with_reader_options(input, &options);
+
+    assert_eq!(output, input);
+}
+
+#[test]
+fn user_predicate_returning_false_matches_default_reader() {
+    let always_false = HtmlReaderOptions::new().preserve_when(|_| false);
+
+    let input = "<p>漢字</p><pre>北京</pre><span lang=\"ja\">漢字</span>";
+
+    let with_options = read_html_fragment_with_options(input, &always_false);
+    let default = read_html_fragment(input);
+
+    assert_eq!(with_options, default);
+}
+
+proptest! {
+    #[test]
+    fn predicate_always_false_does_not_change_tokens(
+        tag in "(p|div|span|em|strong)",
+        attr in "(| class=foo| data-x=\"1\")",
+        text in "[A-Za-z0-9가-힣 .,!?]{0,32}",
+    ) {
+        let input = format!("<{tag}{attr}>{text}</{tag}>");
+        let options = HtmlReaderOptions::new().preserve_when(|_| false);
+        let with_options = read_html_fragment_with_options(&input, &options);
+        let default = read_html_fragment(&input);
+
+        prop_assert_eq!(with_options, default);
+    }
 }

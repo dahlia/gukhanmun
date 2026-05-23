@@ -116,6 +116,162 @@ fn original_with_ruby_gloss_uses_ruby_element_in_html_when_required() {
 }
 
 #[test]
+fn html_preserve_class_flag_preserves_matching_elements() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--html-preserve-class",
+            "no-translate",
+        ])
+        .write_stdin("<div class=\"no-translate\">漢字</div><div>漢字</div>")
+        .assert()
+        .success()
+        .stdout("<div class=\"no-translate\">漢字</div><div>한자(漢字)</div>");
+}
+
+#[test]
+fn html_preserve_class_flag_inherits_to_descendants() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--html-preserve-class",
+            "no-translate",
+        ])
+        .write_stdin("<section class=\"no-translate\"><p>漢字</p></section><p>漢字</p>")
+        .assert()
+        .success()
+        .stdout("<section class=\"no-translate\"><p>漢字</p></section><p>한자(漢字)</p>");
+}
+
+#[test]
+fn html_preserve_attr_flag_with_value_matches_exact_value() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--html-preserve-attr",
+            "translate=no",
+        ])
+        .write_stdin("<p translate=\"no\">漢字</p><p translate=\"yes\">漢字</p>")
+        .assert()
+        .success()
+        .stdout("<p translate=\"no\">漢字</p><p translate=\"yes\">한자(漢字)</p>");
+}
+
+#[test]
+fn html_preserve_attr_flag_without_value_matches_presence() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--html-preserve-attr",
+            "data-no-mt",
+        ])
+        .write_stdin("<p data-no-mt>漢字</p><p>漢字</p>")
+        .assert()
+        .success()
+        .stdout("<p data-no-mt>漢字</p><p>한자(漢字)</p>");
+}
+
+#[test]
+fn html_preserve_class_flag_decodes_html_entities_in_attribute_value() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--html-preserve-class",
+            "no-translate",
+        ])
+        .write_stdin("<div class=\"no&#45;translate\">漢字</div><div>漢字</div>")
+        .assert()
+        .success()
+        .stdout("<div class=\"no&#45;translate\">漢字</div><div>한자(漢字)</div>");
+}
+
+#[test]
+fn html_preserve_attr_flag_decodes_html_entities_in_attribute_value() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--html-preserve-attr",
+            "data-tag=A&B",
+        ])
+        .write_stdin("<p data-tag=\"A&amp;B\">漢字</p><p data-tag=\"AB\">漢字</p>")
+        .assert()
+        .success()
+        .stdout("<p data-tag=\"A&amp;B\">漢字</p><p data-tag=\"AB\">한자(漢字)</p>");
+}
+
+#[test]
+fn html_preserve_flags_compose_or_semantics() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--html-preserve-class",
+            "no-translate",
+            "--html-preserve-class",
+            "skip",
+            "--html-preserve-attr",
+            "data-no-mt",
+        ])
+        .write_stdin(
+            "<p class=\"skip\">漢字</p><p data-no-mt>漢字</p><p class=\"no-translate\">漢字</p><p>漢字</p>",
+        )
+        .assert()
+        .success()
+        .stdout(
+            "<p class=\"skip\">漢字</p><p data-no-mt>漢字</p><p class=\"no-translate\">漢字</p><p>한자(漢字)</p>",
+        );
+}
+
+#[test]
+fn html_preserve_class_rejected_for_plain_text_format() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/plain",
+            "--html-preserve-class",
+            "no-translate",
+        ])
+        .write_stdin("漢字\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "--html-preserve-class is only valid with --format text/html",
+        ));
+}
+
+#[test]
+fn html_preserve_attr_rejected_for_plain_text_format() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/plain",
+            "--html-preserve-attr",
+            "translate=no",
+        ])
+        .write_stdin("漢字\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "--html-preserve-attr is only valid with --format text/html",
+        ));
+}
+
+#[test]
 fn original_gloss_rejected_without_original_rendering() {
     Command::cargo_bin("gukhanmun")
         .unwrap()

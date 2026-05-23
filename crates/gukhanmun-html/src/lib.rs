@@ -80,6 +80,79 @@ impl ScopeData for HtmlScopeData {
     }
 }
 
+/// Information about a freshly opened HTML element passed to a user-supplied
+/// preserve predicate.
+///
+/// The view is borrowed; callers must not retain it past the predicate call.
+/// `tag_name` is the canonical lowercase tag name, `raw_attributes` is the raw
+/// attribute text of the start tag (with leading whitespace preserved, as on
+/// [`HtmlScopeData::raw_attributes`]), and `lang` reflects the inherited
+/// `lang` value after the adapter's normal inheritance has been applied.
+#[derive(Clone, Copy, Debug)]
+pub struct HtmlElementInfo<'a> {
+    /// Canonical lowercase tag name.
+    pub tag_name: &'a str,
+    /// Raw attribute text from the start tag.
+    pub raw_attributes: &'a str,
+    /// Inherited `lang` value, if any.
+    pub lang: Option<&'a str>,
+}
+
+type PreservePredicate<'a> = dyn Fn(&HtmlElementInfo<'_>) -> bool + 'a;
+
+/// Caller-supplied configuration for the HTML reader.
+///
+/// The reader applies the hardcoded preserved-tag list and the inherited
+/// `lang` rule unconditionally; [`HtmlReaderOptions::preserve_when`] adds a
+/// user-defined predicate that runs in addition to those.  A predicate that
+/// returns `true` for an element preserves that element and is inherited by
+/// every descendant scope, matching how the built-in preserved tags propagate.
+#[derive(Default)]
+pub struct HtmlReaderOptions<'a> {
+    preserve_when: Option<Box<PreservePredicate<'a>>>,
+}
+
+impl<'a> HtmlReaderOptions<'a> {
+    /// Creates an options value with no user predicate.
+    pub fn new() -> Self {
+        Self {
+            preserve_when: None,
+        }
+    }
+
+    /// Attaches a predicate that flags elements for preservation.
+    ///
+    /// The predicate sees a [`HtmlElementInfo`] for every freshly opened
+    /// element and returns `true` to preserve the element (and its
+    /// descendants) verbatim.  Multiple calls replace the predicate; users who
+    /// want OR-composition should combine their conditions inside the closure.
+    pub fn preserve_when<F>(mut self, predicate: F) -> Self
+    where
+        F: Fn(&HtmlElementInfo<'_>) -> bool + 'a,
+    {
+        self.preserve_when = Some(Box::new(predicate));
+        self
+    }
+
+    fn evaluate(&self, info: &HtmlElementInfo<'_>) -> bool {
+        self.preserve_when
+            .as_ref()
+            .is_some_and(|predicate| predicate(info))
+    }
+}
+
+impl<'a> std::fmt::Debug for HtmlReaderOptions<'a> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("HtmlReaderOptions")
+            .field(
+                "preserve_when",
+                &self.preserve_when.as_ref().map(|_| "<fn>"),
+            )
+            .finish()
+    }
+}
+
 /// Error returned while reading or writing HTML fragments.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -121,7 +194,30 @@ pub fn read_html_fragment(input: &str) -> Vec<InputToken<HtmlScopeData>> {
 /// can compose the resulting token stream without depending on a `Vec` return
 /// type.
 pub fn read_html_fragment_iter(input: &str) -> std::vec::IntoIter<InputToken<HtmlScopeData>> {
-    Scanner::new(input).scan().into_iter()
+    let default_options = HtmlReaderOptions::default();
+    Scanner::new(input, &default_options).scan().into_iter()
+}
+
+/// Reads an HTML fragment with caller-supplied [`HtmlReaderOptions`].
+///
+/// The options may attach a user predicate that participates in the adapter's
+/// preserve decision alongside the hardcoded preserved-tag list and the
+/// inherited `lang` rule.  A scope flagged by the predicate is preserved and
+/// the flag is inherited by descendants, matching the existing preserved-tag
+/// inheritance behavior.
+pub fn read_html_fragment_with_options(
+    input: &str,
+    options: &HtmlReaderOptions<'_>,
+) -> Vec<InputToken<HtmlScopeData>> {
+    read_html_fragment_iter_with_options(input, options).collect()
+}
+
+/// Iterator variant of [`read_html_fragment_with_options`].
+pub fn read_html_fragment_iter_with_options(
+    input: &str,
+    options: &HtmlReaderOptions<'_>,
+) -> std::vec::IntoIter<InputToken<HtmlScopeData>> {
+    Scanner::new(input, options).scan().into_iter()
 }
 
 /// Reads an HTML fragment with an explicit recovery policy.
@@ -133,6 +229,16 @@ pub fn try_read_html_fragment(
     input: &str,
     recovery: Recovery,
 ) -> Result<Vec<InputToken<HtmlScopeData>>, HtmlError> {
+    try_read_html_fragment_with_options(input, &HtmlReaderOptions::default(), recovery)
+}
+
+/// Reads an HTML fragment with caller-supplied options and an explicit recovery
+/// policy.
+pub fn try_read_html_fragment_with_options(
+    input: &str,
+    options: &HtmlReaderOptions<'_>,
+    recovery: Recovery,
+) -> Result<Vec<InputToken<HtmlScopeData>>, HtmlError> {
     if let Err(error) = validate_html_fragment_strict(input) {
         match recovery {
             Recovery::Strict => return Err(error),
@@ -141,7 +247,7 @@ pub fn try_read_html_fragment(
             }
         }
     }
-    Ok(read_html_fragment(input))
+    Ok(read_html_fragment_with_options(input, options))
 }
 
 /// Writes rendered HTML tokens back to a fragment string.
@@ -275,25 +381,31 @@ where
 struct ElementContext {
     tag_name: String,
     tag_preserve: bool,
+    predicate_preserve: bool,
     text_only_ancestor: bool,
     lang: Option<String>,
 }
 
-#[derive(Clone, Debug)]
-struct Scanner<'a> {
+struct Scanner<'a, 'o> {
     input: &'a str,
     position: usize,
     stack: Vec<ElementContext>,
     output: Vec<InputToken<HtmlScopeData>>,
+    options: &'o HtmlReaderOptions<'o>,
 }
 
-impl<'a> Scanner<'a> {
-    fn new(input: &'a str) -> Self {
+impl<'a, 'o> Scanner<'a, 'o> {
+    fn new(input: &'a str, options: &'o HtmlReaderOptions<'_>) -> Self {
+        // Reborrow narrows the options' inner lifetime to the scanner's
+        // borrow lifetime, so callers can pass a long-lived `HtmlReaderOptions`
+        // without naming a second lifetime parameter at every call site.
+        let options: &'o HtmlReaderOptions<'o> = options;
         Self {
             input,
             position: 0,
             stack: Vec::new(),
             output: Vec::new(),
+            options,
         }
     }
 
@@ -380,7 +492,14 @@ impl<'a> Scanner<'a> {
         let raw_start_tag = self.input[start..=end_position].to_owned();
         let self_closing = is_self_closing_start_tag(self.input, name_end, end_position);
         let raw_attributes = raw_attributes(self.input, name_end, end_position, self_closing);
-        let context = self.context_for(&tag_name, raw_attributes);
+        let mut context = self.context_for(&tag_name, raw_attributes);
+        let predicate_preserve_inherited = self
+            .stack
+            .last()
+            .is_some_and(|parent| parent.predicate_preserve);
+        let predicate_preserve_self = predicate_preserve_inherited
+            || self.evaluate_preserve_predicate(&tag_name, raw_attributes, &context);
+        context.predicate_preserve = predicate_preserve_self;
         let omit_end_tag = self_closing || is_void_tag(&tag_name);
         let scope = HtmlScopeData {
             tag_name: tag_name.clone(),
@@ -412,6 +531,7 @@ impl<'a> Scanner<'a> {
             self.stack.push(ElementContext {
                 tag_name: tag_name.clone(),
                 tag_preserve: context.tag_preserve,
+                predicate_preserve: predicate_preserve_self,
                 text_only_ancestor: context.text_only_ancestor
                     || is_text_only_content_tag(&tag_name),
                 lang: context.lang,
@@ -442,9 +562,24 @@ impl<'a> Scanner<'a> {
         ElementContext {
             tag_name: tag_name.to_owned(),
             tag_preserve,
+            predicate_preserve: false,
             text_only_ancestor: parent_text_only_ancestor,
             lang,
         }
+    }
+
+    fn evaluate_preserve_predicate(
+        &self,
+        tag_name: &str,
+        raw_attributes: &str,
+        context: &ElementContext,
+    ) -> bool {
+        let info = HtmlElementInfo {
+            tag_name,
+            raw_attributes,
+            lang: context.lang.as_deref(),
+        };
+        self.options.evaluate(&info)
     }
 
     fn scan_raw_text_element(&mut self, tag_name: &str) {
@@ -507,7 +642,9 @@ impl<'a> Scanner<'a> {
 
 impl ElementContext {
     fn preserve(&self) -> bool {
-        self.tag_preserve || self.lang.as_ref().is_some_and(|lang| !is_korean_lang(lang))
+        self.tag_preserve
+            || self.predicate_preserve
+            || self.lang.as_ref().is_some_and(|lang| !is_korean_lang(lang))
     }
 }
 
