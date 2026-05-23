@@ -1,0 +1,15 @@
+description = """
+Dictionary entries may mix hanja and native hangul.  Here `汽車길` covers
+two hanja plus a hangul syllable in one entry, demonstrating that the
+lattice segmenter consumes the mixed-script prefix and the trailing
+hangul `에서` passes through unchanged.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "汽車길"
+reading = "기찻길"

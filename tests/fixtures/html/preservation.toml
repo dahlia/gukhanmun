@@ -1,0 +1,12 @@
+description = """
+Preserved regions (`<code>`) and non-Korean `lang` subtrees pass through
+unchanged; only the `<li lang="ko-Kore">` element's hanja is converted.
+Ported from Seonbi `test/data/preservation.ko-Kore.html`; the expected
+output omits Seonbi's typographic adjustments (smart quotes, em-dashes,
+ellipses) because Gukhanmun does not perform them.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"

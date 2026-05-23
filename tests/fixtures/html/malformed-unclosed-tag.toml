@@ -1,0 +1,19 @@
+description = """
+Malformed tag-like construct (`<1invalid>`) is preserved verbatim under
+`Recovery::Lenient`, surrounding hanja are still converted.  Verifies that
+the engine continues past the malformed region instead of aborting.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+recovery = "lenient"
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "學校"
+reading = "학교"
+
+[[dictionary.records]]
+hanja = "北京"
+reading = "베이징"

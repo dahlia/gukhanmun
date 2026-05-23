@@ -31,7 +31,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use gukhanmun::{Builder, ContextWindow, MapDictionary, MatchMark, Preset};
+use gukhanmun::{Builder, ContextWindow, MapDictionary, MatchMark, Preset, Recovery};
 use serde::Deserialize;
 
 /// Format inferred from a fixture's second-to-last extension (`*.input.html`
@@ -118,9 +118,33 @@ pub struct Sidecar {
     /// [`MapDictionary`].
     #[serde(default)]
     pub dictionary: SidecarDictionary,
+    /// Reader-level error recovery policy.  Defaults to the preset's
+    /// [`Recovery`] (currently `strict` for both `ko-kr` and `ko-kp`).
+    #[serde(default)]
+    pub recovery: Option<RecoveryName>,
     /// Markdown variant for `.md` fixtures.  Ignored for HTML / text inputs.
     #[serde(default)]
     pub markdown: SidecarMarkdown,
+}
+
+/// `recovery = "strict" | "lenient"`.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RecoveryName {
+    /// `Recovery::Strict` — reader errors propagate immediately.
+    Strict,
+    /// `Recovery::Lenient` — reader errors are logged and recovered into a
+    /// verbatim token stream.
+    Lenient,
+}
+
+impl RecoveryName {
+    fn into_recovery(self) -> Recovery {
+        match self {
+            RecoveryName::Strict => Recovery::Strict,
+            RecoveryName::Lenient => Recovery::Lenient,
+        }
+    }
 }
 
 /// `preset = "ko-kr" | "ko-kp"`.
@@ -462,6 +486,9 @@ pub fn run_fixture(fixture: &Fixture) -> RunResult {
         && let Some(window) = engine.disambiguation
     {
         builder = builder.homophone_window(window.into_window());
+    }
+    if let Some(recovery) = sidecar.and_then(|s| s.recovery) {
+        builder = builder.recovery(recovery.into_recovery());
     }
     if let Some(dict) = sidecar.map(|s| &s.dictionary)
         && !dict.records.is_empty()

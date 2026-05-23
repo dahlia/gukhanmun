@@ -1,0 +1,13 @@
+description = """
+Longer realistic text mixing hanja words with native hangul morphology and
+CJK punctuation.  Ported from Seonbi `test/data/이런날.ko-Kore.html`; the
+expected output preserves Seonbi-era ASCII quotes (`&quot;…&quot;`) and
+ideographic punctuation (`、`, `。`) verbatim because Gukhanmun does not
+apply typographic normalisations.  Initial sound law in this preset
+converts 理解 → 이해.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"

@@ -1,0 +1,19 @@
+description = """
+Irregular Sino-Korean readings (習慣音): 許諾 reads 허락 and 困難 reads 곤란,
+neither of which the per-character Unihan fallback would produce alone.
+Ported from Seonbi `test/data/習慣音.ko-Kore.html`; see
+`tests/fixtures/SEONBI_NOTICE.md`.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "許諾"
+reading = "허락"
+
+[[dictionary.records]]
+hanja = "困難"
+reading = "곤란"
