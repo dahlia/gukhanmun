@@ -999,6 +999,10 @@ where
         options: EngineOptions,
         incremental_flush: bool,
     ) -> Self {
+        tracing::debug!(
+            strategy = ?options.segmentation,
+            "engine created with segmentation strategy"
+        );
         Self {
             dictionary,
             options,
@@ -1109,6 +1113,13 @@ where
             return;
         };
         let buffered_chars = self.buffered_chars();
+        if buffered_chars > bound.saturating_mul(10) {
+            tracing::debug!(
+                buffered_chars,
+                dict_max_word_chars = bound,
+                "streaming tail buffer is unusually large"
+            );
+        }
         if buffered_chars <= bound {
             return;
         }

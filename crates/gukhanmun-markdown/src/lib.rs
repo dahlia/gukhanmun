@@ -374,10 +374,18 @@ impl<'a> Reader<'a> {
     fn push_inline_html_start(&mut self, html: &str) {
         self.flush_pending_reopen();
         let Some((name_start, name_end)) = parse_start_tag_name(html, 0) else {
+            tracing::debug!(
+                html,
+                "malformed inline HTML start tag: unparseable tag name"
+            );
             self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
             return;
         };
         let Some(end_position) = find_tag_end(html, 0) else {
+            tracing::debug!(
+                html,
+                "malformed inline HTML start tag: missing closing bracket"
+            );
             self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
             return;
         };
@@ -415,6 +423,7 @@ impl<'a> Reader<'a> {
     fn push_inline_html_end(&mut self, html: &str) {
         self.flush_pending_reopen();
         let Some((name_start, name_end)) = parse_end_tag_name(html, 0) else {
+            tracing::debug!(html, "malformed inline HTML end tag: unparseable tag name");
             self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
             return;
         };
@@ -422,6 +431,10 @@ impl<'a> Reader<'a> {
         let Some(stack_position) = self.open_scopes.iter().rposition(
             |scope| matches!(scope, OpenScope::InlineHtml(context) if context.tag_name == tag_name),
         ) else {
+            tracing::debug!(
+                html,
+                "unmatched inline HTML close tag: no matching open scope"
+            );
             self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
             return;
         };

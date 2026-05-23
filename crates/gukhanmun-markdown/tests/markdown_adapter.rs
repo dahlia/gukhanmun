@@ -407,6 +407,13 @@ fn ruby_writer_escapes_hostile_dictionary_readings() {
 }
 
 #[test]
+#[tracing_test::traced_test]
+fn inline_html_close_tag_without_open_emits_debug_event() {
+    let _tokens = read_markdown("foo </span> bar", MarkdownVariant::CommonMark);
+    assert!(logs_contain("unmatched inline HTML close tag"));
+}
+
+#[test]
 fn original_with_ruby_gloss_renders_required_hangul_as_inline_html() {
     let mut dict = MapDictionary::new();
     dict.insert_marked(

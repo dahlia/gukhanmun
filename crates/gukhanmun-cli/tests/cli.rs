@@ -997,6 +997,42 @@ proptest! {
     }
 }
 
+#[test]
+fn verbose_flag_long_is_accepted() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--verbose"])
+        .write_stdin("漢字\n")
+        .assert()
+        .success();
+}
+
+#[test]
+fn verbose_flag_short_is_accepted() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["-v"])
+        .write_stdin("漢字\n")
+        .assert()
+        .success();
+}
+
+#[test]
+fn verbose_flag_emits_debug_output_to_stderr() {
+    let assert = Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .env_remove("RUST_LOG")
+        .args(["--verbose"])
+        .write_stdin("漢字\n")
+        .assert()
+        .success();
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+    assert!(
+        stderr.contains("segmentation"),
+        "expected segmentation debug event in stderr: {stderr}"
+    );
+}
+
 fn build_dictionary_fixture(
     input: std::path::PathBuf,
     output: std::path::PathBuf,

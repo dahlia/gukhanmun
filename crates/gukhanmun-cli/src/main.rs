@@ -30,6 +30,7 @@ use gukhanmun::{
     RenderOptions, RubyBase, SegmentationStrategy, UserDirectives, apply_user_directives,
     render_tokens_iter, write_plain_text,
 };
+use tracing_subscriber::EnvFilter;
 
 const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
 
@@ -56,6 +57,12 @@ struct Cli {
 
     #[command(flatten)]
     html: HtmlArgs,
+
+    /// Enable debug-level logging to stderr.  Equivalent to RUST_LOG=debug
+    /// when RUST_LOG is not already set.  Use RUST_LOG for finer control
+    /// (e.g. RUST_LOG=trace).
+    #[arg(short, long)]
+    verbose: bool,
 }
 
 #[derive(Debug, Args)]
@@ -265,6 +272,13 @@ enum CliContextWindow {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let default_level = if cli.verbose { "debug" } else { "warn" };
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level)),
+        )
+        .with_writer(io::stderr)
+        .init();
     run(cli)
 }
 
@@ -1111,14 +1125,16 @@ fn glob_matches(pattern: &str, text: &str) -> bool {
 
 fn open_user_dictionary(path: &Path) -> Result<Box<dyn HanjaDictionary>> {
     if has_fst_magic(path)? {
-        return Ok(Box::new(FstDictionary::open(path).with_context(|| {
-            format!("failed to load dictionary {}", path.display())
-        })?));
+        let dict = FstDictionary::open(path)
+            .with_context(|| format!("failed to load dictionary {}", path.display()))?;
+        tracing::info!(path = %path.display(), format = "fst", "loaded user dictionary");
+        return Ok(Box::new(dict));
     }
 
-    Ok(Box::new(CdbDictionary::open(path).with_context(|| {
-        format!("failed to load dictionary {}", path.display())
-    })?))
+    let dict = CdbDictionary::open(path)
+        .with_context(|| format!("failed to load dictionary {}", path.display()))?;
+    tracing::info!(path = %path.display(), format = "cdb", "loaded user dictionary");
+    Ok(Box::new(dict))
 }
 
 fn has_fst_magic(path: &Path) -> Result<bool> {

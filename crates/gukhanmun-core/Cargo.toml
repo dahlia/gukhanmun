@@ -16,3 +16,5 @@ tracing = { version = "0.1.41", default-features = false }
 insta = { version = "1.47.2", features = ["json"] }
 proptest = "1.9.0"
 serde_json = "1.0.150"
+tracing = { version = "0.1.41", features = ["std"] }
+tracing-test = { version = "0.2", features = ["no-env-filter"] }

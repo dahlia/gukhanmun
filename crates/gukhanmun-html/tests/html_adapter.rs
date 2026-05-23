@@ -211,6 +211,15 @@ fn lenient_recovery_preserves_malformed_html_and_continues() {
     assert_eq!(output, "<p>한자 <1invalid> 베이징");
 }
 
+#[test]
+#[tracing_test::traced_test]
+fn lenient_recovery_from_malformed_html_emits_warn_event() {
+    use gukhanmun_html::try_read_html_fragment;
+    let result = try_read_html_fragment("</>漢字", Recovery::Lenient);
+    assert!(result.is_ok());
+    assert!(logs_contain("recovering from malformed HTML fragment"));
+}
+
 proptest! {
     #[test]
     fn simple_valid_fragments_roundtrip_without_conversion(
