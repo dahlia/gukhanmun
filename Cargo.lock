@@ -670,6 +670,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "gukhanmun"
+version = "0.1.0"
+dependencies = [
+ "gukhanmun-cdb",
+ "gukhanmun-core",
+ "gukhanmun-fst",
+ "gukhanmun-html",
+ "gukhanmun-markdown",
+ "gukhanmun-stdict",
+ "thiserror",
+]
+
+[[package]]
 name = "gukhanmun-cdb"
 version = "0.1.0"
 dependencies = [
@@ -688,13 +701,8 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "clap",
- "gukhanmun-cdb",
- "gukhanmun-core",
- "gukhanmun-fst",
- "gukhanmun-html",
- "gukhanmun-markdown",
+ "gukhanmun",
  "gukhanmun-mkdict",
- "gukhanmun-stdict",
  "hongdown",
  "predicates",
  "proptest",

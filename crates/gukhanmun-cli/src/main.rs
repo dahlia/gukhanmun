@@ -20,23 +20,18 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, ValueEnum};
-use gukhanmun_cdb::CdbDictionary;
-use gukhanmun_core::{
-    ChainDictionary, ContextWindow, DirectiveAction, Engine, EngineOptions, HanjaDictionary,
-    InputToken, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData, RenderMode,
-    RenderOptions, RubyBase, ScopeData, SegmentationStrategy, UserDirectives,
-    apply_user_directives, filter_first_occurrences, mark_homophones,
-    process_tokens_iter_with_options, render_tokens_iter, write_plain_text,
+use gukhanmun::cdb::CdbDictionary;
+use gukhanmun::fst::FstDictionary;
+use gukhanmun::html::HtmlElementInfo;
+use gukhanmun::markdown::MarkdownVariant;
+use gukhanmun::{
+    Builder, ContextWindow, DirectiveAction, Engine, HanjaDictionary, InputToken, NumeralStrategy,
+    OriginalGloss, OutputToken, PlainScopeData, Preset as UmbrellaPreset, Recovery, RenderMode,
+    RenderOptions, RubyBase, SegmentationStrategy, UserDirectives, apply_user_directives,
+    render_tokens_iter, write_plain_text,
 };
-use gukhanmun_fst::FstDictionary;
-use gukhanmun_html::{
-    HtmlElementInfo, HtmlReaderOptions, read_html_fragment_with_options, write_html_fragment,
-};
-use gukhanmun_markdown::{MarkdownVariant, read_markdown, write_markdown};
 
 const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
-
-type CliDictionary = ChainDictionary<Box<dyn HanjaDictionary>>;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -268,24 +263,12 @@ enum CliContextWindow {
     PerDocument,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct ResolvedOptions {
-    rendering: RenderOptions,
-    engine: EngineOptions,
-    bundled_stdict: bool,
-    homophone_window: ContextWindow,
-    first_occurrence_window: ContextWindow,
-}
-
 fn main() -> Result<()> {
     let cli = Cli::parse();
     run(cli)
 }
 
 fn run(cli: Cli) -> Result<()> {
-    let options = resolve_options(&cli)?;
-    let directives = build_user_directives(&cli);
-    let dictionary = load_dictionary(&cli.language.dictionaries, options.bundled_stdict)?;
     let format = cli.io.format.unwrap_or_else(|| {
         cli.io
             .input
@@ -293,20 +276,12 @@ fn run(cli: Cli) -> Result<()> {
             .map(detect_format)
             .unwrap_or(Format::PlainText)
     });
-    let html_reader_options = build_html_reader_options(&cli.html, format)?;
+    let converter = build_converter(&cli, format)?;
 
     if let (Some(input_path), Some(output_path)) = (&cli.io.input, &cli.io.output)
         && is_same_existing_file(input_path, output_path)?
     {
-        return convert_file_in_place(
-            input_path,
-            output_path,
-            &dictionary,
-            options,
-            &directives,
-            &html_reader_options,
-            format,
-        );
+        return convert_file_in_place(input_path, output_path, &converter, format);
     }
 
     let input: Box<dyn BufRead> = match &cli.io.input {
@@ -325,24 +300,13 @@ fn run(cli: Cli) -> Result<()> {
         None => Box::new(BufWriter::new(io::stdout().lock())),
     };
 
-    convert_document(
-        input,
-        output,
-        &dictionary,
-        options,
-        &directives,
-        &html_reader_options,
-        format,
-    )
+    convert_document(input, output, &converter, format)
 }
 
 fn convert_file_in_place(
     input_path: &Path,
     output_path: &Path,
-    dictionary: &CliDictionary,
-    options: ResolvedOptions,
-    directives: &UserDirectives<'_>,
-    html_reader_options: &HtmlReaderOptions<'_>,
+    converter: &gukhanmun::Converter<'_>,
     format: Format,
 ) -> Result<()> {
     let original_permissions = fs::metadata(input_path)
@@ -363,15 +327,7 @@ fn convert_file_in_place(
                 .with_context(|| format!("failed to open input {}", input_path.display()))?,
         );
         let output = BufWriter::new(temp_file);
-        convert_document(
-            input,
-            output,
-            dictionary,
-            options,
-            directives,
-            html_reader_options,
-            format,
-        )?;
+        convert_document(input, output, converter, format)?;
         fs::rename(&temp_path, output_path).with_context(|| {
             format!(
                 "failed to replace {} with temporary output {}",
@@ -456,66 +412,74 @@ fn same_file_metadata(_left: &fs::Metadata, _right: &fs::Metadata) -> bool {
     false
 }
 
-fn resolve_options(cli: &Cli) -> Result<ResolvedOptions> {
+impl From<Preset> for UmbrellaPreset {
+    fn from(preset: Preset) -> Self {
+        match preset {
+            Preset::KoKr => UmbrellaPreset::KoKr,
+            Preset::KoKp => UmbrellaPreset::KoKp,
+        }
+    }
+}
+
+fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'static>> {
     if cli.conversion.initial_sound_law && cli.conversion.no_initial_sound_law {
         bail!("--initial-sound-law and --no-initial-sound-law cannot be used together");
     }
 
-    let mut options = match cli.language.preset {
-        Preset::KoKr => ResolvedOptions {
-            rendering: RenderOptions::default(),
-            engine: EngineOptions {
-                initial_sound_law: true,
-                numeral_strategy: NumeralStrategy::HangulPhonetic,
-                ..EngineOptions::default()
-            },
-            bundled_stdict: true,
-            homophone_window: ContextWindow::PerBlock,
-            first_occurrence_window: ContextWindow::Off,
-        },
-        Preset::KoKp => ResolvedOptions {
-            rendering: RenderOptions::default(),
-            engine: EngineOptions {
-                initial_sound_law: false,
-                numeral_strategy: NumeralStrategy::HangulPhonetic,
-                ..EngineOptions::default()
-            },
-            bundled_stdict: false,
-            homophone_window: ContextWindow::Off,
-            first_occurrence_window: ContextWindow::Off,
-        },
-    };
+    // The CLI's historical behavior is to recover from malformed HTML rather
+    // than abort, so override the library default of `Recovery::Strict`.
+    let mut builder = Builder::with_preset(cli.language.preset.into()).recovery(Recovery::Lenient);
 
     if let Some(rendering) = cli.rendering.rendering {
-        options.rendering.mode = rendering.into();
-    }
-    if let Some(gloss) = cli.rendering.original_gloss {
-        if !matches!(options.rendering.mode, RenderMode::Original) {
-            bail!("--original-gloss is only valid with --rendering original");
+        let mode: RenderMode = rendering.into();
+        let mut render_options = RenderOptions {
+            mode,
+            ..RenderOptions::default()
+        };
+        if let Some(gloss) = cli.rendering.original_gloss {
+            if !matches!(mode, RenderMode::Original) {
+                bail!("--original-gloss is only valid with --rendering original");
+            }
+            render_options.original_gloss = gloss.into();
         }
-        options.rendering.original_gloss = gloss.into();
-    }
-    if let Some(disambiguation) = cli.rendering.disambiguation {
-        options.homophone_window = disambiguation.into();
-    }
-    if let Some(first_occurrence) = cli.rendering.first_occurrence {
-        options.first_occurrence_window = first_occurrence.into();
-    }
-    options.engine.segmentation = cli.conversion.segmentation.into();
-    if let Some(numerals) = cli.conversion.numerals {
-        options.engine.numeral_strategy = numerals.into();
-    }
-    if cli.language.no_stdict {
-        options.bundled_stdict = false;
-    }
-    if cli.conversion.initial_sound_law {
-        options.engine.initial_sound_law = true;
-    }
-    if cli.conversion.no_initial_sound_law {
-        options.engine.initial_sound_law = false;
+        builder = builder.rendering(render_options);
+    } else if cli.rendering.original_gloss.is_some() {
+        bail!("--original-gloss is only valid with --rendering original");
     }
 
-    Ok(options)
+    if let Some(disambiguation) = cli.rendering.disambiguation {
+        builder = builder.homophone_window(disambiguation.into());
+    }
+    if let Some(first_occurrence) = cli.rendering.first_occurrence {
+        builder = builder.first_occurrence_window(first_occurrence.into());
+    }
+    builder = builder.segmentation(cli.conversion.segmentation.into());
+    if let Some(numerals) = cli.conversion.numerals {
+        builder = builder.numerals(numerals.into());
+    }
+    if cli.conversion.initial_sound_law {
+        builder = builder.initial_sound_law(true);
+    }
+    if cli.conversion.no_initial_sound_law {
+        builder = builder.initial_sound_law(false);
+    }
+    if cli.language.no_stdict {
+        builder = builder.no_bundled_stdict();
+    }
+
+    for path in cli.language.dictionaries.iter().rev() {
+        builder = builder.push_boxed_dictionary(open_user_dictionary(path)?);
+    }
+
+    builder = builder.directives(build_user_directives(cli));
+
+    if let Some(predicate) = build_html_preserve_predicate(&cli.html, format)? {
+        builder = builder.html_preserve_when(predicate);
+    }
+
+    builder
+        .build()
+        .map_err(|error| anyhow::anyhow!("failed to assemble converter: {error}"))
 }
 
 fn build_user_directives(cli: &Cli) -> UserDirectives<'static> {
@@ -577,10 +541,12 @@ fn add_glob_directives(
     }
 }
 
-fn build_html_reader_options(
+type PreservePredicate = Box<dyn Fn(&HtmlElementInfo<'_>) -> bool + 'static>;
+
+fn build_html_preserve_predicate(
     args: &HtmlArgs,
     format: Format,
-) -> Result<HtmlReaderOptions<'static>> {
+) -> Result<Option<PreservePredicate>> {
     if !args.html_preserve_class.is_empty() && !matches!(format, Format::Html) {
         bail!("--html-preserve-class is only valid with --format text/html");
     }
@@ -589,7 +555,7 @@ fn build_html_reader_options(
     }
 
     if args.html_preserve_class.is_empty() && args.html_preserve_attr.is_empty() {
-        return Ok(HtmlReaderOptions::new());
+        return Ok(None);
     }
 
     let classes: Vec<String> = args.html_preserve_class.clone();
@@ -602,32 +568,32 @@ fn build_html_reader_options(
         })
         .collect();
 
-    Ok(
-        HtmlReaderOptions::new().preserve_when(move |info: &HtmlElementInfo<'_>| -> bool {
-            if !classes.is_empty()
-                && let Some(class_value) = find_attribute_value(info.raw_attributes, "class")
-                && let Some(class_value) = class_value
-                && classes
-                    .iter()
-                    .any(|needle| class_value.split_ascii_whitespace().any(|c| c == needle))
-            {
-                return true;
-            }
+    let predicate: PreservePredicate = Box::new(move |info: &HtmlElementInfo<'_>| -> bool {
+        if !classes.is_empty()
+            && let Some(class_value) = find_attribute_value(info.raw_attributes, "class")
+            && let Some(class_value) = class_value
+            && classes
+                .iter()
+                .any(|needle| class_value.split_ascii_whitespace().any(|c| c == needle))
+        {
+            return true;
+        }
 
-            for (key, expected) in &attrs {
-                let Some(value) = find_attribute_value(info.raw_attributes, key) else {
-                    continue;
-                };
-                match expected {
-                    None => return true,
-                    Some(expected) if value.as_deref() == Some(expected.as_str()) => return true,
-                    _ => {}
-                }
+        for (key, expected) in &attrs {
+            let Some(value) = find_attribute_value(info.raw_attributes, key) else {
+                continue;
+            };
+            match expected {
+                None => return true,
+                Some(expected) if value.as_deref() == Some(expected.as_str()) => return true,
+                _ => {}
             }
+        }
 
-            false
-        }),
-    )
+        false
+    });
+
+    Ok(Some(predicate))
 }
 
 /// Returns the value of the first attribute matching `name` (case-insensitive)
@@ -636,7 +602,7 @@ fn build_html_reader_options(
 /// The outer `Option` distinguishes attribute absence (`None`) from presence:
 /// `Some(None)` is a boolean attribute (no `=`), `Some(Some(value))` carries
 /// the decoded value.  The scanner is intentionally narrow — it understands
-/// the same attribute shape as [`gukhanmun_html`]'s lang parser but does not
+/// the same attribute shape as [`gukhanmun::html`]'s lang parser but does not
 /// touch DOCTYPE quirks or attribute aliases.
 fn find_attribute_value(raw_attributes: &str, name: &str) -> Option<Option<String>> {
     let bytes = raw_attributes.as_bytes();
@@ -814,45 +780,33 @@ fn detect_format(path: &Path) -> Format {
 fn convert_document(
     input: impl BufRead,
     output: impl Write,
-    dictionary: &CliDictionary,
-    options: ResolvedOptions,
-    directives: &UserDirectives<'_>,
-    html_reader_options: &HtmlReaderOptions<'_>,
+    converter: &gukhanmun::Converter<'_>,
     format: Format,
 ) -> Result<()> {
     match format {
-        Format::PlainText => convert_plain_stream(input, output, dictionary, options, directives),
-        Format::Html => convert_html(
-            input,
-            output,
-            dictionary,
-            options,
-            directives,
-            html_reader_options,
-        ),
-        Format::Markdown(variant) => {
-            convert_markdown_stream(input, output, dictionary, options, directives, variant)
-        }
+        Format::PlainText => convert_plain_document(input, output, converter),
+        Format::Html => convert_html_document(input, output, converter),
+        Format::Markdown(variant) => convert_markdown_document(input, output, converter, variant),
     }
 }
 
-fn convert_plain_stream(
+fn convert_plain_document(
     input: impl BufRead,
     output: impl Write,
-    dictionary: &CliDictionary,
-    options: ResolvedOptions,
-    directives: &UserDirectives<'_>,
+    converter: &gukhanmun::Converter<'_>,
 ) -> Result<()> {
-    let engine = Engine::<PlainScopeData, _>::with_options(dictionary, options.engine);
+    let options = converter.options();
     if options.homophone_window == ContextWindow::Off
         && options.first_occurrence_window == ContextWindow::Off
     {
+        let engine =
+            Engine::<PlainScopeData, _>::with_options(converter.dictionary(), options.engine);
         return convert_plain_stream_without_homophone_lookahead(
             input,
             output,
             engine,
             options.rendering,
-            directives,
+            converter.directives(),
         );
     }
     // Plain text has no block or section scopes.  For homophone correctness,
@@ -860,56 +814,37 @@ fn convert_plain_stream(
     // a later line can force disambiguating hanja on an earlier line, and stdout
     // cannot revise bytes already written.  Only the Off path can stream ready
     // output before EOF without changing rendering semantics.
-    convert_plain_stream_with_document_homophone_lookahead(
-        input,
-        output,
-        engine,
-        dictionary,
-        options,
-        directives,
-        options.rendering,
-    )
+    convert_plain_document_buffered(input, output, converter)
 }
 
-fn convert_plain_stream_with_document_homophone_lookahead(
+fn convert_plain_document_buffered(
     mut input: impl BufRead,
     mut output: impl Write,
-    mut engine: Engine<PlainScopeData, CliDictionary>,
-    dictionary: &CliDictionary,
-    options: ResolvedOptions,
-    directives: &UserDirectives<'_>,
-    rendering: RenderOptions,
+    converter: &gukhanmun::Converter<'_>,
 ) -> Result<()> {
-    let mut output_tokens = Vec::new();
-    let mut bytes = [0; 8192];
-    let mut pending = Vec::new();
-
-    loop {
-        let bytes_read = input
-            .read(&mut bytes)
-            .context("failed to read input stream")?;
-        if bytes_read == 0 {
-            break;
-        }
-
-        pending.extend_from_slice(&bytes[..bytes_read]);
-        process_utf8_prefix(&mut pending, &mut engine, &mut output_tokens)?;
-    }
-    flush_utf8_tail(&mut pending, &mut engine, &mut output_tokens)?;
-    output_tokens.extend(engine.finish());
-
-    let output_tokens = apply_annotation_policy(output_tokens, dictionary, options, directives);
-    write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
+    let mut content = String::new();
+    input
+        .read_to_string(&mut content)
+        .context("failed to read UTF-8 input")?;
+    let converted = converter
+        .convert_text_to_string(&content)
+        .map_err(|error| anyhow::anyhow!("failed to convert plain text: {error}"))?;
+    output
+        .write_all(converted.as_bytes())
+        .context("failed to write output")?;
     output.flush().context("failed to flush output")
 }
 
-fn convert_plain_stream_without_homophone_lookahead(
+fn convert_plain_stream_without_homophone_lookahead<D>(
     mut input: impl BufRead,
     mut output: impl Write,
-    mut engine: Engine<PlainScopeData, CliDictionary>,
+    mut engine: Engine<PlainScopeData, D>,
     rendering: RenderOptions,
     directives: &UserDirectives<'_>,
-) -> Result<()> {
+) -> Result<()>
+where
+    D: HanjaDictionary + ?Sized,
+{
     let mut bytes = [0; 8192];
     let mut pending = Vec::new();
 
@@ -957,47 +892,15 @@ fn write_plain_stream_chunk(
     output.flush().context("failed to flush output")
 }
 
-fn apply_annotation_policy<S>(
-    output_tokens: impl IntoIterator<Item = OutputToken<S>>,
-    dictionary: &CliDictionary,
-    options: ResolvedOptions,
-    directives: &UserDirectives<'_>,
-) -> Vec<OutputToken<S>>
-where
-    S: ScopeData,
-{
-    let output_tokens = match options.homophone_window {
-        ContextWindow::Off => output_tokens.into_iter().collect(),
-        window => mark_homophones(output_tokens, dictionary, window),
-    };
-    let output_tokens = match options.first_occurrence_window {
-        ContextWindow::Off => output_tokens,
-        window => filter_first_occurrences(output_tokens, window),
-    };
-    if directives.is_empty() {
-        output_tokens
-    } else {
-        apply_user_directives(output_tokens, directives)
-    }
-}
-
-fn process_utf8_prefix(
+fn process_utf8_prefix_flushing_lines<D>(
     pending: &mut Vec<u8>,
-    engine: &mut Engine<PlainScopeData, CliDictionary>,
-    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
-) -> Result<()> {
-    process_utf8_prefix_with(pending, |text| {
-        output.extend(engine.push_token(InputToken::Text(text.to_owned())));
-        Ok(())
-    })
-}
-
-fn process_utf8_prefix_flushing_lines(
-    pending: &mut Vec<u8>,
-    engine: &mut Engine<PlainScopeData, CliDictionary>,
-    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
+    engine: &mut Engine<PlainScopeData, D>,
+    output: &mut Vec<OutputToken<PlainScopeData>>,
     mut on_completed_line: impl FnMut(&mut Vec<OutputToken<PlainScopeData>>) -> Result<()>,
-) -> Result<()> {
+) -> Result<()>
+where
+    D: HanjaDictionary + ?Sized,
+{
     process_utf8_prefix_with(pending, |text| {
         push_plain_text_flushing_lines(text, engine, output, &mut on_completed_line)
     })
@@ -1027,27 +930,15 @@ fn process_utf8_prefix_with(
     }
 }
 
-fn flush_utf8_tail(
+fn flush_utf8_tail_flushing_lines<D>(
     pending: &mut Vec<u8>,
-    engine: &mut Engine<PlainScopeData, CliDictionary>,
-    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
-) -> Result<()> {
-    if pending.is_empty() {
-        return Ok(());
-    }
-    let text =
-        std::str::from_utf8(pending).map_err(|_| anyhow::anyhow!("failed to read UTF-8 input"))?;
-    output.extend(engine.push_token(InputToken::Text(text.to_owned())));
-    pending.clear();
-    Ok(())
-}
-
-fn flush_utf8_tail_flushing_lines(
-    pending: &mut Vec<u8>,
-    engine: &mut Engine<PlainScopeData, CliDictionary>,
-    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
+    engine: &mut Engine<PlainScopeData, D>,
+    output: &mut Vec<OutputToken<PlainScopeData>>,
     mut on_completed_line: impl FnMut(&mut Vec<OutputToken<PlainScopeData>>) -> Result<()>,
-) -> Result<()> {
+) -> Result<()>
+where
+    D: HanjaDictionary + ?Sized,
+{
     if pending.is_empty() {
         return Ok(());
     }
@@ -1058,13 +949,14 @@ fn flush_utf8_tail_flushing_lines(
     Ok(())
 }
 
-fn push_plain_text_flushing_lines<F>(
+fn push_plain_text_flushing_lines<D, F>(
     text: &str,
-    engine: &mut Engine<PlainScopeData, CliDictionary>,
-    output: &mut Vec<gukhanmun_core::OutputToken<PlainScopeData>>,
+    engine: &mut Engine<PlainScopeData, D>,
+    output: &mut Vec<OutputToken<PlainScopeData>>,
     on_completed_line: &mut F,
 ) -> Result<()>
 where
+    D: HanjaDictionary + ?Sized,
     F: FnMut(&mut Vec<OutputToken<PlainScopeData>>) -> Result<()>,
 {
     let mut start = 0;
@@ -1087,23 +979,18 @@ where
     Ok(())
 }
 
-fn convert_html(
+fn convert_html_document(
     mut input: impl BufRead,
     mut output: impl Write,
-    dictionary: &CliDictionary,
-    options: ResolvedOptions,
-    directives: &UserDirectives<'_>,
-    html_reader_options: &HtmlReaderOptions<'_>,
+    converter: &gukhanmun::Converter<'_>,
 ) -> Result<()> {
     let mut content = String::new();
     input
         .read_to_string(&mut content)
         .context("failed to read UTF-8 input")?;
-    let input_tokens = read_html_fragment_with_options(&content, html_reader_options);
-    let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options.engine);
-    let output_tokens = apply_annotation_policy(output_tokens, dictionary, options, directives);
-    let rendered_tokens = render_tokens_iter(output_tokens, options.rendering);
-    let converted = write_html_fragment(rendered_tokens);
+    let converted = converter
+        .convert_html_fragment_to_string(&content)
+        .map_err(|error| anyhow::anyhow!("failed to convert HTML fragment: {error}"))?;
     output
         .write_all(converted.as_bytes())
         .context("failed to write output")?;
@@ -1122,24 +1009,19 @@ fn markdown_format_options() -> hongdown::Options {
     }
 }
 
-fn convert_markdown_stream(
+fn convert_markdown_document(
     mut input: impl BufRead,
     mut output: impl Write,
-    dictionary: &CliDictionary,
-    options: ResolvedOptions,
-    directives: &UserDirectives<'_>,
+    converter: &gukhanmun::Converter<'_>,
     variant: MarkdownVariant,
 ) -> Result<()> {
     let mut content = String::new();
     input
         .read_to_string(&mut content)
         .context("failed to read UTF-8 input")?;
-    let input_tokens = read_markdown(&content, variant);
-    let output_tokens = process_tokens_iter_with_options(input_tokens, dictionary, options.engine);
-    let output_tokens = apply_annotation_policy(output_tokens, dictionary, options, directives);
-    let rendered_tokens = render_tokens_iter(output_tokens, options.rendering);
-    let converted =
-        write_markdown(rendered_tokens).context("failed to serialize Markdown output")?;
+    let converted = converter
+        .convert_markdown_to_string(&content, variant)
+        .map_err(|error| anyhow::anyhow!("failed to convert Markdown: {error}"))?;
     let converted = hongdown::format(&converted, &markdown_format_options())
         .context("failed to format Markdown output")?;
     output
@@ -1225,19 +1107,6 @@ fn glob_matches(pattern: &str, text: &str) -> bool {
     }
 
     matches[0][0]
-}
-
-fn load_dictionary(user_paths: &[PathBuf], bundled_stdict: bool) -> Result<CliDictionary> {
-    let mut dictionaries = ChainDictionary::new();
-
-    for path in user_paths.iter().rev() {
-        dictionaries.push(open_user_dictionary(path)?);
-    }
-    if bundled_stdict {
-        dictionaries.push(Box::new(gukhanmun_stdict::ko_kr()));
-    }
-
-    Ok(dictionaries)
 }
 
 fn open_user_dictionary(path: &Path) -> Result<Box<dyn HanjaDictionary>> {
