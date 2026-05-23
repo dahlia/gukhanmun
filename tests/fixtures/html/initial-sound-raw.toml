@@ -1,0 +1,7 @@
+description = """
+Initial sound law applied at word head only.  Ported from Seonbi
+`test/data/initial-sound-raw.ko-Kore.html`.  See `tests/fixtures/SEONBI_NOTICE.md`
+for the porting policy.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
