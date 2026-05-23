@@ -442,18 +442,26 @@ pub type RunResult = Result<(), String>;
 /// malformed fixture fails as a `libtest-mimic` trial instead of aborting
 /// the harness binary.
 pub fn run_fixture(fixture: &Fixture) -> RunResult {
+    let bless = std::env::var("GUKHANMUN_BLESS_FIXTURES").as_deref() == Ok("1");
     let input = fs::read_to_string(&fixture.input_path).map_err(|e| {
         format!(
             "input file read failed at {}: {e}",
             fixture.input_path.display()
         )
     })?;
-    let expected = fs::read_to_string(&fixture.expected_path).map_err(|e| {
-        format!(
-            "expected file read failed at {}: {e}",
-            fixture.expected_path.display()
-        )
-    })?;
+    // Bless mode tolerates a missing expected file so that a freshly authored
+    // fixture can have its baseline captured on the very first run.  Outside
+    // bless mode the missing expected is still a hard error.
+    let expected = match fs::read_to_string(&fixture.expected_path) {
+        Ok(text) => text,
+        Err(e) if bless && e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => {
+            return Err(format!(
+                "expected file read failed at {}: {e}",
+                fixture.expected_path.display()
+            ));
+        }
+    };
     let sidecar = match &fixture.sidecar_path {
         Some(path) => {
             let text = fs::read_to_string(path)
@@ -543,6 +551,24 @@ pub fn run_fixture(fixture: &Fixture) -> RunResult {
 
     let assertion = sidecar.map(|s| &s.assertion).cloned().unwrap_or_default();
     let description = sidecar.and_then(|s| s.description.as_deref());
+
+    // `GUKHANMUN_BLESS_FIXTURES=1` writes the converter's current output back
+    // to `<stem>.expected.<ext>` instead of asserting against it.  Use this
+    // when authoring a new fixture or after a deliberate change to a writer's
+    // output shape; commit the regenerated expected file and run the suite
+    // again without the variable to confirm the new baseline holds.  Bless
+    // mode only applies to `AssertionKind::Exact`; `contains` fixtures still
+    // hit their needles check.
+    if bless && matches!(assertion.kind, AssertionKind::Exact) {
+        fs::write(&fixture.expected_path, &actual).map_err(|e| {
+            format!(
+                "could not bless expected file {}: {e}",
+                fixture.expected_path.display()
+            )
+        })?;
+        return Ok(());
+    }
+
     match assertion.kind {
         AssertionKind::Exact => {
             // Strip a single trailing newline from each side before comparing.
