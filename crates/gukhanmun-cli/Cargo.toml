@@ -12,6 +12,10 @@ description = "Command-line interface for gukhanmun plain-text conversion."
 [[bin]]
 name = "gukhanmun"
 path = "src/main.rs"
+# Avoid a rustdoc output-filename clash with the library target of the same
+# name in the umbrella `gukhanmun` crate. The CLI's internals are not part of
+# any documented public API surface, so no docs are lost.
+doc = false
 
 [dependencies]
 anyhow = "1.0.102"
