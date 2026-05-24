@@ -124,6 +124,12 @@ struct ConversionArgs {
     #[arg(long, visible_alias = "numeral-strategy", value_enum)]
     numerals: Option<Numerals>,
 
+    /// Reader error recovery policy.  strict (default) stops at recoverable
+    /// reader errors.  lenient preserves recoverable bad regions and continues;
+    /// currently this is meaningful for malformed HTML fragments.
+    #[arg(long, value_enum, default_value_t = RecoveryArg::Strict)]
+    recovery: RecoveryArg,
+
     /// Enable the initial sound law (頭音法則), overriding the preset default.
     #[arg(short = 'i', long, visible_alias = "dueum")]
     initial_sound_law: bool,
@@ -168,6 +174,13 @@ struct RenderingPolicyArgs {
 #[derive(Debug, Args)]
 #[command(next_help_heading = "User directives")]
 struct DirectiveArgs {
+    /// Path to a UTF-8 TSV directive file.  The header must be
+    /// `action<TAB>pattern<TAB>kind`; actions are require-hanja,
+    /// require-hangul, or skip-annotation, and kind is literal or glob.  May be
+    /// repeated.
+    #[arg(long = "directives", value_name = "PATH")]
+    directive_files: Vec<PathBuf>,
+
     /// Require visible hanja for a literal hanja form.  May be repeated.
     #[arg(long = "require-hanja", value_name = "HANJA")]
     require_hanja: Vec<String>,
@@ -260,6 +273,12 @@ enum Numerals {
     PositionalArabic,
     AdditiveArabic,
     Smart,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum RecoveryArg {
+    Strict,
+    Lenient,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -440,9 +459,8 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
         bail!("--initial-sound-law and --no-initial-sound-law cannot be used together");
     }
 
-    // The CLI's historical behavior is to recover from malformed HTML rather
-    // than abort, so override the library default of `Recovery::Strict`.
-    let mut builder = Builder::with_preset(cli.language.preset.into()).recovery(Recovery::Lenient);
+    let mut builder =
+        Builder::with_preset(cli.language.preset.into()).recovery(cli.conversion.recovery.into());
 
     if let Some(rendering) = cli.rendering.rendering {
         let mode: RenderMode = rendering.into();
@@ -485,7 +503,7 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
         builder = builder.push_boxed_dictionary(open_user_dictionary(path)?);
     }
 
-    builder = builder.directives(build_user_directives(cli));
+    builder = builder.directives(build_user_directives(cli)?);
 
     if let Some(predicate) = build_html_preserve_predicate(&cli.html, format)? {
         builder = builder.html_preserve_when(predicate);
@@ -496,8 +514,11 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
         .map_err(|error| anyhow::anyhow!("failed to assemble converter: {error}"))
 }
 
-fn build_user_directives(cli: &Cli) -> UserDirectives<'static> {
+fn build_user_directives(cli: &Cli) -> Result<UserDirectives<'static>> {
     let mut directives = UserDirectives::new();
+    for path in &cli.directives.directive_files {
+        add_directives_file(&mut directives, path)?;
+    }
     add_literal_directives(
         &mut directives,
         &cli.directives.require_hanja,
@@ -528,7 +549,93 @@ fn build_user_directives(cli: &Cli) -> UserDirectives<'static> {
         &cli.directives.skip_annotation_glob,
         DirectiveAction::SkipAnnotation,
     );
-    directives
+    Ok(directives)
+}
+
+fn add_directives_file(directives: &mut UserDirectives<'static>, path: &Path) -> Result<()> {
+    let file = fs::File::open(path)
+        .with_context(|| format!("failed to open directives {}", path.display()))?;
+    let mut lines = BufReader::new(file).lines();
+    let header = lines
+        .next()
+        .transpose()
+        .with_context(|| format!("failed to read directives {}", path.display()))?
+        .ok_or_else(|| anyhow::anyhow!("{}: directives file is empty", path.display()))?;
+    if header != "action\tpattern\tkind" {
+        bail!(
+            "{}:1: expected directives TSV header `action<TAB>pattern<TAB>kind`",
+            path.display()
+        );
+    }
+
+    for (index, line) in lines.enumerate() {
+        let line_number = index + 2;
+        let line = line.with_context(|| format!("failed to read directives {}", path.display()))?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        add_directive_file_row(directives, path, line_number, &line)?;
+    }
+
+    Ok(())
+}
+
+fn add_directive_file_row(
+    directives: &mut UserDirectives<'static>,
+    path: &Path,
+    line_number: usize,
+    line: &str,
+) -> Result<()> {
+    let fields = line.split('\t').collect::<Vec<_>>();
+    if fields.len() != 3 {
+        bail!(
+            "{}:{line_number}: expected 3 TSV fields, got {}",
+            path.display(),
+            fields.len()
+        );
+    }
+
+    let action = parse_directive_action(fields[0], path, line_number)?;
+    let pattern = fields[1];
+    if pattern.is_empty() {
+        bail!(
+            "{}:{line_number}: `pattern` must not be empty",
+            path.display()
+        );
+    }
+    match fields[2] {
+        "literal" => directives.add_literal(pattern.to_owned(), action),
+        "glob" => {
+            let pattern = pattern.to_owned();
+            directives.add_predicate(
+                move |annotation| glob_matches(&pattern, &annotation.hanja),
+                action,
+            );
+        }
+        kind => bail!(
+            "{}:{line_number}: unknown directive kind `{kind}`; expected `literal` or `glob`",
+            path.display()
+        ),
+    }
+
+    Ok(())
+}
+
+fn parse_directive_action(
+    action: &str,
+    path: &Path,
+    line_number: usize,
+) -> Result<DirectiveAction> {
+    match action {
+        "require-hanja" => Ok(DirectiveAction::RequireHanja),
+        "require-hangul" => Ok(DirectiveAction::RequireHangul),
+        "skip-annotation" => Ok(DirectiveAction::SkipAnnotation),
+        action => bail!(
+            "{}:{line_number}: unknown directive action `{action}`; expected `require-hanja`, `require-hangul`, or `skip-annotation`",
+            path.display()
+        ),
+    }
 }
 
 fn add_literal_directives(
@@ -1082,6 +1189,15 @@ impl From<Numerals> for NumeralStrategy {
             Numerals::PositionalArabic => Self::PositionalArabic,
             Numerals::AdditiveArabic => Self::AdditiveArabic,
             Numerals::Smart => Self::Smart,
+        }
+    }
+}
+
+impl From<RecoveryArg> for Recovery {
+    fn from(recovery: RecoveryArg) -> Self {
+        match recovery {
+            RecoveryArg::Strict => Self::Strict,
+            RecoveryArg::Lenient => Self::Lenient,
         }
     }
 }

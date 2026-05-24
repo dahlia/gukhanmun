@@ -60,6 +60,8 @@ fn help_groups_options_by_pipeline_area() {
     assert!(stdout.find("Conversion:") < stdout.find("Rendering policy:"));
     assert!(stdout.find("Rendering policy:") < stdout.find("User directives:"));
     assert!(stdout.contains("--numerals <NUMERALS>"));
+    assert!(stdout.contains("--recovery <RECOVERY>"));
+    assert!(stdout.contains("--directives <PATH>"));
 }
 
 #[test]
@@ -708,6 +710,86 @@ fn skip_directive_glob_collapses_hanja_primary_renderer() {
 }
 
 #[test]
+fn directives_file_applies_literal_and_glob_rules() {
+    let temp = tempdir().unwrap();
+    let directives = temp.path().join("directives.tsv");
+    fs::write(
+        &directives,
+        "action\tpattern\tkind\nrequire-hanja\t漢字\tliteral\nrequire-hanja\t*地\tglob\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-stdict",
+            "--disambiguation",
+            "off",
+            "--directives",
+            directives.to_str().unwrap(),
+        ])
+        .write_stdin("漢字 天地\n")
+        .assert()
+        .success()
+        .stdout("한자(漢字) 천지(天地)\n");
+}
+
+#[test]
+fn multiple_directives_files_compose_with_inline_directives() {
+    let temp = tempdir().unwrap();
+    let first = temp.path().join("first.tsv");
+    let second = temp.path().join("second.tsv");
+    fs::write(
+        &first,
+        "action\tpattern\tkind\nrequire-hanja\t天地\tliteral\n",
+    )
+    .unwrap();
+    fs::write(
+        &second,
+        "action\tpattern\tkind\nskip-annotation\t天地\tliteral\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-stdict",
+            "--disambiguation",
+            "off",
+            "--directives",
+            first.to_str().unwrap(),
+            "--directives",
+            second.to_str().unwrap(),
+            "--require-hanja",
+            "漢字",
+        ])
+        .write_stdin("漢字 天地\n")
+        .assert()
+        .success()
+        .stdout("한자(漢字) 천지\n");
+}
+
+#[test]
+fn malformed_directives_file_reports_path_and_line() {
+    let temp = tempdir().unwrap();
+    let directives = temp.path().join("directives.tsv");
+    fs::write(
+        &directives,
+        "action\tpattern\tkind\nrequire-hanja\t\tliteral\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--directives", directives.to_str().unwrap()])
+        .write_stdin("漢字\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("directives.tsv:2"))
+        .stderr(predicate::str::contains("`pattern` must not be empty"));
+}
+
+#[test]
 fn stdin_streaming_preserves_dictionary_matches_across_chunk_boundaries() {
     let temp = tempdir().unwrap();
     let dictionary = build_dictionary_fixture(
@@ -835,6 +917,53 @@ fn format_text_html_converts_html_input() {
         .assert()
         .success()
         .stdout("<p>베이징</p>");
+}
+
+#[test]
+fn default_strict_recovery_rejects_malformed_html() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--no-stdict",
+            "--disambiguation",
+            "off",
+        ])
+        .write_stdin("<p>學校 <1invalid> 北京")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("failed to convert HTML fragment"));
+}
+
+#[test]
+fn recovery_lenient_preserves_malformed_html_and_continues() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--no-stdict",
+            "--disambiguation",
+            "off",
+            "--recovery",
+            "lenient",
+        ])
+        .write_stdin("<p>學校 <1invalid> 北京")
+        .assert()
+        .success()
+        .stdout("<p>학교 <1invalid> 북경");
+}
+
+#[test]
+fn invalid_recovery_value_is_rejected() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--recovery", "invalid"])
+        .write_stdin("漢字\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("invalid value"));
 }
 
 #[test]
