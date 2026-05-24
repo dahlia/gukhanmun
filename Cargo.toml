@@ -20,3 +20,14 @@ authors = ["Hong Minhe (洪 民憙) <hong@minhee.org>"]
 license = "GPL-3.0-only"
 homepage = "https://github.com/dahlia/gukhanmun"
 repository = "https://github.com/dahlia/gukhanmun"
+
+[workspace.dependencies]
+gukhanmun = { version = "0.1.0", path = "crates/gukhanmun" }
+gukhanmun-cdb = { version = "0.1.0", path = "crates/gukhanmun-cdb" }
+gukhanmun-core = { version = "0.1.0", path = "crates/gukhanmun-core" }
+gukhanmun-fst = { version = "0.1.0", path = "crates/gukhanmun-fst" }
+gukhanmun-html = { version = "0.1.0", path = "crates/gukhanmun-html" }
+gukhanmun-markdown = { version = "0.1.0", path = "crates/gukhanmun-markdown" }
+gukhanmun-mkdict = { version = "0.1.0", path = "crates/gukhanmun-mkdict" }
+gukhanmun-stdict = { version = "0.1.0", path = "crates/gukhanmun-stdict" }
+gukhanmun-unihan = { version = "0.1.0", path = "crates/gukhanmun-unihan" }

@@ -6,7 +6,6 @@ authors.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-publish = false
 description = "Generates gukhanmun-core fallback readings from Unicode Unihan data."
 
 [dependencies]

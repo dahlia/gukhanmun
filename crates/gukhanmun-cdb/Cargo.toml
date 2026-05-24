@@ -11,7 +11,7 @@ description = "CDB dictionary backend for gukhanmun."
 [dependencies]
 cdb = "0.6.0"
 ciborium = "0.2.2"
-gukhanmun-core = { path = "../gukhanmun-core" }
+gukhanmun-core.workspace = true
 thiserror = "2.0.18"
 
 [dev-dependencies]

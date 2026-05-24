@@ -1,0 +1,625 @@
+name: main
+
+on:
+  pull_request:
+  push:
+    branches:
+    - "**"
+    tags:
+    - "**"
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        - macos-latest
+        - windows-latest
+    steps:
+    - name: Disable Git CRLF conversion
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        git config --global core.autocrlf false
+        git config --global core.eol lf
+    - uses: actions/checkout@v6
+    # Work around jdx/mise-action not caching ~/.rustup alongside
+    # ~/.local/share/mise, which causes Rust components (e.g. clippy) to go
+    # missing on cache hits. See: https://github.com/jdx/mise-action/issues/215
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - name: Dump debug context
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        set -euxo pipefail
+
+        echo "::group::Runner"
+        echo "RUNNER_OS=$RUNNER_OS"
+        echo "RUNNER_ARCH=$RUNNER_ARCH"
+        echo "RUNNER_DEBUG=${RUNNER_DEBUG:-}"
+        uname -a || true
+        sw_vers || true
+        cmd /c ver || true
+        df -h || true
+        echo "::endgroup::"
+
+        echo "::group::Git"
+        git status --short
+        git rev-parse HEAD
+        git branch -avv
+        echo "::endgroup::"
+
+        echo "::group::Tools"
+        mise --version
+        mise ls
+        rustup show
+        rustc -Vv
+        cargo -Vv
+        dasel version
+        jq --version
+        echo "::endgroup::"
+
+        echo "::group::Cargo workspace"
+        cargo metadata --no-deps --format-version 1 |
+          jq '{workspace_root, target_directory, packages: [.packages[] | {name, version, manifest_path}]}'
+        cargo tree --workspace --edges normal,build,dev
+        echo "::endgroup::"
+    - name: Run CI
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+          export MISE_VERBOSE=1
+        fi
+
+        mise run ci
+
+  publish:
+    name: publish crates
+    runs-on: ubuntu-latest
+    needs:
+    - package-crates
+    - build-release-binaries
+    if: >-
+      github.event_name == 'push' &&
+      (
+        github.ref == 'refs/heads/main' ||
+        endsWith(github.ref_name, '-maintenance') ||
+        github.ref_type == 'tag'
+      )
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - name: Dump debug context
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        set -euxo pipefail
+
+        git status --short
+        git rev-parse HEAD
+        mise --version
+        mise ls
+        rustup show
+        rustc -Vv
+        cargo -Vv
+        dasel version
+        jq --version
+        cargo metadata --no-deps --format-version 1 |
+          jq '{workspace_root, target_directory, packages: [.packages[] | {name, version, manifest_path}]}'
+    - name: Verify signed release tag
+      if: github.ref_type == 'tag'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        if [[ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" != "tag" ]]; then
+          echo "::error::Release tag $GITHUB_REF_NAME must be an annotated signed tag"
+          exit 1
+        fi
+
+        tag_object="$(
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" \
+            --jq '.object'
+        )"
+        tag_type="$(jq -r '.type' <<< "$tag_object")"
+        tag_sha="$(jq -r '.sha' <<< "$tag_object")"
+        if [[ "$tag_type" != "tag" ]]; then
+          echo "::error::Release tag $GITHUB_REF_NAME must be an annotated signed tag"
+          exit 1
+        fi
+
+        verification="$(
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_sha" \
+            --jq '.verification'
+        )"
+        verified="$(jq -r '.verified' <<< "$verification")"
+        reason="$(jq -r '.reason' <<< "$verification")"
+        if [[ "$verified" != "true" ]]; then
+          echo "::error::Release tag $GITHUB_REF_NAME signature is not verified: $reason"
+          exit 1
+        fi
+    - name: Prepare publish version
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        base_version="$(dasel -i toml -o yaml 'workspace.package.version' < Cargo.toml)"
+        should_publish=true
+
+        if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+          if [[ ! "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tags must use x.y.z without a v prefix: $GITHUB_REF_NAME"
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REF_NAME" != "$base_version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match workspace.package.version $base_version"
+            exit 1
+          fi
+
+          publish_version="$base_version"
+        elif [[ "$GITHUB_REF_NAME" == "main" || "$GITHUB_REF_NAME" =~ ^.+\..+-maintenance$ ]]; then
+          publish_version="${base_version}-dev.${GITHUB_RUN_NUMBER}+${GITHUB_SHA}"
+        else
+          should_publish=false
+          publish_version="$base_version"
+        fi
+
+        {
+          echo "should-publish=$should_publish"
+          echo "publish-version=$publish_version"
+          echo "release-version=$base_version"
+        } >> "$GITHUB_OUTPUT"
+
+        if [[ "$should_publish" != "true" || "$publish_version" == "$base_version" ]]; then
+          exit 0
+        fi
+
+        edit_toml() {
+          local query="$1"
+          dasel -i toml --root "$query" < Cargo.toml > Cargo.toml.tmp
+          mv Cargo.toml.tmp Cargo.toml
+        }
+
+        edit_toml "workspace.package.version = \"$publish_version\""
+        dasel -i toml -o json 'workspace.dependencies' < Cargo.toml |
+          jq -r 'keys[]' |
+          while read -r crate
+        do
+          edit_toml "workspace.dependencies.get(\"$crate\").version = \"$publish_version\""
+        done
+
+        cargo update --workspace
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add Cargo.toml Cargo.lock
+        git commit -m "Prepare dev publish $publish_version"
+
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          git status --short
+          git show --stat --oneline --no-renames HEAD
+        fi
+    - uses: rust-lang/crates-io-auth-action@v1
+      if: steps.version.outputs.should-publish == 'true'
+      id: auth
+    - name: Publish workspace
+      if: steps.version.outputs.should-publish == 'true'
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        args=(
+          release publish
+          --config .github/cargo-release-publish.toml
+          --workspace
+          --execute
+          --no-confirm
+          --allow-branch '*'
+        )
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+          args+=(-v)
+        fi
+
+        set +e
+        cargo "${args[@]}" 2>&1 | tee cargo-release-publish.log
+        status="${PIPESTATUS[0]}"
+        set -e
+
+        if [[ "$status" -ne 0 ]]; then
+          if grep -q "no packages selected" cargo-release-publish.log &&
+            grep -q "disabled due to previous publish" cargo-release-publish.log
+          then
+            echo "All selected packages were already published; treating this as success."
+          else
+            exit "$status"
+          fi
+        fi
+
+  artifact-context:
+    name: artifact context
+    runs-on: ubuntu-latest
+    needs: ci
+    if: >-
+      github.event_name == 'push' &&
+      (
+        github.ref == 'refs/heads/main' ||
+        endsWith(github.ref_name, '-maintenance') ||
+        github.ref_type == 'tag'
+      )
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - name: Dump debug context
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        set -euxo pipefail
+
+        git status --short
+        git rev-parse HEAD
+        mise --version
+        mise ls
+        rustup show
+        rustc -Vv
+        cargo -Vv
+        dasel version
+        jq --version
+        cargo metadata --no-deps --format-version 1 |
+          jq '{workspace_root, target_directory, packages: [.packages[] | {name, version, manifest_path}]}'
+    - name: Verify signed release tag
+      if: github.ref_type == 'tag'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        if [[ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" != "tag" ]]; then
+          echo "::error::Release tag $GITHUB_REF_NAME must be an annotated signed tag"
+          exit 1
+        fi
+
+        tag_object="$(
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" \
+            --jq '.object'
+        )"
+        tag_type="$(jq -r '.type' <<< "$tag_object")"
+        tag_sha="$(jq -r '.sha' <<< "$tag_object")"
+        if [[ "$tag_type" != "tag" ]]; then
+          echo "::error::Release tag $GITHUB_REF_NAME must be an annotated signed tag"
+          exit 1
+        fi
+
+        verification="$(
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_sha" \
+            --jq '.verification'
+        )"
+        verified="$(jq -r '.verified' <<< "$verification")"
+        reason="$(jq -r '.reason' <<< "$verification")"
+        if [[ "$verified" != "true" ]]; then
+          echo "::error::Release tag $GITHUB_REF_NAME signature is not verified: $reason"
+          exit 1
+        fi
+    - name: Resolve artifact version
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        workspace_version="$(dasel -i toml -o yaml 'workspace.package.version' < Cargo.toml)"
+        if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+          if [[ ! "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tags must use x.y.z without a v prefix: $GITHUB_REF_NAME"
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REF_NAME" != "$workspace_version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match workspace.package.version $workspace_version"
+            exit 1
+          fi
+
+          artifact_version="$workspace_version"
+        else
+          artifact_version="${workspace_version}-dev.${GITHUB_RUN_NUMBER}+${GITHUB_SHA}"
+        fi
+
+        echo "version=$artifact_version" >> "$GITHUB_OUTPUT"
+
+  package-crates:
+    name: package crates
+    runs-on: ubuntu-latest
+    needs: artifact-context
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - name: Dump debug context
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        set -euxo pipefail
+
+        git status --short
+        git rev-parse HEAD
+        mise --version
+        mise ls
+        rustup show
+        rustc -Vv
+        cargo -Vv
+        dasel version
+        jq --version
+        cargo metadata --no-deps --format-version 1 |
+          jq '{workspace_root, target_directory, packages: [.packages[] | {name, version, manifest_path}]}'
+    - name: Prepare dev artifact version
+      if: github.ref_type != 'tag'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        edit_toml() {
+          local query="$1"
+          dasel -i toml --root "$query" < Cargo.toml > Cargo.toml.tmp
+          mv Cargo.toml.tmp Cargo.toml
+        }
+
+        edit_toml "workspace.package.version = \"${{ needs.artifact-context.outputs.version }}\""
+        dasel -i toml -o json 'workspace.dependencies' < Cargo.toml |
+          jq -r 'keys[]' |
+          while read -r crate
+        do
+          edit_toml "workspace.dependencies.get(\"$crate\").version = \"${{ needs.artifact-context.outputs.version }}\""
+        done
+
+        cargo update --workspace
+    - name: Package crates
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        args=(package --workspace --locked --allow-dirty)
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+          args+=(-v)
+        fi
+
+        cargo "${args[@]}"
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          find target/package -maxdepth 1 -type f -name '*.crate' -print -exec ls -lh {} \;
+        fi
+    - uses: actions/upload-artifact@v7
+      with:
+        name: crate-packages
+        path: target/package/*.crate
+        if-no-files-found: error
+
+  build-release-binaries:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    needs: artifact-context
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-latest
+          target: aarch64-apple-darwin
+          archive: tar.bz2
+          exe: ""
+        - os: macos-latest
+          target: x86_64-apple-darwin
+          archive: tar.bz2
+          exe: ""
+        - os: windows-latest
+          target: aarch64-pc-windows-msvc
+          archive: zip
+          exe: ".exe"
+        - os: windows-latest
+          target: x86_64-pc-windows-msvc
+          archive: zip
+          exe: ".exe"
+        - os: ubuntu-latest
+          target: aarch64-unknown-linux-musl
+          archive: tar.bz2
+          exe: ""
+        - os: ubuntu-latest
+          target: x86_64-unknown-linux-musl
+          archive: tar.bz2
+          exe: ""
+    steps:
+    - name: Disable Git CRLF conversion
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        git config --global core.autocrlf false
+        git config --global core.eol lf
+    - uses: actions/checkout@v6
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - name: Dump debug context
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        set -euxo pipefail
+
+        echo "target=${{ matrix.target }}"
+        git status --short
+        git rev-parse HEAD
+        mise --version
+        mise ls
+        rustup show
+        rustc -Vv
+        cargo -Vv
+        cargo metadata --no-deps --format-version 1 |
+          jq '{workspace_root, target_directory, packages: [.packages[] | {name, version, manifest_path}]}'
+    - uses: taiki-e/setup-cross-toolchain-action@v1
+      with:
+        target: ${{ matrix.target }}
+        runner: none
+    - name: Dump debug target context
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        set -euxo pipefail
+
+        rustup target list --installed
+        rustc -Vv --target ${{ matrix.target }} || true
+    - name: Build release binaries
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        args=(
+          build
+          --locked
+          --release
+          --target ${{ matrix.target }}
+          -p gukhanmun-cli
+          -p gukhanmun-mkdict
+        )
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+          args+=(-vv)
+        fi
+
+        cargo "${args[@]}"
+    - name: Archive release binaries
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        asset="gukhanmun-${{ needs.artifact-context.outputs.version }}-${{ matrix.target }}"
+        mkdir -p "dist/$asset"
+        cp "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}" "dist/$asset/"
+        cp "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}" "dist/$asset/"
+
+        if [[ "${{ matrix.archive }}" == "zip" ]]; then
+          (cd dist && 7z a "$asset.zip" "$asset")
+        else
+          tar -cjf "dist/$asset.tar.bz2" -C dist "$asset"
+        fi
+
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          find dist -maxdepth 2 -type f -print -exec ls -lh {} \;
+        fi
+    - uses: actions/upload-artifact@v7
+      with:
+        name: binary-${{ matrix.target }}
+        path: dist/gukhanmun-${{ needs.artifact-context.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+        if-no-files-found: error
+
+  release:
+    name: github release
+    runs-on: ubuntu-latest
+    needs:
+    - artifact-context
+    - publish
+    - package-crates
+    - build-release-binaries
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v6
+    - name: Dump debug context
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        set -euxo pipefail
+
+        git status --short
+        git rev-parse HEAD
+        ls -lh
+    - uses: dahlia/submark@0.4.0
+      id: release-notes
+      with:
+        input-file: CHANGES.md
+        heading-level: 2
+        heading-title-text: Version ${{ needs.artifact-context.outputs.version }}
+        omit-heading: true
+    - uses: actions/download-artifact@v8
+      with:
+        path: release-assets
+        merge-multiple: true
+    - name: Dump release assets
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        set -euxo pipefail
+
+        find release-assets -maxdepth 2 -type f -print -exec ls -lh {} \;
+    - uses: softprops/action-gh-release@v3
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Gukhanmun ${{ needs.artifact-context.outputs.version }}
+        body_path: ${{ steps.release-notes.outputs.output-file }}
+        files: release-assets/*

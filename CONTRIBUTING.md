@@ -132,3 +132,79 @@ AI usage
 If you use AI tools (such as Claude Code, GitHub Copilot, Cursor, etc.) while
 contributing, you must disclose this in your pull request description and
 commit messages.  See [*AI\_POLICY.md*](./AI_POLICY.md) for the complete policy.
+
+
+Release process
+---------------
+
+This repository keeps the workspace version set to the next planned release,
+not the last released version.  Branch builds therefore publish development
+versions such as `1.2.4-dev.456+<sha>` while `1.2.4` is in development.  After
+releasing `1.2.4`, immediately bump the workspace to `1.2.5` before landing
+new work.
+
+Version bumps use `cargo-release` through `mise`.  The bump command updates the
+shared workspace version, updates intra-workspace dependency version
+requirements, and creates a signed commit.  It does not create tags, push, or
+publish to crates.io.
+
+Before releasing, make sure your local Git signing setup can sign both commits
+and tags:
+
+~~~~ sh
+git config user.signingkey
+git config commit.gpgsign
+git config tag.gpgSign
+~~~~
+
+### Bumping the next development version
+
+Preview the bump first:
+
+~~~~ sh
+mise run bump -- 1.2.5
+~~~~
+
+Inspect the planned workspace and intra-workspace dependency updates.  When the
+preview is correct, create the signed bump commit:
+
+~~~~ sh
+mise run bump-execute -- 1.2.5
+~~~~
+
+Push the bump commit normally:
+
+~~~~ sh
+git push
+~~~~
+
+### Tagging a release
+
+Prepare *CHANGES.md* so it contains a `Version x.y.z` section for the release.
+The GitHub Release body is cut from that section.
+
+When the current workspace version is ready to release, create and push a
+signed tag with the exact same version:
+
+~~~~ sh
+git tag -s 1.2.4 -m "Release 1.2.4"
+git push origin 1.2.4
+~~~~
+
+The *main.yaml* workflow verifies that the tag is signed and matches
+`workspace.package.version`, runs the full CI gate, verifies locked crate
+packages, publishes all crates to crates.io, builds release binaries, and
+creates the GitHub release.
+
+If a new workspace crate is added, seed that crate name on crates.io once
+before relying on GitHub Actions trusted publishing for it.  Trusted publishing
+is used for normal release and development publishes after the crate already
+exists on crates.io.
+
+After the release succeeds, start the next development cycle immediately:
+
+~~~~ sh
+mise run bump -- 1.2.5
+mise run bump-execute -- 1.2.5
+git push
+~~~~

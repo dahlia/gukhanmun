@@ -17,12 +17,12 @@ cdb = ["dep:gukhanmun-cdb"]
 stdict = ["dep:gukhanmun-stdict", "fst"]
 
 [dependencies]
-gukhanmun-core = { path = "../gukhanmun-core" }
-gukhanmun-html = { path = "../gukhanmun-html", optional = true }
-gukhanmun-markdown = { path = "../gukhanmun-markdown", optional = true }
-gukhanmun-fst = { path = "../gukhanmun-fst", optional = true }
-gukhanmun-cdb = { path = "../gukhanmun-cdb", optional = true }
-gukhanmun-stdict = { path = "../gukhanmun-stdict", optional = true }
+gukhanmun-core.workspace = true
+gukhanmun-html = { workspace = true, optional = true }
+gukhanmun-markdown = { workspace = true, optional = true }
+gukhanmun-fst = { workspace = true, optional = true }
+gukhanmun-cdb = { workspace = true, optional = true }
+gukhanmun-stdict = { workspace = true, optional = true }
 thiserror = { version = "2.0.18", default-features = false }
 
 [dev-dependencies]

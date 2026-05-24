@@ -11,7 +11,7 @@ description = "FST dictionary backend for gukhanmun."
 [dependencies]
 ciborium = "0.2.2"
 fst = "0.4.7"
-gukhanmun-core = { path = "../gukhanmun-core" }
+gukhanmun-core.workspace = true
 thiserror = "2.0.18"
 
 [dev-dependencies]

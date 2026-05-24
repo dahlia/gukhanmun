@@ -2,6 +2,10 @@
 # Required for the `[hooks]` block below; see https://mise.jdx.dev/hooks.html.
 experimental = true
 
+[tools]
+"cargo:cargo-release" = "1.1.2"
+dasel = "3.11"
+
 [tools.rust]
 version = "1.95.0"
 profile = "default"
@@ -30,6 +34,14 @@ depends = ["fmt-check", "typecheck", "clippy"]
 description = "Run the full CI verification gate"
 depends = ["check", "test", "doc"]
 
+[tasks.bump]
+description = "Preview a workspace version bump"
+run = "cargo release --workspace --no-publish --no-tag --no-push"
+
+[tasks.bump-execute]
+description = "Commit a signed workspace version bump"
+run = "cargo release --workspace --no-publish --no-tag --no-push --execute"
+
 [tasks.typecheck]
 description = "Check all Rust workspace targets"
 run = "cargo check --workspace --all-targets"
@@ -52,7 +64,8 @@ run = "cargo test --workspace"
 
 [tasks.doc]
 description = "Build Rust API documentation with warnings denied"
-run = 'RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps'
+env = { RUSTDOCFLAGS = "-D warnings" }
+run = "cargo doc --workspace --no-deps"
 
 [tasks.generate-unihan]
 description = "Regenerate Unihan kHangul fallback reading data"

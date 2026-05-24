@@ -6,7 +6,6 @@ authors.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-publish = false
 description = "Builds gukhanmun dictionary backend files from canonical TSV input."
 
 [[bin]]
@@ -20,9 +19,9 @@ clap = { version = "4.6.1", features = ["derive"] }
 cdb = "0.6.0"
 csv = "1.4.0"
 fst = "0.4.7"
-gukhanmun-cdb = { path = "../gukhanmun-cdb" }
-gukhanmun-core = { path = "../gukhanmun-core" }
-gukhanmun-fst = { path = "../gukhanmun-fst" }
+gukhanmun-cdb.workspace = true
+gukhanmun-core.workspace = true
+gukhanmun-fst.workspace = true
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"

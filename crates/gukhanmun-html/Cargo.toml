@@ -9,7 +9,7 @@ repository.workspace = true
 description = "HTML fragment adapter for gukhanmun."
 
 [dependencies]
-gukhanmun-core = { path = "../gukhanmun-core" }
+gukhanmun-core.workspace = true
 thiserror = "2.0.18"
 tracing = "0.1.41"
 

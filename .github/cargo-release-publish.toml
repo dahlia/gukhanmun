@@ -1,0 +1,4 @@
+publish = true
+
+[rate-limit]
+new-packages = 10
