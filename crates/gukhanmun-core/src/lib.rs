@@ -838,11 +838,13 @@ where
     process_tokens_iter(tokens, dictionary).collect()
 }
 
-/// Processes input tokens lazily through the default engine options.
+/// Processes input tokens through the default engine options and returns an
+/// iterator over the collected output.
 ///
-/// The returned iterator owns the tokens that are ready after the supplied
-/// input stream has been consumed. For true incremental processing, use
-/// [`Engine`] directly and call [`Engine::push_token`] as chunks arrive.
+/// This is an iterator-shaped compatibility adapter, not the low-level
+/// streaming surface: it consumes the supplied input before returning. For
+/// true incremental processing, use [`Engine`] directly and call
+/// [`Engine::push_token`] as chunks arrive.
 pub fn process_tokens_iter<S, D>(
     tokens: impl IntoIterator<Item = InputToken<S>>,
     dictionary: &D,
@@ -878,7 +880,8 @@ where
     output
 }
 
-/// Processes input tokens lazily through explicit engine options.
+/// Processes input tokens through explicit engine options and returns an
+/// iterator over the collected output.
 ///
 /// This convenience adapter preserves the existing collect-into-`Vec` behavior
 /// while exposing an iterator-shaped API for callers that compose pipeline
@@ -1112,6 +1115,13 @@ where
             }
             return;
         };
+        if let Some(flush_end) = safe_unknown_bound_flush_end(&self.pending_text) {
+            self.flush_prefix_into(flush_end, output);
+            if !self.pending_text.chars().any(is_hanja) {
+                self.flush_non_hanja_safe_into(output);
+            }
+            return;
+        }
         let buffered_chars = self.buffered_chars();
         if buffered_chars > bound.saturating_mul(10) {
             tracing::debug!(

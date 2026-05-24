@@ -34,7 +34,7 @@
 // warning at the module level rather than annotating each item.
 #![allow(dead_code)]
 
-use gukhanmun_core::{Annotation, OutputToken, PlainScopeData, Scope, ScopeData};
+use gukhanmun_core::{Annotation, MapDictionary, OutputToken, PlainScopeData, Scope, ScopeData};
 use proptest::prelude::*;
 use serde_json::{Value, json};
 
@@ -56,7 +56,20 @@ pub fn arb_hangul_only_string() -> impl Strategy<Value = String> {
 /// codepoint boundaries.
 pub fn arb_mixed_script_chunks() -> impl Strategy<Value = Vec<String>> {
     prop::collection::vec("[가-힣A-Za-z .,!?]{0,8}|漢字|天地|汽|車|길|色|깔|論", 0..16)
-        .prop_map(|chunks| chunks.into_iter().map(String::from).collect())
+}
+
+/// Dictionary entries that exercise mixed-script keys and overlapping
+/// hanja-only matches in streaming properties.
+pub fn mixed_script_dictionary() -> MapDictionary {
+    let mut dict = MapDictionary::new();
+    dict.insert("汽車길", "기찻길");
+    dict.insert("祭祀날", "제삿날");
+    dict.insert("洗手대야", "세숫대야");
+    dict.insert("火김", "홧김");
+    dict.insert("色깔論", "색깔론");
+    dict.insert("汽車", "기차");
+    dict.insert("天地", "천지");
+    dict
 }
 
 /// Projects an [`OutputToken`] stream onto a stable JSON value for use
@@ -74,9 +87,9 @@ pub fn arb_mixed_script_chunks() -> impl Strategy<Value = Vec<String>> {
 /// * `{"text": "..."}` or `{"verbatim": "..."}` for passthrough text.
 /// * `{"annotated": {…}}` for converted hanja, carrying both the
 ///   pre-rendering metadata and the seven policy flags.
-pub fn tokens_to_snapshot_value<S: ScopeData>(tokens: &[OutputToken<S>]) -> Value
+pub fn tokens_to_snapshot_value<S>(tokens: &[OutputToken<S>]) -> Value
 where
-    S: SnapshotScope,
+    S: ScopeData + SnapshotScope,
 {
     Value::Array(tokens.iter().map(token_to_value).collect())
 }
