@@ -21,7 +21,8 @@ use gukhanmun_core::{
     HanjaDictionary, HomophoneMarker, InputToken, NumeralStrategy, OutputToken, PlainScopeData,
     Recovery, RenderOptions, RenderedToken, ScopeData, SegmentationStrategy, UserDirectives,
     apply_user_directives, apply_user_directives_iter, filter_first_occurrences, mark_homophones,
-    process_tokens_iter_with_options, read_plain_text, render_tokens_iter, write_plain_text,
+    process_tokens_iter_with_options, read_plain_text, recover_input_tokens, render_tokens_iter,
+    write_plain_text,
 };
 
 #[cfg(not(feature = "stdict"))]
@@ -31,8 +32,8 @@ use crate::options::{ConversionOptions, Preset};
 
 #[cfg(feature = "html")]
 use gukhanmun_html::{
-    HtmlElementInfo, HtmlReaderOptions, HtmlScopeData, read_html_fragment_iter_with_options,
-    try_read_html_fragment_with_options, write_html_fragment,
+    HtmlElementInfo, HtmlReaderOptions, HtmlScopeData, try_read_html_fragment_iter_with_options,
+    write_html_fragment,
 };
 #[cfg(feature = "markdown")]
 use gukhanmun_markdown::{MarkdownScopeData, MarkdownVariant, read_markdown_iter, write_markdown};
@@ -331,23 +332,28 @@ impl<'a> Converter<'a> {
     }
 
     /// Converts an HTML fragment input and returns the result as a `String`.
+    ///
+    /// Honors the converter's [`Recovery`] setting through the shared
+    /// [`recover_input_tokens`] primitive: strict mode rejects the first
+    /// malformed region, lenient mode preserves each malformed region verbatim
+    /// and continues.
     #[cfg(feature = "html")]
     pub fn convert_html_fragment_to_string(&self, input: &str) -> Result<String> {
-        let input_tokens = match self.options.recovery {
-            Recovery::Strict => try_read_html_fragment_with_options(
-                input,
-                &self.html_reader_options,
-                Recovery::Strict,
-            )?,
-            Recovery::Lenient => {
-                gukhanmun_html::read_html_fragment_with_options(input, &self.html_reader_options)
-            }
-        };
+        let input_tokens = recover_input_tokens(
+            try_read_html_fragment_iter_with_options(input, &self.html_reader_options),
+            self.options.recovery,
+        )?;
         let rendered = self.run_buffered(input_tokens);
         Ok(write_html_fragment(rendered))
     }
 
     /// Converts a Markdown input and returns the result as a `String`.
+    ///
+    /// The Markdown reader surfaces no recoverable reader errors, so this method
+    /// does not consult the converter's [`Recovery`] setting; the returned
+    /// `Result` carries only writer/serialization failures. See
+    /// [`gukhanmun_markdown::read_markdown`] for the rationale and the future
+    /// extension point.
     #[cfg(feature = "markdown")]
     pub fn convert_markdown_to_string(
         &self,
@@ -389,16 +395,10 @@ impl<'a> Converter<'a> {
         &'b self,
         input: &'b str,
     ) -> Result<impl Iterator<Item = RenderedToken<HtmlScopeData>> + 'b> {
-        let input_tokens = match self.options.recovery {
-            Recovery::Strict => try_read_html_fragment_with_options(
-                input,
-                &self.html_reader_options,
-                Recovery::Strict,
-            )?,
-            Recovery::Lenient => {
-                read_html_fragment_iter_with_options(input, &self.html_reader_options).collect()
-            }
-        };
+        let input_tokens = recover_input_tokens(
+            try_read_html_fragment_iter_with_options(input, &self.html_reader_options),
+            self.options.recovery,
+        )?;
         Ok(self.convert_tokens(input_tokens))
     }
 

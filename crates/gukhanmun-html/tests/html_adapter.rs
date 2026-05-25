@@ -15,14 +15,15 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use gukhanmun_core::{
-    ContextWindow, EngineOptions, HanjaDictionary, MapDictionary, Match, OriginalGloss, Recovery,
-    RenderMode, RenderOptions, RubyBase, mark_homophones, process_tokens_iter_with_options,
-    render_tokens_iter,
+    ContextWindow, EngineOptions, Error as CoreError, HanjaDictionary, MapDictionary, Match,
+    OriginalGloss, RecoverableInputError, Recovery, RenderMode, RenderOptions, RubyBase,
+    mark_homophones, process_tokens_iter_with_options, render_tokens_iter,
 };
 use gukhanmun_html::{
     HtmlElementInfo, HtmlError, HtmlReaderOptions, HtmlScopeData, convert_html_fragment,
     read_html_fragment, read_html_fragment_iter, read_html_fragment_with_options,
-    try_convert_html_fragment, write_html_fragment,
+    try_convert_html_fragment, try_read_html_fragment, try_read_html_fragment_iter,
+    write_html_fragment,
 };
 use proptest::prelude::*;
 
@@ -182,7 +183,9 @@ fn malformed_fragments_do_not_panic() {
         RenderMode::HangulOnly,
     );
 
-    assert_eq!(output, "<p>한자 <1invalid> 베이징 <![CDATA[한자");
+    // The unclosed `<![CDATA[` region is a recoverable error, so lenient
+    // recovery preserves it verbatim — its `漢字` is no longer converted.
+    assert_eq!(output, "<p>한자 <1invalid> 베이징 <![CDATA[漢字");
 }
 
 #[test]
@@ -195,7 +198,15 @@ fn strict_recovery_reports_malformed_html() {
     )
     .unwrap_err();
 
-    assert!(matches!(error, HtmlError::MalformedTag { .. }));
+    // The reader's HTML-specific cause is preserved as the boxed source of the
+    // shared `gukhanmun_core::Error`.
+    let CoreError::Other(source) = &error else {
+        panic!("expected CoreError::Other, got {error:?}");
+    };
+    assert!(matches!(
+        source.downcast_ref::<HtmlError>(),
+        Some(HtmlError::MalformedTag { .. })
+    ));
 }
 
 #[test]
@@ -212,12 +223,69 @@ fn lenient_recovery_preserves_malformed_html_and_continues() {
 }
 
 #[test]
+fn lenient_recovery_preserves_multiple_malformed_regions() {
+    // Two distinct recoverable regions: an invalid tag-like construct and an
+    // unclosed CDATA section.  Both are preserved verbatim while the hanja
+    // between them still converts.
+    let output = try_convert_html_fragment(
+        "漢字 <1invalid> 北京 <![CDATA[漢字",
+        &dictionary(),
+        RenderMode::HangulOnly,
+        Recovery::Lenient,
+    )
+    .unwrap();
+
+    assert_eq!(output, "한자 <1invalid> 베이징 <![CDATA[漢字");
+}
+
+#[test]
+fn fallible_reader_yields_err_at_malformed_region() {
+    let items: Vec<_> = try_read_html_fragment_iter("<p>漢字</p><1invalid>").collect();
+    let error_count = items.iter().filter(|item| item.is_err()).count();
+    assert_eq!(error_count, 1, "exactly one malformed region expected");
+
+    let original: Vec<&str> = items
+        .iter()
+        .filter_map(|item| item.as_ref().err())
+        .map(RecoverableInputError::original)
+        .collect();
+    // The recovered region's original text is the byte-for-byte `<` the lenient
+    // path re-emits verbatim.
+    assert_eq!(original, vec!["<"]);
+}
+
+#[test]
+fn strict_reader_returns_err_on_first_malformed_region() {
+    assert!(try_read_html_fragment("<p>漢字 <1invalid>", Recovery::Strict).is_err());
+}
+
+#[test]
+fn fallible_reader_lenient_collect_matches_infallible_reader() {
+    // The infallible reader is defined as lenient recovery over the fallible
+    // stream, so collecting `try_read_html_fragment_iter` under lenient policy
+    // must agree with `read_html_fragment` (and with the one-shot wrapper).
+    for input in [
+        "<p lang=ko>漢字</p><pre>北京</pre>",
+        "<p>漢字 <1invalid> 北京 <![CDATA[漢字",
+        "</>漢字",
+    ] {
+        let recovered = try_read_html_fragment(input, Recovery::Lenient).unwrap();
+        assert_eq!(recovered, read_html_fragment(input), "input: {input:?}");
+        assert_eq!(
+            recovered,
+            read_html_fragment_iter(input).collect::<Vec<_>>(),
+            "input: {input:?}",
+        );
+    }
+}
+
+#[test]
 #[tracing_test::traced_test]
 fn lenient_recovery_from_malformed_html_emits_warn_event() {
-    use gukhanmun_html::try_read_html_fragment;
     let result = try_read_html_fragment("</>漢字", Recovery::Lenient);
     assert!(result.is_ok());
-    assert!(logs_contain("recovering from malformed HTML fragment"));
+    // The single recovery warn now comes from the shared core primitive.
+    assert!(logs_contain("recovering from input reader error"));
 }
 
 proptest! {

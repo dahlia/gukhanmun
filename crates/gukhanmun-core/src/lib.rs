@@ -898,6 +898,51 @@ where
     process_tokens_with_options(tokens, dictionary, options).into_iter()
 }
 
+/// Resolves a fallible reader token stream into recovered input tokens.
+///
+/// This is the single place where the stream-level [`Recovery`] policy is
+/// applied to a reader's output. Format adapters (such as the HTML scanner)
+/// emit `Ok(InputToken)` for well-formed regions and
+/// `Err(RecoverableInputError)` for malformed regions they can describe and
+/// preserve; this function turns that stream into the plain
+/// [`InputToken`] sequence the rest of the pipeline consumes:
+///
+///  -  In [`Recovery::Strict`] mode the first error stops processing and its
+///     cause is returned, so the caller never sees a partial token stream.
+///  -  In [`Recovery::Lenient`] mode each error is logged at `warn` level once
+///     and replaced by an [`InputToken::Verbatim`] holding the original source
+///     region, so the malformed bytes pass through untouched while surrounding
+///     tokens continue to flow.
+///
+/// It sits one stage before the [`Engine`]: feed its output into
+/// [`process_tokens_with_options`] or a streaming [`Engine`]. The recovery-aware
+/// engine entry points ([`process_fallible_tokens`] and
+/// [`process_fallible_tokens_with_options`]) are thin wrappers that call this
+/// and then run the engine.
+pub fn recover_input_tokens<S>(
+    tokens: impl IntoIterator<Item = Result<InputToken<S>, RecoverableInputError>>,
+    recovery: Recovery,
+) -> Result<Vec<InputToken<S>>, Error>
+where
+    S: ScopeData,
+{
+    let mut recovered = Vec::new();
+    for token in tokens {
+        match token {
+            Ok(token) => recovered.push(token),
+            Err(error) => match recovery {
+                Recovery::Strict => return Err(error.into_parts().1),
+                Recovery::Lenient => {
+                    let (original, error) = error.into_parts();
+                    tracing::warn!(error = %error, "recovering from input reader error");
+                    recovered.push(InputToken::Verbatim(original));
+                }
+            },
+        }
+    }
+    Ok(recovered)
+}
+
 /// Processes fallible input tokens with default engine options.
 ///
 /// Reader errors are handled according to `recovery`. In strict mode the first
@@ -932,25 +977,8 @@ where
     S: ScopeData,
     D: HanjaDictionary + ?Sized,
 {
-    let mut output = Vec::new();
-    let mut engine = Engine::collecting(dictionary, options);
-
-    for token in tokens {
-        match token {
-            Ok(token) => output.extend(engine.push_token(token)),
-            Err(error) => match recovery {
-                Recovery::Strict => return Err(error.into_parts().1),
-                Recovery::Lenient => {
-                    let (original, error) = error.into_parts();
-                    tracing::warn!(error = %error, "recovering from input reader error");
-                    output.extend(engine.push_token(InputToken::Verbatim(original)));
-                }
-            },
-        }
-    }
-
-    output.extend(engine.finish());
-    Ok(output)
+    let recovered = recover_input_tokens(tokens, recovery)?;
+    Ok(process_tokens_with_options(recovered, dictionary, options))
 }
 
 /// Stateful hanja conversion engine for chunked token streams.

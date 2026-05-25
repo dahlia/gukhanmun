@@ -1,0 +1,21 @@
+description = """
+Unclosed `<![CDATA[` is a recoverable malformed region: under
+`Recovery::Lenient` the scanner preserves it (and everything after it, up to
+EOF) verbatim, so its `北京` is not converted, while the preceding `學校`
+still converts.  Locks the "lenient emits a Verbatim token for the
+unrecognized region" contract for unclosed constructs.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+recovery = "lenient"
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "學校"
+reading = "학교"
+
+[[dictionary.records]]
+hanja = "北京"
+reading = "베이징"

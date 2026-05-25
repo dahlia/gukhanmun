@@ -22,7 +22,7 @@ use gukhanmun_core::{
     UnihanCharDict, UserDirectives, apply_user_directives, convert_plain_text,
     convert_plain_text_with_options, filter_first_occurrences, mark_homophones,
     process_fallible_tokens, process_tokens, process_tokens_iter, process_tokens_with_options,
-    read_plain_text, render_tokens, render_tokens_iter, write_plain_text,
+    read_plain_text, recover_input_tokens, render_tokens, render_tokens_iter, write_plain_text,
 };
 use proptest::prelude::*;
 use std::cell::Cell;
@@ -943,6 +943,46 @@ fn lenient_recovery_resets_fallback_context_after_bad_region() {
     let rendered = render_tokens(output, RenderMode::HangulOnly);
 
     assert_eq!(write_plain_text(rendered), "각<x>율");
+}
+
+#[test]
+fn recover_input_tokens_strict_returns_first_error() {
+    let tokens = vec![
+        Ok(InputToken::<PlainScopeData>::Text("漢字".into())),
+        Err(RecoverableInputError::new(
+            "<broken".into(),
+            CoreError::Internal("reader failed"),
+        )),
+    ];
+
+    let error = recover_input_tokens(tokens, Recovery::Strict)
+        .expect_err("strict recovery must return the first reader error");
+
+    assert!(matches!(error, CoreError::Internal("reader failed")));
+}
+
+#[test]
+fn recover_input_tokens_lenient_preserves_region_as_verbatim() {
+    let tokens = vec![
+        Ok(InputToken::<PlainScopeData>::Text("漢字".into())),
+        Err(RecoverableInputError::new(
+            "<broken".into(),
+            CoreError::Internal("reader failed"),
+        )),
+        Ok(InputToken::Text("天地".into())),
+    ];
+
+    let recovered = recover_input_tokens(tokens, Recovery::Lenient)
+        .expect("lenient recovery never fails for recoverable input errors");
+
+    assert_eq!(
+        recovered,
+        vec![
+            InputToken::Text("漢字".into()),
+            InputToken::Verbatim("<broken".into()),
+            InputToken::Text("天地".into()),
+        ]
+    );
 }
 
 proptest! {

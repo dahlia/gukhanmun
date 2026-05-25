@@ -106,6 +106,19 @@ pub enum MarkdownVariant {
 /// Inline HTML tags are represented as scopes so their `lang` and
 /// preserved-tag policy affects text until the corresponding inline HTML close
 /// tag is read.  Pass [`MarkdownVariant::Gfm`] to enable GFM extensions.
+///
+/// # Recovery
+///
+/// The Markdown reader surfaces **no** recoverable reader errors, so it has no
+/// fallible (`Result`-yielding) variant and ignores the
+/// [`Recovery`](gukhanmun_core::Recovery) policy: `pulldown-cmark` is a total
+/// parser that never rejects input, and malformed inline HTML is preserved
+/// verbatim rather than reported.  A future extension could lift inline-HTML
+/// malformations by routing `Event::Html` / `Event::InlineHtml` through the
+/// HTML crate's fallible
+/// [`try_read_html_fragment_iter`](https://docs.rs/gukhanmun-html) and
+/// re-emitting the resulting [`RecoverableInputError`](gukhanmun_core::RecoverableInputError)s;
+/// that is intentionally not done today.
 pub fn read_markdown(input: &str, variant: MarkdownVariant) -> Vec<InputToken<MarkdownScopeData>> {
     read_markdown_iter(input, variant).collect()
 }
