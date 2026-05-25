@@ -141,6 +141,18 @@ Each FST key is the UTF-8 bytes of the `hanja` column. Each FST value is a
 The reading bytes are stored in the reading string table, not in the FST value,
 because FST values are fixed-width integers.
 
+At runtime, `gukhanmun-fst` decodes the fixed header and CBOR metadata eagerly.
+The FST map bytes and contiguous reading table then share a single byte backing
+store: owned heap bytes for `FstDictionary::open()` and
+`FstDictionary::from_bytes()`, static bytes for
+`FstDictionary::from_static_bytes()`. The crate intentionally does not expose a
+safe file-backed mmap loader because Rust cannot enforce that another file
+descriptor or process will keep the mapped file immutable while the dictionary
+is live.
+`entries()` and `has_homophone()` enumerate the FST and therefore remain
+full-dictionary scans; callers that need repeated homophone checks should use
+the core homophone middleware's batch index.
+
 
 CDB backend file
 ----------------
@@ -159,6 +171,10 @@ records that only lead to longer entries carry no reading.
 
 The metadata CBOR map is stored under the reserved key
 `__gukhanmun_meta__`.
+
+The runtime CDB backend uses the `cdb` crate's file-backed reader and keeps the
+backend opaque behind `HanjaDictionary`.  This already avoids loading the whole
+CDB file through a Gukhanmun-owned buffer without adding an unsafe mmap surface.
 
 
 Validation

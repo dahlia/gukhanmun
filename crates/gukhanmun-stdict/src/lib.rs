@@ -34,7 +34,7 @@ static KO_KR: OnceLock<gukhanmun_fst::FstDictionary> = OnceLock::new();
 /// use.
 pub fn ko_kr() -> &'static gukhanmun_fst::FstDictionary {
     KO_KR.get_or_init(|| {
-        gukhanmun_fst::FstDictionary::from_bytes(KO_KR_BYTES)
+        gukhanmun_fst::FstDictionary::from_static_bytes(KO_KR_BYTES)
             .expect("embedded Standard Korean Language Dictionary FST is valid")
     })
 }

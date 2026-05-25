@@ -16,13 +16,16 @@
 
 //! FST dictionary backend for Gukhanmun.
 
-#![forbid(unsafe_code)]
 #![deny(missing_docs)]
+#![deny(unsafe_code)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Cursor, Read};
+use std::ops::Range;
 use std::path::Path;
+use std::sync::Arc;
 
 use ciborium::de::from_reader;
 use fst::automaton::Automaton;
@@ -39,11 +42,16 @@ const VALUE_MARK_SHIFT: u64 = 16;
 const VALUE_OFFSET_SHIFT: u64 = 24;
 
 /// Dictionary backed by a Gukhanmun FST file.
+///
+/// The fixed header and CBOR metadata are decoded eagerly.  The FST map bytes
+/// and reading table share one backing byte source: owned heap bytes for
+/// [`FstDictionary::open`] and [`FstDictionary::from_bytes`], or static bytes
+/// for [`FstDictionary::from_static_bytes`].
 #[derive(Clone, Debug)]
 pub struct FstDictionary {
     metadata: BTreeMap<String, String>,
-    map: Map<Vec<u8>>,
-    readings: Vec<u8>,
+    map: Map<ByteSection>,
+    readings: ByteSection,
     entry_count: u64,
     max_word_chars: Option<usize>,
 }
@@ -62,6 +70,20 @@ impl FstDictionary {
 
     /// Decodes a dictionary from bytes in the Gukhanmun FST file format.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        Self::from_source(ByteSource::Owned(Arc::<[u8]>::from(bytes)))
+    }
+
+    /// Decodes a dictionary from static bytes in the Gukhanmun FST file format.
+    ///
+    /// This is intended for embedded dictionaries built with `include_bytes!`.
+    /// The FST map and reading table borrow from the static byte slice without
+    /// copying either section.
+    pub fn from_static_bytes(bytes: &'static [u8]) -> Result<Self, Error> {
+        Self::from_source(ByteSource::Static(bytes))
+    }
+
+    fn from_source(source: ByteSource) -> Result<Self, Error> {
+        let bytes = source.as_ref();
         let header = FixedHeader::parse(bytes)?;
         let metadata_bytes = checked_slice(bytes, header.metadata_offset, header.metadata_len)
             .ok_or(Error::SectionOutOfBounds {
@@ -69,14 +91,15 @@ impl FstDictionary {
             })?;
         let metadata = from_reader::<BTreeMap<String, String>, _>(metadata_bytes)
             .map_err(|source| Error::MetadataDecode { source })?;
-        let fst_bytes = checked_slice(bytes, header.fst_offset, header.fst_len)
+        let fst_bytes = source
+            .section(header.fst_offset, header.fst_len)
             .ok_or(Error::SectionOutOfBounds { section: "FST" })?;
-        let readings = checked_slice(bytes, header.readings_offset, header.readings_len)
+        let readings = source
+            .section(header.readings_offset, header.readings_len)
             .ok_or(Error::SectionOutOfBounds {
                 section: "readings",
-            })?
-            .to_vec();
-        let map = Map::new(fst_bytes.to_vec()).map_err(|source| Error::FstDecode { source })?;
+            })?;
+        let map = Map::new(fst_bytes).map_err(|source| Error::FstDecode { source })?;
         let entry_count = parse_u64_metadata(&metadata, "entry_count")
             .unwrap_or_else(|| u64::try_from(map.len()).unwrap_or(u64::MAX));
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars")
@@ -128,12 +151,13 @@ impl FstDictionary {
                 .ok_or(Error::ValueOverflow {
                     field: "reading range",
                 })?;
-        let reading_bytes =
-            self.readings
-                .get(reading_start..reading_end)
-                .ok_or(Error::SectionOutOfBounds {
-                    section: "reading table entry",
-                })?;
+        let reading_bytes = self
+            .readings
+            .as_ref()
+            .get(reading_start..reading_end)
+            .ok_or(Error::SectionOutOfBounds {
+                section: "reading table entry",
+            })?;
         let reading = std::str::from_utf8(reading_bytes)
             .map_err(|source| Error::InvalidUtf8 {
                 field: "reading",
@@ -142,6 +166,45 @@ impl FstDictionary {
             .to_owned();
 
         Ok(LookupEntry { reading, mark })
+    }
+}
+
+#[derive(Clone, Debug)]
+enum ByteSource {
+    Owned(Arc<[u8]>),
+    Static(&'static [u8]),
+}
+
+impl ByteSource {
+    fn section(&self, offset: u64, len: u64) -> Option<ByteSection> {
+        let offset = usize::try_from(offset).ok()?;
+        let len = usize::try_from(len).ok()?;
+        let end = offset.checked_add(len)?;
+        (end <= self.as_ref().len()).then(|| ByteSection {
+            source: self.clone(),
+            range: offset..end,
+        })
+    }
+}
+
+impl AsRef<[u8]> for ByteSource {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            Self::Owned(bytes) => bytes,
+            Self::Static(bytes) => bytes,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ByteSection {
+    source: ByteSource,
+    range: Range<usize>,
+}
+
+impl AsRef<[u8]> for ByteSection {
+    fn as_ref(&self) -> &[u8] {
+        &self.source.as_ref()[self.range.clone()]
     }
 }
 
@@ -430,7 +493,10 @@ fn parse_usize_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Optio
     metadata.get(key).and_then(|value| value.parse().ok())
 }
 
-fn max_key_chars_from_map(map: &Map<Vec<u8>>) -> Option<usize> {
+fn max_key_chars_from_map<D>(map: &Map<D>) -> Option<usize>
+where
+    D: AsRef<[u8]>,
+{
     let mut stream = map.keys();
     let mut max = None;
     while let Some(key) = stream.next() {
@@ -518,6 +584,27 @@ mod tests {
             dictionary.lookup("天地").unwrap().unwrap().reading(),
             "천지"
         );
+    }
+
+    #[test]
+    fn from_static_bytes_matches_owned_loading() {
+        let bytes = fixture_bytes(&[
+            entry("天地", "천지", false, false),
+            entry("漢字", "한자", true, false),
+            entry("色깔論", "색깔론", false, true),
+        ]);
+        let static_bytes = Box::leak(bytes.clone().into_boxed_slice());
+        let owned = FstDictionary::from_bytes(&bytes).unwrap();
+        let static_dict = FstDictionary::from_static_bytes(static_bytes).unwrap();
+
+        assert_equivalent_dictionaries(&owned, &static_dict);
+    }
+
+    #[test]
+    fn dictionary_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+
+        assert_send_sync::<FstDictionary>();
     }
 
     #[traced_test]
@@ -768,6 +855,27 @@ mod tests {
             encoded |= MARK_REQUIRE_HANGUL;
         }
         encoded
+    }
+
+    fn assert_equivalent_dictionaries(left: &FstDictionary, right: &FstDictionary) {
+        assert_eq!(left.metadata(), right.metadata());
+        assert_eq!(left.entry_count(), right.entry_count());
+        assert_eq!(left.max_word_chars(), right.max_word_chars());
+        for key in ["天地", "漢字", "色깔論"] {
+            assert_eq!(left.lookup(key).unwrap(), right.lookup(key).unwrap());
+        }
+        assert_eq!(
+            left.matches_at("色깔論이다").collect::<Vec<_>>(),
+            right.matches_at("色깔論이다").collect::<Vec<_>>()
+        );
+        assert_eq!(
+            left.entries().unwrap().collect::<Vec<_>>(),
+            right.entries().unwrap().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            left.has_homophone("漢字", "한자"),
+            right.has_homophone("漢字", "한자")
+        );
     }
 
     fn unique_entries() -> impl Strategy<Value = Vec<(String, String, bool, bool)>> {
