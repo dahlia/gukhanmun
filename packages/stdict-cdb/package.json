@@ -1,0 +1,50 @@
+{
+  "name": "@gukhanmun/stdict-cdb",
+  "version": "0.1.0",
+  "description": "Standard Korean Language Dictionary bundled as a CDB binary for @gukhanmun/wasm and @gukhanmun/napi.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./stdict.cdb": "./stdict.cdb"
+  },
+  "files": [
+    "dist",
+    "stdict.cdb"
+  ],
+  "scripts": {
+    "build": "tsdown"
+  },
+  "homepage": "https://github.com/dahlia/gukhanmun",
+  "bugs": "https://github.com/dahlia/gukhanmun/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/gukhanmun.git",
+    "directory": "packages/stdict-cdb"
+  },
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Hong Minhe (洪 民憙)",
+    "email": "hong@minhee.org",
+    "url": "https://hongminhee.org/"
+  },
+  "funding": "https://github.com/sponsors/dahlia",
+  "sideEffects": false,
+  "keywords": [
+    "korean",
+    "hanja",
+    "hangul",
+    "typography",
+    "dictionary",
+    "cdb"
+  ],
+  "peerDependencies": {
+    "@gukhanmun/types": "*"
+  },
+  "devDependencies": {
+    "@gukhanmun/types": "workspace:*"
+  }
+}

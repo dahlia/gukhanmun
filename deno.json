@@ -2,7 +2,8 @@
   "workspace": [
     "packages/types",
     "packages/wasm",
-    "packages/stdict-fst"
+    "packages/stdict-fst",
+    "packages/stdict-cdb"
   ],
   "nodeModulesDir": "none",
   "lint": {
@@ -15,6 +16,7 @@
       "packages/types/",
       "packages/wasm/",
       "packages/stdict-fst/",
+      "packages/stdict-cdb/",
       "tests/js/"
     ]
   },
@@ -25,6 +27,7 @@
       "packages/types/",
       "packages/wasm/",
       "packages/stdict-fst/",
+      "packages/stdict-cdb/",
       "tests/js/"
     ]
   }

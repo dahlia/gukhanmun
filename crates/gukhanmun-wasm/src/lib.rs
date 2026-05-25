@@ -31,6 +31,7 @@ use js_sys::{Array, Object, Reflect, Uint8Array};
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
+use gukhanmun::cdb::CdbDictionary;
 use gukhanmun::fst::FstDictionary;
 use gukhanmun::html::HtmlElementInfo;
 use gukhanmun::markdown::MarkdownVariant;
@@ -225,10 +226,9 @@ impl WasmGukhanmun {
                     builder = builder.push_dictionary(dict);
                 }
                 "cdb" => {
-                    return Err(make_error(
-                        "unsupported-content-type",
-                        "CDB dictionaries are not yet supported in WASM; use FST format",
-                    ));
+                    let dict = CdbDictionary::from_bytes(&bytes)
+                        .map_err(|e| make_error("dictionary-load", &e.to_string()))?;
+                    builder = builder.push_dictionary(dict);
                 }
                 other => {
                     return Err(make_error(

@@ -90,6 +90,7 @@ run = [
   "deno check packages/types/index.ts",
   "deno check packages/wasm/index.ts",
   "deno check packages/stdict-fst/index.ts",
+  "deno check packages/stdict-cdb/index.ts",
   "deno check tests/js/wasm.test.ts",
 ]
 
@@ -103,6 +104,7 @@ run = [
   "deno doc --lint ./packages/types/index.ts",
   "deno doc --lint ./packages/wasm/index.ts",
   "deno doc --lint ./packages/stdict-fst/index.ts",
+  "deno doc --lint ./packages/stdict-cdb/index.ts",
 ]
 
 [tasks.js-fmt]
@@ -154,9 +156,22 @@ case "$(uname -s)" in
 esac
 """
 
+[tasks.stdict-cdb-data]
+description = "Build gukhanmun-mkdict (release) and generate CDB binary to packages/stdict-cdb/"
+run = """
+set -e
+MANIFEST_DIR=$(pwd)/crates/gukhanmun-stdict
+cargo build -p gukhanmun-mkdict --release
+target/release/gukhanmun-mkdict \
+  --format cdb \
+  --output packages/stdict-cdb/stdict.cdb \
+  --rules "$MANIFEST_DIR/data/rules.tsv" \
+  "$MANIFEST_DIR/data/stdict.tsv"
+"""
+
 [tasks.js-build]
 description = "Build npm packages with tsdown (TypeScript wrappers)"
-depends = ["wasm-build", "stdict-fst-data", "js-install"]
+depends = ["wasm-build", "stdict-fst-data", "stdict-cdb-data", "js-install"]
 run = "pnpm -r run build"
 
 [tasks.js-test]
