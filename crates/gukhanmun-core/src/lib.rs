@@ -669,8 +669,10 @@ pub enum NumeralStrategy {
     /// keep hangul phonetic fallback behavior.
     ///
     /// Well-formed additive numerals are normalized to Arabic. Pure positional
-    /// digit runs are normalized only when they contain at least four digits,
-    /// matching common year notation. Other numerals remain hangul annotations.
+    /// digit runs are normalized when they contain at least four digits
+    /// (matching common year notation) or when a unit hanja
+    /// (`年月日時分秒號世紀` and so on) immediately follows. Other numerals
+    /// remain hangul annotations.
     Smart,
 }
 

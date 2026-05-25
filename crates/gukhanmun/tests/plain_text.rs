@@ -97,6 +97,9 @@ fn numeral_strategy_smart_converts_year() {
         .convert_text_to_string("二〇一六年")
         .expect("convert");
     assert_eq!(output, "2016년");
+
+    let output = converter.convert_text_to_string("三時").expect("convert");
+    assert_eq!(output, "3시");
 }
 
 #[test]

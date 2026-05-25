@@ -1374,11 +1374,20 @@ fn smart_numerals_choose_arabic_only_for_structured_numbers() {
         ..EngineOptions::default()
     };
     let cases = [
+        // Existing cases (must remain unchanged)
         ("二〇一六年", "2016년"),
         ("十一月", "11월"),
         ("一千二百三十四", "1234"),
         ("六", "육"),
         ("陸", "육"),
+        // Short digit run + unit hanja → Arabic
+        ("三時", "3시"),
+        ("五日", "5일"),
+        ("七年", "7년"),
+        ("十一日", "11일"),
+        // Short digit run without unit → hangul phonetic
+        ("三", "삼"),
+        ("一二三", "일이삼"),
     ];
 
     for (input, expected) in cases {

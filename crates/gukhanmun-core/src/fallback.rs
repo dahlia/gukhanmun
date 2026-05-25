@@ -175,9 +175,31 @@ fn numeral_at(
     }
 }
 
+/// Returns `true` for unit/counter hanja whose presence after a short digit
+/// run should trigger Arabic conversion in the `Smart` strategy.
+///
+/// Covers the set enumerated in the design document's numeral section
+/// (`年月日時分秒號世紀`). Extend this function—and nowhere else—when the set
+/// needs to grow.
+fn is_numeral_unit(ch: char) -> bool {
+    matches!(
+        ch,
+        '年' | '月' | '日' | '時' | '分' | '秒' | '號' | '世' | '紀'
+    )
+}
+
+fn smart_positional_arabic_numeral_at(chars: &[char], index: usize) -> Option<NumeralMatch> {
+    let matched = positional_arabic_numeral_at(chars, index)?;
+    let digit_count = matched.next_index - index;
+    let followed_by_unit = chars
+        .get(matched.next_index)
+        .is_some_and(|&next| is_numeral_unit(next));
+    (digit_count >= 4 || followed_by_unit).then_some(matched)
+}
+
 fn smart_numeral_at(chars: &[char], index: usize, initial_sound_law: bool) -> Option<NumeralMatch> {
     additive_arabic_numeral_at(chars, index)
-        .or_else(|| positional_arabic_numeral_at_min_len(chars, index, 4))
+        .or_else(|| smart_positional_arabic_numeral_at(chars, index))
         .or_else(|| hangul_phonetic_numeral_at(chars, index, initial_sound_law))
 }
 
