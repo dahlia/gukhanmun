@@ -3,5 +3,6 @@ cargo-release-publish.log
 node_modules/
 packages/*/dist/
 packages/wasm/pkg/
+packages/wasm/wasm/
 packages/stdict-fst/stdict.fst
 

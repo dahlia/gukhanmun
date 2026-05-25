@@ -45,7 +45,7 @@ depends = [
 
 [tasks.ci]
 description = "Run the full CI verification gate"
-depends = ["check", "test", "doc", "js-build"]
+depends = ["check", "test", "doc", "js-build", "js-test"]
 
 [tasks.bump]
 description = "Preview a workspace version bump"
@@ -90,6 +90,7 @@ run = [
   "deno check packages/types/index.ts",
   "deno check packages/wasm/index.ts",
   "deno check packages/stdict-fst/index.ts",
+  "deno check tests/js/wasm.test.ts",
 ]
 
 [tasks.js-lint]
@@ -116,7 +117,7 @@ run = "deno fmt --check"
 description = "Build gukhanmun-wasm WASM module for web, nodejs, and deno targets"
 run = """
 set -e
-OUT=$(pwd)/packages/wasm/dist/wasm
+OUT=$(pwd)/packages/wasm/wasm
 wasm-pack build crates/gukhanmun-wasm --release --target web --out-dir "$OUT/web"
 wasm-pack build crates/gukhanmun-wasm --release --target nodejs --out-dir "$OUT/nodejs"
 wasm-pack build crates/gukhanmun-wasm --release --target deno --out-dir "$OUT/deno"
@@ -139,6 +140,15 @@ cp "$FST" packages/stdict-fst/stdict.fst
 description = "Build npm packages with tsdown (TypeScript wrappers)"
 depends = ["wasm-build", "stdict-fst-data", "js-install"]
 run = "pnpm -r run build"
+
+[tasks.js-test]
+description = "Run JavaScript tests on Node.js, Deno, and Bun"
+depends = ["wasm-build", "stdict-fst-data", "js-install"]
+run = [
+  "node --test tests/js/wasm.test.ts",
+  "deno test --allow-read tests/js/wasm.test.ts",
+  "bun test tests/js/wasm.test.ts",
+]
 
 [tasks.wasm-check]
 description = "Verify gukhanmun compiles for wasm32-unknown-unknown (html+fst features)"

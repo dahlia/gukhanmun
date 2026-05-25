@@ -80,10 +80,28 @@ interface WasmStreamInternal {
 
 /** Shape of the wasm-bindgen generated glue module. */
 interface WasmGlue {
-  /** Initialises the WASM module.  Called once before any other use. */
-  default(input?: string | URL | ArrayBuffer): Promise<unknown>;
+  /**
+   * Initialises the WASM module.  Accepts the new object form
+   * `{ module_or_path }` expected by wasm-bindgen ≥ 0.2.93.
+   */
+  default(
+    input?: { module_or_path: ArrayBuffer | ArrayBufferView | string | URL },
+  ): Promise<unknown>;
   /** The exported `WasmGukhanmun` class constructor. */
   WasmGukhanmun: new (options: unknown, dictionaries: unknown) => WasmHandleInternal;
+}
+
+// ── Node.js detection ────────────────────────────────────────────────────────
+
+interface NodeFsPromises {
+  readFile(path: URL): Promise<{ buffer: ArrayBuffer; byteOffset: number; byteLength: number }>;
+}
+
+function isNodeJs(): boolean {
+  return (
+    typeof (globalThis as { process?: { versions?: { node?: unknown } } })
+      .process?.versions?.node === "string"
+  );
 }
 
 // ── GukhanmunError ───────────────────────────────────────────────────────────
@@ -140,11 +158,16 @@ let wasmInit: Promise<WasmGlue> | undefined;
 /**
  * Loads and caches the WASM module.  The module URL is resolved relative to
  * this source file so it works with Deno's module graph and `import.meta.url`.
+ *
+ * Node.js `fetch()` does not support `file://` URLs, so on Node.js the WASM
+ * binary is read via `node:fs/promises` and passed directly as a `Uint8Array`
+ * to the web-target init function, bypassing the streaming-fetch path.
+ * Deno and Bun support `fetch()` for `file://` URLs and use the default path.
  */
 function ensureWasm(): Promise<WasmGlue> {
   if (!wasmInit) {
     const glueHref = new URL(
-      "./dist/wasm/deno/gukhanmun_wasm.js",
+      "./wasm/web/gukhanmun_wasm.js",
       import.meta.url,
     ).href;
     wasmInit = (async () => {
@@ -152,7 +175,18 @@ function ensureWasm(): Promise<WasmGlue> {
       // check does not fail when the generated glue files are absent at dev
       // time; they are produced by `mise run wasm-build`.
       const mod = (await import(glueHref)) as unknown as WasmGlue;
-      await mod.default();
+      if (isNodeJs()) {
+        const wasmUrl = new URL("./wasm/web/gukhanmun_wasm_bg.wasm", import.meta.url);
+        // Non-literal specifier prevents deno check from statically resolving
+        // node:fs/promises types, which would require @types/node.
+        const specifier: string = "node:fs/promises";
+        const fs = (await import(specifier)) as unknown as NodeFsPromises;
+        const buf = await fs.readFile(wasmUrl);
+        const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+        await mod.default({ module_or_path: bytes });
+      } else {
+        await mod.default();
+      }
       return mod;
     })();
   }
