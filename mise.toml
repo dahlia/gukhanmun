@@ -86,26 +86,31 @@ run = "pnpm install"
 
 [tasks.js-typecheck]
 description = "Type-check TypeScript packages with Deno"
-run = "deno check packages/types/index.ts"
+run = [
+  "deno check packages/types/index.ts",
+  "deno check packages/wasm/index.ts",
+  "deno check packages/stdict-fst/index.ts",
+]
 
 [tasks.js-lint]
 description = "Lint TypeScript packages with Deno"
-run = "deno lint packages/"
+run = "deno lint"
 
 [tasks.js-doc]
-description = "Verify JSDoc completeness for @gukhanmun/types and @gukhanmun/wasm exports"
+description = "Verify JSDoc completeness for TypeScript packages"
 run = [
-  "deno doc --lint packages/types/index.ts",
-  "deno doc --lint packages/wasm/index.ts",
+  "deno doc --lint ./packages/types/index.ts",
+  "deno doc --lint ./packages/wasm/index.ts",
+  "deno doc --lint ./packages/stdict-fst/index.ts",
 ]
 
 [tasks.js-fmt]
 description = "Format TypeScript packages with Deno"
-run = "deno fmt packages/"
+run = "deno fmt"
 
 [tasks.js-fmt-check]
 description = "Check TypeScript package formatting with Deno"
-run = "deno fmt --check packages/"
+run = "deno fmt --check"
 
 [tasks.wasm-build]
 description = "Build gukhanmun-wasm WASM module for web, nodejs, and deno targets"
@@ -117,9 +122,22 @@ wasm-pack build crates/gukhanmun-wasm --release --target nodejs --out-dir "$OUT/
 wasm-pack build crates/gukhanmun-wasm --release --target deno --out-dir "$OUT/deno"
 """
 
+[tasks.stdict-fst-data]
+description = "Build gukhanmun-stdict (release) and copy FST binary to packages/stdict-fst/"
+run = """
+set -e
+cargo build -p gukhanmun-stdict --release
+FST=$(find target/release/build -name "stdict.gukfst" -path "*/gukhanmun-stdict*/out/*" 2>/dev/null | head -1)
+if [ -z "$FST" ]; then
+  echo "ERROR: stdict.gukfst not found after release build" >&2
+  exit 1
+fi
+cp "$FST" packages/stdict-fst/stdict.fst
+"""
+
 [tasks.js-build]
 description = "Build npm packages with tsdown (TypeScript wrappers)"
-depends = ["wasm-build", "js-install"]
+depends = ["wasm-build", "stdict-fst-data", "js-install"]
 run = "pnpm -r run build"
 
 [tasks.wasm-check]

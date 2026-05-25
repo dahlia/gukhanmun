@@ -1,7 +1,8 @@
 {
   "workspace": [
     "packages/types",
-    "packages/wasm"
+    "packages/wasm",
+    "packages/stdict-fst"
   ],
   "lint": {
     "rules": {

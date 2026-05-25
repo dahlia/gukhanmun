@@ -227,7 +227,7 @@ export interface FileDictionarySource {
    * or local URL (resolved via `fetch` or `readFile`), or a path `string`
    * for filesystem paths (Node.js / Deno / Bun only).
    */
-  readonly data: BufferSource | URL | string;
+  readonly data: ArrayBuffer | ArrayBufferView | URL | string;
   /**
    * The on-disk format of the dictionary file.
    *

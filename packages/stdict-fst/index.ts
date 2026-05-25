@@ -1,0 +1,71 @@
+/**
+ * @module
+ *
+ * Standard Korean Language Dictionary (표준국어대사전) prebuilt as an FST
+ * binary for use with `{@link load}` from `@gukhanmun/wasm` or
+ * `@gukhanmun/napi`.
+ *
+ * @example
+ * ```ts
+ * import { load } from "@gukhanmun/wasm";
+ * import { stdictFst } from "@gukhanmun/stdict-fst";
+ *
+ * const g = await load({ dictionaries: [await stdictFst()] });
+ * console.log(g.convert("漢字를 한글로"));  // "한자를 한글로"
+ * ```
+ */
+
+import type { FileDictionarySource } from "@gukhanmun/types";
+
+export type { FileDictionarySource } from "@gukhanmun/types";
+
+/** URL of the bundled Standard Korean Language Dictionary FST binary. */
+export const stdictFstUrl: URL = new URL("./stdict.fst", import.meta.url);
+
+// Minimal typing for the Node.js Buffer returned by readFile.
+interface NodeBuffer {
+  readonly buffer: ArrayBuffer;
+  readonly byteOffset: number;
+  readonly byteLength: number;
+}
+
+// Minimal fs/promises interface — only what we use.
+interface NodeFsPromises {
+  readFile(path: URL): Promise<NodeBuffer>;
+}
+
+/**
+ * Loads the bundled Standard Korean Language Dictionary as raw bytes.
+ *
+ * On Node.js uses `node:fs/promises`; on all other runtimes uses `fetch`.
+ *
+ * @returns The FST binary as a `Uint8Array`.
+ */
+export async function stdictFstBytes(): Promise<Uint8Array<ArrayBuffer>> {
+  if (
+    typeof (globalThis as { process?: { versions?: { node?: unknown } } })
+      .process?.versions?.node === "string"
+  ) {
+    // Use a non-literal specifier so TypeScript does not statically resolve
+    // the node:fs/promises module type (which would require @types/node).
+    const specifier: string = "node:fs/promises";
+    const fs = (await import(specifier)) as unknown as NodeFsPromises;
+    const buf = await fs.readFile(stdictFstUrl);
+    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
+  const response = await fetch(stdictFstUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch stdict FST: HTTP ${response.status}`);
+  }
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/**
+ * Loads the bundled Standard Korean Language Dictionary as a
+ * {@link FileDictionarySource} ready to pass to `load({ dictionaries: [...] })`.
+ *
+ * @returns A `FileDictionarySource` with `format: "fst"`.
+ */
+export async function stdictFst(): Promise<FileDictionarySource> {
+  return { data: await stdictFstBytes(), format: "fst" };
+}

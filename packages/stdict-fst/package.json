@@ -1,16 +1,19 @@
 {
-  "name": "@gukhanmun/types",
+  "name": "@gukhanmun/stdict-fst",
   "version": "0.1.0",
-  "description": "TypeScript API contract for Gukhanmun (type declarations only, no runtime code).",
+  "description": "Standard Korean Language Dictionary bundled as an FST binary for @gukhanmun/wasm and @gukhanmun/napi.",
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "default": "./dist/index.d.ts"
-    }
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./stdict.fst": "./stdict.fst"
   },
   "files": [
-    "dist"
+    "dist",
+    "stdict.fst"
   ],
   "scripts": {
     "build": "tsdown"
@@ -20,7 +23,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dahlia/gukhanmun.git",
-    "directory": "packages/types"
+    "directory": "packages/stdict-fst"
   },
   "license": "GPL-3.0-only",
   "author": {
@@ -35,6 +38,13 @@
     "hanja",
     "hangul",
     "typography",
-    "types"
-  ]
+    "dictionary",
+    "fst"
+  ],
+  "peerDependencies": {
+    "@gukhanmun/types": "*"
+  },
+  "devDependencies": {
+    "@gukhanmun/types": "workspace:*"
+  }
 }
