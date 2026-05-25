@@ -7,6 +7,7 @@ dasel = "3.11"
 version = "1.95.0"
 profile = "default"
 components = "rust-analyzer,rustfmt,clippy"
+targets = "wasm32-unknown-unknown"
 
 [tools."github:dahlia/hongdown"]
 version = "0.3.11"
@@ -56,6 +57,10 @@ run = "cargo test --workspace"
 description = "Build Rust API documentation with warnings denied"
 env = { RUSTDOCFLAGS = "-D warnings" }
 run = "cargo doc --workspace --no-deps"
+
+[tasks.wasm-check]
+description = "Verify gukhanmun compiles for wasm32-unknown-unknown (html+fst features)"
+run = "cargo check -p gukhanmun --no-default-features --features 'html,fst' --target wasm32-unknown-unknown"
 
 [tasks.generate-unihan]
 description = "Regenerate Unihan kHangul fallback reading data"

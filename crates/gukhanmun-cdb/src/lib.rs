@@ -21,6 +21,7 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Arc;
 
 use ciborium::de::from_reader;
 use gukhanmun_core::{DictionaryRecord, HanjaDictionary, Match, MatchMark};
@@ -29,10 +30,18 @@ const META_KEY: &[u8] = b"__gukhanmun_meta__";
 const MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
 const MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
 
+/// The CDB header is 2048 bytes: 256 slots × (u32le pos, u32le count).
+const HEADER_SIZE: usize = 2048;
+
 /// Dictionary backed by a Gukhanmun CDB-trie file.
+///
+/// The CDB bytes are held in an [`Arc<[u8]>`] so that
+/// [`CdbDictionary::from_bytes`] can accept a slice and
+/// [`CdbDictionary::open`] can read from disk; both share the same
+/// look-up implementation.
 pub struct CdbDictionary {
     metadata: BTreeMap<String, String>,
-    cdb: cdb::CDB,
+    data: Arc<[u8]>,
     entry_count: u64,
     max_word_chars: Option<usize>,
 }
@@ -41,11 +50,32 @@ impl CdbDictionary {
     /// Opens a dictionary file from disk.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
-        let cdb = cdb::CDB::open(path).map_err(|source| Error::Open {
+        let bytes = std::fs::read(path).map_err(|source| Error::Open {
             path: path.display().to_string(),
             source,
         })?;
-        let metadata_bytes = get_required(&cdb, META_KEY, "dictionary metadata")?;
+        Self::from_source(Arc::from(bytes.as_slice()))
+    }
+
+    /// Decodes a dictionary from bytes in the Gukhanmun CDB-trie format.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        Self::from_source(Arc::from(bytes))
+    }
+
+    /// Decodes a dictionary from static bytes in the Gukhanmun CDB-trie
+    /// format.
+    ///
+    /// This is intended for embedded dictionaries built with
+    /// `include_bytes!`.  The CDB data is referenced directly without
+    /// copying.
+    pub fn from_static_bytes(bytes: &'static [u8]) -> Result<Self, Error> {
+        Self::from_source(Arc::from(bytes as &[u8]))
+    }
+
+    fn from_source(data: Arc<[u8]>) -> Result<Self, Error> {
+        let metadata_bytes = cdb_get(&data, META_KEY)?.ok_or(Error::MissingRecord {
+            record: "dictionary metadata",
+        })?;
         let metadata = from_reader::<BTreeMap<String, String>, _>(metadata_bytes.as_slice())
             .map_err(|source| Error::MetadataDecode { source })?;
         if let Some(version) = metadata.get("version")
@@ -60,14 +90,13 @@ impl CdbDictionary {
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars");
 
         tracing::info!(
-            path = %path.display(),
             format_version = metadata.get("version").map(String::as_str).unwrap_or("1"),
             entry_count,
-            "opened CDB dictionary"
+            "loaded CDB dictionary"
         );
         Ok(Self {
             metadata,
-            cdb,
+            data,
             entry_count,
             max_word_chars,
         })
@@ -78,14 +107,15 @@ impl CdbDictionary {
         &self.metadata
     }
 
-    /// Returns the number of complete dictionary entries recorded at build time.
+    /// Returns the number of complete dictionary entries recorded at build
+    /// time.
     pub fn entry_count(&self) -> u64 {
         self.entry_count
     }
 
     /// Returns the exact dictionary entry for `hanja`, if present.
     pub fn lookup(&self, hanja: &str) -> Result<Option<LookupEntry>, Error> {
-        let Some(value) = get_optional(&self.cdb, hanja.as_bytes())? else {
+        let Some(value) = cdb_get(&self.data, hanja.as_bytes())? else {
             return Ok(None);
         };
         let Some(record) = decode_record(&value)? else {
@@ -106,7 +136,7 @@ impl HanjaDictionary for CdbDictionary {
                 break;
             }
             prefix.push(ch);
-            let value = match get_optional(&self.cdb, prefix.as_bytes()) {
+            let value = match cdb_get(&self.data, prefix.as_bytes()) {
                 Ok(Some(value)) => value,
                 Ok(None) => break,
                 Err(error) => {
@@ -147,10 +177,13 @@ impl HanjaDictionary for CdbDictionary {
 
     fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
         let mut records = Vec::new();
-        for record in self.cdb.iter() {
-            let Ok((key, value)) = record else {
-                tracing::warn!("skipping CDB entry due to iterator read error");
-                continue;
+        for result in cdb_iter(&self.data) {
+            let (key, value) = match result {
+                Ok(pair) => pair,
+                Err(error) => {
+                    tracing::warn!(error = ?error, "skipping CDB entry due to iterator error");
+                    continue;
+                }
             };
             if key == META_KEY {
                 continue;
@@ -177,16 +210,20 @@ impl HanjaDictionary for CdbDictionary {
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        self.cdb.iter().any(|record| {
-            let Ok((key, value)) = record else {
-                return false;
+        for result in cdb_iter(&self.data) {
+            let (key, value) = match result {
+                Ok(pair) => pair,
+                Err(_) => continue,
             };
             if key == META_KEY || key == hanja.as_bytes() {
-                return false;
+                continue;
             }
-            decode_record(&value)
-                .is_ok_and(|entry| entry.is_some_and(|entry| entry.reading == reading))
-        })
+            if decode_record(&value).is_ok_and(|entry| entry.is_some_and(|e| e.reading == reading))
+            {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -218,15 +255,7 @@ pub enum Error {
     Open {
         /// Path that failed to open.
         path: String,
-        /// Underlying I/O or CDB format error.
-        #[source]
-        source: std::io::Error,
-    },
-
-    /// Reading a CDB record failed.
-    #[error("failed to read CDB record: {source}")]
-    ReadRecord {
-        /// Underlying CDB reader error.
+        /// Underlying I/O error.
         #[source]
         source: std::io::Error,
     },
@@ -283,17 +312,163 @@ pub enum Error {
         #[source]
         source: std::str::Utf8Error,
     },
+
+    /// The CDB data is shorter than the required 2048-byte header.
+    #[error("CDB data is too short: {len} bytes")]
+    TooShort {
+        /// Actual byte length of the data.
+        len: usize,
+    },
+
+    /// A CDB header slot or record points outside the data buffer.
+    #[error("CDB offset {offset} is out of bounds (data len {len})")]
+    OutOfBounds {
+        /// The out-of-bounds offset.
+        offset: usize,
+        /// The data length.
+        len: usize,
+    },
 }
 
-fn get_required(cdb: &cdb::CDB, key: &[u8], name: &'static str) -> Result<Vec<u8>, Error> {
-    get_optional(cdb, key)?.ok_or(Error::MissingRecord { record: name })
+// ── Pure CDB operations ────────────────────────────────────────────────────
+
+/// DJB2 hash used by the CDB format (Daniel J. Bernstein's hash).
+fn cdb_hash(key: &[u8]) -> u32 {
+    key.iter().fold(5381u32, |h, &b| {
+        h.wrapping_shl(5).wrapping_add(h) ^ (b as u32)
+    })
 }
 
-fn get_optional(cdb: &cdb::CDB, key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
-    cdb.get(key)
-        .transpose()
-        .map_err(|source| Error::ReadRecord { source })
+/// Read a little-endian `u32` at `offset` from `data`, returning `None` if
+/// out of bounds.
+fn read_u32(data: &[u8], offset: usize) -> Option<u32> {
+    data.get(offset..offset + 4)
+        .and_then(|b| b.try_into().ok())
+        .map(u32::from_le_bytes)
 }
+
+/// Look up `key` in the CDB data buffer.  Returns `Ok(None)` when the key is
+/// absent, `Ok(Some(value_bytes))` on a match, and `Err` on format errors.
+fn cdb_get(data: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
+    if data.len() < HEADER_SIZE {
+        return Err(Error::TooShort { len: data.len() });
+    }
+
+    let h = cdb_hash(key);
+    let header_slot = (h & 0xff) as usize;
+    let header_base = header_slot * 8;
+
+    let table_pos = read_u32(data, header_base).ok_or(Error::OutOfBounds {
+        offset: header_base,
+        len: data.len(),
+    })? as usize;
+    let table_count = read_u32(data, header_base + 4).ok_or(Error::OutOfBounds {
+        offset: header_base + 4,
+        len: data.len(),
+    })? as usize;
+
+    if table_count == 0 {
+        return Ok(None);
+    }
+
+    let start_slot = ((h >> 8) as usize) % table_count;
+
+    for i in 0..table_count {
+        let slot = (start_slot + i) % table_count;
+        let slot_offset = table_pos + slot * 8;
+
+        let slot_hash = match read_u32(data, slot_offset) {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+        let data_pos = match read_u32(data, slot_offset + 4) {
+            Some(v) => v as usize,
+            None => return Ok(None),
+        };
+
+        if data_pos == 0 {
+            return Ok(None);
+        }
+
+        if slot_hash == h {
+            let key_len = match read_u32(data, data_pos) {
+                Some(v) => v as usize,
+                None => continue,
+            };
+            let val_len = match read_u32(data, data_pos + 4) {
+                Some(v) => v as usize,
+                None => continue,
+            };
+            let key_start = data_pos + 8;
+            let val_start = key_start.saturating_add(key_len);
+            let val_end = val_start.saturating_add(val_len);
+
+            if val_end > data.len() {
+                continue;
+            }
+            if data[key_start..key_start + key_len] == *key {
+                return Ok(Some(data[val_start..val_end].to_vec()));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+/// Iterate all records in the CDB data area (bytes 2048 up to the first
+/// hash table).  Yields `(key_bytes, value_bytes)` pairs.
+fn cdb_iter(data: &[u8]) -> impl Iterator<Item = Result<(Vec<u8>, Vec<u8>), Error>> + '_ {
+    // The data area ends where the first hash table begins.
+    let data_end = (0..256usize)
+        .filter_map(|i| {
+            let pos = read_u32(data, i * 8)? as usize;
+            if pos >= HEADER_SIZE { Some(pos) } else { None }
+        })
+        .min()
+        .unwrap_or(data.len());
+
+    CdbIter {
+        data,
+        pos: HEADER_SIZE,
+        data_end,
+    }
+}
+
+struct CdbIter<'a> {
+    data: &'a [u8],
+    pos: usize,
+    data_end: usize,
+}
+
+impl<'a> Iterator for CdbIter<'a> {
+    type Item = Result<(Vec<u8>, Vec<u8>), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.data_end {
+            return None;
+        }
+
+        let key_len = read_u32(self.data, self.pos)? as usize;
+        let val_len = read_u32(self.data, self.pos + 4)? as usize;
+        let key_start = self.pos + 8;
+        let val_start = key_start + key_len;
+        let next_pos = val_start + val_len;
+
+        if next_pos > self.data_end {
+            return Some(Err(Error::OutOfBounds {
+                offset: next_pos,
+                len: self.data_end,
+            }));
+        }
+
+        let key = self.data[key_start..key_start + key_len].to_vec();
+        let val = self.data[val_start..val_start + val_len].to_vec();
+        self.pos = next_pos;
+        Some(Ok((key, val)))
+    }
+}
+
+// ── Record helpers ─────────────────────────────────────────────────────────
 
 fn decode_record(value: &[u8]) -> Result<Option<LookupEntry>, Error> {
     if value.len() < 4 {
@@ -332,6 +507,16 @@ fn decode_mark(encoded: u8) -> MatchMark {
     }
 }
 
+fn parse_u64_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Option<u64> {
+    metadata.get(key).and_then(|value| value.parse().ok())
+}
+
+fn parse_usize_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Option<usize> {
+    metadata.get(key).and_then(|value| value.parse().ok())
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────
+
 #[cfg(test)]
 fn encode_record(entry: Option<(&str, MatchMark)>) -> Vec<u8> {
     let mut output = Vec::new();
@@ -361,14 +546,6 @@ fn encode_mark(mark: MatchMark) -> u8 {
         encoded |= MARK_REQUIRE_HANGUL;
     }
     encoded
-}
-
-fn parse_u64_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Option<u64> {
-    metadata.get(key).and_then(|value| value.parse().ok())
-}
-
-fn parse_usize_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Option<usize> {
-    metadata.get(key).and_then(|value| value.parse().ok())
 }
 
 #[cfg(test)]
@@ -432,6 +609,31 @@ mod tests {
         assert_eq!(matches.len(), 2);
         assert_eq!(matches[0].reading, "행사");
         assert_eq!(matches[1].reading, "행사장");
+    }
+
+    #[test]
+    fn from_bytes_matches_open() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("dict.gukcdb");
+        write_fixture(
+            &path,
+            &[
+                entry("行事", "행사", false, false),
+                entry("場所", "장소", false, false),
+            ],
+        );
+
+        let bytes = fs::read(&path).unwrap();
+        let from_bytes = CdbDictionary::from_bytes(&bytes).unwrap();
+        let from_open = CdbDictionary::open(&path).unwrap();
+
+        assert_eq!(from_bytes.metadata(), from_open.metadata());
+        assert_eq!(from_bytes.entry_count(), from_open.entry_count());
+        assert_eq!(from_bytes.max_word_chars(), from_open.max_word_chars());
+
+        let bytes_matches = from_bytes.matches_at("行事入口").collect::<Vec<_>>();
+        let open_matches = from_open.matches_at("行事入口").collect::<Vec<_>>();
+        assert_eq!(bytes_matches, open_matches);
     }
 
     #[test]
@@ -534,6 +736,36 @@ mod tests {
                 prop_assert_eq!(cdb_matches, map_matches);
                 let lookup = cdb.lookup(&hanja).unwrap().unwrap();
                 prop_assert_eq!(lookup.reading(), reading.as_str());
+            }
+        }
+
+        #[test]
+        fn from_bytes_matches_open_proptest(entries in unique_entries()) {
+            let temp = tempdir().unwrap();
+            let path = temp.path().join("dict.gukcdb");
+            let fixture_entries = entries
+                .iter()
+                .map(|(hanja, reading, require_hanja, require_hangul)| {
+                    TestEntry {
+                        hanja,
+                        reading,
+                        mark: MatchMark {
+                            require_hanja: *require_hanja,
+                            require_hangul: *require_hangul,
+                        },
+                    }
+                })
+                .collect::<Vec<_>>();
+            write_fixture(&path, &fixture_entries);
+            let bytes = fs::read(&path).unwrap();
+
+            let from_open = CdbDictionary::open(&path).unwrap();
+            let from_bytes = CdbDictionary::from_bytes(&bytes).unwrap();
+
+            for (hanja, ..) in &entries {
+                let open_matches = from_open.matches_at(&format!("{hanja}뒤")).collect::<Vec<_>>();
+                let bytes_matches = from_bytes.matches_at(&format!("{hanja}뒤")).collect::<Vec<_>>();
+                prop_assert_eq!(open_matches, bytes_matches);
             }
         }
     }
