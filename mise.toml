@@ -2,6 +2,10 @@
 "github:crate-ci/cargo-release" = "1.1.2"
 "github:mitsuhiko/insta" = "1.47.2"
 dasel = "3.11"
+node = "26"
+"github:pnpm/pnpm" = "11"
+deno = "2"
+bun = "1"
 
 [tools.rust]
 version = "1.95.0"
@@ -19,7 +23,15 @@ linux-arm64 = "hongdown-*-aarch64-unknown-linux-musl.tar.bz2"
 
 [tasks.check]
 description = "Run fast checks suitable for pre-commit"
-depends = ["fmt-check", "typecheck", "clippy"]
+depends = [
+  "fmt-check",
+  "typecheck",
+  "clippy",
+  "js-typecheck",
+  "js-lint",
+  "js-doc",
+  "js-fmt-check",
+]
 
 [tasks.ci]
 description = "Run the full CI verification gate"
@@ -43,7 +55,7 @@ run = "cargo clippy --workspace --all-targets"
 
 [tasks.fmt]
 description = "Format code and docs"
-run = ["cargo fmt --all", "hongdown --write", "mise fmt"]
+run = ["cargo fmt --all", "hongdown --write", "mise fmt", "deno fmt packages/"]
 
 [tasks.fmt-check]
 description = "Check code, docs, and mise formatting"
@@ -57,6 +69,30 @@ run = "cargo test --workspace"
 description = "Build Rust API documentation with warnings denied"
 env = { RUSTDOCFLAGS = "-D warnings" }
 run = "cargo doc --workspace --no-deps"
+
+[tasks.js-install]
+description = "Install JavaScript workspace dependencies"
+run = "pnpm install"
+
+[tasks.js-typecheck]
+description = "Type-check TypeScript packages with Deno"
+run = "deno check packages/types/index.ts"
+
+[tasks.js-lint]
+description = "Lint TypeScript packages with Deno"
+run = "deno lint packages/"
+
+[tasks.js-doc]
+description = "Verify JSDoc completeness for @gukhanmun/types exports"
+run = "deno doc --lint packages/types/index.ts"
+
+[tasks.js-fmt]
+description = "Format TypeScript packages with Deno"
+run = "deno fmt packages/"
+
+[tasks.js-fmt-check]
+description = "Check TypeScript package formatting with Deno"
+run = "deno fmt --check packages/"
 
 [tasks.wasm-check]
 description = "Verify gukhanmun compiles for wasm32-unknown-unknown (html+fst features)"

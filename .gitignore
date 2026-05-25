@@ -1,2 +1,3 @@
 /target/
 cargo-release-publish.log
+node_modules/

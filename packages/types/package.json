@@ -1,0 +1,40 @@
+{
+  "name": "@gukhanmun/types",
+  "version": "0.1.0",
+  "description": "TypeScript API contract for Gukhanmun (type declarations only, no runtime code).",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown --format esm --dts-only --out-dir dist"
+  },
+  "homepage": "https://github.com/dahlia/gukhanmun",
+  "bugs": "https://github.com/dahlia/gukhanmun/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/gukhanmun.git",
+    "directory": "packages/types"
+  },
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Hong Minhe (洪 民憙)",
+    "email": "hong@minhee.org",
+    "url": "https://hongminhee.org/"
+  },
+  "funding": "https://github.com/sponsors/dahlia",
+  "sideEffects": false,
+  "keywords": [
+    "korean",
+    "hanja",
+    "hangul",
+    "typography",
+    "types"
+  ]
+}
