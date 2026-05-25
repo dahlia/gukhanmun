@@ -183,6 +183,52 @@ run = [
   "bun test tests/js/wasm.test.ts",
 ]
 
+[tasks.js-sync-version]
+description = "Write a version string to all JS package manifests"
+run = """
+set -e
+VER="${1:?usage: mise run js-sync-version -- VERSION}"
+
+update_json() {
+  local file="$1"
+  node -e "
+const {readFileSync, writeFileSync} = require('fs');
+const f = process.argv[1], v = process.argv[2];
+const o = JSON.parse(readFileSync(f, 'utf8'));
+o.version = v;
+writeFileSync(f, JSON.stringify(o, null, 2) + '\\n');
+" "$file" "$VER"
+}
+
+for pkg in packages/types packages/wasm packages/napi packages/stdict-fst packages/stdict-cdb; do
+  update_json "$pkg/package.json"
+done
+for pkg in packages/types packages/wasm packages/stdict-fst packages/stdict-cdb; do
+  update_json "$pkg/deno.json"
+done
+"""
+
+[tasks.js-version-dev]
+description = "Compute a dev pre-release version and sync it to all JS manifests"
+run = """
+set -e
+BUILD="${1:-0}"
+COMMIT="$(git rev-parse --short HEAD)"
+BASE="$(dasel -i toml -o yaml 'workspace.package.version' < Cargo.toml)"
+VER="${BASE}-dev.${BUILD}+${COMMIT}"
+echo "Syncing JS manifests to version: $VER"
+mise run js-sync-version -- "$VER"
+"""
+
+[tasks.js-publish]
+description = "Publish npm and JSR packages locally (manual first-publish or recovery)"
+run = """
+set -e
+# Extra args forwarded to pnpm publish (e.g. -- --tag dev).
+pnpm -r publish --no-git-checks "$@"
+deno publish --allow-dirty
+"""
+
 [tasks.wasm-check]
 description = "Verify gukhanmun compiles for wasm32-unknown-unknown (html+fst features)"
 run = "cargo check -p gukhanmun --no-default-features --features 'html,fst' --target wasm32-unknown-unknown"

@@ -577,12 +577,103 @@ jobs:
         path: dist/gukhanmun-${{ needs.artifact-context.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
         if-no-files-found: error
 
+  publish-js:
+    name: publish JS packages
+    runs-on: ubuntu-latest
+    needs:
+    - artifact-context
+    if: >-
+      github.event_name == 'push' &&
+      (
+        github.ref == 'refs/heads/main' ||
+        endsWith(github.ref_name, '-maintenance') ||
+        github.ref_type == 'tag'
+      )
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - uses: actions/setup-node@v4
+      with:
+        registry-url: 'https://registry.npmjs.org'
+    - name: Dump debug context
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        set -euxo pipefail
+
+        git status --short
+        git rev-parse HEAD
+        mise --version
+        mise ls
+        rustup show
+        rustc -Vv
+        cargo -Vv
+        node --version
+        pnpm --version
+        deno --version
+    - name: Build WASM and dictionary data
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
+        mise run wasm-build
+        mise run stdict-fst-data
+        mise run stdict-cdb-data
+    - name: Sync JS manifest versions
+      shell: bash
+      env:
+        PUBLISH_VERSION: ${{ needs.artifact-context.outputs.version }}
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
+        mise run js-sync-version -- "$PUBLISH_VERSION"
+    - name: Build npm packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
+        mise run js-install
+        pnpm -r run build
+    - name: Publish to npm
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
+        dist_tag="latest"
+        if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+          dist_tag="dev"
+        fi
+        # @gukhanmun/napi is skipped: requires prebuilt platform binaries
+        # not yet produced by CI. Publish it manually with `mise run js-publish`.
+        pnpm -r \
+          --filter '!@gukhanmun/napi' \
+          publish \
+          --no-git-checks \
+          --tag "$dist_tag" \
+          --provenance \
+          --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    - name: Publish to JSR
+      shell: bash
+      run: deno publish --allow-dirty
+
   release:
     name: github release
     runs-on: ubuntu-latest
     needs:
     - artifact-context
     - publish
+    - publish-js
     - package-crates
     - build-release-binaries
     if: github.event_name == 'push' && github.ref_type == 'tag'
