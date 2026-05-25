@@ -781,6 +781,7 @@ name = "gukhanmun-markdown"
 version = "0.1.0"
 dependencies = [
  "gukhanmun-core",
+ "gukhanmun-html",
  "proptest",
  "pulldown-cmark",
  "pulldown-cmark-to-cmark",

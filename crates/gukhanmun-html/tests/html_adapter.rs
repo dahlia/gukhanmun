@@ -21,9 +21,10 @@ use gukhanmun_core::{
 };
 use gukhanmun_html::{
     HtmlElementInfo, HtmlError, HtmlFragmentReader, HtmlFragmentWriter, HtmlReaderOptions,
-    HtmlScopeData, convert_html_fragment, read_html_fragment, read_html_fragment_iter,
-    read_html_fragment_with_options, try_convert_html_fragment, try_read_html_fragment,
-    try_read_html_fragment_iter, write_html_fragment,
+    HtmlScopeData, InlineHtml, InlineStartTag, classify_inline_html, convert_html_fragment,
+    is_korean_lang, read_html_fragment, read_html_fragment_iter, read_html_fragment_with_options,
+    try_convert_html_fragment, try_read_html_fragment, try_read_html_fragment_iter,
+    write_html_fragment,
 };
 use proptest::prelude::*;
 
@@ -686,4 +687,121 @@ proptest! {
 
         prop_assert_eq!(with_options, default);
     }
+}
+
+#[test]
+fn classify_inline_html_start_tag() {
+    let result = classify_inline_html(r#"<span lang="ko">"#);
+    assert!(matches!(result, InlineHtml::StartTag(InlineStartTag {
+        ref tag_name, ref lang, self_closing: false, omit_end_tag: false,
+        is_preserved_tag: false, is_text_only_content: false, ..
+    }) if tag_name == "span" && *lang == Some("ko".to_owned())));
+}
+
+#[test]
+fn classify_inline_html_self_closing() {
+    let result = classify_inline_html("<br />");
+    assert!(matches!(result, InlineHtml::StartTag(InlineStartTag {
+        ref tag_name, self_closing: true, omit_end_tag: true, ..
+    }) if tag_name == "br"));
+}
+
+#[test]
+fn classify_inline_html_void_tag() {
+    let result = classify_inline_html("<img src=\"x.png\">");
+    assert!(matches!(result, InlineHtml::StartTag(InlineStartTag {
+        ref tag_name, self_closing: false, omit_end_tag: true, ..
+    }) if tag_name == "img"));
+}
+
+#[test]
+fn classify_inline_html_end_tag() {
+    let result = classify_inline_html("</span>");
+    assert_eq!(
+        result,
+        InlineHtml::EndTag {
+            tag_name: "span".to_owned()
+        }
+    );
+}
+
+#[test]
+fn classify_inline_html_end_tag_uppercase() {
+    let result = classify_inline_html("</SPAN>");
+    assert_eq!(
+        result,
+        InlineHtml::EndTag {
+            tag_name: "span".to_owned()
+        }
+    );
+}
+
+#[test]
+fn classify_inline_html_comment() {
+    assert_eq!(
+        classify_inline_html("<!-- remark -->"),
+        InlineHtml::NonElement
+    );
+}
+
+#[test]
+fn classify_inline_html_cdata() {
+    assert_eq!(
+        classify_inline_html("<![CDATA[data]]>"),
+        InlineHtml::NonElement
+    );
+}
+
+#[test]
+fn classify_inline_html_declaration() {
+    assert_eq!(
+        classify_inline_html("<!DOCTYPE html>"),
+        InlineHtml::NonElement
+    );
+}
+
+#[test]
+fn classify_inline_html_processing_instruction() {
+    assert_eq!(
+        classify_inline_html("<?xml version=\"1.0\"?>"),
+        InlineHtml::NonElement
+    );
+}
+
+#[test]
+fn classify_inline_html_malformed_no_tag_name() {
+    assert_eq!(classify_inline_html("<123>"), InlineHtml::Malformed);
+}
+
+#[test]
+fn classify_inline_html_malformed_no_closing_bracket() {
+    assert_eq!(classify_inline_html("<span"), InlineHtml::Malformed);
+}
+
+#[test]
+fn classify_inline_html_preserved_code_tag() {
+    let result = classify_inline_html("<code>");
+    assert!(matches!(result, InlineHtml::StartTag(InlineStartTag {
+        ref tag_name, is_preserved_tag: true, ..
+    }) if tag_name == "code"));
+}
+
+#[test]
+fn classify_inline_html_text_only_title_tag() {
+    let result = classify_inline_html("<title>");
+    assert!(matches!(result, InlineHtml::StartTag(InlineStartTag {
+        ref tag_name, is_text_only_content: true, ..
+    }) if tag_name == "title"));
+}
+
+#[test]
+fn is_korean_lang_recognises_ko_variants() {
+    assert!(is_korean_lang("ko"));
+    assert!(is_korean_lang("kor"));
+    assert!(is_korean_lang("ko-KR"));
+    assert!(is_korean_lang("ko-Hang"));
+    assert!(is_korean_lang("kor-KP"));
+    assert!(!is_korean_lang("ja"));
+    assert!(!is_korean_lang("en"));
+    assert!(!is_korean_lang("zh-Hant"));
 }

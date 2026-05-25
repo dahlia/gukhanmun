@@ -446,3 +446,57 @@ fn original_with_ruby_gloss_renders_required_hangul_as_inline_html() {
 
     assert_eq!(events(&output), events("<ruby>漢字<rt>한자</rt></ruby>\n"));
 }
+
+#[test]
+fn inline_html_lang_ja_preserves_hanja_same_as_html_adapter() {
+    // Both the Markdown and HTML adapters should agree: text inside a
+    // `lang="ja"` inline element is not Korean, so hanja is not converted.
+    let dict = dictionary();
+    // Use real inline HTML inside a Markdown paragraph so pulldown-cmark
+    // emits Event::InlineHtml, exercising classify_inline_html integration.
+    let input_md = "x <span lang=\"ja\">漢字</span> 漢字\n";
+    let md_out = convert_markdown(
+        input_md,
+        &dict,
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    // The hanja inside lang=ja must pass through unchanged.
+    assert!(
+        md_out.contains("漢字"),
+        "Markdown adapter must preserve hanja inside lang=ja scope, got: {md_out:?}"
+    );
+    // The hanja outside lang=ja must be converted.
+    assert!(
+        md_out.contains("한자"),
+        "Markdown adapter must convert hanja outside lang=ja scope, got: {md_out:?}"
+    );
+}
+
+#[test]
+fn inline_html_code_element_preserves_hanja_same_as_html_adapter() {
+    // Both adapters must agree: text inside `<code>` is verbatim and not
+    // converted, while hanja outside `<code>` in the same paragraph is.
+    let dict = dictionary();
+    let input_md = "<code>漢字</code> 漢字\n";
+    let md_out = convert_markdown(
+        input_md,
+        &dict,
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    // The hanja inside <code> must survive unchanged.
+    assert!(
+        md_out.contains("漢字"),
+        "Markdown adapter must preserve hanja inside code element, got: {md_out:?}"
+    );
+    // The hanja outside <code> must be converted.
+    assert!(
+        md_out.contains("한자"),
+        "Markdown adapter must convert hanja outside code element, got: {md_out:?}"
+    );
+}

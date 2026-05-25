@@ -25,6 +25,7 @@ use gukhanmun_core::{
     ContextWindow, EngineOptions, HanjaDictionary, InputToken, RenderOptions, RenderedToken, Scope,
     ScopeData, mark_homophones, process_tokens_iter_with_options, render_tokens_iter,
 };
+use gukhanmun_html::{InlineHtml, classify_inline_html, is_korean_lang};
 use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd};
 
 /// Adapter-owned scope data for Markdown documents.
@@ -388,59 +389,51 @@ impl<'a> Reader<'a> {
     }
 
     fn push_inline_html(&mut self, html: &str) {
-        if is_non_element_inline_html(html) {
-            self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
-            return;
-        }
-        if html.starts_with("</") {
-            self.push_inline_html_end(html);
-        } else {
-            self.push_inline_html_start(html);
+        match classify_inline_html(html) {
+            InlineHtml::NonElement => {
+                self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
+            }
+            InlineHtml::EndTag { .. } => self.push_inline_html_end(html),
+            InlineHtml::StartTag(_) => self.push_inline_html_start(html),
+            InlineHtml::Malformed => {
+                tracing::debug!(html, "malformed inline HTML fragment");
+                self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
+            }
         }
     }
 
     fn push_inline_html_start(&mut self, html: &str) {
         self.flush_pending_reopen();
-        let Some((name_start, name_end)) = parse_start_tag_name(html, 0) else {
-            tracing::debug!(
-                html,
-                "malformed inline HTML start tag: unparseable tag name"
-            );
-            self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
-            return;
+        let tag = match classify_inline_html(html) {
+            InlineHtml::StartTag(tag) => tag,
+            _ => {
+                tracing::debug!(html, "malformed inline HTML start tag");
+                self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
+                return;
+            }
         };
-        let Some(end_position) = find_tag_end(html, 0) else {
-            tracing::debug!(
-                html,
-                "malformed inline HTML start tag: missing closing bracket"
-            );
-            self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
-            return;
-        };
-
-        let tag_original = &html[name_start..name_end];
-        let tag_name = tag_original.to_ascii_lowercase();
-        let self_closing = is_self_closing_start_tag(html, name_end, end_position);
-        let raw_attributes = raw_attributes(html, name_end, end_position, self_closing);
-        let context = self.context_for(&tag_name, raw_attributes);
-        let omit_end_tag = self_closing || is_void_tag(&tag_name);
+        let context = self.context_for(
+            &tag.tag_name,
+            tag.lang.as_deref(),
+            tag.is_preserved_tag,
+            tag.is_text_only_content,
+        );
         let scope = MarkdownScopeData {
             preserve: context.preserve(),
             // Decoupled from `preserve` for the same reason as in the HTML
             // adapter: preserve disables text conversion, but does not
             // restrict markup at deeper positions where conversion resumes.
-            allows_inline_markup: !is_text_only_content_tag(&tag_name)
-                && !context.text_only_ancestor,
+            allows_inline_markup: !tag.is_text_only_content && !context.text_only_ancestor,
             block_boundary: false,
             node: MarkdownNode::InlineHtmlElement {
-                raw_start: html.to_owned(),
-                end_tag_name: tag_original.to_owned(),
-                omit_end_tag,
+                raw_start: tag.raw_start_tag,
+                end_tag_name: tag.end_tag_name,
+                omit_end_tag: tag.omit_end_tag,
             },
         };
 
         self.output.push(InputToken::Open(Scope::new(scope)));
-        if omit_end_tag {
+        if tag.omit_end_tag {
             self.output.push(InputToken::Close);
         } else {
             self.html_stack.push(context.clone());
@@ -450,12 +443,14 @@ impl<'a> Reader<'a> {
 
     fn push_inline_html_end(&mut self, html: &str) {
         self.flush_pending_reopen();
-        let Some((name_start, name_end)) = parse_end_tag_name(html, 0) else {
-            tracing::debug!(html, "malformed inline HTML end tag: unparseable tag name");
-            self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
-            return;
+        let tag_name = match classify_inline_html(html) {
+            InlineHtml::EndTag { tag_name } => tag_name,
+            _ => {
+                tracing::debug!(html, "malformed inline HTML end tag: unparseable tag name");
+                self.push_leaf(LeafNode::InlineHtml(html.to_owned()));
+                return;
+            }
         };
-        let tag_name = html[name_start..name_end].to_ascii_lowercase();
         let Some(stack_position) = self.open_scopes.iter().rposition(
             |scope| matches!(scope, OpenScope::InlineHtml(context) if context.tag_name == tag_name),
         ) else {
@@ -470,7 +465,13 @@ impl<'a> Reader<'a> {
         self.close_html_scope_at(stack_position, true);
     }
 
-    fn context_for(&self, tag_name: &str, raw_attributes: &str) -> HtmlContext {
+    fn context_for(
+        &self,
+        tag_name: &str,
+        tag_lang: Option<&str>,
+        tag_is_preserved: bool,
+        tag_is_text_only: bool,
+    ) -> HtmlContext {
         let parent_tag_preserve = self
             .html_stack
             .last()
@@ -479,8 +480,8 @@ impl<'a> Reader<'a> {
             .html_stack
             .last()
             .is_some_and(|context| context.text_only_ancestor);
-        let tag_preserve = parent_tag_preserve || is_preserved_tag(tag_name);
-        let lang = extract_lang(raw_attributes).or_else(|| {
+        let tag_preserve = parent_tag_preserve || tag_is_preserved;
+        let lang = tag_lang.map(|s| s.to_owned()).or_else(|| {
             self.html_stack
                 .last()
                 .and_then(|context| context.lang.as_ref().cloned())
@@ -488,7 +489,7 @@ impl<'a> Reader<'a> {
         HtmlContext {
             tag_name: tag_name.to_owned(),
             tag_preserve,
-            text_only_ancestor: parent_text_only_ancestor || is_text_only_content_tag(tag_name),
+            text_only_ancestor: parent_text_only_ancestor || tag_is_text_only,
             lang,
         }
     }
@@ -726,185 +727,5 @@ fn is_markdown_block_end(tag: TagEnd) -> bool {
             | TagEnd::Subscript
             | TagEnd::Link
             | TagEnd::Image
-    )
-}
-
-fn is_non_element_inline_html(html: &str) -> bool {
-    html.starts_with("<!--")
-        || html.starts_with("<!")
-        || html.starts_with("<?")
-        || html.starts_with("<![CDATA[")
-}
-
-fn parse_start_tag_name(input: &str, start: usize) -> Option<(usize, usize)> {
-    let name_start = start.checked_add(1)?;
-    parse_tag_name(input, name_start)
-}
-
-fn parse_end_tag_name(input: &str, start: usize) -> Option<(usize, usize)> {
-    let name_start = start.checked_add(2)?;
-    parse_tag_name(input, name_start)
-}
-
-fn parse_tag_name(input: &str, name_start: usize) -> Option<(usize, usize)> {
-    let bytes = input.as_bytes();
-    let first = *bytes.get(name_start)?;
-    if !first.is_ascii_alphabetic() {
-        return None;
-    }
-    let mut end = name_start + 1;
-    while let Some(byte) = bytes.get(end)
-        && (byte.is_ascii_alphanumeric() || matches!(*byte, b'-' | b':' | b'_'))
-    {
-        end += 1;
-    }
-    Some((name_start, end))
-}
-
-fn find_tag_end(input: &str, start: usize) -> Option<usize> {
-    let bytes = input.as_bytes();
-    let mut quote = None;
-    let mut index = start + 1;
-    while let Some(byte) = bytes.get(index).copied() {
-        match (quote, byte) {
-            (Some(active), current) if active == current => quote = None,
-            (None, b'\'' | b'"') => quote = Some(byte),
-            (None, b'>') => return Some(index),
-            _ => {}
-        }
-        index += 1;
-    }
-    None
-}
-
-fn is_self_closing_start_tag(input: &str, name_end: usize, end_position: usize) -> bool {
-    let bytes = input.as_bytes();
-    let mut slash_position = end_position;
-    while slash_position > name_end && bytes[slash_position - 1].is_ascii_whitespace() {
-        slash_position -= 1;
-    }
-    if slash_position <= name_end || bytes[slash_position - 1] != b'/' {
-        return false;
-    }
-
-    let slash_index = slash_position - 1;
-    if input[name_end..slash_index].trim().is_empty() {
-        return true;
-    }
-
-    let previous = bytes[slash_index - 1];
-    previous.is_ascii_whitespace() || matches!(previous, b'\'' | b'"')
-}
-
-fn raw_attributes(input: &str, name_end: usize, end_position: usize, self_closing: bool) -> &str {
-    let mut attr_end = end_position;
-    if self_closing {
-        while attr_end > name_end && input.as_bytes()[attr_end - 1].is_ascii_whitespace() {
-            attr_end -= 1;
-        }
-        if attr_end > name_end && input.as_bytes()[attr_end - 1] == b'/' {
-            attr_end -= 1;
-        }
-    }
-    &input[name_end..attr_end]
-}
-
-fn extract_lang(raw_attributes: &str) -> Option<String> {
-    let bytes = raw_attributes.as_bytes();
-    let mut index = 0;
-    while index < bytes.len() {
-        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
-            index += 1;
-        }
-        let name_start = index;
-        while index < bytes.len()
-            && (bytes[index].is_ascii_alphanumeric() || matches!(bytes[index], b'-' | b':' | b'_'))
-        {
-            index += 1;
-        }
-        if name_start == index {
-            index += 1;
-            continue;
-        }
-        let name = &raw_attributes[name_start..index];
-        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
-            index += 1;
-        }
-        if bytes.get(index) != Some(&b'=') {
-            continue;
-        }
-        index += 1;
-        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
-            index += 1;
-        }
-        let value = if matches!(bytes.get(index), Some(b'\'' | b'"')) {
-            let quote = bytes[index];
-            index += 1;
-            let value_start = index;
-            while index < bytes.len() && bytes[index] != quote {
-                index += 1;
-            }
-            let value = &raw_attributes[value_start..index];
-            if index < bytes.len() {
-                index += 1;
-            }
-            value
-        } else {
-            let value_start = index;
-            while index < bytes.len() && !bytes[index].is_ascii_whitespace() {
-                index += 1;
-            }
-            &raw_attributes[value_start..index]
-        };
-        if name.eq_ignore_ascii_case("lang") {
-            return Some(decode_basic_entities(value.trim()).to_ascii_lowercase());
-        }
-    }
-    None
-}
-
-fn decode_basic_entities(value: &str) -> String {
-    value
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'")
-        .replace("&amp;", "&")
-}
-
-fn is_korean_lang(lang: &str) -> bool {
-    let lang = lang.to_ascii_lowercase();
-    lang == "ko" || lang == "kor" || lang.starts_with("ko-") || lang.starts_with("kor-")
-}
-
-/// HTML5 elements whose content model is text-only. Inline markup such as
-/// `<ruby>` is invalid inside them, so scopes wrapping these tags report
-/// `allows_inline_markup = false` and renderers fall back to parens.
-fn is_text_only_content_tag(tag_name: &str) -> bool {
-    matches!(tag_name, "title" | "option")
-}
-
-fn is_preserved_tag(tag_name: &str) -> bool {
-    matches!(
-        tag_name,
-        "pre" | "code" | "kbd" | "script" | "style" | "textarea"
-    )
-}
-
-fn is_void_tag(tag_name: &str) -> bool {
-    matches!(
-        tag_name,
-        "area"
-            | "base"
-            | "br"
-            | "col"
-            | "embed"
-            | "hr"
-            | "img"
-            | "input"
-            | "link"
-            | "meta"
-            | "param"
-            | "source"
-            | "track"
-            | "wbr"
     )
 }

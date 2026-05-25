@@ -1090,9 +1090,125 @@ fn decode_basic_entities(value: &str) -> String {
         .replace("&amp;", "&")
 }
 
-fn is_korean_lang(lang: &str) -> bool {
+/// Returns `true` when `lang` is a Korean BCP 47 primary or extended language
+/// tag.
+///
+/// Recognised prefixes are `ko`, `kor`, `ko-*`, and `kor-*` (case-insensitive),
+/// matching the predicate used by the HTML adapter's `lang` inheritance rule.
+pub fn is_korean_lang(lang: &str) -> bool {
     let lang = lang.to_ascii_lowercase();
     lang == "ko" || lang == "kor" || lang.starts_with("ko-") || lang.starts_with("kor-")
+}
+
+/// Classification of a single inline HTML fragment as produced by
+/// `pulldown-cmark`'s `Event::InlineHtml`.
+///
+/// `classify_inline_html` inspects the fragment and returns one of these
+/// variants.  Callers use the result to decide how to handle the fragment in
+/// the Markdown pipeline without duplicating HTML-scanner logic.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum InlineHtml {
+    /// A start tag, including self-closing (`<br/>`) and void (`<br>`) forms.
+    StartTag(InlineStartTag),
+    /// An end tag (`</name>`).
+    EndTag {
+        /// Canonical lowercase tag name.
+        tag_name: String,
+    },
+    /// A non-element construct: an HTML comment (`<!--…-->`), a CDATA section
+    /// (`<![CDATA[…]]>`), a processing instruction (`<?…?>`), or a declaration
+    /// (`<!…>`).  These must pass through verbatim without scope tracking.
+    NonElement,
+    /// A `<…>`-shaped fragment whose tag name cannot be parsed.  Callers
+    /// should preserve it verbatim and, if desired, log a diagnostic.
+    Malformed,
+}
+
+/// Parsed details of an inline HTML start tag.
+///
+/// All fields are extracted by the same scanner logic used in the HTML adapter,
+/// so the Markdown adapter can share the HTML crate's rules for `lang`
+/// inheritance, preserved tags, and void elements without duplicating code.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InlineStartTag {
+    /// Canonical lowercase tag name used for policy decisions.
+    pub tag_name: String,
+    /// Raw start-tag text from `<` through `>` (for serialisation).
+    pub raw_start_tag: String,
+    /// Raw attribute text (leading whitespace preserved, slash and `>` excluded).
+    pub raw_attributes: String,
+    /// Original-casing tag name for constructing the matching end tag.
+    pub end_tag_name: String,
+    /// `lang` attribute value from this tag only (lowercased, entities decoded).
+    /// Ancestor `lang` inheritance is the caller's responsibility.
+    pub lang: Option<String>,
+    /// Whether the tag carries an explicit self-closing slash (`<br />`).
+    pub self_closing: bool,
+    /// Whether the end tag should be omitted (self-closing or void element).
+    pub omit_end_tag: bool,
+    /// Whether this is a preserved tag (`pre`, `code`, `kbd`, `script`,
+    /// `style`, `textarea`).
+    pub is_preserved_tag: bool,
+    /// Whether this tag has a text-only content model (`title`, `option`).
+    pub is_text_only_content: bool,
+}
+
+/// Classifies a single inline HTML fragment into its structural role.
+///
+/// The input should be the raw text of a single `pulldown-cmark`
+/// `Event::InlineHtml` or `Event::Html` token — a complete single-tag string.
+/// The function uses the same scanner primitives as the HTML adapter, so all
+/// policy decisions (preserved tags, void elements, `lang` extraction) are
+/// consistent with `HtmlFragmentReader`.
+///
+/// Note that this function only parses the tag itself; `lang` inheritance from
+/// ancestor scopes remains the caller's responsibility.
+pub fn classify_inline_html(html: &str) -> InlineHtml {
+    if html.starts_with("<!--")
+        || html.starts_with("<![CDATA[")
+        || html.starts_with("<!")
+        || html.starts_with("<?")
+    {
+        return InlineHtml::NonElement;
+    }
+
+    if html.starts_with("</") {
+        if find_tag_end(html, 0).is_none() {
+            return InlineHtml::Malformed;
+        }
+        return match parse_end_tag_name(html, 0) {
+            Some((name_start, name_end)) => InlineHtml::EndTag {
+                tag_name: html[name_start..name_end].to_ascii_lowercase(),
+            },
+            None => InlineHtml::Malformed,
+        };
+    }
+
+    let Some((name_start, name_end)) = parse_start_tag_name(html, 0) else {
+        return InlineHtml::Malformed;
+    };
+    let Some(end_position) = find_tag_end(html, 0) else {
+        return InlineHtml::Malformed;
+    };
+
+    let end_tag_name = html[name_start..name_end].to_owned();
+    let tag_name = end_tag_name.to_ascii_lowercase();
+    let self_closing = is_self_closing_start_tag(html, name_end, end_position);
+    let raw_attrs = raw_attributes(html, name_end, end_position, self_closing).to_owned();
+    let lang = extract_lang(&raw_attrs);
+    let omit_end_tag = self_closing || is_void_tag(&tag_name);
+
+    InlineHtml::StartTag(InlineStartTag {
+        raw_start_tag: html.to_owned(),
+        is_preserved_tag: is_preserved_tag(&tag_name),
+        is_text_only_content: is_text_only_content_tag(&tag_name),
+        raw_attributes: raw_attrs,
+        end_tag_name,
+        lang,
+        self_closing,
+        omit_end_tag,
+        tag_name,
+    })
 }
 
 fn is_preserved_tag(tag_name: &str) -> bool {
