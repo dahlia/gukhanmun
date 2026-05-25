@@ -22,13 +22,14 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, ValueEnum};
 use gukhanmun::cdb::CdbDictionary;
 use gukhanmun::fst::FstDictionary;
-use gukhanmun::html::HtmlElementInfo;
+use gukhanmun::html::{HtmlElementInfo, HtmlFragmentReader, HtmlFragmentWriter, HtmlScopeData};
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
-    Builder, ContextWindow, DirectiveAction, Engine, HanjaDictionary, InputToken, NumeralStrategy,
-    OriginalGloss, OutputToken, PlainScopeData, Preset as UmbrellaPreset, Recovery, RenderMode,
-    RenderOptions, RubyBase, SegmentationStrategy, UserDirectives, apply_user_directives,
-    render_tokens_iter, write_plain_text,
+    Builder, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter, HanjaDictionary,
+    HomophoneMarker, InputToken, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData,
+    Preset as UmbrellaPreset, RecoverableInputError, Recovery, RenderMode, RenderOptions,
+    RenderedToken, Renderer, RubyBase, SegmentationStrategy, UserDirectives, apply_user_directives,
+    recover_input_token, render_tokens_iter, write_plain_text,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -1102,20 +1103,211 @@ where
 
 fn convert_html_document(
     mut input: impl BufRead,
-    mut output: impl Write,
+    output: impl Write,
     converter: &gukhanmun::Converter<'_>,
 ) -> Result<()> {
-    let mut content = String::new();
-    input
-        .read_to_string(&mut content)
-        .context("failed to read UTF-8 input")?;
-    let converted = converter
-        .convert_html_fragment_to_string(&content)
-        .map_err(|error| anyhow::anyhow!("failed to convert HTML fragment: {error}"))?;
-    output
-        .write_all(converted.as_bytes())
-        .context("failed to write output")?;
-    output.flush().context("failed to flush output")
+    let options = converter.options();
+    let mut reader = HtmlFragmentReader::with_options(converter.html_reader_options());
+    let mut engine =
+        Engine::<HtmlScopeData, _>::with_options(converter.dictionary(), options.engine);
+    let mut homophones = HomophoneMarker::new(converter.dictionary(), options.homophone_window);
+    let mut first_occurrences = FirstOccurrenceFilter::new(options.first_occurrence_window);
+    let mut renderer = Renderer::new(options.rendering);
+    let mut writer = HtmlFragmentWriter::new(output);
+    let mut bytes = [0; 8192];
+    let mut pending = Vec::new();
+
+    loop {
+        let bytes_read = input
+            .read(&mut bytes)
+            .context("failed to read input stream")?;
+        if bytes_read == 0 {
+            break;
+        }
+        pending.extend_from_slice(&bytes[..bytes_read]);
+        {
+            let mut pipeline = HtmlStreamPipeline {
+                engine: &mut engine,
+                homophones: &mut homophones,
+                first_occurrences: &mut first_occurrences,
+                directives: converter.directives(),
+                renderer: &mut renderer,
+                writer: &mut writer,
+                recovery: options.recovery,
+            };
+            process_utf8_prefix_with(&mut pending, |text| {
+                pipeline.process_input_tokens(reader.push_str(text))
+            })?;
+        }
+        writer.flush().context("failed to flush output")?;
+    }
+
+    {
+        let mut pipeline = HtmlStreamPipeline {
+            engine: &mut engine,
+            homophones: &mut homophones,
+            first_occurrences: &mut first_occurrences,
+            directives: converter.directives(),
+            renderer: &mut renderer,
+            writer: &mut writer,
+            recovery: options.recovery,
+        };
+        flush_utf8_tail_with(&mut pending, |text| {
+            pipeline.process_input_tokens(reader.push_str(text))
+        })?;
+    }
+    writer.flush().context("failed to flush output")?;
+    {
+        let mut pipeline = HtmlStreamPipeline {
+            engine: &mut engine,
+            homophones: &mut homophones,
+            first_occurrences: &mut first_occurrences,
+            directives: converter.directives(),
+            renderer: &mut renderer,
+            writer: &mut writer,
+            recovery: options.recovery,
+        };
+        pipeline.process_input_tokens(reader.finish())?;
+    }
+    let engine_tail = engine.finish();
+    process_html_output_tokens(
+        engine_tail,
+        &mut homophones,
+        &mut first_occurrences,
+        converter.directives(),
+        &mut renderer,
+        &mut writer,
+    )?;
+    let homophone_tail = homophones.finish();
+    process_html_first_occurrence_tokens(
+        homophone_tail,
+        &mut first_occurrences,
+        converter.directives(),
+        &mut renderer,
+        &mut writer,
+    )?;
+    let first_occurrence_tail = first_occurrences.finish();
+    write_html_rendered_tokens(
+        first_occurrence_tail,
+        converter.directives(),
+        &mut renderer,
+        &mut writer,
+    )?;
+    writer.finish().context("failed to flush output")?;
+    Ok(())
+}
+
+struct HtmlStreamPipeline<'p, 'd, D, W>
+where
+    D: HanjaDictionary + ?Sized,
+    W: Write,
+{
+    engine: &'p mut Engine<'d, HtmlScopeData, D>,
+    homophones: &'p mut HomophoneMarker<'d, HtmlScopeData>,
+    first_occurrences: &'p mut FirstOccurrenceFilter<HtmlScopeData>,
+    directives: &'p UserDirectives<'d>,
+    renderer: &'p mut Renderer<HtmlScopeData>,
+    writer: &'p mut HtmlFragmentWriter<W>,
+    recovery: Recovery,
+}
+
+impl<D, W> HtmlStreamPipeline<'_, '_, D, W>
+where
+    D: HanjaDictionary + ?Sized,
+    W: Write,
+{
+    fn process_input_tokens(
+        &mut self,
+        input_tokens: Vec<Result<InputToken<HtmlScopeData>, RecoverableInputError>>,
+    ) -> Result<()> {
+        for token in input_tokens {
+            let token = recover_input_token(token, self.recovery)
+                .map_err(|error| anyhow::anyhow!("failed to convert HTML fragment: {error}"))?;
+            let output_tokens = self.engine.push_token(token);
+            process_html_output_tokens(
+                output_tokens,
+                self.homophones,
+                self.first_occurrences,
+                self.directives,
+                self.renderer,
+                self.writer,
+            )?;
+        }
+        Ok(())
+    }
+}
+
+fn flush_utf8_tail_with(
+    pending: &mut Vec<u8>,
+    mut push_text: impl FnMut(&str) -> Result<()>,
+) -> Result<()> {
+    if pending.is_empty() {
+        return Ok(());
+    }
+    let text =
+        std::str::from_utf8(pending).map_err(|_| anyhow::anyhow!("failed to read UTF-8 input"))?;
+    push_text(text)?;
+    pending.clear();
+    Ok(())
+}
+
+fn process_html_output_tokens<W>(
+    output_tokens: Vec<OutputToken<HtmlScopeData>>,
+    homophones: &mut HomophoneMarker<'_, HtmlScopeData>,
+    first_occurrences: &mut FirstOccurrenceFilter<HtmlScopeData>,
+    directives: &UserDirectives<'_>,
+    renderer: &mut Renderer<HtmlScopeData>,
+    writer: &mut HtmlFragmentWriter<W>,
+) -> Result<()>
+where
+    W: Write,
+{
+    for token in output_tokens {
+        let tokens = homophones.push_token(token);
+        process_html_first_occurrence_tokens(
+            tokens,
+            first_occurrences,
+            directives,
+            renderer,
+            writer,
+        )?;
+    }
+    Ok(())
+}
+
+fn process_html_first_occurrence_tokens<W>(
+    output_tokens: Vec<OutputToken<HtmlScopeData>>,
+    first_occurrences: &mut FirstOccurrenceFilter<HtmlScopeData>,
+    directives: &UserDirectives<'_>,
+    renderer: &mut Renderer<HtmlScopeData>,
+    writer: &mut HtmlFragmentWriter<W>,
+) -> Result<()>
+where
+    W: Write,
+{
+    for token in output_tokens {
+        let tokens = first_occurrences.push_token(token);
+        write_html_rendered_tokens(tokens, directives, renderer, writer)?;
+    }
+    Ok(())
+}
+
+fn write_html_rendered_tokens<W>(
+    output_tokens: Vec<OutputToken<HtmlScopeData>>,
+    directives: &UserDirectives<'_>,
+    renderer: &mut Renderer<HtmlScopeData>,
+    writer: &mut HtmlFragmentWriter<W>,
+) -> Result<()>
+where
+    W: Write,
+{
+    for token in output_tokens {
+        let rendered: RenderedToken<_> = renderer.push_token(directives.apply(token));
+        writer
+            .write_token(rendered)
+            .context("failed to write output")?;
+    }
+    Ok(())
 }
 
 fn markdown_format_options() -> hongdown::Options {

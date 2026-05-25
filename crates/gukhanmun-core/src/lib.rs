@@ -928,19 +928,35 @@ where
 {
     let mut recovered = Vec::new();
     for token in tokens {
-        match token {
-            Ok(token) => recovered.push(token),
-            Err(error) => match recovery {
-                Recovery::Strict => return Err(error.into_parts().1),
-                Recovery::Lenient => {
-                    let (original, error) = error.into_parts();
-                    tracing::warn!(error = %error, "recovering from input reader error");
-                    recovered.push(InputToken::Verbatim(original));
-                }
-            },
-        }
+        recovered.push(recover_input_token(token, recovery)?);
     }
     Ok(recovered)
+}
+
+/// Resolves one fallible reader item according to a [`Recovery`] policy.
+///
+/// This is the per-token form of [`recover_input_tokens`] for streaming
+/// pipelines. In strict mode an error is returned immediately. In lenient mode
+/// the error is logged once and replaced with an [`InputToken::Verbatim`]
+/// carrying the original malformed region.
+pub fn recover_input_token<S>(
+    token: Result<InputToken<S>, RecoverableInputError>,
+    recovery: Recovery,
+) -> Result<InputToken<S>, Error>
+where
+    S: ScopeData,
+{
+    match token {
+        Ok(token) => Ok(token),
+        Err(error) => match recovery {
+            Recovery::Strict => Err(error.into_parts().1),
+            Recovery::Lenient => {
+                let (original, error) = error.into_parts();
+                tracing::warn!(error = %error, "recovering from input reader error");
+                Ok(InputToken::Verbatim(original))
+            }
+        },
+    }
 }
 
 /// Processes fallible input tokens with default engine options.
@@ -2178,17 +2194,22 @@ where
     S: ScopeData,
     O: Into<RenderOptions>,
 {
-    TokenRenderer {
+    RendererIter {
         upstream: tokens.into_iter(),
-        options: options.into(),
-        markup_stack: Vec::new(),
-        disallowing_ancestors: 0,
-        _scope: PhantomData,
+        renderer: Renderer::new(options),
     }
 }
 
-struct TokenRenderer<I, S> {
-    upstream: I,
+/// Stateful renderer for chunked [`OutputToken`] streams.
+///
+/// `Renderer` is the push-based counterpart to [`render_tokens_iter`]. It
+/// preserves the active scope stack across calls so format writers can consume
+/// rendered tokens as soon as upstream engine and middleware stages release
+/// them, without losing inline-markup restrictions from earlier chunks.
+pub struct Renderer<S>
+where
+    S: ScopeData,
+{
     options: RenderOptions,
     /// Cached `allows_inline_markup` value for each open scope. Storing the
     /// boolean instead of the whole scope keeps the renderer free of an extra
@@ -2203,16 +2224,26 @@ struct TokenRenderer<I, S> {
     _scope: PhantomData<fn(S)>,
 }
 
-impl<I, S> Iterator for TokenRenderer<I, S>
+impl<S> Renderer<S>
 where
-    I: Iterator<Item = OutputToken<S>>,
     S: ScopeData,
 {
-    type Item = RenderedToken<S>;
+    /// Creates a renderer with the supplied rendering options.
+    pub fn new<O>(options: O) -> Self
+    where
+        O: Into<RenderOptions>,
+    {
+        Self {
+            options: options.into(),
+            markup_stack: Vec::new(),
+            disallowing_ancestors: 0,
+            _scope: PhantomData,
+        }
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let token = self.upstream.next()?;
-        Some(match token {
+    /// Pushes one output token and returns its rendered counterpart.
+    pub fn push_token(&mut self, token: OutputToken<S>) -> RenderedToken<S> {
+        match token {
             OutputToken::Open(scope) => {
                 let allows = scope.data().allows_inline_markup();
                 if !allows {
@@ -2242,7 +2273,28 @@ where
                 let allows_inline_markup = self.disallowing_ancestors == 0;
                 render_annotation(&annotation, &self.options, allows_inline_markup)
             }
-        })
+        }
+    }
+}
+
+struct RendererIter<I, S>
+where
+    S: ScopeData,
+{
+    upstream: I,
+    renderer: Renderer<S>,
+}
+
+impl<I, S> Iterator for RendererIter<I, S>
+where
+    I: Iterator<Item = OutputToken<S>>,
+    S: ScopeData,
+{
+    type Item = RenderedToken<S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let token = self.upstream.next()?;
+        Some(self.renderer.push_token(token))
     }
 }
 

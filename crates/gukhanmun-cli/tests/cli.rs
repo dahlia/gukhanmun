@@ -387,6 +387,21 @@ fn ko_kp_plain_stdin_writes_ready_output_before_eof() {
     assert_plain_stdin_writes_before_eof(["--preset", "ko-kp"], "北\n", "북\n");
 }
 
+#[test]
+fn html_stdin_writes_complete_block_before_eof() {
+    assert_plain_stdin_writes_before_eof(
+        [
+            "--format",
+            "text/html",
+            "--no-stdict",
+            "--disambiguation",
+            "off",
+        ],
+        "<p>北</p>",
+        "<p>북</p>",
+    );
+}
+
 fn assert_plain_stdin_writes_before_eof<const N: usize>(
     args: [&str; N],
     input: &str,

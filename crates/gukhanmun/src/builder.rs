@@ -324,6 +324,16 @@ impl<'a> Converter<'a> {
         &self.directives
     }
 
+    /// Returns the configured HTML reader options.
+    ///
+    /// This lets streaming callers pair [`gukhanmun_html::HtmlFragmentReader`]
+    /// with the same preserve predicates used by the converter's buffered HTML
+    /// convenience methods.
+    #[cfg(feature = "html")]
+    pub fn html_reader_options(&self) -> &HtmlReaderOptions<'a> {
+        &self.html_reader_options
+    }
+
     /// Converts a plain-text input and returns the result as a `String`.
     pub fn convert_text_to_string(&self, input: &str) -> Result<String> {
         let input_tokens = read_plain_text(input);
@@ -387,9 +397,10 @@ impl<'a> Converter<'a> {
     /// [`Recovery::Strict`], malformed input is rejected up front and the
     /// caller never sees a partial token stream. With [`Recovery::Lenient`]
     /// the reader recovers in place and the returned iterator drains the
-    /// recovered tokens. The reader scans the entire fragment eagerly in
-    /// either mode because the underlying HTML scanner is not incremental;
-    /// laziness applies from the engine stage onward.
+    /// recovered tokens. This one-shot iterator still receives a complete
+    /// fragment string; callers with chunked input should drive
+    /// [`gukhanmun_html::HtmlFragmentReader`] directly and feed recovered
+    /// tokens to [`Converter::convert_tokens`].
     #[cfg(feature = "html")]
     pub fn convert_html_fragment_iter<'b>(
         &'b self,

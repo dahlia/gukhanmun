@@ -19,6 +19,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+use std::fmt;
+
 use gukhanmun_core::{
     ContextWindow, EngineOptions, HanjaDictionary, InputToken, RenderOptions, RenderedToken, Scope,
     ScopeData, mark_homophones, process_tokens_iter_with_options, render_tokens_iter,
@@ -142,10 +144,23 @@ pub fn read_markdown_iter(
 pub fn write_markdown(
     tokens: impl IntoIterator<Item = RenderedToken<MarkdownScopeData>>,
 ) -> Result<String, MarkdownError> {
-    let events = rendered_tokens_to_events(tokens);
     let mut output = String::new();
-    pulldown_cmark_to_cmark::cmark(events.iter(), &mut output)?;
+    write_markdown_to_fmt(tokens, &mut output)?;
     Ok(output)
+}
+
+/// Writes rendered Markdown tokens to a [`fmt::Write`] sink.
+///
+/// `pulldown-cmark` parses from a complete `&str`, so the Markdown reader is
+/// not fully incremental.  This writer still consumes the rendered token stream
+/// lazily and avoids collecting an intermediate event vector before
+/// serialization.
+pub fn write_markdown_to_fmt(
+    tokens: impl IntoIterator<Item = RenderedToken<MarkdownScopeData>>,
+    output: impl fmt::Write,
+) -> Result<(), MarkdownError> {
+    pulldown_cmark_to_cmark::cmark(rendered_tokens_to_events(tokens), output)?;
+    Ok(())
 }
 
 /// Converts Markdown with default engine options.
@@ -558,37 +573,57 @@ impl HtmlContext {
 
 fn rendered_tokens_to_events(
     tokens: impl IntoIterator<Item = RenderedToken<MarkdownScopeData>>,
-) -> Vec<Event<'static>> {
-    let mut events = Vec::new();
-    let mut stack = Vec::new();
+) -> impl Iterator<Item = Event<'static>> {
+    RenderedEvents {
+        tokens: tokens.into_iter(),
+        stack: Vec::new(),
+    }
+}
 
-    for token in tokens {
-        match token {
-            RenderedToken::Open(scope) => {
-                let data = scope.into_data();
-                emit_open(&data, &mut events);
-                stack.push(data);
-            }
-            RenderedToken::Close => {
-                if let Some(data) = stack.pop() {
-                    emit_close(&data, &mut events);
+struct RenderedEvents<I> {
+    tokens: I,
+    stack: Vec<MarkdownScopeData>,
+}
+
+impl<I> Iterator for RenderedEvents<I>
+where
+    I: Iterator<Item = RenderedToken<MarkdownScopeData>>,
+{
+    type Item = Event<'static>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let token = self.tokens.next()?;
+            match token {
+                RenderedToken::Open(scope) => {
+                    let data = scope.into_data();
+                    let event = open_event(&data);
+                    self.stack.push(data);
+                    return Some(event);
                 }
-            }
-            RenderedToken::Text(text) => events.push(Event::Text(CowStr::from(text))),
-            RenderedToken::Verbatim(text) => events.push(Event::InlineHtml(CowStr::from(text))),
-            RenderedToken::Ruby { base, rt } => {
-                let mut markup = String::with_capacity(base.len() + rt.len() + 25);
-                markup.push_str("<ruby>");
-                push_escaped_html_text(&mut markup, &base);
-                markup.push_str("<rt>");
-                push_escaped_html_text(&mut markup, &rt);
-                markup.push_str("</rt></ruby>");
-                events.push(Event::InlineHtml(CowStr::from(markup)));
+                RenderedToken::Close => {
+                    if let Some(data) = self.stack.pop()
+                        && let Some(event) = close_event(&data)
+                    {
+                        return Some(event);
+                    }
+                }
+                RenderedToken::Text(text) => return Some(Event::Text(CowStr::from(text))),
+                RenderedToken::Verbatim(text) => {
+                    return Some(Event::InlineHtml(CowStr::from(text)));
+                }
+                RenderedToken::Ruby { base, rt } => {
+                    let mut markup = String::with_capacity(base.len() + rt.len() + 25);
+                    markup.push_str("<ruby>");
+                    push_escaped_html_text(&mut markup, &base);
+                    markup.push_str("<rt>");
+                    push_escaped_html_text(&mut markup, &rt);
+                    markup.push_str("</rt></ruby>");
+                    return Some(Event::InlineHtml(CowStr::from(markup)));
+                }
             }
         }
     }
-
-    events
 }
 
 /// Appends `input` to `output`, escaping characters that have special meaning
@@ -606,29 +641,31 @@ fn push_escaped_html_text(output: &mut String, input: &str) {
     }
 }
 
-fn emit_open(data: &MarkdownScopeData, events: &mut Vec<Event<'static>>) {
+fn open_event(data: &MarkdownScopeData) -> Event<'static> {
     match &data.node {
-        MarkdownNode::Container(tag) => events.push(Event::Start(tag.clone())),
-        MarkdownNode::Leaf(node) => events.push(leaf_to_event(node)),
+        MarkdownNode::Container(tag) => Event::Start(tag.clone()),
+        MarkdownNode::Leaf(node) => leaf_to_event(node),
         MarkdownNode::InlineHtmlElement { raw_start, .. } => {
-            events.push(Event::InlineHtml(CowStr::from(raw_start.clone())));
+            Event::InlineHtml(CowStr::from(raw_start.clone()))
         }
     }
 }
 
-fn emit_close(data: &MarkdownScopeData, events: &mut Vec<Event<'static>>) {
+fn close_event(data: &MarkdownScopeData) -> Option<Event<'static>> {
     match &data.node {
-        MarkdownNode::Container(tag) => events.push(Event::End(tag.to_end())),
-        MarkdownNode::Leaf(_) => {}
+        MarkdownNode::Container(tag) => Some(Event::End(tag.to_end())),
+        MarkdownNode::Leaf(_) => None,
         MarkdownNode::InlineHtmlElement {
             end_tag_name,
             omit_end_tag,
             ..
         } => {
             if !omit_end_tag {
-                events.push(Event::InlineHtml(CowStr::from(format!(
+                Some(Event::InlineHtml(CowStr::from(format!(
                     "</{end_tag_name}>"
-                ))));
+                ))))
+            } else {
+                None
             }
         }
     }

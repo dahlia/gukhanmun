@@ -15,15 +15,15 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use gukhanmun_core::{
-    ContextWindow, EngineOptions, Error as CoreError, HanjaDictionary, MapDictionary, Match,
-    OriginalGloss, RecoverableInputError, Recovery, RenderMode, RenderOptions, RubyBase,
-    mark_homophones, process_tokens_iter_with_options, render_tokens_iter,
+    ContextWindow, EngineOptions, Error as CoreError, HanjaDictionary, InputToken, MapDictionary,
+    Match, OriginalGloss, RecoverableInputError, Recovery, RenderMode, RenderOptions, RubyBase,
+    mark_homophones, process_tokens_iter_with_options, recover_input_tokens, render_tokens_iter,
 };
 use gukhanmun_html::{
-    HtmlElementInfo, HtmlError, HtmlReaderOptions, HtmlScopeData, convert_html_fragment,
-    read_html_fragment, read_html_fragment_iter, read_html_fragment_with_options,
-    try_convert_html_fragment, try_read_html_fragment, try_read_html_fragment_iter,
-    write_html_fragment,
+    HtmlElementInfo, HtmlError, HtmlFragmentReader, HtmlFragmentWriter, HtmlReaderOptions,
+    HtmlScopeData, convert_html_fragment, read_html_fragment, read_html_fragment_iter,
+    read_html_fragment_with_options, try_convert_html_fragment, try_read_html_fragment,
+    try_read_html_fragment_iter, write_html_fragment,
 };
 use proptest::prelude::*;
 
@@ -34,6 +34,22 @@ fn dictionary() -> MapDictionary {
     dict.insert("布告하다", "포고하다");
     dict.insert("佈告하다", "포고하다");
     dict
+}
+
+fn convert_chunked_html(chunks: &[&str]) -> String {
+    let mut reader = HtmlFragmentReader::new();
+    let mut fallible = Vec::new();
+    for chunk in chunks {
+        fallible.extend(reader.push_str(chunk));
+    }
+    fallible.extend(reader.finish());
+    let input_tokens: Vec<InputToken<HtmlScopeData>> =
+        recover_input_tokens(fallible, Recovery::Strict).unwrap();
+    let output_tokens =
+        process_tokens_iter_with_options(input_tokens, &dictionary(), EngineOptions::default());
+    let output_tokens = mark_homophones(output_tokens, &dictionary(), ContextWindow::PerBlock);
+    let rendered_tokens = render_tokens_iter(output_tokens, RenderMode::HangulOnly);
+    write_html_fragment(rendered_tokens)
 }
 
 struct ContextOnlyDictionary(MapDictionary);
@@ -162,6 +178,100 @@ fn html_reader_iterator_matches_vec_reader() {
 }
 
 #[test]
+fn chunked_html_reader_matches_one_shot_conversion_across_markup_boundaries() {
+    let input = "<p lang=\"ja\">漢字 <span lang=ko data-x=\"a>b\">漢字</span></p><p>北京</p>";
+    let chunks = [
+        "<p la",
+        "ng=\"ja",
+        "\">漢",
+        "字 <span lang=ko data-x=\"a>",
+        "b\">漢字</sp",
+        "an></p><p>北",
+        "京</p>",
+    ];
+
+    assert_eq!(
+        convert_chunked_html(&chunks),
+        convert_html_fragment(input, &dictionary(), RenderMode::HangulOnly)
+    );
+}
+
+#[test]
+fn chunked_html_reader_preserves_comment_cdata_and_raw_text_boundaries() {
+    let input = "<!-- 漢字 --><p><![CDATA[漢字]]></p><script>if (x < 1) 漢字;</script><style>漢字</style><p>漢字</p>";
+    let chunks = [
+        "<!-- 漢",
+        "字 --><p><![CD",
+        "ATA[漢字]",
+        "]></p><script>if (x < 1) 漢",
+        "字;</scr",
+        "ipt><style>漢",
+        "字</sty",
+        "le><p>漢字</p>",
+    ];
+
+    assert_eq!(
+        convert_chunked_html(&chunks),
+        convert_html_fragment(input, &dictionary(), RenderMode::HangulOnly)
+    );
+}
+
+#[test]
+fn chunked_html_reader_waits_for_comment_end_after_gt() {
+    let input = "<!-- >漢字 --><p>漢字</p>";
+    let chunks = ["<!-- >漢", "字 --><p>漢字</p>"];
+
+    assert_eq!(
+        convert_chunked_html(&chunks),
+        convert_html_fragment(input, &dictionary(), RenderMode::HangulOnly)
+    );
+}
+
+#[test]
+fn chunked_html_reader_waits_for_cdata_end_after_gt() {
+    let input = "<p><![CDATA[>漢字]]></p><p>漢字</p>";
+    let chunks = ["<p><![CDATA[>漢", "字]]></p><p>漢字</p>"];
+
+    assert_eq!(
+        convert_chunked_html(&chunks),
+        convert_html_fragment(input, &dictionary(), RenderMode::HangulOnly)
+    );
+}
+
+#[test]
+fn chunked_raw_text_end_tag_can_split_after_tag_name() {
+    let input = "<script>漢字</script><p>漢字</p>";
+    let chunks = ["<script>漢字</script", "><p>漢字</p>"];
+
+    assert_eq!(
+        convert_chunked_html(&chunks),
+        convert_html_fragment(input, &dictionary(), RenderMode::HangulOnly)
+    );
+}
+
+#[test]
+fn streaming_html_writer_matches_string_writer() {
+    let rendered = render_tokens_iter(
+        process_tokens_iter_with_options(
+            read_html_fragment("<p>漢字</p>"),
+            &dictionary(),
+            EngineOptions::default(),
+        ),
+        RenderMode::Ruby(RubyBase::OnHangul),
+    )
+    .collect::<Vec<_>>();
+    let buffered = write_html_fragment(rendered.clone());
+    let mut output = Vec::new();
+    let mut writer = HtmlFragmentWriter::new(&mut output);
+    for token in rendered {
+        writer.write_token(token).unwrap();
+    }
+    writer.finish().unwrap();
+
+    assert_eq!(String::from_utf8(output).unwrap(), buffered);
+}
+
+#[test]
 fn block_scopes_reset_homophone_marking() {
     let output = convert_html_fragment(
         "<p>布告하다</p><p>佈告하다</p><div>布告하다 佈告하다</div>",
@@ -257,6 +367,16 @@ fn fallible_reader_yields_err_at_malformed_region() {
 #[test]
 fn strict_reader_returns_err_on_first_malformed_region() {
     assert!(try_read_html_fragment("<p>漢字 <1invalid>", Recovery::Strict).is_err());
+}
+
+#[test]
+fn strict_reader_rejects_unclosed_comment_with_gt() {
+    assert!(try_read_html_fragment("<!-- >漢", Recovery::Strict).is_err());
+}
+
+#[test]
+fn strict_reader_rejects_unclosed_cdata_with_gt() {
+    assert!(try_read_html_fragment("<![CDATA[>漢", Recovery::Strict).is_err());
 }
 
 #[test]

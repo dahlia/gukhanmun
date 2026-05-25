@@ -90,13 +90,13 @@ pub use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DictionaryRecord, DirectiveAction, Engine,
     EngineOptions, FirstOccurrenceFilter, HanjaDictionary, HomophoneMarker, InputToken,
     MapDictionary, Match, MatchMark, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData,
-    RecoverableInputError, Recovery, RenderMode, RenderOptions, RenderedToken, RubyBase, Scope,
-    ScopeData, SegmentationStrategy, UnihanCharDict, UserDirectives, apply_user_directives,
+    RecoverableInputError, Recovery, RenderMode, RenderOptions, RenderedToken, Renderer, RubyBase,
+    Scope, ScopeData, SegmentationStrategy, UnihanCharDict, UserDirectives, apply_user_directives,
     apply_user_directives_iter, convert_plain_text, convert_plain_text_with_options,
     filter_first_occurrences, is_hanja, mark_homophones, process_fallible_tokens,
     process_fallible_tokens_with_options, process_tokens, process_tokens_iter,
     process_tokens_iter_with_options, process_tokens_with_options, read_plain_text,
-    recover_input_tokens, render_tokens, render_tokens_iter, write_plain_text,
+    recover_input_token, recover_input_tokens, render_tokens, render_tokens_iter, write_plain_text,
 };
 
 /// HTML adapter (re-export of [`gukhanmun_html`]).

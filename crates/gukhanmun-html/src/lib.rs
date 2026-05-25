@@ -19,6 +19,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+use std::io::{self, Write};
+
 use gukhanmun_core::{
     ContextWindow, EngineOptions, Error as CoreError, HanjaDictionary, InputToken,
     RecoverableInputError, Recovery, RenderOptions, RenderedToken, Scope, ScopeData,
@@ -178,6 +180,394 @@ pub enum HtmlError {
     },
 }
 
+/// Incremental HTML fragment reader.
+///
+/// The reader accepts UTF-8 string chunks, preserves scanner state across
+/// chunk boundaries, and emits fallible input tokens as soon as the current
+/// buffer contains a complete text or markup region.  It intentionally remains
+/// fragment-oriented rather than HTML5-conformant, matching the one-shot
+/// reader's recovery and scope rules.
+pub struct HtmlFragmentReader<'r, 'o> {
+    buffer: String,
+    base_position: usize,
+    stack: Vec<ElementContext>,
+    options: HtmlReaderOptionsSource<'r, 'o>,
+}
+
+enum HtmlReaderOptionsSource<'r, 'o> {
+    Default,
+    Borrowed(&'r HtmlReaderOptions<'o>),
+}
+
+impl HtmlReaderOptionsSource<'_, '_> {
+    fn evaluate(&self, info: &HtmlElementInfo<'_>) -> bool {
+        match self {
+            Self::Default => false,
+            Self::Borrowed(options) => options.evaluate(info),
+        }
+    }
+}
+
+impl HtmlFragmentReader<'static, 'static> {
+    /// Creates a reader with default [`HtmlReaderOptions`].
+    pub fn new() -> Self {
+        Self {
+            buffer: String::new(),
+            base_position: 0,
+            stack: Vec::new(),
+            options: HtmlReaderOptionsSource::Default,
+        }
+    }
+}
+
+impl Default for HtmlFragmentReader<'static, 'static> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'r, 'o> HtmlFragmentReader<'r, 'o> {
+    /// Creates a reader with caller-supplied [`HtmlReaderOptions`].
+    pub fn with_options(options: &'r HtmlReaderOptions<'o>) -> Self {
+        Self {
+            buffer: String::new(),
+            base_position: 0,
+            stack: Vec::new(),
+            options: HtmlReaderOptionsSource::Borrowed(options),
+        }
+    }
+
+    /// Pushes another input chunk and returns every complete token available.
+    ///
+    /// Partial tags, quoted attributes, comments, CDATA regions, declarations,
+    /// and raw-text end tags remain buffered until a later chunk or
+    /// [`HtmlFragmentReader::finish`] resolves them.
+    pub fn push_str(
+        &mut self,
+        input: &str,
+    ) -> Vec<Result<InputToken<HtmlScopeData>, RecoverableInputError>> {
+        self.buffer.push_str(input);
+        self.scan_available(false)
+    }
+
+    /// Finishes the input stream and returns remaining tokens or recoverable
+    /// errors for any unclosed construct still buffered.
+    pub fn finish(mut self) -> Vec<Result<InputToken<HtmlScopeData>, RecoverableInputError>> {
+        self.scan_available(true)
+    }
+
+    fn scan_available(&mut self, finish: bool) -> Vec<ScanItem> {
+        let mut output = Vec::new();
+        while !self.buffer.is_empty() {
+            let progressed = if self.in_raw_text_element() {
+                self.scan_raw_text_element(&mut output, finish)
+            } else if self.buffer.starts_with('<') {
+                self.scan_markup(&mut output, finish)
+            } else {
+                self.scan_text(&mut output)
+            };
+            if !progressed {
+                break;
+            }
+        }
+        output
+    }
+
+    fn in_raw_text_element(&self) -> bool {
+        self.stack
+            .last()
+            .is_some_and(|context| is_raw_text_tag(&context.tag_name))
+    }
+
+    fn drain_to(&mut self, end: usize) -> String {
+        let drained = self.buffer.drain(..end).collect::<String>();
+        self.base_position += end;
+        drained
+    }
+
+    fn push_recoverable(
+        &mut self,
+        output: &mut Vec<ScanItem>,
+        original_len: usize,
+        error: HtmlError,
+    ) {
+        tracing::trace!(
+            position = self.base_position,
+            "html scanner recovered a malformed region"
+        );
+        let original = self.drain_to(original_len);
+        output.push(Err(RecoverableInputError::new(
+            original,
+            CoreError::Other(Box::new(error)),
+        )));
+    }
+
+    fn scan_text(&mut self, output: &mut Vec<ScanItem>) -> bool {
+        let end = self.buffer.find('<').unwrap_or(self.buffer.len());
+        if end == 0 {
+            return false;
+        }
+        let text = self.drain_to(end);
+        push_text(output, text);
+        true
+    }
+
+    fn scan_markup(&mut self, output: &mut Vec<ScanItem>, finish: bool) -> bool {
+        if self.buffer.starts_with("<!--") {
+            return self.scan_verbatim(output, "<!--", "-->", finish);
+        }
+        if self.buffer.starts_with("<![CDATA[") {
+            return self.scan_verbatim(output, "<![CDATA[", "]]>", finish);
+        }
+        if self.buffer.starts_with("</") {
+            return self.scan_end_tag(output, finish);
+        }
+        if self.buffer.starts_with("<!") || self.buffer.starts_with("<?") {
+            return self.scan_declaration(output, finish);
+        }
+        self.scan_start_tag(output, finish)
+    }
+
+    fn scan_verbatim(
+        &mut self,
+        output: &mut Vec<ScanItem>,
+        start: &'static str,
+        end: &str,
+        finish: bool,
+    ) -> bool {
+        if !self.buffer.starts_with(start) {
+            return false;
+        }
+        let Some(end_offset) = self.buffer[start.len()..].find(end) else {
+            if !finish {
+                return false;
+            }
+            let position = self.base_position;
+            self.push_recoverable(
+                output,
+                self.buffer.len(),
+                HtmlError::UnclosedConstruct {
+                    construct: start,
+                    position,
+                },
+            );
+            return true;
+        };
+        let end_position = start.len() + end_offset + end.len();
+        output.push(Ok(InputToken::Verbatim(self.drain_to(end_position))));
+        true
+    }
+
+    fn scan_declaration(&mut self, output: &mut Vec<ScanItem>, finish: bool) -> bool {
+        let Some(end_position) = find_tag_end(&self.buffer, 0) else {
+            if !finish {
+                return false;
+            }
+            let position = self.base_position;
+            self.push_recoverable(
+                output,
+                self.buffer.len(),
+                HtmlError::UnclosedConstruct {
+                    construct: "declaration",
+                    position,
+                },
+            );
+            return true;
+        };
+        output.push(Ok(InputToken::Verbatim(self.drain_to(end_position + 1))));
+        true
+    }
+
+    fn scan_start_tag(&mut self, output: &mut Vec<ScanItem>, finish: bool) -> bool {
+        if self.buffer == "<" && !finish {
+            return false;
+        }
+        let Some((name_start, name_end)) = parse_start_tag_name(&self.buffer, 0) else {
+            let error = malformed_tag(&self.buffer, 0, self.base_position);
+            self.push_recoverable(output, 1, error);
+            return true;
+        };
+        let Some(end_position) = find_tag_end(&self.buffer, 0) else {
+            if !finish {
+                return false;
+            }
+            let position = self.base_position;
+            self.push_recoverable(
+                output,
+                self.buffer.len(),
+                HtmlError::UnclosedConstruct {
+                    construct: "start tag",
+                    position,
+                },
+            );
+            return true;
+        };
+
+        let tag_original = &self.buffer[name_start..name_end];
+        let tag_name = tag_original.to_ascii_lowercase();
+        let raw_start_tag = self.buffer[..=end_position].to_owned();
+        let self_closing = is_self_closing_start_tag(&self.buffer, name_end, end_position);
+        let raw_attributes = raw_attributes(&self.buffer, name_end, end_position, self_closing);
+        let mut context = self.context_for(&tag_name, raw_attributes);
+        let predicate_preserve_inherited = self
+            .stack
+            .last()
+            .is_some_and(|parent| parent.predicate_preserve);
+        let predicate_preserve_self = predicate_preserve_inherited
+            || self.evaluate_preserve_predicate(&tag_name, raw_attributes, &context);
+        context.predicate_preserve = predicate_preserve_self;
+        let omit_end_tag = self_closing || is_void_tag(&tag_name);
+        let scope = HtmlScopeData {
+            tag_name: tag_name.clone(),
+            raw_attributes: raw_attributes.to_owned(),
+            raw_start_tag,
+            end_tag_name: tag_original.to_owned(),
+            omit_end_tag,
+            preserve: context.preserve(),
+            allows_inline_markup: !is_text_only_content_tag(&tag_name)
+                && !context.text_only_ancestor,
+            block_boundary: is_block_boundary_tag(&tag_name),
+        };
+
+        output.push(Ok(InputToken::Open(Scope::new(scope))));
+        self.drain_to(end_position + 1);
+
+        if !omit_end_tag {
+            self.stack.push(ElementContext {
+                tag_name: tag_name.clone(),
+                tag_preserve: context.tag_preserve,
+                predicate_preserve: predicate_preserve_self,
+                text_only_ancestor: context.text_only_ancestor
+                    || is_text_only_content_tag(&tag_name),
+                lang: context.lang,
+            });
+        } else {
+            output.push(Ok(InputToken::Close));
+        }
+        true
+    }
+
+    fn context_for(&self, tag_name: &str, raw_attributes: &str) -> ElementContext {
+        let parent_tag_preserve = self
+            .stack
+            .last()
+            .is_some_and(|context| context.tag_preserve);
+        let parent_text_only_ancestor = self
+            .stack
+            .last()
+            .is_some_and(|context| context.text_only_ancestor);
+        let tag_preserve = parent_tag_preserve || is_preserved_tag(tag_name);
+        let lang = extract_lang(raw_attributes).or_else(|| {
+            self.stack
+                .last()
+                .and_then(|context| context.lang.as_ref().cloned())
+        });
+        ElementContext {
+            tag_name: tag_name.to_owned(),
+            tag_preserve,
+            predicate_preserve: false,
+            text_only_ancestor: parent_text_only_ancestor,
+            lang,
+        }
+    }
+
+    fn evaluate_preserve_predicate(
+        &self,
+        tag_name: &str,
+        raw_attributes: &str,
+        context: &ElementContext,
+    ) -> bool {
+        let info = HtmlElementInfo {
+            tag_name,
+            raw_attributes,
+            lang: context.lang.as_deref(),
+        };
+        self.options.evaluate(&info)
+    }
+
+    fn scan_raw_text_element(&mut self, output: &mut Vec<ScanItem>, finish: bool) -> bool {
+        let tag_name = self
+            .stack
+            .last()
+            .expect("raw text mode has an open element")
+            .tag_name
+            .clone();
+        let close_start = format!("</{tag_name}");
+        let Some(close_offset) = find_raw_text_end_tag(&self.buffer, &tag_name) else {
+            if finish {
+                let position = self.base_position;
+                self.push_recoverable(
+                    output,
+                    self.buffer.len(),
+                    HtmlError::UnclosedConstruct {
+                        construct: "raw text element",
+                        position,
+                    },
+                );
+                return true;
+            }
+            let keep = close_start.len().min(self.buffer.len());
+            let emit_len =
+                floor_char_boundary(&self.buffer, self.buffer.len().saturating_sub(keep));
+            if emit_len == 0 {
+                return false;
+            }
+            output.push(Ok(InputToken::Verbatim(self.drain_to(emit_len))));
+            return true;
+        };
+
+        if close_offset > 0 {
+            output.push(Ok(InputToken::Verbatim(self.drain_to(close_offset))));
+            return true;
+        }
+        self.scan_end_tag(output, finish)
+    }
+
+    fn scan_end_tag(&mut self, output: &mut Vec<ScanItem>, finish: bool) -> bool {
+        if self.buffer.len() <= 2 && self.buffer.starts_with("</") && !finish {
+            return false;
+        }
+        let Some((name_start, name_end)) = parse_end_tag_name(&self.buffer, 0) else {
+            let error = malformed_tag(&self.buffer, 0, self.base_position);
+            self.push_recoverable(output, 1, error);
+            return true;
+        };
+        let Some(end_position) = find_tag_end(&self.buffer, 0) else {
+            if !finish {
+                return false;
+            }
+            let position = self.base_position;
+            self.push_recoverable(
+                output,
+                self.buffer.len(),
+                HtmlError::UnclosedConstruct {
+                    construct: "end tag",
+                    position,
+                },
+            );
+            return true;
+        };
+
+        let tag_name = self.buffer[name_start..name_end].to_ascii_lowercase();
+        let Some(stack_position) = self
+            .stack
+            .iter()
+            .rposition(|context| context.tag_name == tag_name)
+        else {
+            let text = self.drain_to(end_position + 1);
+            push_text(output, text);
+            return true;
+        };
+
+        while self.stack.len() > stack_position {
+            self.stack.pop();
+            output.push(Ok(InputToken::Close));
+        }
+        self.drain_to(end_position + 1);
+        true
+    }
+}
+
 /// Reads an HTML fragment into the core input-token stream.
 ///
 /// The scanner is fragment-oriented and intentionally does not implement full
@@ -225,9 +615,12 @@ pub fn read_html_fragment_iter_with_options(
 ) -> std::vec::IntoIter<InputToken<HtmlScopeData>> {
     // Lenient recovery cannot fail: every `Err` becomes a `Verbatim` token, so
     // the infallible readers resolve the scanner's fallible stream this way.
-    recover_input_tokens(Scanner::new(input, options).scan(), Recovery::Lenient)
-        .expect("lenient recovery of HTML tokens is infallible")
-        .into_iter()
+    recover_input_tokens(
+        try_read_html_fragment_iter_with_options(input, options),
+        Recovery::Lenient,
+    )
+    .expect("lenient recovery of HTML tokens is infallible")
+    .into_iter()
 }
 
 /// Reads an HTML fragment as a fallible token stream.
@@ -253,7 +646,10 @@ pub fn try_read_html_fragment_iter_with_options(
     input: &str,
     options: &HtmlReaderOptions<'_>,
 ) -> std::vec::IntoIter<Result<InputToken<HtmlScopeData>, RecoverableInputError>> {
-    Scanner::new(input, options).scan().into_iter()
+    let mut reader = HtmlFragmentReader::with_options(options);
+    let mut output = reader.push_str(input);
+    output.extend(reader.finish());
+    output.into_iter()
 }
 
 /// Reads an HTML fragment with an explicit recovery policy.
@@ -265,11 +661,8 @@ pub fn try_read_html_fragment_iter_with_options(
 /// drive the shared [`recover_input_tokens`] primitive over
 /// [`try_read_html_fragment_iter`].
 ///
-/// The scanner is not incremental, so the whole fragment is scanned eagerly in
-/// either mode (including evaluating any `preserve_when` predicate for valid
-/// tags that follow a malformed region); strict mode then returns the first
-/// error from the already-scanned stream rather than short-circuiting at the
-/// first malformed byte.
+/// The compatibility one-shot API collects the incremental reader's fallible
+/// stream before applying the recovery policy.
 pub fn try_read_html_fragment(
     input: &str,
     recovery: Recovery,
@@ -304,49 +697,99 @@ pub fn try_read_html_fragment_with_options(
 pub fn write_html_fragment(
     tokens: impl IntoIterator<Item = RenderedToken<HtmlScopeData>>,
 ) -> String {
-    let mut output = String::new();
-    let mut scopes = Vec::new();
-
+    let mut bytes = Vec::new();
+    let mut writer = HtmlFragmentWriter::new(&mut bytes);
     for token in tokens {
-        match token {
-            RenderedToken::Open(scope) => {
-                output.push_str(&scope.data().raw_start_tag);
-                scopes.push(scope.into_data());
-            }
-            RenderedToken::Close => {
-                if let Some(scope) = scopes.pop()
-                    && !scope.omit_end_tag
-                {
-                    output.push_str("</");
-                    output.push_str(&scope.end_tag_name);
-                    output.push('>');
-                }
-            }
-            RenderedToken::Text(text) | RenderedToken::Verbatim(text) => output.push_str(&text),
-            RenderedToken::Ruby { base, rt } => {
-                output.push_str("<ruby>");
-                push_escaped_html_text(&mut output, &base);
-                output.push_str("<rt>");
-                push_escaped_html_text(&mut output, &rt);
-                output.push_str("</rt></ruby>");
-            }
-        }
+        writer
+            .write_token(token)
+            .expect("writing HTML to an in-memory buffer cannot fail");
     }
-
-    output
+    writer
+        .finish()
+        .expect("flushing an in-memory HTML buffer cannot fail");
+    String::from_utf8(bytes).expect("HTML writer only emits UTF-8")
 }
 
-/// Appends `input` to `output`, escaping characters that have special meaning
-/// in HTML element content.
-fn push_escaped_html_text(output: &mut String, input: &str) {
-    for ch in input.chars() {
-        match ch {
-            '&' => output.push_str("&amp;"),
-            '<' => output.push_str("&lt;"),
-            '>' => output.push_str("&gt;"),
-            other => output.push(other),
+/// Streaming HTML fragment writer.
+///
+/// The writer serializes each rendered token as it arrives, keeping only the
+/// open-scope stack needed to reconstruct end tags from reader-owned scope
+/// data.
+pub struct HtmlFragmentWriter<W> {
+    output: W,
+    scopes: Vec<HtmlScopeData>,
+}
+
+impl<W> HtmlFragmentWriter<W>
+where
+    W: Write,
+{
+    /// Creates a writer that serializes into `output`.
+    pub fn new(output: W) -> Self {
+        Self {
+            output,
+            scopes: Vec::new(),
         }
     }
+
+    /// Writes one rendered token.
+    pub fn write_token(&mut self, token: RenderedToken<HtmlScopeData>) -> io::Result<()> {
+        match token {
+            RenderedToken::Open(scope) => {
+                self.output
+                    .write_all(scope.data().raw_start_tag.as_bytes())?;
+                self.scopes.push(scope.into_data());
+            }
+            RenderedToken::Close => {
+                if let Some(scope) = self.scopes.pop()
+                    && !scope.omit_end_tag
+                {
+                    self.output.write_all(b"</")?;
+                    self.output.write_all(scope.end_tag_name.as_bytes())?;
+                    self.output.write_all(b">")?;
+                }
+            }
+            RenderedToken::Text(text) | RenderedToken::Verbatim(text) => {
+                self.output.write_all(text.as_bytes())?;
+            }
+            RenderedToken::Ruby { base, rt } => {
+                self.output.write_all(b"<ruby>")?;
+                write_escaped_html_text(&mut self.output, &base)?;
+                self.output.write_all(b"<rt>")?;
+                write_escaped_html_text(&mut self.output, &rt)?;
+                self.output.write_all(b"</rt></ruby>")?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Flushes the wrapped output without finishing the writer.
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.output.flush()
+    }
+
+    /// Flushes and returns the wrapped output value.
+    pub fn finish(mut self) -> io::Result<W> {
+        self.output.flush()?;
+        Ok(self.output)
+    }
+}
+
+/// Writes `input` to `output`, escaping characters that have special meaning
+/// in HTML element content.
+fn write_escaped_html_text(output: &mut impl Write, input: &str) -> io::Result<()> {
+    for ch in input.chars() {
+        match ch {
+            '&' => output.write_all(b"&amp;")?,
+            '<' => output.write_all(b"&lt;")?,
+            '>' => output.write_all(b"&gt;")?,
+            other => {
+                let mut buffer = [0; 4];
+                output.write_all(other.encode_utf8(&mut buffer).as_bytes())?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Converts an HTML fragment with default engine options.
@@ -439,308 +882,6 @@ struct ElementContext {
 /// preserves as a verbatim token.
 type ScanItem = Result<InputToken<HtmlScopeData>, RecoverableInputError>;
 
-struct Scanner<'a, 'o> {
-    input: &'a str,
-    position: usize,
-    stack: Vec<ElementContext>,
-    output: Vec<ScanItem>,
-    options: &'o HtmlReaderOptions<'o>,
-}
-
-impl<'a, 'o> Scanner<'a, 'o> {
-    fn new(input: &'a str, options: &'o HtmlReaderOptions<'_>) -> Self {
-        // Reborrow narrows the options' inner lifetime to the scanner's
-        // borrow lifetime, so callers can pass a long-lived `HtmlReaderOptions`
-        // without naming a second lifetime parameter at every call site.
-        let options: &'o HtmlReaderOptions<'o> = options;
-        Self {
-            input,
-            position: 0,
-            stack: Vec::new(),
-            output: Vec::new(),
-            options,
-        }
-    }
-
-    fn scan(mut self) -> Vec<ScanItem> {
-        while self.position < self.input.len() {
-            if self.input[self.position..].starts_with('<') {
-                self.scan_markup();
-            } else {
-                self.scan_text();
-            }
-        }
-        self.output
-    }
-
-    /// Records a recoverable malformed region: `original` is the byte-for-byte
-    /// source that lenient recovery preserves as a verbatim token, and `error`
-    /// is the HTML-specific cause (boxed into [`CoreError`] so it travels
-    /// through the shared [`RecoverableInputError`] surface).
-    fn push_recoverable(&mut self, original: &str, error: HtmlError) {
-        tracing::trace!(
-            position = self.position,
-            "html scanner recovered a malformed region"
-        );
-        self.output.push(Err(RecoverableInputError::new(
-            original.to_owned(),
-            CoreError::Other(Box::new(error)),
-        )));
-    }
-
-    fn scan_text(&mut self) {
-        let next_markup = self.input[self.position..]
-            .find('<')
-            .map_or(self.input.len(), |offset| self.position + offset);
-        self.push_text(&self.input[self.position..next_markup]);
-        self.position = next_markup;
-    }
-
-    fn scan_markup(&mut self) {
-        if self.scan_verbatim("<!--", "-->") || self.scan_verbatim("<![CDATA[", "]]>") {
-            return;
-        }
-        if self.input[self.position..].starts_with("</") {
-            self.scan_end_tag();
-            return;
-        }
-        if self.input[self.position..].starts_with("<!")
-            || self.input[self.position..].starts_with("<?")
-        {
-            self.scan_declaration();
-            return;
-        }
-        self.scan_start_tag();
-    }
-
-    fn scan_verbatim(&mut self, start: &'static str, end: &str) -> bool {
-        if !self.input[self.position..].starts_with(start) {
-            return false;
-        }
-        let Some(end_offset) = self.input[self.position + start.len()..].find(end) else {
-            self.push_recoverable(
-                &self.input[self.position..],
-                HtmlError::UnclosedConstruct {
-                    construct: start,
-                    position: self.position,
-                },
-            );
-            self.position = self.input.len();
-            return true;
-        };
-        let end_position = self.position + start.len() + end_offset + end.len();
-        self.output.push(Ok(InputToken::Verbatim(
-            self.input[self.position..end_position].to_owned(),
-        )));
-        self.position = end_position;
-        true
-    }
-
-    fn scan_declaration(&mut self) {
-        let Some(end_position) = find_tag_end(self.input, self.position) else {
-            self.push_recoverable(
-                &self.input[self.position..],
-                HtmlError::UnclosedConstruct {
-                    construct: "declaration",
-                    position: self.position,
-                },
-            );
-            self.position = self.input.len();
-            return;
-        };
-        self.output.push(Ok(InputToken::Verbatim(
-            self.input[self.position..=end_position].to_owned(),
-        )));
-        self.position = end_position + 1;
-    }
-
-    fn scan_start_tag(&mut self) {
-        let start = self.position;
-        let Some((name_start, name_end)) = parse_start_tag_name(self.input, start) else {
-            self.push_recoverable("<", malformed_tag(self.input, start));
-            self.position += 1;
-            return;
-        };
-        let Some(end_position) = find_tag_end(self.input, start) else {
-            self.push_recoverable(
-                &self.input[start..],
-                HtmlError::UnclosedConstruct {
-                    construct: "start tag",
-                    position: start,
-                },
-            );
-            self.position = self.input.len();
-            return;
-        };
-
-        let tag_original = &self.input[name_start..name_end];
-        let tag_name = tag_original.to_ascii_lowercase();
-        let raw_start_tag = self.input[start..=end_position].to_owned();
-        let self_closing = is_self_closing_start_tag(self.input, name_end, end_position);
-        let raw_attributes = raw_attributes(self.input, name_end, end_position, self_closing);
-        let mut context = self.context_for(&tag_name, raw_attributes);
-        let predicate_preserve_inherited = self
-            .stack
-            .last()
-            .is_some_and(|parent| parent.predicate_preserve);
-        let predicate_preserve_self = predicate_preserve_inherited
-            || self.evaluate_preserve_predicate(&tag_name, raw_attributes, &context);
-        context.predicate_preserve = predicate_preserve_self;
-        let omit_end_tag = self_closing || is_void_tag(&tag_name);
-        let scope = HtmlScopeData {
-            tag_name: tag_name.clone(),
-            raw_attributes: raw_attributes.to_owned(),
-            raw_start_tag,
-            end_tag_name: tag_original.to_owned(),
-            omit_end_tag,
-            preserve: context.preserve(),
-            // `allows_inline_markup` is intentionally independent of
-            // `preserve`. The engine skips text conversion inside preserved
-            // scopes (raw-text tags, non-Korean lang), so no annotation
-            // arises there in the first place. But preserve does not forbid
-            // markup structurally: an inner Korean-lang child can still
-            // override preserve and emit `<ruby>`, and that override would
-            // be defeated if its parent's preserve also pushed
-            // `allows_inline_markup = false` onto the renderer's
-            // disallowing-ancestor stack. Markup permission is therefore
-            // driven only by HTML5 content-model restrictions (title,
-            // option, and any ancestor with a text-only content model).
-            allows_inline_markup: !is_text_only_content_tag(&tag_name)
-                && !context.text_only_ancestor,
-            block_boundary: is_block_boundary_tag(&tag_name),
-        };
-
-        self.output.push(Ok(InputToken::Open(Scope::new(scope))));
-        self.position = end_position + 1;
-
-        if !omit_end_tag {
-            self.stack.push(ElementContext {
-                tag_name: tag_name.clone(),
-                tag_preserve: context.tag_preserve,
-                predicate_preserve: predicate_preserve_self,
-                text_only_ancestor: context.text_only_ancestor
-                    || is_text_only_content_tag(&tag_name),
-                lang: context.lang,
-            });
-            if is_raw_text_tag(&tag_name) {
-                self.scan_raw_text_element(&tag_name);
-            }
-        } else {
-            self.output.push(Ok(InputToken::Close));
-        }
-    }
-
-    fn context_for(&self, tag_name: &str, raw_attributes: &str) -> ElementContext {
-        let parent_tag_preserve = self
-            .stack
-            .last()
-            .is_some_and(|context| context.tag_preserve);
-        let parent_text_only_ancestor = self
-            .stack
-            .last()
-            .is_some_and(|context| context.text_only_ancestor);
-        let tag_preserve = parent_tag_preserve || is_preserved_tag(tag_name);
-        let lang = extract_lang(raw_attributes).or_else(|| {
-            self.stack
-                .last()
-                .and_then(|context| context.lang.as_ref().cloned())
-        });
-        ElementContext {
-            tag_name: tag_name.to_owned(),
-            tag_preserve,
-            predicate_preserve: false,
-            text_only_ancestor: parent_text_only_ancestor,
-            lang,
-        }
-    }
-
-    fn evaluate_preserve_predicate(
-        &self,
-        tag_name: &str,
-        raw_attributes: &str,
-        context: &ElementContext,
-    ) -> bool {
-        let info = HtmlElementInfo {
-            tag_name,
-            raw_attributes,
-            lang: context.lang.as_deref(),
-        };
-        self.options.evaluate(&info)
-    }
-
-    fn scan_raw_text_element(&mut self, tag_name: &str) {
-        let Some(close_offset) = find_raw_text_end_tag(&self.input[self.position..], tag_name)
-        else {
-            self.push_recoverable(
-                &self.input[self.position..],
-                HtmlError::UnclosedConstruct {
-                    construct: "raw text element",
-                    position: self.position,
-                },
-            );
-            self.position = self.input.len();
-            return;
-        };
-        let raw_end = self.position + close_offset;
-        self.output.push(Ok(InputToken::Verbatim(
-            self.input[self.position..raw_end].to_owned(),
-        )));
-        self.position = raw_end;
-        self.scan_end_tag();
-    }
-
-    fn scan_end_tag(&mut self) {
-        let start = self.position;
-        let Some((name_start, name_end)) = parse_end_tag_name(self.input, start) else {
-            self.push_recoverable("<", malformed_tag(self.input, start));
-            self.position += 1;
-            return;
-        };
-        let Some(end_position) = find_tag_end(self.input, start) else {
-            self.push_recoverable(
-                &self.input[start..],
-                HtmlError::UnclosedConstruct {
-                    construct: "end tag",
-                    position: start,
-                },
-            );
-            self.position = self.input.len();
-            return;
-        };
-
-        let tag_name = self.input[name_start..name_end].to_ascii_lowercase();
-        let Some(stack_position) = self
-            .stack
-            .iter()
-            .rposition(|context| context.tag_name == tag_name)
-        else {
-            // A well-formed end tag with no matching open scope is a minor
-            // structural anomaly the scanner recovers from silently by
-            // emitting it as text, not a recoverable error (mirroring the HTML
-            // design's "unclosed tags ... or, if none, are emitted as text").
-            self.push_text(&self.input[start..=end_position]);
-            self.position = end_position + 1;
-            return;
-        };
-
-        while self.stack.len() > stack_position {
-            self.stack.pop();
-            self.output.push(Ok(InputToken::Close));
-        }
-        self.position = end_position + 1;
-    }
-
-    fn push_text(&mut self, text: &str) {
-        if text.is_empty() {
-            return;
-        }
-        match self.output.last_mut() {
-            Some(Ok(InputToken::Text(existing))) => existing.push_str(text),
-            _ => self.output.push(Ok(InputToken::Text(text.to_owned()))),
-        }
-    }
-}
-
 impl ElementContext {
     fn preserve(&self) -> bool {
         self.tag_preserve
@@ -754,14 +895,31 @@ fn parse_start_tag_name(input: &str, start: usize) -> Option<(usize, usize)> {
     parse_tag_name(input, name_start)
 }
 
-fn malformed_tag(input: &str, position: usize) -> HtmlError {
-    let source_end = input[position + 1..]
-        .find('>')
-        .map_or(input.len(), |offset| position + 1 + offset + 1);
-    HtmlError::MalformedTag {
-        position,
-        snippet: input[position..source_end].to_owned(),
+fn push_text(output: &mut Vec<ScanItem>, text: String) {
+    if text.is_empty() {
+        return;
     }
+    match output.last_mut() {
+        Some(Ok(InputToken::Text(existing))) => existing.push_str(&text),
+        _ => output.push(Ok(InputToken::Text(text))),
+    }
+}
+
+fn malformed_tag(input: &str, local_position: usize, absolute_position: usize) -> HtmlError {
+    let source_end = input[local_position + 1..]
+        .find('>')
+        .map_or(input.len(), |offset| local_position + 1 + offset + 1);
+    HtmlError::MalformedTag {
+        position: absolute_position,
+        snippet: input[local_position..source_end].to_owned(),
+    }
+}
+
+fn floor_char_boundary(input: &str, mut index: usize) -> usize {
+    while !input.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
 }
 
 fn parse_end_tag_name(input: &str, start: usize) -> Option<(usize, usize)> {

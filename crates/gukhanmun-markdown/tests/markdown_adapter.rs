@@ -20,7 +20,7 @@ use gukhanmun_core::{
 };
 use gukhanmun_markdown::{
     MarkdownError, MarkdownScopeData, MarkdownVariant, convert_markdown, read_markdown,
-    read_markdown_iter, write_markdown,
+    read_markdown_iter, write_markdown, write_markdown_to_fmt,
 };
 use proptest::prelude::*;
 use pulldown_cmark::{Event, Parser};
@@ -240,6 +240,19 @@ fn writer_preserves_rendered_verbatim_as_raw_markdown() {
     .unwrap();
 
     assert_eq!(output, "<span>漢字</span>");
+}
+
+#[test]
+fn fmt_writer_matches_string_writer() {
+    let rendered = vec![RenderedToken::<MarkdownScopeData>::Verbatim(
+        "<span>漢字</span>".into(),
+    )];
+    let buffered = write_markdown(rendered.clone()).unwrap();
+    let mut streamed = String::new();
+
+    write_markdown_to_fmt(rendered, &mut streamed).unwrap();
+
+    assert_eq!(streamed, buffered);
 }
 
 #[test]
