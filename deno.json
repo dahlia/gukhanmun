@@ -12,7 +12,9 @@
       ]
     },
     "include": [
-      "packages/",
+      "packages/types/",
+      "packages/wasm/",
+      "packages/stdict-fst/",
       "tests/js/"
     ]
   },
@@ -20,7 +22,9 @@
     "lineWidth": 100,
     "singleQuote": false,
     "include": [
-      "packages/",
+      "packages/types/",
+      "packages/wasm/",
+      "packages/stdict-fst/",
       "tests/js/"
     ]
   }

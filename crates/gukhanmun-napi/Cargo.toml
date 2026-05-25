@@ -1,0 +1,26 @@
+[package]
+name = "gukhanmun-napi"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Node.js (napi-rs v3) binding for Gukhanmun."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gukhanmun = { path = "../gukhanmun", version = "0.1.0", default-features = false, features = ["html", "fst", "cdb", "markdown"] }
+napi = { version = "3", features = ["napi6"] }
+napi-derive = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = { version = "0.1", features = ["release_max_level_off"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+strip = "symbols"

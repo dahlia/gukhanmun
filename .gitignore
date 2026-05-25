@@ -5,4 +5,5 @@ packages/*/dist/
 packages/wasm/pkg/
 packages/wasm/wasm/
 packages/stdict-fst/stdict.fst
+packages/napi/gukhanmun_napi.node
 

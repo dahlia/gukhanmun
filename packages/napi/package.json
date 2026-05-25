@@ -1,0 +1,48 @@
+{
+  "name": "@gukhanmun/napi",
+  "version": "0.1.0",
+  "description": "Node.js native addon (napi-rs) for the Gukhanmun hanja-to-hangul converter.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "gukhanmun_napi.node"
+  ],
+  "scripts": {
+    "build": "tsdown"
+  },
+  "homepage": "https://github.com/dahlia/gukhanmun",
+  "bugs": "https://github.com/dahlia/gukhanmun/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/gukhanmun.git",
+    "directory": "packages/napi"
+  },
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Hong Minhe (洪 民憙)",
+    "email": "hong@minhee.org",
+    "url": "https://hongminhee.org/"
+  },
+  "funding": "https://github.com/sponsors/dahlia",
+  "sideEffects": false,
+  "keywords": [
+    "korean",
+    "hanja",
+    "hangul",
+    "typography",
+    "napi"
+  ],
+  "peerDependencies": {
+    "@gukhanmun/types": "*"
+  },
+  "devDependencies": {
+    "@gukhanmun/types": "workspace:*"
+  }
+}

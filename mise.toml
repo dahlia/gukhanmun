@@ -136,6 +136,24 @@ fi
 cp "$FST" packages/stdict-fst/stdict.fst
 """
 
+[tasks.napi-build]
+description = "Build the gukhanmun-napi native Node.js addon"
+run = """
+set -e
+cargo build -p gukhanmun-napi --release
+case "$(uname -s)" in
+  Darwin)
+    cp target/release/libgukhanmun_napi.dylib packages/napi/gukhanmun_napi.node
+    ;;
+  MINGW*|CYGWIN*|MSYS*)
+    cp target/release/gukhanmun_napi.dll packages/napi/gukhanmun_napi.node
+    ;;
+  *)
+    cp target/release/libgukhanmun_napi.so packages/napi/gukhanmun_napi.node
+    ;;
+esac
+"""
+
 [tasks.js-build]
 description = "Build npm packages with tsdown (TypeScript wrappers)"
 depends = ["wasm-build", "stdict-fst-data", "js-install"]
@@ -143,9 +161,9 @@ run = "pnpm -r run build"
 
 [tasks.js-test]
 description = "Run JavaScript tests on Node.js, Deno, and Bun"
-depends = ["wasm-build", "stdict-fst-data", "js-install"]
+depends = ["wasm-build", "stdict-fst-data", "napi-build", "js-install"]
 run = [
-  "node --test tests/js/wasm.test.ts",
+  "node --test tests/js/wasm.test.ts tests/js/napi.test.ts",
   "deno test --allow-read tests/js/wasm.test.ts",
   "bun test tests/js/wasm.test.ts",
 ]
