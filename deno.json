@@ -1,6 +1,7 @@
 {
   "workspace": [
-    "packages/types"
+    "packages/types",
+    "packages/wasm"
   ],
   "lint": {
     "rules": {

@@ -10,6 +10,19 @@ members = [
     "crates/gukhanmun-mkdict",
     "crates/gukhanmun-stdict",
     "crates/gukhanmun-unihan",
+    "crates/gukhanmun-wasm",
+]
+default-members = [
+    "crates/gukhanmun",
+    "crates/gukhanmun-cli",
+    "crates/gukhanmun-cdb",
+    "crates/gukhanmun-core",
+    "crates/gukhanmun-fst",
+    "crates/gukhanmun-html",
+    "crates/gukhanmun-markdown",
+    "crates/gukhanmun-mkdict",
+    "crates/gukhanmun-stdict",
+    "crates/gukhanmun-unihan",
 ]
 resolver = "3"
 

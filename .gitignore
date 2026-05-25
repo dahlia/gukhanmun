@@ -1,3 +1,6 @@
 /target/
 cargo-release-publish.log
 node_modules/
+packages/*/dist/
+packages/wasm/pkg/
+

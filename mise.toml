@@ -13,6 +13,16 @@ profile = "default"
 components = "rust-analyzer,rustfmt,clippy"
 targets = "wasm32-unknown-unknown"
 
+[tools."github:rustwasm/wasm-pack"]
+version = "0.13.1"
+
+[tools."github:rustwasm/wasm-pack".platforms]
+linux-x64 = "wasm-pack-v*-x86_64-unknown-linux-musl.tar.gz"
+linux-arm64 = "wasm-pack-v*-aarch64-unknown-linux-musl.tar.gz"
+macos-x64 = "wasm-pack-v*-x86_64-apple-darwin.tar.gz"
+macos-arm64 = "wasm-pack-v*-aarch64-apple-darwin.tar.gz"
+windows-x64 = "wasm-pack-v*-x86_64-pc-windows-msvc.zip"
+
 [tools."github:dahlia/hongdown"]
 version = "0.3.11"
 
@@ -35,7 +45,7 @@ depends = [
 
 [tasks.ci]
 description = "Run the full CI verification gate"
-depends = ["check", "test", "doc"]
+depends = ["check", "test", "doc", "js-build"]
 
 [tasks.bump]
 description = "Preview a workspace version bump"
@@ -83,8 +93,11 @@ description = "Lint TypeScript packages with Deno"
 run = "deno lint packages/"
 
 [tasks.js-doc]
-description = "Verify JSDoc completeness for @gukhanmun/types exports"
-run = "deno doc --lint packages/types/index.ts"
+description = "Verify JSDoc completeness for @gukhanmun/types and @gukhanmun/wasm exports"
+run = [
+  "deno doc --lint packages/types/index.ts",
+  "deno doc --lint packages/wasm/index.ts",
+]
 
 [tasks.js-fmt]
 description = "Format TypeScript packages with Deno"
@@ -93,6 +106,21 @@ run = "deno fmt packages/"
 [tasks.js-fmt-check]
 description = "Check TypeScript package formatting with Deno"
 run = "deno fmt --check packages/"
+
+[tasks.wasm-build]
+description = "Build gukhanmun-wasm WASM module for web, nodejs, and deno targets"
+run = """
+set -e
+OUT=$(pwd)/packages/wasm/dist/wasm
+wasm-pack build crates/gukhanmun-wasm --release --target web --out-dir "$OUT/web"
+wasm-pack build crates/gukhanmun-wasm --release --target nodejs --out-dir "$OUT/nodejs"
+wasm-pack build crates/gukhanmun-wasm --release --target deno --out-dir "$OUT/deno"
+"""
+
+[tasks.js-build]
+description = "Build npm packages with tsdown (TypeScript wrappers)"
+depends = ["wasm-build", "js-install"]
+run = "pnpm -r run build"
 
 [tasks.wasm-check]
 description = "Verify gukhanmun compiles for wasm32-unknown-unknown (html+fst features)"
