@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeMap;
+use std::io;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -23,6 +24,7 @@ use gukhanmun_mkdict::{
     BuildOptions, DEFAULT_MAX_KEY_BYTES, DictionaryFormat, MergePolicy, build_dictionary,
     parse_metadata_arg,
 };
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -61,6 +63,10 @@ struct Cli {
     /// larger build.
     #[arg(long)]
     allow_unmatched_rules: bool,
+
+    /// Enable debug-level diagnostic output (overridden by RUST_LOG).
+    #[arg(short, long)]
+    verbose: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -78,6 +84,13 @@ enum CliMergePolicy {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let default_level = if cli.verbose { "debug" } else { "warn" };
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level)),
+        )
+        .with_writer(io::stderr)
+        .init();
     let options = BuildOptions {
         format: match cli.format {
             CliFormat::Fst => DictionaryFormat::Fst,

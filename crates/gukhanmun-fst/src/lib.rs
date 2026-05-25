@@ -52,6 +52,7 @@ impl FstDictionary {
     /// Opens a dictionary file from disk.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
+        tracing::info!(path = %path.display(), "opening FST dictionary");
         let bytes = fs::read(path).map_err(|source| Error::Io {
             path: path.display().to_string(),
             source,
@@ -81,6 +82,13 @@ impl FstDictionary {
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars")
             .or_else(|| max_key_chars_from_map(&map));
 
+        tracing::debug!(
+            byte_length = bytes.len(),
+            format_version = FORMAT_VERSION,
+            entry_count,
+            ?max_word_chars,
+            "decoded FST dictionary"
+        );
         Ok(Self {
             metadata,
             map,
@@ -145,12 +153,21 @@ impl HanjaDictionary for FstDictionary {
             .into_stream();
         let mut matches = Vec::new();
         while let Some((key, encoded)) = stream.next() {
-            if let Ok(entry) = self.decode_entry(encoded) {
-                matches.push(Match {
-                    byte_len: key.len(),
-                    reading: entry.reading,
-                    mark: entry.mark,
-                });
+            match self.decode_entry(encoded) {
+                Ok(entry) => {
+                    matches.push(Match {
+                        byte_len: key.len(),
+                        reading: entry.reading,
+                        mark: entry.mark,
+                    });
+                }
+                Err(error) => {
+                    if let Ok(key_str) = std::str::from_utf8(key) {
+                        tracing::warn!(key = key_str, error = ?error, "skipping FST entry with undecodable value");
+                    } else {
+                        tracing::warn!(key_len = key.len(), error = ?error, "skipping FST entry with non-UTF-8 key and undecodable value");
+                    }
+                }
             }
         }
         matches.sort_by_key(|matched| matched.byte_len);
@@ -332,6 +349,11 @@ impl FixedHeader {
         }
         let version = read_u32(&bytes[8..12]);
         if version != FORMAT_VERSION {
+            tracing::error!(
+                version,
+                expected = FORMAT_VERSION,
+                "unsupported FST format version"
+            );
             return Err(Error::UnsupportedVersion { version });
         }
         let header_len = read_u32(&bytes[12..16]);
@@ -449,6 +471,7 @@ mod tests {
     use gukhanmun_core::{MapDictionary, RenderMode, convert_plain_text};
     use proptest::prelude::*;
     use tempfile::tempdir;
+    use tracing_test::traced_test;
 
     use super::{FstDictionary, HanjaDictionary, MatchMark};
 
@@ -495,6 +518,22 @@ mod tests {
             dictionary.lookup("天地").unwrap().unwrap().reading(),
             "천지"
         );
+    }
+
+    #[traced_test]
+    #[test]
+    fn unsupported_version_emits_error_event() {
+        let valid = fixture_bytes(&[entry("天地", "천지", false, false)]);
+        let mut bad_version = valid.clone();
+        bad_version[8..12].copy_from_slice(&999u32.to_le_bytes());
+
+        let result = FstDictionary::from_bytes(&bad_version);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            super::Error::UnsupportedVersion { version: 999 }
+        ));
+        assert!(logs_contain("unsupported FST format version"));
     }
 
     #[test]

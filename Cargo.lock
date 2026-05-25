@@ -718,6 +718,8 @@ dependencies = [
  "proptest",
  "tempfile",
  "thiserror",
+ "tracing",
+ "tracing-test",
 ]
 
 [[package]]
@@ -759,6 +761,8 @@ dependencies = [
  "proptest",
  "tempfile",
  "thiserror",
+ "tracing",
+ "tracing-test",
 ]
 
 [[package]]
@@ -806,6 +810,9 @@ dependencies = [
  "tempfile",
  "thiserror",
  "time",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-test",
 ]
 
 [[package]]
@@ -824,6 +831,9 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-test",
  "zip",
 ]
 

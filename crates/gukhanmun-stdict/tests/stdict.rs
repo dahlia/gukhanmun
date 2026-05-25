@@ -22,8 +22,25 @@ use gukhanmun_core::{RenderMode, convert_plain_text};
 use gukhanmun_stdict::extract::{ExtractStats, extract_json_reader_to_tsv};
 use proptest::prelude::*;
 use tempfile::tempdir;
+use tracing_test::traced_test;
 use zip::ZipWriter;
 use zip::write::FileOptions;
+
+#[traced_test]
+#[test]
+fn extraction_emits_diagnostic_events() {
+    let mut output = Vec::new();
+    extract_json_reader_to_tsv(synthetic_json().as_bytes(), &mut output).unwrap();
+
+    assert!(
+        logs_contain("wrote dictionary TSV"),
+        "info event for write completion"
+    );
+    assert!(
+        logs_contain("processed JSON dump"),
+        "debug event for each JSON shard"
+    );
+}
 
 #[test]
 fn extracts_canonical_tsv_from_synthetic_json() {
@@ -78,7 +95,7 @@ fn cli_extracts_from_zip_archives() {
         ])
         .assert()
         .success()
-        .stderr(predicates::str::contains("entries_written=12"));
+        .stderr(predicates::str::contains("extraction complete"));
 
     let output = fs::read_to_string(output_path).unwrap();
     assert!(output.contains("漢字\t한자\tfalse\tfalse\n"));

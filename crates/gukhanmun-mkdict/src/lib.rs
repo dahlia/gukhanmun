@@ -394,7 +394,7 @@ fn parse_rules_header(header: &str) -> Result<RulesHeaderColumns> {
             "require_hanja" => require_hanja = Some(index),
             "require_hangul" => require_hangul = Some(index),
             "reason" => reason = Some(index),
-            extra => eprintln!("ignoring unsupported rules TSV column `{extra}`"),
+            extra => tracing::warn!(column = extra, "ignoring unsupported rules TSV column"),
         }
     }
 
@@ -479,6 +479,12 @@ pub fn apply_rules(
         return Ok(());
     }
 
+    tracing::info!(
+        rule_count = rules.len(),
+        entry_count = entries.len(),
+        "applying dictionary rules"
+    );
+
     for rule in rules {
         ensure!(
             !rule.pattern.is_empty(),
@@ -537,6 +543,10 @@ pub fn apply_rules(
             })
             .collect::<Vec<_>>();
         if !unmatched.is_empty() {
+            tracing::error!(
+                unmatched_count = unmatched.len(),
+                "rules matched no entries"
+            );
             unmatched.sort();
             bail!(
                 "{} unmatched rule(s):\n  {}",
@@ -599,6 +609,12 @@ pub fn build_dictionary(
         !input_paths.is_empty(),
         "at least one input file is required"
     );
+    tracing::info!(
+        input_count = input_paths.len(),
+        output = %output_path.as_ref().display(),
+        ?options.format,
+        "building dictionary"
+    );
     let mut entries = read_and_merge_inputs(input_paths, options)?;
     if !options.rules.is_empty() {
         let mut rules = Vec::new();
@@ -645,6 +661,7 @@ pub fn build_dictionary(
         }
     }
 
+    tracing::info!(entry_count = entries.len(), "dictionary build complete");
     Ok(())
 }
 
@@ -688,9 +705,15 @@ fn parse_input(
     path: &Path,
     max_key_bytes: usize,
 ) -> Result<Vec<DictionaryEntry>> {
-    match path.extension().and_then(|extension| extension.to_str()) {
-        Some("csv") => parse_csv(reader, path, max_key_bytes),
-        Some("jsonl") => parse_jsonl(reader, path, max_key_bytes),
+    let format = match path.extension().and_then(|ext| ext.to_str()) {
+        Some("csv") => "csv",
+        Some("jsonl") => "jsonl",
+        _ => "tsv",
+    };
+    tracing::debug!(path = %path.display(), format, "detected dictionary input format");
+    match format {
+        "csv" => parse_csv(reader, path, max_key_bytes),
+        "jsonl" => parse_jsonl(reader, path, max_key_bytes),
         _ => parse_tsv(reader, path, max_key_bytes),
     }
 }
@@ -822,7 +845,13 @@ fn parse_header_with_format(header: &str, format_name: &str) -> Result<HeaderCol
             "hangul" => hangul = Some(index),
             "require_hanja" => require_hanja = Some(index),
             "require_hangul" => require_hangul = Some(index),
-            extra => eprintln!("ignoring unsupported {format_name} column `{extra}`"),
+            extra => {
+                tracing::warn!(
+                    column = extra,
+                    format = format_name,
+                    "ignoring unsupported input column"
+                );
+            }
         }
     }
 
@@ -1026,6 +1055,11 @@ fn build_fst_bytes(
     output.extend(metadata_bytes);
     output.extend(fst_bytes);
     output.extend(readings);
+    tracing::info!(
+        entry_count = entries.len(),
+        total_bytes = output.len(),
+        "built FST dictionary bytes"
+    );
     Ok(output)
 }
 
@@ -1059,7 +1093,13 @@ fn build_cdb_file(
     }
     writer
         .finish()
-        .with_context(|| format!("failed to finish {}", output_path.display()))
+        .with_context(|| format!("failed to finish {}", output_path.display()))?;
+    tracing::info!(
+        entry_count = entries.len(),
+        path = %output_path.display(),
+        "built CDB dictionary file"
+    );
+    Ok(())
 }
 
 fn build_cdb_records(entries: &[DictionaryEntry]) -> BTreeMap<String, Option<DictionaryEntry>> {
@@ -1107,10 +1147,14 @@ fn encode_cdb_mark(mark: EntryMark) -> u8 {
 }
 
 fn validate_fst_round_trip(entries: &[DictionaryEntry], dictionary: &FstDictionary) -> Result<()> {
-    ensure!(
-        dictionary.entry_count() == entries.len() as u64,
-        "round-trip validation failed: entry count mismatch"
-    );
+    if dictionary.entry_count() != entries.len() as u64 {
+        tracing::error!(
+            actual = dictionary.entry_count(),
+            expected = entries.len() as u64,
+            "round-trip validation failed: entry count mismatch"
+        );
+        bail!("round-trip validation failed: entry count mismatch");
+    }
     for entry in entries {
         let actual = dictionary.lookup(entry.hanja())?.ok_or_else(|| {
             Error::message(format!(
@@ -1131,10 +1175,14 @@ fn validate_fst_round_trip(entries: &[DictionaryEntry], dictionary: &FstDictiona
 }
 
 fn validate_cdb_round_trip(entries: &[DictionaryEntry], dictionary: &CdbDictionary) -> Result<()> {
-    ensure!(
-        dictionary.entry_count() == entries.len() as u64,
-        "round-trip validation failed: entry count mismatch"
-    );
+    if dictionary.entry_count() != entries.len() as u64 {
+        tracing::error!(
+            actual = dictionary.entry_count(),
+            expected = entries.len() as u64,
+            "round-trip validation failed: entry count mismatch"
+        );
+        bail!("round-trip validation failed: entry count mismatch");
+    }
     for entry in entries {
         let actual = dictionary.lookup(entry.hanja())?.ok_or_else(|| {
             Error::message(format!(
@@ -1217,7 +1265,29 @@ pub fn parse_metadata_arg(arg: &str) -> Result<(String, String)> {
 
 #[cfg(test)]
 mod tests {
+    use tracing_test::traced_test;
+
     use super::*;
+
+    #[traced_test]
+    #[test]
+    fn unmatched_rules_emits_error_event() {
+        let mut entries = vec![DictionaryEntry::new("漢字", "한자", EntryMark::default())];
+        let rules = vec![Rule::new(
+            RuleKind::Entry,
+            "天地",
+            EntryMark {
+                require_hanja: true,
+                require_hangul: false,
+            },
+            "missing entry",
+        )];
+
+        let result = apply_rules(&mut entries, &rules, false);
+
+        assert!(result.is_err());
+        assert!(logs_contain("rules matched no entries"));
+    }
 
     #[test]
     fn parses_headered_tsv_and_optional_flags() {

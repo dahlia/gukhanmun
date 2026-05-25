@@ -51,8 +51,9 @@ fn builds_fst_with_metadata_and_lookup() {
         .assert()
         .success()
         .stderr(predicates::str::contains(
-            "ignoring unsupported TSV column `category`",
-        ));
+            "ignoring unsupported input column",
+        ))
+        .stderr(predicates::str::contains("category"));
 
     let dictionary = FstDictionary::open(&output).unwrap();
     assert_eq!(dictionary.metadata().get("source").unwrap(), "fixture");

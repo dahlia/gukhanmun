@@ -51,6 +51,7 @@ impl CdbDictionary {
         if let Some(version) = metadata.get("version")
             && version != "1"
         {
+            tracing::error!(version = %version, expected = "1", "unsupported CDB format version");
             return Err(Error::UnsupportedVersion {
                 version: version.clone(),
             });
@@ -58,6 +59,12 @@ impl CdbDictionary {
         let entry_count = parse_u64_metadata(&metadata, "entry_count").unwrap_or(0);
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars");
 
+        tracing::info!(
+            path = %path.display(),
+            format_version = metadata.get("version").map(String::as_str).unwrap_or("1"),
+            entry_count,
+            "opened CDB dictionary"
+        );
         Ok(Self {
             metadata,
             cdb,
@@ -99,15 +106,35 @@ impl HanjaDictionary for CdbDictionary {
                 break;
             }
             prefix.push(ch);
-            let Ok(Some(value)) = get_optional(&self.cdb, prefix.as_bytes()) else {
-                break;
+            let value = match get_optional(&self.cdb, prefix.as_bytes()) {
+                Ok(Some(value)) => value,
+                Ok(None) => break,
+                Err(error) => {
+                    tracing::warn!(
+                        prefix_len = prefix.len(),
+                        error = ?error,
+                        "aborting CDB prefix traversal due to read error"
+                    );
+                    break;
+                }
             };
-            if let Ok(Some(entry)) = decode_record(&value) {
-                matches.push(Match {
-                    byte_len: prefix.len(),
-                    reading: entry.reading,
-                    mark: entry.mark,
-                });
+            match decode_record(&value) {
+                Ok(Some(entry)) => {
+                    matches.push(Match {
+                        byte_len: prefix.len(),
+                        reading: entry.reading,
+                        mark: entry.mark,
+                    });
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    tracing::warn!(
+                        prefix_len = prefix.len(),
+                        error = ?error,
+                        "aborting CDB prefix traversal due to decode error"
+                    );
+                    break;
+                }
             }
         }
 
@@ -122,15 +149,22 @@ impl HanjaDictionary for CdbDictionary {
         let mut records = Vec::new();
         for record in self.cdb.iter() {
             let Ok((key, value)) = record else {
+                tracing::warn!("skipping CDB entry due to iterator read error");
                 continue;
             };
             if key == META_KEY {
                 continue;
             }
-            let Ok(Some(entry)) = decode_record(&value) else {
-                continue;
+            let entry = match decode_record(&value) {
+                Ok(Some(entry)) => entry,
+                Ok(None) => continue,
+                Err(error) => {
+                    tracing::warn!(error = ?error, "skipping malformed CDB entry");
+                    continue;
+                }
             };
             let Ok(hanja) = String::from_utf8(key) else {
+                tracing::warn!("skipping CDB entry with non-UTF-8 key");
                 continue;
             };
             records.push(DictionaryRecord {
@@ -347,8 +381,30 @@ mod tests {
     use gukhanmun_core::{HanjaDictionary, MapDictionary, MatchMark};
     use proptest::prelude::*;
     use tempfile::tempdir;
+    use tracing_test::traced_test;
 
     use super::{CdbDictionary, META_KEY, encode_record};
+
+    #[traced_test]
+    #[test]
+    fn unsupported_version_emits_error_event() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("dict.gukcdb");
+        let metadata = BTreeMap::from([("version".to_owned(), "99".to_owned())]);
+        let mut metadata_bytes = Vec::new();
+        into_writer(&metadata, &mut metadata_bytes).unwrap();
+        let mut writer = cdb::CDBWriter::create(path.to_string_lossy().as_ref()).unwrap();
+        writer.add(META_KEY, &metadata_bytes).unwrap();
+        writer.finish().unwrap();
+
+        let result = CdbDictionary::open(&path);
+
+        assert!(matches!(
+            result,
+            Err(super::Error::UnsupportedVersion { .. })
+        ));
+        assert!(logs_contain("unsupported CDB format version"));
+    }
 
     #[test]
     fn loads_metadata_lookup_and_prefix_matches() {

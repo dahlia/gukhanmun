@@ -55,6 +55,7 @@ pub fn extract_path_to_tsv(path: &Path, writer: impl Write) -> Result<ExtractSta
     let mut extractor = Extractor::default();
 
     if path.is_dir() {
+        tracing::info!(path = %path.display(), input_type = "dir", "extracting Standard Korean Language Dictionary");
         let mut paths = fs::read_dir(path)?
             .map(|entry| entry.map(|entry| entry.path()))
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -68,8 +69,10 @@ pub fn extract_path_to_tsv(path: &Path, writer: impl Write) -> Result<ExtractSta
             }
         }
     } else if path.extension().is_some_and(|extension| extension == "zip") {
+        tracing::info!(path = %path.display(), input_type = "zip", "extracting Standard Korean Language Dictionary");
         extractor.read_zip(fs::File::open(path)?)?;
     } else {
+        tracing::info!(path = %path.display(), input_type = "json", "extracting Standard Korean Language Dictionary");
         extractor.read_json(fs::File::open(path)?)?;
     }
 
@@ -121,6 +124,7 @@ impl Extractor {
             .map(str::to_owned)
             .collect::<Vec<_>>();
         names.sort();
+        tracing::debug!(json_file_count = names.len(), "reading ZIP archive");
 
         for name in names {
             let mut file = archive.by_name(&name)?;
@@ -134,6 +138,10 @@ impl Extractor {
 
     fn read_json(&mut self, reader: impl Read) -> Result<()> {
         let dump = serde_json::from_reader::<_, Dump>(reader)?;
+        tracing::debug!(
+            items_ingested = dump.channel.item.len(),
+            "processed JSON dump"
+        );
         for item in dump.channel.item {
             self.stats.items_seen += 1;
             self.ingest_item(item);
@@ -143,10 +151,16 @@ impl Extractor {
 
     fn ingest_item(&mut self, item: Item) {
         let Some(word_info) = item.word_info else {
+            tracing::debug!(reason = "missing word_info", "skipping dictionary item");
             self.stats.skipped_items += 1;
             return;
         };
         if word_info.word_unit.as_deref() != Some("단어") {
+            tracing::debug!(
+                word_unit = ?word_info.word_unit,
+                reason = "not a single word",
+                "skipping dictionary item"
+            );
             self.stats.skipped_items += 1;
             return;
         }
@@ -156,11 +170,19 @@ impl Extractor {
             .map(normalize_word)
             .filter(|reading| !reading.is_empty())
         else {
+            tracing::debug!(
+                reason = "missing or empty reading",
+                "skipping dictionary item"
+            );
             self.stats.skipped_items += 1;
             return;
         };
         let originals = word_info.original_language_info.as_deref().unwrap_or(&[]);
         let Some(keys) = keys_from_originals(originals) else {
+            tracing::debug!(
+                reason = "no hanja keys extracted",
+                "skipping dictionary item"
+            );
             self.stats.skipped_items += 1;
             return;
         };
@@ -177,6 +199,7 @@ impl Extractor {
                 BTreeEntry::Occupied(mut entry) => {
                     self.stats.duplicate_keys += 1;
                     if priority > entry.get().priority {
+                        tracing::trace!(key = %entry.key(), "resolved duplicate dictionary key by priority");
                         entry.insert(Entry {
                             reading: reading.clone(),
                             priority,
@@ -193,6 +216,10 @@ impl Extractor {
             writeln!(writer, "{key}\t{}\tfalse\tfalse", entry.reading)?;
         }
         self.stats.entries_written = self.entries.len();
+        tracing::info!(
+            entries_written = self.stats.entries_written,
+            "wrote dictionary TSV"
+        );
         Ok(self.stats)
     }
 }

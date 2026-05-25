@@ -15,9 +15,11 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::fs;
+use std::io;
 use std::path::PathBuf;
 
 use clap::Parser;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -34,6 +36,12 @@ struct Cli {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_writer(io::stderr)
+        .init();
     let mut output = Vec::new();
     let stats = gukhanmun_stdict::extract::extract_path_to_tsv(&cli.input, &mut output)?;
     if let Some(path) = cli.output {
@@ -41,9 +49,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         print!("{}", String::from_utf8(output)?);
     }
-    eprintln!(
-        "items_seen={} entries_written={} duplicate_keys={} skipped_items={}",
-        stats.items_seen, stats.entries_written, stats.duplicate_keys, stats.skipped_items
+    tracing::info!(
+        items_seen = stats.items_seen,
+        entries_written = stats.entries_written,
+        duplicate_keys = stats.duplicate_keys,
+        skipped_items = stats.skipped_items,
+        "extraction complete"
     );
     Ok(())
 }
