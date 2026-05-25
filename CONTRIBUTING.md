@@ -113,9 +113,8 @@ their needles in the sidecar.
 
 ### Updating an `insta` snapshot
 
-`cargo-insta` is installed automatically by `mise install` through the
-`postinstall` hook in `mise.toml`.  After editing engine behaviour, run
-the interactive reviewer:
+`cargo-insta` is installed automatically by `mise install` as a managed
+tool.  After editing engine behaviour, run the interactive reviewer:
 
 ~~~~ sh
 mise run insta-review
