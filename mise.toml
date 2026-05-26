@@ -187,7 +187,7 @@ run = [
 description = "Write a version string to all JS package manifests"
 run = """
 set -e
-VER="${1:?usage: mise run js-sync-version -- VERSION}"
+VER="${VERSION:?usage: VERSION=x.y.z mise run js-sync-version}"
 
 update_json() {
   local file="$1"
@@ -212,12 +212,12 @@ done
 description = "Compute a dev pre-release version and sync it to all JS manifests"
 run = """
 set -e
-BUILD="${1:-0}"
+BUILD="${BUILD:-0}"
 COMMIT="$(git rev-parse --short HEAD)"
 BASE="$(dasel -i toml -o yaml 'workspace.package.version' < Cargo.toml)"
 VER="${BASE}-dev.${BUILD}+${COMMIT}"
 echo "Syncing JS manifests to version: $VER"
-mise run js-sync-version -- "$VER"
+VERSION="$VER" mise run js-sync-version
 """
 
 [tasks.js-publish]

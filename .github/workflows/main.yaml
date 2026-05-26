@@ -631,11 +631,11 @@ jobs:
     - name: Sync JS manifest versions
       shell: bash
       env:
-        PUBLISH_VERSION: ${{ needs.artifact-context.outputs.version }}
+        VERSION: ${{ needs.artifact-context.outputs.version }}
       run: |
         set -euo pipefail
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
-        mise run js-sync-version -- "$PUBLISH_VERSION"
+        mise run js-sync-version
     - name: Build npm packages
       shell: bash
       run: |
