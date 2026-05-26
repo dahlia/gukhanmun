@@ -21,6 +21,12 @@ importers:
         specifier: workspace:*
         version: link:../types
 
+  packages/stdict-cdb:
+    devDependencies:
+      '@gukhanmun/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/stdict-fst:
     devDependencies:
       '@gukhanmun/types':
