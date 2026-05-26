@@ -11,11 +11,10 @@
     }
   },
   "files": [
-    "dist",
-    "wasm"
+    "dist"
   ],
   "scripts": {
-    "build": "tsdown"
+    "build": "tsdown && node -e \"require('node:fs').cpSync('wasm','dist/wasm',{recursive:true,force:true})\""
   },
   "homepage": "https://github.com/dahlia/gukhanmun",
   "bugs": "https://github.com/dahlia/gukhanmun/issues",

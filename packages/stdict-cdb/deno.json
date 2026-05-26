@@ -5,5 +5,8 @@
   "license": "GPL-3.0-only",
   "imports": {
     "@gukhanmun/types": "../types/index.ts"
+  },
+  "publish": {
+    "include": ["index.ts", "stdict.cdb"]
   }
 }

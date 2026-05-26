@@ -9,14 +9,13 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./stdict.fst": "./stdict.fst"
+    "./stdict.fst": "./dist/stdict.fst"
   },
   "files": [
-    "dist",
-    "stdict.fst"
+    "dist"
   ],
   "scripts": {
-    "build": "tsdown"
+    "build": "tsdown && node -e \"require('node:fs').copyFileSync('stdict.fst','dist/stdict.fst')\""
   },
   "homepage": "https://github.com/dahlia/gukhanmun",
   "bugs": "https://github.com/dahlia/gukhanmun/issues",
