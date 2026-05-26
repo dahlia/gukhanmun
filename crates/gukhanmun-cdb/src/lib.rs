@@ -475,6 +475,7 @@ impl<'a> Iterator for CdbIter<'a> {
         let next_pos = val_start + val_len;
 
         if next_pos > self.data_end {
+            self.pos = self.data_end;
             return Some(Err(Error::OutOfBounds {
                 offset: next_pos,
                 len: self.data_end,
