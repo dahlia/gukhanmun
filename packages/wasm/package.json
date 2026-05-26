@@ -14,7 +14,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsdown && node -e \"require('node:fs').cpSync('wasm','dist/wasm',{recursive:true,force:true})\""
+    "build": "tsdown && node -e \"const fs=require('node:fs'),p=require('node:path');fs.cpSync('wasm','dist/wasm',{recursive:true,force:true,filter:(s)=>p.basename(s)!=='.gitignore'})\""
   },
   "homepage": "https://github.com/dahlia/gukhanmun",
   "bugs": "https://github.com/dahlia/gukhanmun/issues",
