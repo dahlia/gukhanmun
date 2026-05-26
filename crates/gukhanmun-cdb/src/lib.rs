@@ -20,6 +20,7 @@
 #![deny(missing_docs)]
 
 use std::collections::BTreeMap;
+use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -33,15 +34,34 @@ const MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
 /// The CDB header is 2048 bytes: 256 slots × (u32le pos, u32le count).
 const HEADER_SIZE: usize = 2048;
 
+/// Backing byte store for a [`CdbDictionary`]: either a reference-counted
+/// owned allocation (from [`CdbDictionary::from_bytes`] /
+/// [`CdbDictionary::open`]) or a zero-cost borrow of static memory (from
+/// [`CdbDictionary::from_static_bytes`]).
+enum DataSource {
+    Owned(Arc<[u8]>),
+    Static(&'static [u8]),
+}
+
+impl Deref for DataSource {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        match self {
+            DataSource::Owned(arc) => arc,
+            DataSource::Static(s) => s,
+        }
+    }
+}
+
 /// Dictionary backed by a Gukhanmun CDB-trie file.
 ///
-/// The CDB bytes are held in an [`Arc<[u8]>`] so that
-/// [`CdbDictionary::from_bytes`] can accept a slice and
-/// [`CdbDictionary::open`] can read from disk; both share the same
-/// look-up implementation.
+/// The CDB bytes are held in an internal backing store that is either an
+/// [`Arc<[u8]>`]-backed owned allocation or a zero-copy borrow of a
+/// `'static` slice, depending on how the dictionary was loaded.
 pub struct CdbDictionary {
     metadata: BTreeMap<String, String>,
-    data: Arc<[u8]>,
+    data: DataSource,
     entry_count: u64,
     max_word_chars: Option<usize>,
 }
@@ -54,12 +74,12 @@ impl CdbDictionary {
             path: path.display().to_string(),
             source,
         })?;
-        Self::from_source(Arc::from(bytes.as_slice()))
+        Self::from_source(DataSource::Owned(Arc::from(bytes.as_slice())))
     }
 
     /// Decodes a dictionary from bytes in the Gukhanmun CDB-trie format.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        Self::from_source(Arc::from(bytes))
+        Self::from_source(DataSource::Owned(Arc::from(bytes)))
     }
 
     /// Decodes a dictionary from static bytes in the Gukhanmun CDB-trie
@@ -69,10 +89,10 @@ impl CdbDictionary {
     /// `include_bytes!`.  The CDB data is referenced directly without
     /// copying.
     pub fn from_static_bytes(bytes: &'static [u8]) -> Result<Self, Error> {
-        Self::from_source(Arc::from(bytes as &[u8]))
+        Self::from_source(DataSource::Static(bytes))
     }
 
-    fn from_source(data: Arc<[u8]>) -> Result<Self, Error> {
+    fn from_source(data: DataSource) -> Result<Self, Error> {
         let metadata_bytes = cdb_get(&data, META_KEY)?.ok_or(Error::MissingRecord {
             record: "dictionary metadata",
         })?;
