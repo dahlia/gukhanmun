@@ -486,47 +486,160 @@ fn map_gukhanmun_error(e: &gukhanmun::Error) -> napi::Error {
     napi_err(code, &e.to_string())
 }
 
-fn has_class(raw_attributes: &str, class_name: &str) -> bool {
-    let lower = raw_attributes.to_ascii_lowercase();
-    let mut search = lower.as_str();
-    while let Some(idx) = search.find("class") {
-        let after = search[idx + 5..].trim_start_matches(|c: char| c.is_ascii_whitespace());
-        if !after.starts_with('=') {
-            search = &search[idx + 5..];
+/// Iterates over `(name, value)` pairs parsed from a raw HTML attribute
+/// string.  Names are returned verbatim (compare with
+/// `eq_ignore_ascii_case`); values are returned verbatim without entity
+/// decoding (sufficient for CSS class and data-attribute matching).
+struct AttrIter<'a> {
+    raw: &'a str,
+    pos: usize,
+}
+
+impl<'a> AttrIter<'a> {
+    fn new(raw: &'a str) -> Self {
+        Self { raw, pos: 0 }
+    }
+}
+
+impl<'a> Iterator for AttrIter<'a> {
+    type Item = (&'a str, Option<&'a str>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let bytes = self.raw.as_bytes();
+        loop {
+            while self.pos < bytes.len() && bytes[self.pos].is_ascii_whitespace() {
+                self.pos += 1;
+            }
+            if self.pos >= bytes.len() {
+                return None;
+            }
+            let name_start = self.pos;
+            while self.pos < bytes.len()
+                && (bytes[self.pos].is_ascii_alphanumeric()
+                    || matches!(bytes[self.pos], b'-' | b':' | b'_' | b'.'))
+            {
+                self.pos += 1;
+            }
+            if self.pos == name_start {
+                self.pos += 1;
+                continue;
+            }
+            let name = &self.raw[name_start..self.pos];
+            while self.pos < bytes.len() && bytes[self.pos].is_ascii_whitespace() {
+                self.pos += 1;
+            }
+            if bytes.get(self.pos) != Some(&b'=') {
+                return Some((name, None));
+            }
+            self.pos += 1;
+            while self.pos < bytes.len() && bytes[self.pos].is_ascii_whitespace() {
+                self.pos += 1;
+            }
+            let value = if matches!(bytes.get(self.pos), Some(b'\'' | b'"')) {
+                let quote = bytes[self.pos];
+                self.pos += 1;
+                let value_start = self.pos;
+                while self.pos < bytes.len() && bytes[self.pos] != quote {
+                    self.pos += 1;
+                }
+                let v = &self.raw[value_start..self.pos];
+                if self.pos < bytes.len() {
+                    self.pos += 1;
+                }
+                v
+            } else {
+                let value_start = self.pos;
+                while self.pos < bytes.len() && !bytes[self.pos].is_ascii_whitespace() {
+                    self.pos += 1;
+                }
+                &self.raw[value_start..self.pos]
+            };
+            return Some((name, Some(value)));
+        }
+    }
+}
+
+/// Decodes HTML character references (`&amp;`, `&lt;`, `&#34;`, `&#x22;`,
+/// etc.) in an attribute value, matching the CLI's `decode_html_attribute_value`
+/// semantics.
+fn decode_attr_value(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let bytes = raw.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'&' {
+            let next = raw[i..].find('&').map_or(raw.len(), |off| i + off);
+            out.push_str(&raw[i..next]);
+            i = next;
             continue;
         }
-        let value_start = after[1..].trim_start_matches(|c: char| c.is_ascii_whitespace());
-        let value = if let Some(rest) = value_start.strip_prefix('"') {
-            rest.split('"').next().unwrap_or("")
-        } else if let Some(rest) = value_start.strip_prefix('\'') {
-            rest.split('\'').next().unwrap_or("")
+        if let Some(semi_rel) = raw[i + 1..].find(';') {
+            let semi = i + 1 + semi_rel;
+            let reference = &raw[i + 1..semi];
+            let ch: Option<char> = match reference {
+                "amp" => Some('&'),
+                "lt" => Some('<'),
+                "gt" => Some('>'),
+                "quot" => Some('"'),
+                "apos" => Some('\''),
+                _ if reference.starts_with('#') => {
+                    let digits = &reference[1..];
+                    let code = if let Some(hex) = digits.strip_prefix(['x', 'X']) {
+                        u32::from_str_radix(hex, 16).ok()
+                    } else {
+                        digits.parse::<u32>().ok()
+                    };
+                    code.and_then(char::from_u32)
+                }
+                _ => None,
+            };
+            if let Some(c) = ch {
+                out.push(c);
+                i = semi + 1;
+            } else {
+                out.push_str(&raw[i..=semi]);
+                i = semi + 1;
+            }
         } else {
-            value_start
-                .split(|c: char| c.is_ascii_whitespace() || c == '>' || c == '/')
-                .next()
-                .unwrap_or("")
-        };
-        if value
-            .split_ascii_whitespace()
-            .any(|token| token == class_name)
-        {
-            return true;
+            out.push_str(&raw[i..]);
+            break;
         }
-        break;
+    }
+    out
+}
+
+/// Returns `true` if `raw_attributes` contains a `class` attribute whose
+/// whitespace-separated token list includes `class_name` (case-sensitive,
+/// matching CSS class selector semantics).  Attribute values are decoded
+/// before comparison.
+fn has_class(raw_attributes: &str, class_name: &str) -> bool {
+    for (name, value) in AttrIter::new(raw_attributes) {
+        if name.eq_ignore_ascii_case("class") {
+            let raw = value.unwrap_or("");
+            let decoded = decode_attr_value(raw);
+            return decoded
+                .split_ascii_whitespace()
+                .any(|tok| tok == class_name);
+        }
     }
     false
 }
 
+/// Returns `true` if `raw_attributes` contains an attribute whose name
+/// matches `attr_name` (case-insensitive) and, when `attr_value` is
+/// `Some`, whose decoded value matches exactly (case-sensitive).
+/// Boolean attributes (no `=` assignment) never match a value check.
 fn has_attribute(raw_attributes: &str, attr_name: &str, attr_value: Option<&str>) -> bool {
-    let lower = raw_attributes.to_ascii_lowercase();
-    let name_lower = attr_name.to_ascii_lowercase();
-    if let Some(required_value) = attr_value {
-        let val_lower = required_value.to_ascii_lowercase();
-        lower.contains(&format!("{name_lower}=\"{val_lower}\""))
-            || lower.contains(&format!("{name_lower}='{val_lower}'"))
-    } else {
-        lower.contains(&format!(" {name_lower}="))
-            || lower.contains(&format!(" {name_lower} "))
-            || lower.ends_with(&format!(" {name_lower}"))
+    for (name, value) in AttrIter::new(raw_attributes) {
+        if name.eq_ignore_ascii_case(attr_name) {
+            return match attr_value {
+                None => true,
+                Some(required) => match value {
+                    None => false,
+                    Some(raw) => decode_attr_value(raw) == required,
+                },
+            };
+        }
     }
+    false
 }

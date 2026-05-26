@@ -201,13 +201,45 @@ async function resolveDictionary(
   if ("format" in source) {
     // FileDictionarySource
     const file = source as FileDictionarySource;
-    if (file.data instanceof ArrayBuffer || ArrayBuffer.isView(file.data)) {
-      const raw = ArrayBuffer.isView(file.data)
-        ? (file.data as ArrayBufferView).buffer
-        : (file.data as ArrayBuffer);
-      return { format: file.format, bytes: new Uint8Array(raw) };
+    if (file.data instanceof ArrayBuffer) {
+      return { format: file.format, bytes: new Uint8Array(file.data) };
     }
-    const url = file.data instanceof URL ? file.data : new URL(String(file.data));
+    if (ArrayBuffer.isView(file.data)) {
+      const view = file.data as ArrayBufferView;
+      return {
+        format: file.format,
+        bytes: new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
+      };
+    }
+    let url: URL;
+    if (file.data instanceof URL) {
+      url = file.data;
+    } else {
+      const str = String(file.data);
+      if (str.includes("://")) {
+        url = new URL(str);
+      } else if (isNodeJs()) {
+        const specifier: string = "node:url";
+        const nodeUrl = (await import(specifier)) as unknown as {
+          pathToFileURL(path: string): URL;
+        };
+        url = nodeUrl.pathToFileURL(str);
+      } else {
+        throw new GukhanmunError(
+          "invalid-input",
+          "File path strings require a Node.js environment; use URL or ArrayBuffer in browsers",
+        );
+      }
+    }
+    if (isNodeJs() && url.protocol === "file:") {
+      const specifier: string = "node:fs/promises";
+      const fs = (await import(specifier)) as unknown as NodeFsPromises;
+      const buf = await fs.readFile(url);
+      return {
+        format: file.format,
+        bytes: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength),
+      };
+    }
     const response = await fetch(url);
     if (!response.ok) {
       throw new GukhanmunError(
@@ -276,7 +308,12 @@ class GukhanmunImpl implements Gukhanmun {
    * @returns A `TransformStream<string, string>`.
    */
   stream(format?: Format): TransformStream<string, string> {
-    const streamHandle = this.#handle.open_stream(format ?? null);
+    let streamHandle: WasmStreamInternal;
+    try {
+      streamHandle = this.#handle.open_stream(format ?? null);
+    } catch (e) {
+      throw liftError(e);
+    }
     return new TransformStream<string, string>({
       transform(chunk, controller): void {
         const out = streamHandle.push(chunk);
@@ -316,13 +353,15 @@ function liftError(raw: unknown): GukhanmunError {
 // ── Resolved options helpers ─────────────────────────────────────────────────
 
 function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
+  const preset = opts.preset ?? "ko-kr";
+  const koKp = preset === "ko-kp";
   return {
-    preset: opts.preset ?? "ko-kr",
+    preset,
     rendering: opts.rendering ?? "hangul-only",
     segmentation: opts.segmentation ?? "lattice",
     numerals: opts.numerals ?? "hangul-phonetic",
-    initialSoundLaw: opts.initialSoundLaw ?? true,
-    homophoneWindow: opts.homophoneWindow ?? "per-block",
+    initialSoundLaw: opts.initialSoundLaw ?? (koKp ? false : true),
+    homophoneWindow: opts.homophoneWindow ?? (koKp ? "off" : "per-block"),
     firstOccurrenceWindow: opts.firstOccurrenceWindow ?? "off",
     recovery: opts.recovery ?? "strict",
   };

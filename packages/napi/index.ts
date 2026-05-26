@@ -244,13 +244,15 @@ interface ResolvedOptions {
 }
 
 function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
+  const preset = opts.preset ?? "ko-kr";
+  const koKp = preset === "ko-kp";
   return {
-    preset: opts.preset ?? "ko-kr",
+    preset,
     rendering: opts.rendering ?? "hangul-only",
     segmentation: opts.segmentation ?? "lattice",
     numerals: opts.numerals ?? "hangul-phonetic",
-    initialSoundLaw: opts.initialSoundLaw ?? true,
-    homophoneWindow: opts.homophoneWindow ?? "per-block",
+    initialSoundLaw: opts.initialSoundLaw ?? (koKp ? false : true),
+    homophoneWindow: opts.homophoneWindow ?? (koKp ? "off" : "per-block"),
     firstOccurrenceWindow: opts.firstOccurrenceWindow ?? "off",
     recovery: opts.recovery ?? "strict",
   };
@@ -332,7 +334,12 @@ class GukhanmunImpl implements Gukhanmun {
    */
   stream(format?: Format): TransformStream<string, string> {
     const formatJson = format != null ? JSON.stringify(format) : null;
-    const streamHandle: NapiStreamHandle = this.#handle.openStream(formatJson);
+    let streamHandle: NapiStreamHandle;
+    try {
+      streamHandle = this.#handle.openStream(formatJson);
+    } catch (e) {
+      throw liftNapiError(e);
+    }
     const handle = this.#handle;
     return new TransformStream<string, string>({
       transform(chunk, controller): void {
