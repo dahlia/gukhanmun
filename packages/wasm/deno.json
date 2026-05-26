@@ -7,6 +7,6 @@
     "@gukhanmun/types": "../types/index.ts"
   },
   "publish": {
-    "include": ["index.ts", "wasm/"]
+    "include": ["index.ts", "wasm/**"]
   }
 }

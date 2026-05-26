@@ -663,6 +663,17 @@ jobs:
           --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    - name: Commit generated assets for JSR
+      shell: bash
+      run: |
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        git add -f \
+          packages/wasm/wasm/web/ \
+          packages/stdict-fst/stdict.fst \
+          packages/stdict-cdb/stdict.cdb
+        git commit --no-verify \
+          -m "ci: add generated assets for JSR publishing [skip ci]"
     - name: Publish to JSR
       shell: bash
       run: deno publish --allow-dirty
