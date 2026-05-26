@@ -12,7 +12,7 @@ description = "Node.js (napi-rs v3) binding for Gukhanmun."
 crate-type = ["cdylib"]
 
 [dependencies]
-gukhanmun = { path = "../gukhanmun", version = "0.1.0", default-features = false, features = ["html", "fst", "cdb", "markdown"] }
+gukhanmun = { workspace = true, features = ["html", "fst", "cdb", "markdown"] }
 napi = { version = "3", features = ["napi6"] }
 napi-derive = "3"
 serde = { version = "1", features = ["derive"] }

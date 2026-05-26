@@ -19,7 +19,7 @@ doc = false
 [dependencies]
 anyhow = "1.0.102"
 clap = { version = "4.6.1", features = ["derive"] }
-gukhanmun.workspace = true
+gukhanmun = { workspace = true, features = ["html", "markdown", "stdict", "fst", "cdb"] }
 hongdown = "0.3.11"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
