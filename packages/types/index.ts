@@ -182,7 +182,7 @@ export type Recovery = "strict" | "lenient";
 // ── Dictionary sources ─────────────────────────────────────────────────────
 
 /**
- * A single dictionary entry for use with {@link MapDictionarySource}.
+ * A single dictionary entry returned by a dictionary lookup.
  */
 export interface DictionaryEntry {
   /** The hanja form (key), e.g. `"漢字"`. */
@@ -216,8 +216,8 @@ export interface DictionaryEntry {
  * - A `string` — treated as a filesystem path; supported in Node.js,
  *   Deno 2.0+, and Bun only.  Throws in browser environments.
  *
- * At runtime, file sources are distinguished from map sources by the presence
- * of a `format` property (`"format" in source`).
+ * At runtime, a `FileDictionarySource` is distinguished from other values by
+ * the presence of a `format` property (`"format" in source`).
  */
 export interface FileDictionarySource {
   /**
@@ -245,36 +245,18 @@ export interface FileDictionarySource {
 }
 
 /**
- * A small in-process dictionary supplied as a `ReadonlyMap`.
- *
- * The map keys are hanja forms (e.g. `"漢字"`) and the values carry the
- * same fields as {@link DictionaryEntry} minus the redundant `hanja` key.
- *
- * At runtime, map sources are distinguished from file sources by the
- * *absence* of a `format` property (`!("format" in source)`).
- */
-export type MapDictionarySource = ReadonlyMap<
-  string,
-  Omit<DictionaryEntry, "hanja">
->;
-
-/**
  * A dictionary source accepted by {@link GukhanmunOptions.dictionaries}.
  *
- * Either a {@link FileDictionarySource} (binary file / URL / path) or a
- * {@link MapDictionarySource} (in-process `ReadonlyMap`).
+ * Currently only {@link FileDictionarySource} (binary file / URL / path) is
+ * supported.  Sources are tried in array order; the first match wins.
  *
- * Sources are tried in array order; the first match wins.  To chain a small
- * custom vocabulary with the bundled *stdict*, pass the custom source first:
- *
+ * @example
  * ```ts
  * import { stdictFst } from "@gukhanmun/stdict-fst";
- * const g = await load({
- *   dictionaries: [myCustomMap, await stdictFst()],
- * });
+ * const g = await load({ dictionaries: [await stdictFst()] });
  * ```
  */
-export type DictionarySource = FileDictionarySource | MapDictionarySource;
+export type DictionarySource = FileDictionarySource;
 
 // ── HTML options ────────────────────────────────────────────────────────────
 

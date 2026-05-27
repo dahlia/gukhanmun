@@ -95,23 +95,9 @@ describe("streaming equivalence", () => {
 // ── Error handling ───────────────────────────────────────────────────────────
 
 describe("error handling", () => {
-  test("MapDictionarySource throws GukhanmunError with unsupported-content-type", async () => {
-    const source = new Map([["漢字", { reading: "한자" }]]);
-    await assert.rejects(
-      () => load({ dictionaries: [source] }),
-      (e: unknown) => {
-        assert.ok(e instanceof GukhanmunError);
-        assert.equal(e.code, "unsupported-content-type");
-        assert.ok(Array.isArray(e.chain));
-        return true;
-      },
-    );
-  });
-
   test("GukhanmunError is an Error subclass", async () => {
-    const source = new Map([["漢字", { reading: "한자" }]]);
     await assert.rejects(
-      () => load({ dictionaries: [source] }),
+      () => load({ preset: "invalid-preset" as never }),
       GukhanmunError,
     );
   });

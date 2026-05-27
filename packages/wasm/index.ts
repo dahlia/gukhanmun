@@ -25,7 +25,6 @@ import type {
   ContextWindow,
   DictionarySource,
   ErrorCode,
-  FileDictionarySource,
   Format,
   Gukhanmun,
   GukhanmunOptions,
@@ -48,7 +47,6 @@ export type {
   GukhanmunFactory,
   GukhanmunOptions,
   HtmlOptions,
-  MapDictionarySource,
   NumeralStrategy,
   OriginalGloss,
   Preset,
@@ -196,78 +194,69 @@ function ensureWasm(): Promise<WasmGlue> {
 async function resolveDictionary(
   source: DictionarySource,
 ): Promise<{ format: string; bytes: Uint8Array }> {
-  if ("format" in source) {
-    // FileDictionarySource
-    const file = source as FileDictionarySource;
-    if (file.data instanceof ArrayBuffer) {
-      return { format: file.format, bytes: new Uint8Array(file.data) };
-    }
-    if (ArrayBuffer.isView(file.data)) {
-      const view = file.data as ArrayBufferView;
-      return {
-        format: file.format,
-        bytes: new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
+  if (source.data instanceof ArrayBuffer) {
+    return { format: source.format, bytes: new Uint8Array(source.data) };
+  }
+  if (ArrayBuffer.isView(source.data)) {
+    const view = source.data as ArrayBufferView;
+    return {
+      format: source.format,
+      bytes: new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
+    };
+  }
+  let url: URL;
+  if (source.data instanceof URL) {
+    url = source.data;
+  } else {
+    const str = String(source.data);
+    if (str.includes("://")) {
+      url = new URL(str);
+    } else if (isNodeLike()) {
+      const specifier: string = "node:url";
+      const nodeUrl = (await import(specifier)) as unknown as {
+        pathToFileURL(path: string): URL;
       };
-    }
-    let url: URL;
-    if (file.data instanceof URL) {
-      url = file.data;
+      url = nodeUrl.pathToFileURL(str);
     } else {
-      const str = String(file.data);
-      if (str.includes("://")) {
-        url = new URL(str);
-      } else if (isNodeLike()) {
-        const specifier: string = "node:url";
-        const nodeUrl = (await import(specifier)) as unknown as {
-          pathToFileURL(path: string): URL;
-        };
-        url = nodeUrl.pathToFileURL(str);
-      } else {
-        throw new GukhanmunError(
-          "invalid-input",
-          "File path strings require a Node.js environment; use URL or ArrayBuffer in browsers",
-        );
-      }
+      throw new GukhanmunError(
+        "invalid-input",
+        "File path strings require a Node.js environment; use URL or ArrayBuffer in browsers",
+      );
     }
-    if (isNodeLike() && url.protocol === "file:") {
-      const specifier: string = "node:fs/promises";
-      const fs = (await import(specifier)) as unknown as NodeFsPromises;
-      let buf: { buffer: ArrayBuffer; byteOffset: number; byteLength: number };
-      try {
-        buf = await fs.readFile(url);
-      } catch (e) {
-        throw new GukhanmunError(
-          "dictionary-load",
-          `Failed to read dictionary: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
-      return {
-        format: file.format,
-        bytes: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength),
-      };
-    }
-    let response: Response;
+  }
+  if (isNodeLike() && url.protocol === "file:") {
+    const specifier: string = "node:fs/promises";
+    const fs = (await import(specifier)) as unknown as NodeFsPromises;
+    let buf: { buffer: ArrayBuffer; byteOffset: number; byteLength: number };
     try {
-      response = await fetch(url);
+      buf = await fs.readFile(url);
     } catch (e) {
       throw new GukhanmunError(
         "dictionary-load",
-        `Failed to fetch dictionary: ${e instanceof Error ? e.message : String(e)}`,
+        `Failed to read dictionary: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
-    if (!response.ok) {
-      throw new GukhanmunError(
-        "dictionary-load",
-        `Failed to fetch dictionary: HTTP ${response.status}`,
-      );
-    }
-    return { format: file.format, bytes: new Uint8Array(await response.arrayBuffer()) };
+    return {
+      format: source.format,
+      bytes: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength),
+    };
   }
-  // MapDictionarySource — not supported in WASM (no in-process builder)
-  throw new GukhanmunError(
-    "unsupported-content-type",
-    "MapDictionarySource is not supported in the WASM backend; use FileDictionarySource with FST data",
-  );
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch (e) {
+    throw new GukhanmunError(
+      "dictionary-load",
+      `Failed to fetch dictionary: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  if (!response.ok) {
+    throw new GukhanmunError(
+      "dictionary-load",
+      `Failed to fetch dictionary: HTTP ${response.status}`,
+    );
+  }
+  return { format: source.format, bytes: new Uint8Array(await response.arrayBuffer()) };
 }
 
 // ── GukhanmunImpl ────────────────────────────────────────────────────────────
@@ -389,7 +378,7 @@ function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
  * Initialises the WASM module on the first call (subsequent calls reuse the
  * cached module).  Dictionaries supplied via
  * `{@link GukhanmunOptions.dictionaries}` are fetched and passed to the Rust
- * engine; `MapDictionarySource` is not supported in the WASM backend.
+ * engine as `FileDictionarySource` values.
  *
  * Note: unlike the Rust `ko-kr` preset, the JavaScript preset never includes a
  * bundled dictionary.  Pass `dictionaries: [await stdictFst()]` to include the

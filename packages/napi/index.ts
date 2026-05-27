@@ -31,7 +31,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type {
   ContextWindow,
   DictionarySource,
-  FileDictionarySource,
   Format,
   Gukhanmun,
   GukhanmunOptions,
@@ -54,7 +53,6 @@ export type {
   GukhanmunFactory,
   GukhanmunOptions,
   HtmlOptions,
-  MapDictionarySource,
   NumeralStrategy,
   OriginalGloss,
   Preset,
@@ -188,57 +186,49 @@ function liftNapiError(raw: unknown): GukhanmunError {
 // ── Dictionary loading ────────────────────────────────────────────────────────
 
 async function resolveDictionary(source: DictionarySource): Promise<RawDictInput> {
-  if ("format" in source) {
-    const file = source as FileDictionarySource;
-    let bytes: Buffer;
-    if (file.data instanceof ArrayBuffer) {
-      bytes = Buffer.from(file.data);
-    } else if (ArrayBuffer.isView(file.data)) {
-      const view = file.data as ArrayBufferView;
-      bytes = Buffer.from(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength);
+  let bytes: Buffer;
+  if (source.data instanceof ArrayBuffer) {
+    bytes = Buffer.from(source.data);
+  } else if (ArrayBuffer.isView(source.data)) {
+    const view = source.data as ArrayBufferView;
+    bytes = Buffer.from(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength);
+  } else {
+    let url: URL;
+    if (source.data instanceof URL) {
+      url = source.data;
     } else {
-      let url: URL;
-      if (file.data instanceof URL) {
-        url = file.data;
-      } else {
-        const str = String(file.data);
-        url = str.includes("://") ? new URL(str) : pathToFileURL(str);
-      }
-      if (url.protocol === "file:") {
-        try {
-          bytes = await readFile(fileURLToPath(url));
-        } catch (e) {
-          throw new GukhanmunError(
-            "dictionary-load",
-            `Failed to read dictionary: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      } else {
-        let response: Response;
-        try {
-          response = await fetch(url);
-        } catch (e) {
-          throw new GukhanmunError(
-            "dictionary-load",
-            `Failed to fetch dictionary: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-        if (!response.ok) {
-          throw new GukhanmunError(
-            "dictionary-load",
-            `Failed to fetch dictionary: HTTP ${response.status}`,
-          );
-        }
-        bytes = Buffer.from(await response.arrayBuffer());
-      }
+      const str = String(source.data);
+      url = str.includes("://") ? new URL(str) : pathToFileURL(str);
     }
-    return { format: file.format, bytes };
+    if (url.protocol === "file:") {
+      try {
+        bytes = await readFile(fileURLToPath(url));
+      } catch (e) {
+        throw new GukhanmunError(
+          "dictionary-load",
+          `Failed to read dictionary: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    } else {
+      let response: Response;
+      try {
+        response = await fetch(url);
+      } catch (e) {
+        throw new GukhanmunError(
+          "dictionary-load",
+          `Failed to fetch dictionary: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+      if (!response.ok) {
+        throw new GukhanmunError(
+          "dictionary-load",
+          `Failed to fetch dictionary: HTTP ${response.status}`,
+        );
+      }
+      bytes = Buffer.from(await response.arrayBuffer());
+    }
   }
-  throw new GukhanmunError(
-    "unsupported-content-type",
-    "MapDictionarySource is not supported in the NAPI backend; " +
-      "use FileDictionarySource with FST or CDB data",
-  );
+  return { format: source.format, bytes };
 }
 
 // ── Resolved options ──────────────────────────────────────────────────────────
@@ -377,8 +367,7 @@ class GukhanmunImpl implements Gukhanmun {
  *
  * The native addon is synchronously ready; dictionaries supplied via
  * `{@link GukhanmunOptions.dictionaries}` are fetched or read from disk and
- * passed to the Rust engine.  `MapDictionarySource` is not supported in the
- * NAPI backend.
+ * passed to the Rust engine as `FileDictionarySource` values.
  *
  * Note: unlike the Rust `ko-kr` preset, the JavaScript preset never includes a
  * bundled dictionary.  Pass `dictionaries: [await stdictFst()]` to include the
