@@ -101,8 +101,8 @@ function detectPlatformPackage(): string {
     "darwin-x64": "x86_64-apple-darwin",
     "win32-arm64": "aarch64-pc-windows-msvc",
     "win32-x64": "x86_64-pc-windows-msvc",
-    "linux-arm64": "aarch64-unknown-linux-musl",
-    "linux-x64": "x86_64-unknown-linux-musl",
+    "linux-arm64": "aarch64-unknown-linux-gnu",
+    "linux-x64": "x86_64-unknown-linux-gnu",
   };
   const key = `${process.platform}-${process.arch}`;
   const target = map[key];

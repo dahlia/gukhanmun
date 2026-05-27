@@ -472,9 +472,9 @@ jobs:
         - os: windows-latest
           target: x86_64-pc-windows-msvc
         - os: ubuntu-latest
-          target: aarch64-unknown-linux-musl
+          target: aarch64-unknown-linux-gnu
         - os: ubuntu-latest
-          target: x86_64-unknown-linux-musl
+          target: x86_64-unknown-linux-gnu
     steps:
     - name: Disable Git CRLF conversion
       if: runner.os == 'Windows'
@@ -717,7 +717,7 @@ jobs:
         for target in \
           aarch64-apple-darwin x86_64-apple-darwin \
           aarch64-pc-windows-msvc x86_64-pc-windows-msvc \
-          aarch64-unknown-linux-musl x86_64-unknown-linux-musl; do
+          aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu; do
           cp napi-artifacts/napi-${target}/gukhanmun_napi.node \
              packages/napi-${target}/gukhanmun_napi.node
         done

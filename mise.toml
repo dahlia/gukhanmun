@@ -20,7 +20,7 @@ version = "0.13.1"
 linux-x64 = "wasm-pack-v*-x86_64-unknown-linux-musl.tar.gz"
 linux-arm64 = "wasm-pack-v*-aarch64-unknown-linux-musl.tar.gz"
 macos-x64 = "wasm-pack-v*-x86_64-apple-darwin.tar.gz"
-macos-arm64 = "wasm-pack-v*-aarch64-apple-darwin.tar.gz"
+macos-arm64 = "wasm-pack-v*-x86_64-apple-darwin.tar.gz"
 windows-x64 = "wasm-pack-v*-x86_64-pc-windows-msvc.zip"
 
 [tools."github:dahlia/hongdown"]
@@ -206,8 +206,8 @@ for pkg in packages/types packages/wasm packages/napi \
            packages/napi-x86_64-apple-darwin \
            packages/napi-aarch64-pc-windows-msvc \
            packages/napi-x86_64-pc-windows-msvc \
-           packages/napi-aarch64-unknown-linux-musl \
-           packages/napi-x86_64-unknown-linux-musl; do
+           packages/napi-aarch64-unknown-linux-gnu \
+           packages/napi-x86_64-unknown-linux-gnu; do
   update_json "$pkg/package.json"
 done
 for pkg in packages/types packages/wasm packages/stdict-fst packages/stdict-cdb; do

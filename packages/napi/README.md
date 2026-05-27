@@ -24,11 +24,11 @@ libc variant. The supported targets are:
 | x86\_64-apple-darwin       | macOS        | x86\_64      |
 | aarch64-pc-windows-msvc    | Windows      | ARM64        |
 | x86\_64-pc-windows-msvc    | Windows      | x86\_64      |
-| aarch64-unknown-linux-musl | Linux (musl) | ARM64        |
-| x86\_64-unknown-linux-musl | Linux (musl) | x86\_64      |
+| aarch64-unknown-linux-gnu  | Linux (glibc) | ARM64       |
+| x86\_64-unknown-linux-gnu  | Linux (glibc) | x86\_64     |
 
-Standard glibc Linux (Ubuntu, Debian, etc.) is not covered by a prebuilt
-binary. Build from source with `mise run napi-build` on those platforms.
+musl Linux (Alpine, etc.) is not covered by a prebuilt binary. Build from
+source with `mise run napi-build` on those platforms.
 
 
 Usage

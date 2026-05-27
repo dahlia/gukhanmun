@@ -1,15 +1,12 @@
 {
-  "name": "@gukhanmun/napi-aarch64-unknown-linux-musl",
+  "name": "@gukhanmun/napi-aarch64-unknown-linux-gnu",
   "version": "0.1.0",
-  "description": "Native binary for @gukhanmun/napi on aarch64-unknown-linux-musl.",
+  "description": "Native binary for @gukhanmun/napi on aarch64-unknown-linux-gnu.",
   "os": [
     "linux"
   ],
   "cpu": [
     "arm64"
-  ],
-  "libc": [
-    "musl"
   ],
   "main": "gukhanmun_napi.node",
   "files": [
@@ -19,7 +16,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dahlia/gukhanmun.git",
-    "directory": "packages/napi-aarch64-unknown-linux-musl"
+    "directory": "packages/napi-aarch64-unknown-linux-gnu"
   },
   "homepage": "https://github.com/dahlia/gukhanmun",
   "bugs": "https://github.com/dahlia/gukhanmun/issues",
