@@ -467,6 +467,7 @@ fn make_error(code: &str, message: &str) -> JsValue {
 
 fn map_gukhanmun_error(e: &gukhanmun::Error) -> JsValue {
     use gukhanmun::Error;
+    use std::error::Error as StdError;
     let code = match e {
         Error::Core(_) => "segmentation",
         Error::Html(_) => "html-scan",
@@ -476,7 +477,37 @@ fn map_gukhanmun_error(e: &gukhanmun::Error) -> JsValue {
         Error::Config(_) => "invalid-input",
         _ => "internal",
     };
-    make_error(code, &e.to_string())
+    let obj = Object::new();
+    let _ = Reflect::set(&obj, &JsValue::from_str("code"), &JsValue::from_str(code));
+    let _ = Reflect::set(
+        &obj,
+        &JsValue::from_str("message"),
+        &JsValue::from_str(&e.to_string()),
+    );
+    let mut sources: Vec<String> = Vec::new();
+    let mut src: Option<&(dyn StdError + 'static)> = e.source();
+    while let Some(s) = src {
+        sources.push(s.to_string());
+        src = s.source();
+    }
+    sources.reverse();
+    let arr = Array::new();
+    for (i, msg) in sources.iter().enumerate() {
+        let item = Object::new();
+        let _ = Reflect::set(
+            &item,
+            &JsValue::from_str("code"),
+            &JsValue::from_str("internal"),
+        );
+        let _ = Reflect::set(
+            &item,
+            &JsValue::from_str("message"),
+            &JsValue::from_str(msg),
+        );
+        arr.set(i as u32, item.into());
+    }
+    let _ = Reflect::set(&obj, &JsValue::from_str("chain"), &arr.into());
+    obj.into()
 }
 
 /// Iterates over `(name, value)` pairs parsed from a raw HTML attribute

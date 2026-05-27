@@ -473,6 +473,7 @@ fn napi_err(code: &str, message: &str) -> napi::Error {
 
 fn map_gukhanmun_error(e: &gukhanmun::Error) -> napi::Error {
     use gukhanmun::Error;
+    use std::error::Error as StdError;
     let code = match e {
         Error::Core(_) => "segmentation",
         Error::Html(_) => "html-scan",
@@ -483,7 +484,20 @@ fn map_gukhanmun_error(e: &gukhanmun::Error) -> napi::Error {
         Error::Config(_) => "invalid-input",
         _ => "internal",
     };
-    napi_err(code, &e.to_string())
+    let mut chain: Vec<serde_json::Value> = Vec::new();
+    let mut src: Option<&(dyn StdError + 'static)> = e.source();
+    while let Some(s) = src {
+        chain.push(serde_json::json!({ "code": "internal", "message": s.to_string() }));
+        src = s.source();
+    }
+    chain.reverse();
+    let reason = serde_json::json!({
+        "code": code,
+        "message": e.to_string(),
+        "chain": chain,
+    })
+    .to_string();
+    napi::Error::from_reason(reason)
 }
 
 /// Iterates over `(name, value)` pairs parsed from a raw HTML attribute
