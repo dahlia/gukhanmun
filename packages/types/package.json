@@ -29,6 +29,11 @@
     "url": "https://hongminhee.org/"
   },
   "funding": "https://github.com/sponsors/dahlia",
+  "engines": {
+    "node": ">=20",
+    "bun": ">=1.0",
+    "deno": ">=2.0"
+  },
   "sideEffects": false,
   "keywords": [
     "korean",
