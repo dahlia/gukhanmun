@@ -1,8 +1,17 @@
 Contributing
 ============
 
+Before diving in, read [*DESIGN.md*](./DESIGN.en.md) to understand the overall
+design, architecture, and roadmap.
+
 This repository uses [mise] as the single entry point for development tools and
 commands.
+
+[mise]: https://mise.jdx.dev/
+
+
+Setup
+-----
 
 Install the configured tools:
 
@@ -16,8 +25,9 @@ List available project commands:
 mise tasks
 ~~~~
 
-Refer to [*DESIGN.md*](./DESIGN.en.md) when you need the overall design,
-architecture, or roadmap context for a change.
+
+Running checks
+--------------
 
 Run fast checks suitable for pre-commit hooks:
 
@@ -50,6 +60,10 @@ mise run test
 mise run typecheck
 ~~~~
 
+
+Conventions
+-----------
+
 Avoid relying on globally installed Rust tools or ad hoc command variants when
 working on this repository. Add or update a mise task when the project needs a
 new repeated development command.
@@ -58,7 +72,26 @@ Document every new public Rust API with rustdoc comments. Public documentation
 should explain the API's role, important invariants, and where it fits in the
 pipeline so that `mise run doc` stays useful as an API review gate.
 
-[mise]: https://mise.jdx.dev/
+
+Writing docs
+------------
+
+After editing any Markdown file, format it with `hongdown -w`:
+
+~~~~ sh
+hongdown -w path/to/file.md
+~~~~
+
+Follow these prose conventions:
+
+ -  Use sentence case for headings and subheadings, not title case.
+ -  Avoid em dashes (—); use a comma, semicolon, or rewrite the sentence.
+ -  No spaces around slashes (write “input/output”, not “input / output”).
+ -  Use italics for file paths and file names (*CONTRIBUTING.md*,
+    *src/main.rs*).
+ -  Wrap inline code in backticks (`mise run check`, `--flag`).
+ -  Use the official spelling of proper nouns exactly.  If unsure, verify on
+    the official website (e.g., Node.js, not NodeJS or Node).
 
 
 Testing
@@ -67,26 +100,26 @@ Testing
 The test suite is laid out along the four axes documented in
 [*DESIGN.md*](./DESIGN.en.md):
 
- -  **Regression fixtures** live under `tests/fixtures/` at the workspace root
+ -  **Regression fixtures** live under *tests/fixtures/* at the workspace root
     and are consumed by `cargo test -p gukhanmun --test fixtures`.  Each
     fixture is an `<stem>.input.<ext>` / `<stem>.expected.<ext>` pair with an
     optional `<stem>.toml` sidecar describing preset, dictionary records,
     homophone window, recovery policy, or assertion kind.  Sidecar fields are
-    parsed by `crates/gukhanmun/tests/common/mod.rs`.
+    parsed by *crates/gukhanmun/tests/common/mod.rs*.
 
- -  **Property-based tests** live in `crates/gukhanmun-core/tests/properties.rs`
-    and share generators with `crates/gukhanmun-core/tests/common/mod.rs`
+ -  **Property-based tests** live in *crates/gukhanmun-core/tests/properties.rs*
+    and share generators with *crates/gukhanmun-core/tests/common/mod.rs*
     (`arb_hangul_only_string`, `arb_mixed_script_chunks`).  Existing
-    case-driven assertions in `core_mvp.rs` are not replaced; new properties
+    case-driven assertions in *core\_mvp.rs* are not replaced; new properties
     should pull from `common::*` so the generator surface stays consistent.
 
  -  **Snapshot tests** use `insta` and live in
-    `crates/gukhanmun-core/tests/snapshots.rs`.  The recorded shape is the
+    *crates/gukhanmun-core/tests/snapshots.rs*.  The recorded shape is the
     test-layer projection `common::tokens_to_snapshot_value`, not a derived
     `Serialize` on the public types — internal renames inside `gukhanmun-core`
     do not churn `.snap` files automatically.
 
- -  **CommonMark conformance** lives under `tests/fixtures/commonmark/` and
+ -  **CommonMark conformance** lives under *tests/fixtures/commonmark/* and
     runs through the same fixture harness.  Each case is a hanja-free
     Markdown input plus the expected pulldown-cmark-to-cmark output, pinning
     that Gukhanmun does not perturb syntax it has no opinion about.
@@ -104,7 +137,7 @@ The test suite is laid out along the four axes documented in
 
 The harness normalises each fixture stem into a `libtest`-friendly test
 name by replacing hyphens with underscores.  A fixture saved as
-`html/initial-sound-raw.input.html` is therefore reported (and filtered)
+*html/initial-sound-raw.input.html* is therefore reported (and filtered)
 as `html::initial_sound_raw`.
 
 Bless mode tolerates a missing expected file (so the very first run works)

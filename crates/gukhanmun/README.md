@@ -89,7 +89,7 @@ Relation to the other workspace crates
 `gukhanmun` re-exports public items from `gukhanmun-core`, `gukhanmun-html`,
 `gukhanmun-markdown`, `gukhanmun-fst`, `gukhanmun-cdb`, and `gukhanmun-stdict`
 under feature gates. Code that needs only a subset of the pipeline can depend
-on those crates directly. The full workspace is documented in `DESIGN.md` at
+on those crates directly. The full workspace is documented in *DESIGN.md* at
 the repository root.
 
 

@@ -39,7 +39,7 @@ Build-time requirements
 -----------------------
 
 The FST binary is generated during `cargo build` from a canonical TSV snapshot
-stored in the `data/` directory. The snapshot is committed to the repository,
+stored in the *data/* directory. The snapshot is committed to the repository,
 so a network connection is not required to build the crate. `gukhanmun-mkdict`
 is used as a build dependency.
 

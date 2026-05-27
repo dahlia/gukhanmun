@@ -75,9 +75,9 @@ below) so the canonical TSV remains a pure hanja↔hangul mapping.
 Annotation rules
 ----------------
 
-`crates/gukhanmun-stdict/data/rules.tsv` lists hand-curated rules that
+*crates/gukhanmun-stdict/data/rules.tsv* lists hand-curated rules that
 OR-merge `require_hanja` / `require_hangul` marks into dictionary entries at
-build time.  The stdict crate's `build.rs` passes the rules file to
+build time.  The stdict crate's *build.rs* passes the rules file to
 `gukhanmun-mkdict`, so the embedded FST ships with the marks already encoded.
 
 The format is a TSV with the columns `kind`, `pattern`, `require_hanja`,
