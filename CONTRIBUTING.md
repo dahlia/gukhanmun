@@ -72,6 +72,9 @@ Document every new public Rust API with rustdoc comments. Public documentation
 should explain the API's role, important invariants, and where it fits in the
 pipeline so that `mise run doc` stays useful as an API review gate.
 
+When adding a feature, changing existing behaviour, or fixing a bug, add an
+entry to *CHANGES.md* under the current development version heading.
+
 
 Writing docs
 ------------
