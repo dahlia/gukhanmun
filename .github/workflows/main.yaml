@@ -735,7 +735,7 @@ jobs:
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
         mkdir -p npm-dist
         pnpm -r pack --pack-destination "$(pwd)/npm-dist"
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: npm-packages
         path: npm-dist/*.tgz
