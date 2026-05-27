@@ -6,6 +6,7 @@ node = "26"
 "github:pnpm/pnpm" = "11"
 deno = "2"
 bun = "1"
+"aqua:nushell/nushell" = "0.113.0"
 
 [tools.rust]
 version = "1.95.0"
@@ -117,56 +118,47 @@ run = "deno fmt --check"
 
 [tasks.wasm-build]
 description = "Build gukhanmun-wasm WASM module for web, nodejs, and deno targets"
+shell = "nu -c"
 run = """
-set -e
-OUT=$(pwd)/packages/wasm/wasm
-wasm-pack build crates/gukhanmun-wasm --release --target web --out-dir "$OUT/web"
-wasm-pack build crates/gukhanmun-wasm --release --target nodejs --out-dir "$OUT/nodejs"
-wasm-pack build crates/gukhanmun-wasm --release --target deno --out-dir "$OUT/deno"
+let out = $"(pwd)/packages/wasm/wasm"
+wasm-pack build crates/gukhanmun-wasm --release --target web --out-dir $"($out)/web"
+wasm-pack build crates/gukhanmun-wasm --release --target nodejs --out-dir $"($out)/nodejs"
+wasm-pack build crates/gukhanmun-wasm --release --target deno --out-dir $"($out)/deno"
 """
 
 [tasks.stdict-fst-data]
 description = "Build gukhanmun-stdict (release) and copy FST binary to packages/stdict-fst/"
+shell = "nu -c"
 run = """
-set -e
 cargo build -p gukhanmun-stdict --release
-FST=$(find target/release/build -name "stdict.gukfst" -path "*/gukhanmun-stdict*/out/*" 2>/dev/null | head -1)
-if [ -z "$FST" ]; then
-  echo "ERROR: stdict.gukfst not found after release build" >&2
-  exit 1
-fi
-cp "$FST" packages/stdict-fst/stdict.fst
+let matches = (
+  glob "target/release/build/**/out/stdict.gukfst"
+  | where { |p| $p | str contains "gukhanmun-stdict" }
+)
+if ($matches | is-empty) {
+  error make { msg: "stdict.gukfst not found after release build" }
+}
+cp ($matches | first) packages/stdict-fst/stdict.fst
 """
 
 [tasks.napi-build]
 description = "Build the gukhanmun-napi native Node.js addon"
+shell = "nu -c"
 run = """
-set -e
 cargo build -p gukhanmun-napi --release
-case "$(uname -s)" in
-  Darwin)
-    cp target/release/libgukhanmun_napi.dylib packages/napi/gukhanmun_napi.node
-    ;;
-  MINGW*|CYGWIN*|MSYS*)
-    cp target/release/gukhanmun_napi.dll packages/napi/gukhanmun_napi.node
-    ;;
-  *)
-    cp target/release/libgukhanmun_napi.so packages/napi/gukhanmun_napi.node
-    ;;
-esac
+match $nu.os-info.name {
+  "macos" => { cp target/release/libgukhanmun_napi.dylib packages/napi/gukhanmun_napi.node }
+  "windows" => { cp target/release/gukhanmun_napi.dll packages/napi/gukhanmun_napi.node }
+  _ => { cp target/release/libgukhanmun_napi.so packages/napi/gukhanmun_napi.node }
+}
 """
 
 [tasks.stdict-cdb-data]
 description = "Build gukhanmun-mkdict (release) and generate CDB binary to packages/stdict-cdb/"
+shell = "nu -c"
 run = """
-set -e
-MANIFEST_DIR=$(pwd)/crates/gukhanmun-stdict
-cargo build -p gukhanmun-mkdict --release
-target/release/gukhanmun-mkdict \
-  --format cdb \
-  --output packages/stdict-cdb/stdict.cdb \
-  --rules "$MANIFEST_DIR/data/rules.tsv" \
-  "$MANIFEST_DIR/data/stdict.tsv"
+let manifest_dir = $"(pwd)/crates/gukhanmun-stdict"
+cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb --rules $"($manifest_dir)/data/rules.tsv" $"($manifest_dir)/data/stdict.tsv"
 """
 
 [tasks.js-build]
@@ -185,54 +177,49 @@ run = [
 
 [tasks.js-sync-version]
 description = "Write a version string to all JS package manifests"
+shell = "nu -c"
 run = """
-set -e
-VER="${VERSION:?usage: VERSION=x.y.z mise run js-sync-version}"
-
-update_json() {
-  local file="$1"
-  node -e "
-const {readFileSync, writeFileSync} = require('fs');
-const f = process.argv[1], v = process.argv[2];
-const o = JSON.parse(readFileSync(f, 'utf8'));
-o.version = v;
-writeFileSync(f, JSON.stringify(o, null, 2) + '\\n');
-" "$file" "$VER"
+let ver = if "VERSION" in $env { $env.VERSION } else {
+  error make { msg: "usage: VERSION=x.y.z mise run js-sync-version" }
 }
 
-for pkg in packages/types packages/wasm packages/napi \
-           packages/stdict-fst packages/stdict-cdb \
-           packages/napi-aarch64-apple-darwin \
-           packages/napi-x86_64-apple-darwin \
-           packages/napi-aarch64-pc-windows-msvc \
-           packages/napi-x86_64-pc-windows-msvc \
-           packages/napi-aarch64-unknown-linux-gnu \
-           packages/napi-x86_64-unknown-linux-gnu; do
-  update_json "$pkg/package.json"
-done
-for pkg in packages/types packages/wasm packages/stdict-fst packages/stdict-cdb; do
-  update_json "$pkg/deno.json"
-done
+def update_json [file: string] {
+  let updated = open $file | upsert version $ver | to json --indent 2
+  ($updated + "\n") | save --force $file
+}
+
+for pkg in [
+  packages/types packages/wasm packages/napi
+  packages/napi-aarch64-apple-darwin packages/napi-x86_64-apple-darwin
+  packages/napi-aarch64-pc-windows-msvc packages/napi-x86_64-pc-windows-msvc
+  packages/napi-aarch64-unknown-linux-gnu packages/napi-x86_64-unknown-linux-gnu
+  packages/stdict-fst packages/stdict-cdb
+] {
+  update_json $"($pkg)/package.json"
+}
+for pkg in [packages/types packages/wasm packages/stdict-fst packages/stdict-cdb] {
+  update_json $"($pkg)/deno.json"
+}
 """
 
 [tasks.js-version-dev]
 description = "Compute a dev pre-release version and sync it to all JS manifests"
+shell = "nu -c"
 run = """
-set -e
-BUILD="${BUILD:-0}"
-COMMIT="$(git rev-parse --short HEAD)"
-BASE="$(dasel -i toml -o yaml 'workspace.package.version' < Cargo.toml)"
-VER="${BASE}-dev.${BUILD}+${COMMIT}"
-echo "Syncing JS manifests to version: $VER"
-VERSION="$VER" mise run js-sync-version
+let build = if "BUILD" in $env { $env.BUILD } else { "0" }
+let commit = (git rev-parse --short HEAD | str trim)
+let base = (open Cargo.toml | get workspace.package.version)
+let ver = $"($base)-dev.($build)+($commit)"
+print $"Syncing JS manifests to version: ($ver)"
+$env.VERSION = $ver
+mise run js-sync-version
 """
 
 [tasks.js-publish]
 description = "Publish npm and JSR packages locally (manual first-publish or recovery)"
+shell = "nu -c"
 run = """
-set -e
-# Extra args forwarded to pnpm publish (e.g. -- --tag dev).
-pnpm -r publish --no-git-checks "$@"
+pnpm -r publish --no-git-checks
 deno publish --allow-dirty
 """
 
