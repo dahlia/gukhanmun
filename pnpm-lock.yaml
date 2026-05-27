@@ -20,6 +20,25 @@ importers:
       '@gukhanmun/types':
         specifier: workspace:*
         version: link:../types
+    optionalDependencies:
+      '@gukhanmun/napi-aarch64-apple-darwin':
+        specifier: workspace:*
+        version: link:../napi-aarch64-apple-darwin
+      '@gukhanmun/napi-aarch64-pc-windows-msvc':
+        specifier: workspace:*
+        version: link:../napi-aarch64-pc-windows-msvc
+      '@gukhanmun/napi-aarch64-unknown-linux-gnu':
+        specifier: workspace:*
+        version: link:../napi-aarch64-unknown-linux-gnu
+      '@gukhanmun/napi-x86_64-apple-darwin':
+        specifier: workspace:*
+        version: link:../napi-x86_64-apple-darwin
+      '@gukhanmun/napi-x86_64-pc-windows-msvc':
+        specifier: workspace:*
+        version: link:../napi-x86_64-pc-windows-msvc
+      '@gukhanmun/napi-x86_64-unknown-linux-gnu':
+        specifier: workspace:*
+        version: link:../napi-x86_64-unknown-linux-gnu
 
   packages/napi-aarch64-apple-darwin: {}
 

@@ -14,12 +14,12 @@
     "dist"
   ],
   "optionalDependencies": {
-    "@gukhanmun/napi-aarch64-apple-darwin": "0.1.0",
-    "@gukhanmun/napi-x86_64-apple-darwin": "0.1.0",
-    "@gukhanmun/napi-aarch64-pc-windows-msvc": "0.1.0",
-    "@gukhanmun/napi-x86_64-pc-windows-msvc": "0.1.0",
-    "@gukhanmun/napi-aarch64-unknown-linux-gnu": "0.1.0",
-    "@gukhanmun/napi-x86_64-unknown-linux-gnu": "0.1.0"
+    "@gukhanmun/napi-aarch64-apple-darwin": "workspace:*",
+    "@gukhanmun/napi-x86_64-apple-darwin": "workspace:*",
+    "@gukhanmun/napi-aarch64-pc-windows-msvc": "workspace:*",
+    "@gukhanmun/napi-x86_64-pc-windows-msvc": "workspace:*",
+    "@gukhanmun/napi-aarch64-unknown-linux-gnu": "workspace:*",
+    "@gukhanmun/napi-x86_64-unknown-linux-gnu": "workspace:*"
   },
   "scripts": {
     "build": "tsdown"

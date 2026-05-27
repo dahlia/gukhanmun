@@ -14,14 +14,14 @@ components = "rust-analyzer,rustfmt,clippy"
 targets = "wasm32-unknown-unknown"
 
 [tools."github:rustwasm/wasm-pack"]
-version = "0.13.1"
+version = "0.15.0"
 
 [tools."github:rustwasm/wasm-pack".platforms]
 linux-x64 = "wasm-pack-v*-x86_64-unknown-linux-musl.tar.gz"
 linux-arm64 = "wasm-pack-v*-aarch64-unknown-linux-musl.tar.gz"
 macos-x64 = "wasm-pack-v*-x86_64-apple-darwin.tar.gz"
-macos-arm64 = "wasm-pack-v*-x86_64-apple-darwin.tar.gz"
-windows-x64 = "wasm-pack-v*-x86_64-pc-windows-msvc.zip"
+macos-arm64 = "wasm-pack-v*-aarch64-apple-darwin.tar.gz"
+windows-x64 = "wasm-pack-v*-x86_64-pc-windows-msvc.tar.gz"
 
 [tools."github:dahlia/hongdown"]
 version = "0.3.11"
@@ -213,14 +213,6 @@ done
 for pkg in packages/types packages/wasm packages/stdict-fst packages/stdict-cdb; do
   update_json "$pkg/deno.json"
 done
-node -e "
-const {readFileSync, writeFileSync} = require('fs');
-const f = 'packages/napi/package.json', v = process.argv[1];
-const o = JSON.parse(readFileSync(f, 'utf8'));
-for (const k of Object.keys(o.optionalDependencies || {}))
-  o.optionalDependencies[k] = v;
-writeFileSync(f, JSON.stringify(o, null, 2) + '\\n');
-" "$VER"
 """
 
 [tasks.js-version-dev]
