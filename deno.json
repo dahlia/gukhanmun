@@ -29,6 +29,9 @@
       "packages/stdict-fst/",
       "packages/stdict-cdb/",
       "tests/js/"
+    ],
+    "exclude": [
+      "**/*.md"
     ]
   }
 }
