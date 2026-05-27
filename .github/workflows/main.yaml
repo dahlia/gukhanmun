@@ -728,6 +728,18 @@ jobs:
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
         mise run js-install
         pnpm -r run build
+    - name: Pack npm packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
+        mkdir -p npm-dist
+        pnpm -r pack --pack-destination "$(pwd)/npm-dist"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: npm-packages
+        path: npm-dist/*.tgz
+        if-no-files-found: error
     - name: Publish to npm
       shell: bash
       run: |
