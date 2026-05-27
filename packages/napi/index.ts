@@ -208,9 +208,24 @@ async function resolveDictionary(source: DictionarySource): Promise<RawDictInput
         url = str.includes("://") ? new URL(str) : pathToFileURL(str);
       }
       if (url.protocol === "file:") {
-        bytes = await readFile(fileURLToPath(url));
+        try {
+          bytes = await readFile(fileURLToPath(url));
+        } catch (e) {
+          throw new GukhanmunError(
+            "dictionary-load",
+            `Failed to read dictionary: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
       } else {
-        const response = await fetch(url);
+        let response: Response;
+        try {
+          response = await fetch(url);
+        } catch (e) {
+          throw new GukhanmunError(
+            "dictionary-load",
+            `Failed to fetch dictionary: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
         if (!response.ok) {
           throw new GukhanmunError(
             "dictionary-load",

@@ -5,7 +5,7 @@
  *
  * Provides the same `{@link load}` / `{@link Gukhanmun}` contract as
  * `@gukhanmun/napi` but runs in any WebAssembly-capable environment —
- * browsers, Deno, Node 20+, and Bun 1.0+.
+ * browsers, Deno 2.0+, Node 20+, and Bun 1.0+.
  *
  * The WASM module is initialised lazily on the first `load()` call and
  * cached for subsequent calls.  Dictionary data (FST format) must be
@@ -97,7 +97,7 @@ interface NodeFsPromises {
   readFile(path: URL): Promise<{ buffer: ArrayBuffer; byteOffset: number; byteLength: number }>;
 }
 
-function isNodeJs(): boolean {
+function isNodeLike(): boolean {
   return (
     typeof (globalThis as { process?: { versions?: { node?: unknown } } })
       .process?.versions?.node === "string"
@@ -175,7 +175,7 @@ function ensureWasm(): Promise<WasmGlue> {
       // check does not fail when the generated glue files are absent at dev
       // time; they are produced by `mise run wasm-build`.
       const mod = (await import(glueHref)) as unknown as WasmGlue;
-      if (isNodeJs()) {
+      if (isNodeLike()) {
         const wasmUrl = new URL("./wasm/web/gukhanmun_wasm_bg.wasm", import.meta.url);
         // Non-literal specifier prevents deno check from statically resolving
         // node:fs/promises types, which would require @types/node.
@@ -218,7 +218,7 @@ async function resolveDictionary(
       const str = String(file.data);
       if (str.includes("://")) {
         url = new URL(str);
-      } else if (isNodeJs()) {
+      } else if (isNodeLike()) {
         const specifier: string = "node:url";
         const nodeUrl = (await import(specifier)) as unknown as {
           pathToFileURL(path: string): URL;
@@ -231,16 +231,32 @@ async function resolveDictionary(
         );
       }
     }
-    if (isNodeJs() && url.protocol === "file:") {
+    if (isNodeLike() && url.protocol === "file:") {
       const specifier: string = "node:fs/promises";
       const fs = (await import(specifier)) as unknown as NodeFsPromises;
-      const buf = await fs.readFile(url);
+      let buf: { buffer: ArrayBuffer; byteOffset: number; byteLength: number };
+      try {
+        buf = await fs.readFile(url);
+      } catch (e) {
+        throw new GukhanmunError(
+          "dictionary-load",
+          `Failed to read dictionary: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
       return {
         format: file.format,
         bytes: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength),
       };
     }
-    const response = await fetch(url);
+    let response: Response;
+    try {
+      response = await fetch(url);
+    } catch (e) {
+      throw new GukhanmunError(
+        "dictionary-load",
+        `Failed to fetch dictionary: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
     if (!response.ok) {
       throw new GukhanmunError(
         "dictionary-load",

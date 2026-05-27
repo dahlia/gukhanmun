@@ -211,10 +211,10 @@ export interface DictionaryEntry {
  * The `data` field accepts:
  * - A `BufferSource` (`ArrayBuffer` or `ArrayBufferView`) — supported in all
  *   environments.
- * - A `URL` — resolved via `fetch` in browsers and Deno; via
- *   `node:fs/promises` in Node.js and Bun.
- * - A `string` — treated as a filesystem path; supported in Node.js, Deno,
- *   and Bun only.  Throws in browser environments.
+ * - A `URL` — resolved via `fetch` in browsers; via `node:fs/promises`
+ *   in Node.js, Deno 2.0+, and Bun.
+ * - A `string` — treated as a filesystem path; supported in Node.js,
+ *   Deno 2.0+, and Bun only.  Throws in browser environments.
  *
  * At runtime, file sources are distinguished from map sources by the presence
  * of a `format` property (`"format" in source`).
@@ -225,7 +225,7 @@ export interface FileDictionarySource {
    *
    * Pass a `BufferSource` for data already in memory, a `URL` for a remote
    * or local URL (resolved via `fetch` or `readFile`), or a path `string`
-   * for filesystem paths (Node.js / Deno / Bun only).
+   * for filesystem paths (Node.js / Deno 2.0+ / Bun only).
    */
   readonly data: ArrayBuffer | ArrayBufferView | URL | string;
   /**
