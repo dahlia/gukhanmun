@@ -661,8 +661,6 @@ jobs:
           --tag "$dist_tag" \
           --provenance \
           --access public
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     - name: Publish to JSR
       shell: bash
       run: deno publish --allow-dirty
