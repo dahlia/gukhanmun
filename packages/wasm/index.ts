@@ -24,6 +24,7 @@
 import type {
   ContextWindow,
   DictionarySource,
+  ErrorCode,
   FileDictionarySource,
   Format,
   Gukhanmun,
@@ -118,19 +119,16 @@ export class GukhanmunError extends Error {
   /**
    * Machine-readable error code.
    *
-   * Possible values: `"dictionary-load"`, `"segmentation"`,
-   * `"invalid-reading"`, `"html-scan"`, `"html-malformed-attr"`,
-   * `"markdown"`, `"unsupported-content-type"`, `"invalid-input"`,
-   * `"io"`, `"internal"`, `"other"`.
+   * @see {@link ErrorCode}
    */
-  readonly code: string;
+  readonly code: ErrorCode;
 
   /**
    * Full causal chain from the Rust `Error::source()` traversal, materialised
    * at the FFI boundary.  The first element is the root cause; the last is
    * the immediate error.
    */
-  readonly chain: readonly { readonly code: string; readonly message: string }[];
+  readonly chain: readonly { readonly code: ErrorCode; readonly message: string }[];
 
   /**
    * Creates a new `GukhanmunError`.
@@ -140,9 +138,9 @@ export class GukhanmunError extends Error {
    * @param chain - Optional causal chain.
    */
   constructor(
-    code: string,
+    code: ErrorCode,
     message: string,
-    chain: readonly { code: string; message: string }[] = [],
+    chain: readonly { code: ErrorCode; message: string }[] = [],
   ) {
     super(message);
     this.name = "GukhanmunError";
@@ -356,10 +354,10 @@ function liftError(raw: unknown): GukhanmunError {
   if (raw instanceof GukhanmunError) return raw;
   if (raw != null && typeof raw === "object") {
     const obj = raw as Record<string, unknown>;
-    const code = typeof obj["code"] === "string" ? obj["code"] : "internal";
+    const code = (typeof obj["code"] === "string" ? obj["code"] : "internal") as ErrorCode;
     const message = typeof obj["message"] === "string" ? obj["message"] : String(raw);
     const chain = Array.isArray(obj["chain"])
-      ? (obj["chain"] as { code: string; message: string }[])
+      ? (obj["chain"] as { code: ErrorCode; message: string }[])
       : [];
     return new GukhanmunError(code, message, chain);
   }

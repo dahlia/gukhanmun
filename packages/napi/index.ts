@@ -124,19 +124,16 @@ export class GukhanmunError extends Error {
   /**
    * Machine-readable error code.
    *
-   * Possible values: `"dictionary-load"`, `"segmentation"`,
-   * `"invalid-reading"`, `"html-scan"`, `"html-malformed-attr"`,
-   * `"markdown"`, `"unsupported-content-type"`, `"invalid-input"`,
-   * `"io"`, `"internal"`, `"other"`.
+   * @see {@link ErrorCode}
    */
-  readonly code: string;
+  readonly code: ErrorCode;
 
   /**
    * Full causal chain from the Rust `Error::source()` traversal, materialised
    * at the FFI boundary.  The first element is the root cause; the last is
    * the immediate error.
    */
-  readonly chain: readonly { readonly code: string; readonly message: string }[];
+  readonly chain: readonly { readonly code: ErrorCode; readonly message: string }[];
 
   /**
    * Creates a new `GukhanmunError`.
@@ -146,9 +143,9 @@ export class GukhanmunError extends Error {
    * @param chain - Optional causal chain.
    */
   constructor(
-    code: string,
+    code: ErrorCode,
     message: string,
-    chain: readonly { code: string; message: string }[] = [],
+    chain: readonly { code: ErrorCode; message: string }[] = [],
   ) {
     super(message);
     this.name = "GukhanmunError";
@@ -172,11 +169,11 @@ function liftNapiError(raw: unknown): GukhanmunError {
       const parsed = JSON.parse(raw.message) as {
         code?: string;
         message?: string;
-        chain?: { code: string; message: string }[];
+        chain?: { code: ErrorCode; message: string }[];
       };
       if (typeof parsed.code === "string") {
         return new GukhanmunError(
-          parsed.code,
+          parsed.code as ErrorCode,
           typeof parsed.message === "string" ? parsed.message : raw.message,
           Array.isArray(parsed.chain) ? parsed.chain : [],
         );
