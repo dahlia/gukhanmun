@@ -7,4 +7,5 @@ packages/wasm/wasm/
 packages/stdict-fst/stdict.fst
 packages/stdict-cdb/stdict.cdb
 packages/napi/gukhanmun_napi.node
+packages/napi-*/gukhanmun_napi.node
 

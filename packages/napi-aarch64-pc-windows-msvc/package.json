@@ -1,0 +1,29 @@
+{
+  "name": "@gukhanmun/napi-aarch64-pc-windows-msvc",
+  "version": "0.1.0",
+  "description": "Native binary for @gukhanmun/napi on aarch64-pc-windows-msvc.",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "gukhanmun_napi.node",
+  "files": [
+    "gukhanmun_napi.node"
+  ],
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/gukhanmun.git",
+    "directory": "packages/napi-aarch64-pc-windows-msvc"
+  },
+  "homepage": "https://github.com/dahlia/gukhanmun",
+  "bugs": "https://github.com/dahlia/gukhanmun/issues",
+  "author": {
+    "name": "Hong Minhe (洪 民憙)",
+    "email": "hong@minhee.org",
+    "url": "https://hongminhee.org/"
+  },
+  "funding": "https://github.com/sponsors/dahlia"
+}

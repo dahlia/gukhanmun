@@ -1,0 +1,32 @@
+{
+  "name": "@gukhanmun/napi-x86_64-unknown-linux-musl",
+  "version": "0.1.0",
+  "description": "Native binary for @gukhanmun/napi on x86_64-unknown-linux-musl.",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "musl"
+  ],
+  "main": "gukhanmun_napi.node",
+  "files": [
+    "gukhanmun_napi.node"
+  ],
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/gukhanmun.git",
+    "directory": "packages/napi-x86_64-unknown-linux-musl"
+  },
+  "homepage": "https://github.com/dahlia/gukhanmun",
+  "bugs": "https://github.com/dahlia/gukhanmun/issues",
+  "author": {
+    "name": "Hong Minhe (洪 民憙)",
+    "email": "hong@minhee.org",
+    "url": "https://hongminhee.org/"
+  },
+  "funding": "https://github.com/sponsors/dahlia"
+}

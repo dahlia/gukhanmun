@@ -21,6 +21,18 @@ importers:
         specifier: workspace:*
         version: link:../types
 
+  packages/napi-aarch64-apple-darwin: {}
+
+  packages/napi-aarch64-pc-windows-msvc: {}
+
+  packages/napi-aarch64-unknown-linux-musl: {}
+
+  packages/napi-x86_64-apple-darwin: {}
+
+  packages/napi-x86_64-pc-windows-msvc: {}
+
+  packages/napi-x86_64-unknown-linux-musl: {}
+
   packages/stdict-cdb:
     devDependencies:
       '@gukhanmun/types':

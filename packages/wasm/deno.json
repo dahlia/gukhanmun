@@ -7,7 +7,12 @@
     "@gukhanmun/types": "../types/index.ts"
   },
   "publish": {
-    "include": ["index.ts", "wasm/web"],
-    "exclude": ["!wasm/web/**"]
+    "include": [
+      "index.ts",
+      "wasm/web"
+    ],
+    "exclude": [
+      "!wasm/web/**"
+    ]
   }
 }

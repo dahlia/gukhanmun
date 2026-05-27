@@ -455,6 +455,72 @@ jobs:
         path: target/package/*.crate
         if-no-files-found: error
 
+  build-napi:
+    name: build napi addon (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    needs: []
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-latest
+          target: aarch64-apple-darwin
+        - os: macos-latest
+          target: x86_64-apple-darwin
+        - os: windows-latest
+          target: aarch64-pc-windows-msvc
+        - os: windows-latest
+          target: x86_64-pc-windows-msvc
+        - os: ubuntu-latest
+          target: aarch64-unknown-linux-musl
+        - os: ubuntu-latest
+          target: x86_64-unknown-linux-musl
+    steps:
+    - name: Disable Git CRLF conversion
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        git config --global core.autocrlf false
+        git config --global core.eol lf
+    - uses: actions/checkout@v6
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - uses: taiki-e/setup-cross-toolchain-action@v1
+      with:
+        target: ${{ matrix.target }}
+        runner: none
+    - name: Build NAPI addon
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
+        cargo build --locked --release --target ${{ matrix.target }} -p gukhanmun-napi
+    - name: Collect binary
+      shell: bash
+      run: |
+        set -euo pipefail
+        case "${{ matrix.target }}" in
+          *-apple-darwin)
+            cp target/${{ matrix.target }}/release/libgukhanmun_napi.dylib gukhanmun_napi.node
+            ;;
+          *-windows-*)
+            cp target/${{ matrix.target }}/release/gukhanmun_napi.dll gukhanmun_napi.node
+            ;;
+          *)
+            cp target/${{ matrix.target }}/release/libgukhanmun_napi.so gukhanmun_napi.node
+            ;;
+        esac
+    - uses: actions/upload-artifact@v4
+      with:
+        name: napi-${{ matrix.target }}
+        path: gukhanmun_napi.node
+        if-no-files-found: error
+
   build-release-binaries:
     name: build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
@@ -582,6 +648,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
     - artifact-context
+    - build-napi
     if: >-
       github.event_name == 'push' &&
       (
@@ -636,6 +703,24 @@ jobs:
         set -euo pipefail
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
         mise run js-sync-version
+    - name: Download NAPI platform binaries
+      uses: actions/download-artifact@v4
+      with:
+        pattern: napi-*
+        merge-multiple: false
+        path: napi-artifacts
+    - name: Place binaries in platform packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
+        for target in \
+          aarch64-apple-darwin x86_64-apple-darwin \
+          aarch64-pc-windows-msvc x86_64-pc-windows-msvc \
+          aarch64-unknown-linux-musl x86_64-unknown-linux-musl; do
+          cp napi-artifacts/napi-${target}/gukhanmun_napi.node \
+             packages/napi-${target}/gukhanmun_napi.node
+        done
     - name: Build npm packages
       shell: bash
       run: |
@@ -652,10 +737,22 @@ jobs:
         if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
           dist_tag="dev"
         fi
-        # @gukhanmun/napi is skipped: requires prebuilt platform binaries
-        # not yet produced by CI. Publish it manually with `mise run js-publish`.
         pnpm -r \
-          --filter '!@gukhanmun/napi' \
+          --filter '@gukhanmun/napi-*' \
+          publish \
+          --no-git-checks \
+          --tag "$dist_tag" \
+          --provenance \
+          --access public
+        pnpm -r \
+          --filter '@gukhanmun/napi' \
+          publish \
+          --no-git-checks \
+          --tag "$dist_tag" \
+          --provenance \
+          --access public
+        pnpm -r \
+          --filter '!@gukhanmun/napi*' \
           publish \
           --no-git-checks \
           --tag "$dist_tag" \

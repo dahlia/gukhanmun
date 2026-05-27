@@ -7,6 +7,9 @@
     "@gukhanmun/types": "../types/index.ts"
   },
   "publish": {
-    "include": ["index.ts", "stdict.fst"]
+    "include": [
+      "index.ts",
+      "stdict.fst"
+    ]
   }
 }

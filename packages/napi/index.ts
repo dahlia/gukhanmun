@@ -94,18 +94,40 @@ interface NapiAddon {
 
 // ── Native addon loading ──────────────────────────────────────────────────────
 
+/** Returns the platform-specific optional-dependency package name. */
+function detectPlatformPackage(): string {
+  const map: Record<string, string> = {
+    "darwin-arm64": "aarch64-apple-darwin",
+    "darwin-x64": "x86_64-apple-darwin",
+    "win32-arm64": "aarch64-pc-windows-msvc",
+    "win32-x64": "x86_64-pc-windows-msvc",
+    "linux-arm64": "aarch64-unknown-linux-musl",
+    "linux-x64": "x86_64-unknown-linux-musl",
+  };
+  const key = `${process.platform}-${process.arch}`;
+  const target = map[key];
+  if (!target) throw new Error(`No prebuilt @gukhanmun/napi binary for ${key}`);
+  return `@gukhanmun/napi-${target}`;
+}
+
 /**
  * Loads the native addon at module initialisation time.
  *
- * Tries `./gukhanmun_napi.node` first (when running tests directly from
- * source), then `../gukhanmun_napi.node` for the compiled output in `dist/`.
+ * When installed from npm the platform-specific optional dependency is tried
+ * first.  Falls back to a locally-built binary (produced by
+ * `mise run napi-build`) for development.
  */
 const nativeAddon = (() => {
   const req = createRequire(import.meta.url);
   try {
-    return req("./gukhanmun_napi.node") as NapiAddon;
+    return req(detectPlatformPackage()) as NapiAddon;
   } catch {
-    return req("../gukhanmun_napi.node") as NapiAddon;
+    // Fall back to local binary for development after `mise run napi-build`
+    try {
+      return req("./gukhanmun_napi.node") as NapiAddon;
+    } catch {
+      return req("../gukhanmun_napi.node") as NapiAddon;
+    }
   }
 })();
 
