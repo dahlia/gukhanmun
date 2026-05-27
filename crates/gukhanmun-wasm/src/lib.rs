@@ -473,6 +473,7 @@ fn map_gukhanmun_error(e: &gukhanmun::Error) -> JsValue {
         Error::Html(_) => "html-scan",
         Error::Markdown(_) => "markdown",
         Error::Fst(_) => "dictionary-load",
+        Error::Cdb(_) => "dictionary-load",
         Error::Io(_) => "io",
         Error::Config(_) => "invalid-input",
         _ => "internal",
