@@ -9,8 +9,12 @@ built with napi-rs. Requires Node.js 20+. For environments other than Node.js
 Installation
 ------------
 
-~~~~ sh
-npm install @gukhanmun/napi
+~~~~ bash
+npm  add     @gukhanmun/napi
+pnpm add     @gukhanmun/napi
+yarn add     @gukhanmun/napi
+bun  add     @gukhanmun/napi
+deno add npm:@gukhanmun/napi
 ~~~~
 
 The package declares six optional platform dependencies
@@ -18,14 +22,14 @@ The package declares six optional platform dependencies
 etc.). npm installs only the one matching the current OS, CPU architecture, and
 libc variant. The supported targets are:
 
-| Target                     | OS           | Architecture |
-| -------------------------- | ------------ | ------------ |
-| aarch64-apple-darwin       | macOS        | ARM64        |
-| x86\_64-apple-darwin       | macOS        | x86\_64      |
-| aarch64-pc-windows-msvc    | Windows      | ARM64        |
-| x86\_64-pc-windows-msvc    | Windows      | x86\_64      |
-| aarch64-unknown-linux-gnu  | Linux (glibc) | ARM64       |
-| x86\_64-unknown-linux-gnu  | Linux (glibc) | x86\_64     |
+| Target                    | OS            | Architecture |
+| ------------------------- | ------------- | ------------ |
+| aarch64-apple-darwin      | macOS         | ARM64        |
+| x86\_64-apple-darwin      | macOS         | x86\_64      |
+| aarch64-pc-windows-msvc   | Windows       | ARM64        |
+| x86\_64-pc-windows-msvc   | Windows       | x86\_64      |
+| aarch64-unknown-linux-gnu | Linux (glibc) | ARM64        |
+| x86\_64-unknown-linux-gnu | Linux (glibc) | x86\_64      |
 
 musl Linux (Alpine, etc.) is not covered by a prebuilt binary. Build from
 source with `mise run napi-build` on those platforms.

@@ -9,8 +9,12 @@ into a Gukhanmun FST binary and distributed as an npm package. Use this with
 Installation
 ------------
 
-~~~~ sh
-npm install @gukhanmun/stdict-fst
+~~~~ bash
+npm  add     @gukhanmun/stdict-fst
+pnpm add     @gukhanmun/stdict-fst
+yarn add     @gukhanmun/stdict-fst
+bun  add     @gukhanmun/stdict-fst
+deno add jsr:@gukhanmun/stdict-fst
 ~~~~
 
 

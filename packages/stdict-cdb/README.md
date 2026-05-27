@@ -9,8 +9,12 @@ into a Gukhanmun CDB binary and distributed as an npm package. Use this with
 Installation
 ------------
 
-~~~~ sh
-npm install @gukhanmun/stdict-cdb
+~~~~ bash
+npm  add     @gukhanmun/stdict-cdb
+pnpm add     @gukhanmun/stdict-cdb
+yarn add     @gukhanmun/stdict-cdb
+bun  add     @gukhanmun/stdict-cdb
+deno add jsr:@gukhanmun/stdict-cdb
 ~~~~
 
 

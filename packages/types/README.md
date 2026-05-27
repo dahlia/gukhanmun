@@ -9,8 +9,12 @@ carries no runtime code; it exists so that both `@gukhanmun/wasm` and
 Installation
 ------------
 
-~~~~ sh
-npm install @gukhanmun/types
+~~~~ bash
+npm  add     @gukhanmun/types
+pnpm add     @gukhanmun/types
+yarn add     @gukhanmun/types
+bun  add     @gukhanmun/types
+deno add jsr:@gukhanmun/types
 ~~~~
 
 This package is listed as a peer dependency of `@gukhanmun/wasm` and

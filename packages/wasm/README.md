@@ -9,14 +9,12 @@ any WebAssembly-capable environment: browsers, Deno 2.0+, Node.js 20+, and Bun
 Installation
 ------------
 
-~~~~ sh
-npm install @gukhanmun/wasm
-~~~~
-
-For Deno:
-
-~~~~ ts
-import { load } from "jsr:@gukhanmun/wasm";
+~~~~ bash
+npm  add     @gukhanmun/wasm
+pnpm add     @gukhanmun/wasm
+yarn add     @gukhanmun/wasm
+bun  add     @gukhanmun/wasm
+deno add jsr:@gukhanmun/wasm
 ~~~~
 
 
