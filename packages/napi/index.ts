@@ -31,6 +31,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type {
   ContextWindow,
   DictionarySource,
+  ErrorCode,
   Format,
   Gukhanmun,
   GukhanmunOptions,
