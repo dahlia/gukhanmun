@@ -1,6 +1,37 @@
 :root {
-  /* Example brand color overrides for the custom theme scaffold. */
-  --rp-c-brand: #0f766e;
-  --rp-c-brand-dark: #115e59;
-  --rp-c-brand-tint: rgba(15, 118, 110, 0.16);
+  /* Brand: charcoal */
+  --rp-c-brand: #2b2b2b;
+  --rp-c-brand-light: #555555;
+  --rp-c-brand-lighter: #d4d4d4;
+  --rp-c-brand-dark: #111111;
+  --rp-c-brand-darker: #000000;
+  --rp-c-brand-tint: rgba(0, 0, 0, 0.07);
+
+  /* Inline code: neutral gray */
+  --rp-c-text-code: #4a4a4a;
+
+  /* Home: achromatic */
+  --rp-home-hero-secondary-color: #777777;
+  --rp-home-hero-title-bg: linear-gradient(90deg, #111111 0%, #606060 100%);
+  --rp-home-background-bg: none;
+  --rp-home-feature-bg: linear-gradient(135deg, #ffffff, #f5f5f580);
+}
+
+.dark {
+  /* Brand: silver */
+  --rp-c-brand: #d0d0d0;
+  --rp-c-brand-light: #e8e8e8;
+  --rp-c-brand-lighter: #555555;
+  --rp-c-brand-dark: #bbbbbb;
+  --rp-c-brand-darker: #999999;
+  --rp-c-brand-tint: rgba(255, 255, 255, 0.07);
+
+  /* Inline code: neutral light gray */
+  --rp-c-text-code: #b0b0b0;
+
+  /* Home: achromatic dark */
+  --rp-home-hero-secondary-color: #888888;
+  --rp-home-hero-title-bg: linear-gradient(90deg, #e8e8e8 0%, #a0a0a0 100%);
+  --rp-home-background-bg: none;
+  --rp-home-feature-bg: linear-gradient(135deg, #ffffff0a, #ffffff04);
 }

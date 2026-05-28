@@ -74,6 +74,8 @@ pipeline so that `mise run doc` stays useful as an API review gate.
 
 When adding a feature, changing existing behaviour, or fixing a bug, add an
 entry to *CHANGES.md* under the current development version heading.
+Documentation-only changes (edits to *docs/*, prose in Markdown files, or
+code comments) do not need a *CHANGES.md* entry.
 
 
 Writing docs
