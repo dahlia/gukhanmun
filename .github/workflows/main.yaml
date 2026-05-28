@@ -774,6 +774,95 @@ jobs:
       shell: bash
       run: deno publish --allow-dirty
 
+  build-docs:
+    name: build docs
+    runs-on: ubuntu-latest
+    needs: artifact-context
+    if: >-
+      github.event_name == 'push' &&
+      (
+        github.ref == 'refs/heads/main' ||
+        github.ref_type == 'tag'
+      )
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - name: Build WASM and dictionary data
+      shell: bash
+      run: |
+        set -euo pipefail
+        mise run wasm-build
+        mise run stdict-fst-data
+        mise run stdict-cdb-data
+    - name: Install JS dependencies
+      shell: bash
+      run: mise run js-install
+    - name: Build docs
+      shell: bash
+      env:
+        SITE_URL: >-
+          ${{ github.ref_type == 'tag'
+              && 'https://gukhanmun.org/'
+              || 'https://canary.gukhanmun.org/' }}
+      run: |
+        set -euo pipefail
+        pnpm --filter @gukhanmun/docs run build
+    - uses: actions/upload-artifact@v4
+      with:
+        name: docs-site
+        path: docs/doc_build
+        if-no-files-found: error
+
+  deploy-docs-canary:
+    name: deploy docs (canary)
+    runs-on: ubuntu-latest
+    needs: build-docs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: docs-site
+        path: docs-site
+    - uses: nwtgck/actions-netlify@v3
+      with:
+        publish-dir: docs-site
+        production-deploy: 'true'
+        deploy-message: Canary docs @ ${{ github.sha }}
+        enable-pull-request-comment: 'false'
+        enable-commit-comment: 'false'
+        github-token: ${{ github.token }}
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+  deploy-docs-stable:
+    name: deploy docs (stable)
+    runs-on: ubuntu-latest
+    needs: build-docs
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: docs-site
+        path: docs-site
+    - uses: actions/upload-pages-artifact@v3
+      with:
+        path: docs-site
+    - uses: actions/deploy-pages@v4
+      id: deploy
+
   release:
     name: github release
     runs-on: ubuntu-latest

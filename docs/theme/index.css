@@ -17,6 +17,16 @@
   --rp-home-feature-bg: linear-gradient(135deg, #ffffff, #f5f5f580);
 }
 
+/* Position env-switcher between nav menu items and social icons.
+   rp-nav__right is a flex container; default order is 0 for all children. */
+.rp-nav__others {
+  order: 2;
+}
+
+.env-switcher {
+  order: 1;
+}
+
 .dark {
   /* Brand: silver */
   --rp-c-brand: #d0d0d0;
