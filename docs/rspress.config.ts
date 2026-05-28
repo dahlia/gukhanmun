@@ -9,7 +9,7 @@ export default defineConfig({
   root: __dirname,
   title: "Gukhanmun",
   route: {
-    excludeConvention: ["theme/**", "doc_build/**", "rspress.config.ts"],
+    excludeConvention: ["theme/**", "doc_build/**", "rspress.config.ts", "README.md"],
     cleanUrls: true,
   },
   icon: "/logo.svg",

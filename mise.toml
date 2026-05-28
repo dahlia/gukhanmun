@@ -242,3 +242,16 @@ run = "cargo run -p gukhanmun-cli --"
 [tasks.insta-review]
 description = "Interactively review and accept/reject pending insta snapshots"
 run = "cargo insta review"
+
+[tasks.docs-dev]
+description = "Start the Rspress documentation dev server"
+depends = ["wasm-build", "stdict-fst-data", "stdict-cdb-data", "js-install"]
+run = [
+  "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/napi run build",
+  "pnpm --filter @gukhanmun/docs run dev",
+]
+
+[tasks.docs-build]
+description = "Build the Rspress documentation site for production"
+depends = ["wasm-build", "stdict-fst-data", "stdict-cdb-data", "js-install"]
+run = "pnpm --filter @gukhanmun/docs run build"
