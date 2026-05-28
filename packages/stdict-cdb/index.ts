@@ -1,7 +1,5 @@
 /**
- * @module
- *
- * Standard Korean Language Dictionary (표준국어대사전) prebuilt as a CDB
+ * Standard Korean Language Dictionary (標準國語大辭典) prebuilt as a CDB
  * binary for use with `{@link load}` from `@gukhanmun/wasm` or
  * `@gukhanmun/napi`.
  *
@@ -13,6 +11,8 @@
  * const g = await load({ dictionaries: [await stdictCdb()] });
  * console.log(g.convert("漢字를 한글로"));  // "한자를 한글로"
  * ```
+ *
+ * @module @gukhanmun/stdict-cdb
  */
 
 import type { FileDictionarySource } from "@gukhanmun/types";

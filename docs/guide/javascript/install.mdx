@@ -1,0 +1,89 @@
+---
+title: "Installation"
+description: |-
+  Installing Gukhanmun for JavaScript, TypeScript, Node.js, Deno, and browsers.
+---
+
+import { PackageManagerTabs } from '@rspress/core/theme';
+
+Installation
+============
+
+Gukhanmun ships two JavaScript implementations that share the same API:
+
+| Package           | Environments                               | Notes                               |
+| ----------------- | ------------------------------------------ | ----------------------------------- |
+| `@gukhanmun/wasm` | Browsers, Node.js 20+, Deno 2.0+, Bun 1.0+ | Recommended for broad compatibility |
+| `@gukhanmun/napi` | Node.js 20+, Deno 2.0+, Bun 1.0+           | Faster on server; native code       |
+
+For most projects, use `@gukhanmun/wasm`.  Switch to `@gukhanmun/napi` for
+server workloads where throughput matters.
+
+
+WebAssembly
+-----------
+
+For most environments, the WebAssembly implementation is the best choice.
+It runs in browsers, Node.js, Deno, and Bun, and does not require native code.
+Install it with your package manager of choice:
+
+<PackageManagerTabs
+  command={{
+    npm: "npm add @gukhanmun/wasm",
+    yarn: "yarn add @gukhanmun/wasm",
+    pnpm: "pnpm add @gukhanmun/wasm",
+    bun: "bun add @gukhanmun/wasm",
+    deno: "deno add jsr:@gukhanmun/wasm",
+  }}
+/>
+
+
+Node-API
+--------
+
+For Node.js, Deno, or Bun with the native addon:
+
+<PackageManagerTabs command="add @gukhanmun/napi" />
+
+
+
+Standard Korean Dictionary
+--------------------------
+
+The JavaScript packages do not bundle the Standard Korean Dictionary.  Install
+it separately:
+
+<PackageManagerTabs
+  command={{
+    npm: "npm add @gukhanmun/stdict-fst",
+    yarn: "yarn add @gukhanmun/stdict-fst",
+    pnpm: "pnpm add @gukhanmun/stdict-fst",
+    bun: "bun add @gukhanmun/stdict-fst",
+    deno: "deno add jsr:@gukhanmun/stdict-fst",
+  }}
+/>
+
+<PackageManagerTabs
+  command={{
+    npm: "npm add @gukhanmun/stdict-cdb",
+    yarn: "yarn add @gukhanmun/stdict-cdb",
+    pnpm: "pnpm add @gukhanmun/stdict-cdb",
+    bun: "bun add @gukhanmun/stdict-cdb",
+    deno: "deno add jsr:@gukhanmun/stdict-cdb",
+  }}
+/>
+
+Both packages contain the same dictionary; the formats differ in their
+lookup characteristics.  For most use cases, prefer the FST package.
+
+
+NAPI platform binaries
+----------------------
+
+`@gukhanmun/napi` includes prebuilt binaries for:
+
+ -  macOS: ARM64, x86\_64
+ -  Windows: ARM64, x86\_64
+ -  Linux (glibc): ARM64, x86\_64
+
+Alpine Linux (musl) requires building from source.

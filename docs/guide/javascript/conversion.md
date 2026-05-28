@@ -1,0 +1,181 @@
+---
+title: "Conversion options"
+description: |-
+  Options that control how Gukhanmun converts hanja to hangul in JavaScript.
+---
+
+Conversion options
+==================
+
+Pass these as properties of the `GukhanmunOptions` object to `load()`.
+
+
+Preset
+------
+
+`preset` selects a preconfigured set of defaults:
+
+| Value               | Dictionary                          | Initial sound law | Homophone window |
+| ------------------- | ----------------------------------- | ----------------- | ---------------- |
+| `"ko-kr"` (default) | None bundled—load stdict explicitly | `true`            | `"per-block"`    |
+| `"ko-kp"`           | None                                | `false`           | `"off"`          |
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({ preset: "ko-kp", dictionaries: [] });
+~~~~
+
+Unlike the Rust crate, the JavaScript packages never include the bundled
+dictionary automatically; always pass it via `dictionaries`.
+
+
+Segmentation strategy
+---------------------
+
+`segmentation` controls how Gukhanmun finds word boundaries within hanja runs:
+
+ -  `"lattice"` (default): evaluates all dictionary matches at every position
+    and selects the globally optimal segmentation using dynamic programming.
+    Most accurate, especially for compound words and ambiguous boundaries.
+ -  `"eager"`: greedy left-to-right longest-match.  Faster, but may
+    mis-segment compound words.
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({
+  segmentation: "lattice",  // default: optimal, dynamic programming
+  // segmentation: "eager", // greedy, faster but less accurate
+});
+~~~~
+
+Prefer `"eager"` only when throughput matters more than accuracy.
+
+
+Numeral handling
+----------------
+
+`numerals` controls how hanja numeral characters such as 二〇一六 are rendered.
+Chinese-style numerals can represent numbers in multiple ways depending on
+whether they encode positions or quantities:
+
+| Value                         | 二〇一六年 | 十一月 | 一千二百三十四 |
+| ----------------------------- | ---------- | ------ | -------------- |
+| `"hangul-phonetic"` (default) | 이공일륙년 | 십일월 | 일천이백삼십사 |
+| `"positional-arabic"`         | 2016년     | —      | —              |
+| `"additive-arabic"`           | —          | 11월   | 1234           |
+| `"smart"`                     | 2016년     | 11월   | 1234           |
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({ numerals: "hangul-phonetic" }); // 이공일륙 (default)
+const g = await load({ numerals: "positional-arabic"}); // 2016
+const g = await load({ numerals: "additive-arabic" });  // 11 (月), 1234
+const g = await load({ numerals: "smart" });            // picks best per context
+~~~~
+
+`"smart"` chooses positional notation for year-like four-digit sequences and
+additive notation for quantities; it is a good default for general-purpose
+documents.
+
+
+Initial sound law
+-----------------
+
+The initial sound law (頭音法則) is a South Korean phonological rule
+that changes certain initial consonants at the start of a word.  The rule
+applies to fallback readings for characters not found in any dictionary;
+dictionary entries already encode their correct readings.
+
+| Input | `initialSoundLaw: true` (ko-kr) | `initialSoundLaw: false` (ko-kp) |
+| ----- | ------------------------------- | -------------------------------- |
+| 來日  | 내일                            | 래일                             |
+| 理由  | 이유                            | 리유                             |
+| 女子  | 여자                            | 녀자                             |
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({ initialSoundLaw: true });   // default for ko-kr
+const g = await load({ initialSoundLaw: false });  // default for ko-kp
+~~~~
+
+Disable it for North Korean orthography (`"ko-kp"` preset) or when processing
+text that follows North Korean spelling conventions.
+
+
+Homophone disambiguation window
+-------------------------------
+
+When the same hanja character appears multiple times, Gukhanmun can mark
+repeated occurrences to help readers distinguish homophones.
+`homophoneWindow` sets the scope across which repetitions are tracked:
+
+| Value                               | Behaviour                                        |
+| ----------------------------------- | ------------------------------------------------ |
+| `"off"`                             | No disambiguation tracking                       |
+| `"per-block"` (default for `ko-kr`) | Reset at paragraph, list, and heading boundaries |
+| `"per-section"`                     | Reset at heading boundaries only                 |
+| `"per-document"`                    | Track across the entire input                    |
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({ homophoneWindow: "off" });
+const g = await load({ homophoneWindow: "per-block" });    // default for ko-kr
+const g = await load({ homophoneWindow: "per-section" });
+const g = await load({ homophoneWindow: "per-document" });
+~~~~
+
+Wider windows are appropriate for dense hanja texts where the same character
+recurs across many sections.
+
+
+First-occurrence clearing window
+--------------------------------
+
+When enabled, first-occurrence clearing stops annotating a hanja after its
+first occurrence within the window.  This is useful for documents that
+introduce each character once and then use it freely; subsequent occurrences
+are left as plain hangul without parenthetical hanja.
+
+| Value             | Behaviour                              |
+| ----------------- | -------------------------------------- |
+| `"off"` (default) | Never clear; annotate every occurrence |
+| `"per-block"`     | Clear within the same paragraph/block  |
+| `"per-section"`   | Clear within the same section          |
+| `"per-document"`  | Clear across the entire document       |
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({ firstOccurrenceWindow: "off" });        // default
+const g = await load({ firstOccurrenceWindow: "per-block" });
+const g = await load({ firstOccurrenceWindow: "per-section" });
+const g = await load({ firstOccurrenceWindow: "per-document" });
+~~~~
+
+
+Error recovery
+--------------
+
+`recovery` controls what happens when the HTML parser encounters markup it
+cannot interpret.  It has no effect for plain text or Markdown input.
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({ recovery: "strict" });   // default: throw on error
+const g = await load({ recovery: "lenient" });  // skip bad fragments (HTML)
+~~~~
+
+Use `"lenient"` when processing HTML from external sources that may contain
+fragments or non-standard markup; it skips problematic parts rather than
+throwing a `GukhanmunError`.

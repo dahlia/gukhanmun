@@ -24,6 +24,7 @@
     "lineWidth": 100,
     "singleQuote": false,
     "include": [
+      "docs/",
       "packages/types/",
       "packages/wasm/",
       "packages/stdict-fst/",

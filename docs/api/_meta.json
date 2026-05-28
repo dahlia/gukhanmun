@@ -1,0 +1,14 @@
+[
+  "index",
+  "changelog",
+  {
+    "type": "dir-section-header",
+    "label": "Rust",
+    "name": "rust"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "js",
+    "label": "JavaScript"
+  }
+]

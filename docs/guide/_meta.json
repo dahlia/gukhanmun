@@ -1,0 +1,6 @@
+[
+  "intro",
+  { "type": "dir-section-header", "name": "cli", "label": "CLI" },
+  { "type": "dir-section-header", "name": "rust", "label": "Rust" },
+  { "type": "dir-section-header", "name": "javascript", "label": "JavaScript" }
+]

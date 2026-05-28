@@ -1,0 +1,42 @@
+[
+  {
+    "type": "custom-link",
+    "label": "gukhanmun",
+    "link": "https://docs.rs/gukhanmun/"
+  },
+  {
+    "type": "custom-link",
+    "label": "gukhanmun-core",
+    "link": "https://docs.rs/gukhanmun-core/"
+  },
+  {
+    "type": "custom-link",
+    "label": "gukhanmun-mkdict",
+    "link": "https://docs.rs/gukhanmun-mkdict/"
+  },
+  {
+    "type": "custom-link",
+    "label": "gukhanmun-unihan",
+    "link": "https://docs.rs/gukhanmun-unihan/"
+  },
+  {
+    "type": "custom-link",
+    "label": "gukhanmun-cdb",
+    "link": "https://docs.rs/gukhanmun-cdb/"
+  },
+  {
+    "type": "custom-link",
+    "label": "gukhanmun-fst",
+    "link": "https://docs.rs/gukhanmun-fst/"
+  },
+  {
+    "type": "custom-link",
+    "label": "gukhanmun-html",
+    "link": "https://docs.rs/gukhanmun-html/"
+  },
+  {
+    "type": "custom-link",
+    "label": "gukhanmun-markdown",
+    "link": "https://docs.rs/gukhanmun-markdown/"
+  }
+]

@@ -22,7 +22,7 @@
  * contract structurally.  All TSDoc lives here as the single source of
  * truth for the JavaScript API.
  *
- * @module
+ * @module @gukhanmun/types
  */
 
 // ── Preset ────────────────────────────────────────────────────────────────

@@ -91,10 +91,14 @@ Follow these prose conventions:
  -  Avoid em dashes (—); use a comma, semicolon, or rewrite the sentence.
  -  No spaces around slashes (write “input/output”, not “input / output”).
  -  Use italics for file paths and file names (*CONTRIBUTING.md*,
-    *src/main.rs*).
+    *src/main.rs*), and for document, section, and book titles (*DESIGN.md*,
+    “Rendering modes”).
  -  Wrap inline code in backticks (`mise run check`, `--flag`).
  -  Use the official spelling of proper nouns exactly.  If unsure, verify on
     the official website (e.g., Node.js, not NodeJS or Node).
+ -  Write “hangul” and “hanja” in lowercase; they are common nouns, not proper
+    nouns.  Ethnic and language names are proper nouns and take an initial
+    capital: Korean, Sino-Korean, Chinese.
 
 
 Testing

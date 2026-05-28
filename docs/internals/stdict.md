@@ -1,8 +1,13 @@
+---
+title: Standard Korean Language Dictionary
+---
+
 Standard Korean Language Dictionary
 ===================================
 
 `gukhanmun-stdict` bundles a snapshot derived from the National Institute of
-Korean Language's *Standard Korean Language Dictionary* JSON download.
+Korean Language's *Standard Korean Language Dictionary* (標準國語大辭典)
+JSON download.
 
 The source dump is not committed to this repository.  The download requires a
 login on the dictionary website, and the archive is much larger than the
@@ -37,7 +42,7 @@ The extractor writes deterministic UTF-8 TSV sorted by dictionary key.  The
 embedded FST at compile time.
 
 
-Extraction Policy
+Extraction policy
 -----------------
 
 Only entries whose `word_unit` is `단어` and whose `original_language_info`
@@ -76,7 +81,7 @@ Annotation rules
 ----------------
 
 *crates/gukhanmun-stdict/data/rules.tsv* lists hand-curated rules that
-OR-merge `require_hanja` / `require_hangul` marks into dictionary entries at
+OR-merge `require_hanja`/`require_hangul` marks into dictionary entries at
 build time.  The stdict crate's *build.rs* passes the rules file to
 `gukhanmun-mkdict`, so the embedded FST ships with the marks already encoded.
 
@@ -93,7 +98,7 @@ The format is a TSV with the columns `kind`, `pattern`, `require_hanja`,
  -  `reading` — `pattern` is a hangul reading; every entry with that reading
     is marked.
 
-A rule must set at least one of `require_hanja` / `require_hangul`, must
+A rule must set at least one of `require_hanja`/`require_hangul`, must
 include a non-empty `reason`, and must match at least one entry.  Multiple
 rules that touch the same entry are OR-merged.  Stale rules that match no
 entry fail the build so that the rules file does not drift out of sync with

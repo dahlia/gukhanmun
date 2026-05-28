@@ -1,4 +1,8 @@
-Dictionary Format
+---
+title: Dictionary format
+---
+
+Dictionary format
 =================
 
 This document specifies the normalized dictionary input formats consumed by

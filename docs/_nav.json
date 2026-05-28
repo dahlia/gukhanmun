@@ -1,0 +1,17 @@
+[
+  {
+    "text": "Guide",
+    "link": "/guide/cli/install",
+    "activeMatch": "/guide/"
+  },
+  {
+    "text": "References",
+    "link": "/api/",
+    "activeMatch": "/api/"
+  },
+  {
+    "text": "Internals",
+    "link": "/internals/design",
+    "activeMatch": "/internals/"
+  }
+]

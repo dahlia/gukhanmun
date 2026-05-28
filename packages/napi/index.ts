@@ -1,6 +1,4 @@
 /**
- * @module
- *
  * Node.js native addon (napi-rs) implementation of the Gukhanmun
  * hanja-to-hangul converter.
  *
@@ -22,6 +20,8 @@
  * const g = await load({ dictionaries: [await stdictFst()] });
  * console.log(g.convert("漢字를 한글로"));  // "한자를 한글로"
  * ```
+ *
+ * @module @gukhanmun/napi
  */
 
 import { createRequire } from "node:module";

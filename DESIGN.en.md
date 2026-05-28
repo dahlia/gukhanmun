@@ -1,7 +1,9 @@
+---
+title: Design
+---
+
 Gukhanmun design docs
 =====================
-
-*Also available: [韓國語](DESIGN.ko-Kore.md) (Korean).*
 
 Gukhanmun is a library for converting Korean text written in mixed script
 (國漢文混用體) into hangul-only text. It is the successor to [Seonbi], narrowed
