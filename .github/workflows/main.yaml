@@ -803,6 +803,11 @@ jobs:
     - name: Install JS dependencies
       shell: bash
       run: mise run js-install
+    - name: Build JS packages for TypeDoc
+      shell: bash
+      run: |
+        set -euo pipefail
+        pnpm --filter @gukhanmun/types run build
     - name: Build docs
       shell: bash
       env:
