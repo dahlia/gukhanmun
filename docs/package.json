@@ -17,6 +17,7 @@
     "@gukhanmun/stdict-fst": "workspace:*",
     "@gukhanmun/types": "workspace:*",
     "@gukhanmun/wasm": "workspace:*",
+    "@rspress/plugin-sitemap": "^2.0.13",
     "@rspress/plugin-twoslash": "^2.0.13",
     "@rspress/plugin-typedoc": "^2.0.13",
     "@types/node": "^22.8.1",

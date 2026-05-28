@@ -36,6 +36,9 @@ importers:
       '@gukhanmun/wasm':
         specifier: workspace:*
         version: link:../packages/wasm
+      '@rspress/plugin-sitemap':
+        specifier: ^2.0.13
+        version: 2.0.13(@rspress/core@2.0.13(@rspack/core@2.0.4(@swc/helpers@0.5.21))(@types/mdast@4.0.4)(@types/react@19.2.15)(micromark-util-types@2.0.2)(micromark@4.0.2))
       '@rspress/plugin-twoslash':
         specifier: ^2.0.13
         version: 2.0.13(@rspress/core@2.0.13(@rspack/core@2.0.4(@swc/helpers@0.5.21))(@types/mdast@4.0.4)(@types/react@19.2.15)(micromark-util-types@2.0.2)(micromark@4.0.2))(react@19.2.6)(typescript@6.0.3)
@@ -390,6 +393,12 @@ packages:
     resolution: {integrity: sha512-lbaBA5eqh7wKdH98TUQEI+SfS3Z6YgaNCup3X+ttrYVLOrxN8PJvbedo6fFAcl+wP3XLy6D0pcnnzAgu8y3tdg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
+
+  '@rspress/plugin-sitemap@2.0.13':
+    resolution: {integrity: sha512-JtkNlxNuA7BzknKIrLvLQkSk0XVi7OXzrE76ma/cLvleccNWr8LGrHtrac4IrDr+HauK4WKTM2JaHGGHUdOUKw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@rspress/core': ^2.0.10
 
   '@rspress/plugin-twoslash@2.0.13':
     resolution: {integrity: sha512-ED1K1jXTP3QAvCpmTElZeDJvc6jKh8KQgdDRifDcpvNYgJ4gOV9jmUBu12OUuxIX2dti2a0ca220UoOOhc1bCQ==}
@@ -1632,6 +1641,10 @@ snapshots:
       - micromark
       - micromark-util-types
       - supports-color
+
+  '@rspress/plugin-sitemap@2.0.13(@rspress/core@2.0.13(@rspack/core@2.0.4(@swc/helpers@0.5.21))(@types/mdast@4.0.4)(@types/react@19.2.15)(micromark-util-types@2.0.2)(micromark@4.0.2))':
+    dependencies:
+      '@rspress/core': 2.0.13(@rspack/core@2.0.4(@swc/helpers@0.5.21))(@types/mdast@4.0.4)(@types/react@19.2.15)(micromark-util-types@2.0.2)(micromark@4.0.2)
 
   '@rspress/plugin-twoslash@2.0.13(@rspress/core@2.0.13(@rspack/core@2.0.4(@swc/helpers@0.5.21))(@types/mdast@4.0.4)(@types/react@19.2.15)(micromark-util-types@2.0.2)(micromark@4.0.2))(react@19.2.6)(typescript@6.0.3)':
     dependencies:
