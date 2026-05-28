@@ -49,7 +49,7 @@ export async function stdictCdbBytes(): Promise<Uint8Array<ArrayBuffer>> {
     // Use a non-literal specifier so TypeScript does not statically resolve
     // the node:fs/promises module type (which would require @types/node).
     const specifier: string = "node:fs/promises";
-    const fs = (await import(specifier)) as unknown as NodeFsPromises;
+    const fs = (await import(/* webpackIgnore: true */ specifier)) as unknown as NodeFsPromises;
     const buf = await fs.readFile(stdictCdbUrl);
     return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
   }

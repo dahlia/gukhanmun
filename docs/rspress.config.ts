@@ -38,6 +38,27 @@ export default defineConfig({
       outDir: "api/js",
     }),
   ],
+  builderConfig: {
+    resolve: {
+      alias: {
+        // Explicit paths avoid pnpm symlink traversal issues in Rspack.
+        "@gukhanmun/wasm": path.join(
+          path.dirname(__dirname),
+          "packages",
+          "wasm",
+          "dist",
+          "index.js",
+        ),
+        "@gukhanmun/stdict-fst": path.join(
+          path.dirname(__dirname),
+          "packages",
+          "stdict-fst",
+          "dist",
+          "index.js",
+        ),
+      },
+    },
+  },
   themeConfig: {
     editLink: {
       docRepoBaseUrl: "https://github.com/dahlia/gukhanmun/tree/main/docs",

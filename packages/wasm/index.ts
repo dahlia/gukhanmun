@@ -170,18 +170,28 @@ function ensureWasm(): Promise<WasmGlue> {
       // Dynamic import with a runtime URL — not statically analysed so deno
       // check does not fail when the generated glue files are absent at dev
       // time; they are produced by `mise run wasm-build`.
-      const mod = (await import(glueHref)) as unknown as WasmGlue;
+      const mod = (await import(/* webpackIgnore: true */ glueHref)) as unknown as WasmGlue;
+      const wasmUrl = new URL("./wasm/web/gukhanmun_wasm_bg.wasm", import.meta.url);
       if (isNodeLike()) {
-        const wasmUrl = new URL("./wasm/web/gukhanmun_wasm_bg.wasm", import.meta.url);
         // Non-literal specifier prevents deno check from statically resolving
         // node:fs/promises types, which would require @types/node.
         const specifier: string = "node:fs/promises";
-        const fs = (await import(specifier)) as unknown as NodeFsPromises;
+        const fs = (await import(/* webpackIgnore: true */ specifier)) as unknown as NodeFsPromises;
         const buf = await fs.readFile(wasmUrl);
         const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
         await mod.default({ module_or_path: bytes });
       } else {
-        await mod.default();
+        // Fetch the binary explicitly rather than letting the glue resolve it
+        // relative to its own URL.  Bundlers (Rspack/webpack/Vite) emit the
+        // file referenced by `new URL(..., import.meta.url)` above as a hashed
+        // asset and rewrite `wasmUrl` to match, so passing the bytes here keeps
+        // the glue from looking up the original unhashed filename and 404ing.
+        const response = await fetch(wasmUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch WASM binary: HTTP ${response.status}`);
+        }
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        await mod.default({ module_or_path: bytes });
       }
       return mod;
     })();
@@ -213,7 +223,7 @@ async function resolveDictionary(
       url = new URL(str);
     } else if (isNodeLike()) {
       const specifier: string = "node:url";
-      const nodeUrl = (await import(specifier)) as unknown as {
+      const nodeUrl = (await import(/* webpackIgnore: true */ specifier)) as unknown as {
         pathToFileURL(path: string): URL;
       };
       url = nodeUrl.pathToFileURL(str);
@@ -226,7 +236,7 @@ async function resolveDictionary(
   }
   if (isNodeLike() && url.protocol === "file:") {
     const specifier: string = "node:fs/promises";
-    const fs = (await import(specifier)) as unknown as NodeFsPromises;
+    const fs = (await import(/* webpackIgnore: true */ specifier)) as unknown as NodeFsPromises;
     let buf: { buffer: ArrayBuffer; byteOffset: number; byteLength: number };
     try {
       buf = await fs.readFile(url);

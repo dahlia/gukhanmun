@@ -1,5 +1,10 @@
 [
   {
+    "text": "Playground",
+    "link": "/playground",
+    "activeMatch": "/playground"
+  },
+  {
     "text": "Guide",
     "link": "/guide/cli/install",
     "activeMatch": "/guide/"

@@ -1,0 +1,298 @@
+/* ── Playground layout ─────────────────────────────────────────── */
+
+.playground {
+  padding: 1.25rem 0 2rem;
+}
+
+.playground-editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  height: clamp(360px, 52svh, 620px);
+}
+
+.playground-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.playground-panel-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--rp-c-text-2, #777);
+  flex-shrink: 0;
+}
+
+/* ── Options toolbar ───────────────────────────────────────────── */
+
+.playground-options {
+  display: flex;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 8px;
+  background: var(--rp-c-bg-soft, #f8f8f8);
+}
+
+.playground-control {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: var(--rp-c-text-2, #555);
+  cursor: default;
+  user-select: none;
+}
+
+.playground-control-label {
+  white-space: nowrap;
+}
+
+.playground-control select {
+  padding: 0.25rem 1.75rem 0.25rem 0.5rem;
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 4px;
+  background: var(--rp-c-bg-soft, #f5f5f5);
+  color: var(--rp-c-text-1, inherit);
+  font-size: 0.875rem;
+  appearance: auto;
+  cursor: pointer;
+}
+
+.playground-control select:focus {
+  outline: 2px solid var(--rp-c-brand, #2b2b2b);
+  outline-offset: 1px;
+}
+
+.playground-control--checkbox {
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.playground-control--checkbox input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: var(--rp-c-brand, #2b2b2b);
+}
+
+.playground-control--text {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.playground-control--text input {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 4px;
+  background: var(--rp-c-bg, #fff);
+  color: var(--rp-c-text-1, inherit);
+  font-size: 0.875rem;
+  box-sizing: border-box;
+}
+
+.playground-control--text input:focus {
+  outline: 2px solid var(--rp-c-brand, #2b2b2b);
+  outline-offset: 1px;
+}
+
+/* ── Advanced (directives, HTML preservation) ──────────────────── */
+
+.playground-advanced {
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 8px;
+  background: var(--rp-c-bg-soft, #f8f8f8);
+}
+
+.playground-advanced > summary {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--rp-c-text-2, #555);
+  cursor: pointer;
+  user-select: none;
+}
+
+.playground-advanced[open] > summary {
+  border-bottom: 1px solid var(--rp-c-divider, #ddd);
+}
+
+.playground-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem 1rem;
+  padding: 1rem 1.25rem;
+}
+
+/* ── Input textarea ────────────────────────────────────────────── */
+
+.playground-textarea {
+  flex: 1;
+  width: 100%;
+  padding: 0.75rem;
+  font-family:
+    ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 6px;
+  background: var(--rp-c-bg-soft, #f8f8f8);
+  color: var(--rp-c-text-1, inherit);
+  resize: none;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.playground-textarea:focus {
+  outline: 2px solid var(--rp-c-brand, #2b2b2b);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+/* ── Output panel ──────────────────────────────────────────────── */
+
+.playground-output {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 6px;
+  background: var(--rp-c-bg, #fff);
+  overflow-y: auto;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.playground-output--text {
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.playground-output--html {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+/* Rendered HTML heading styles */
+.playground-output--html h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+  border: none;
+  padding: 0;
+}
+
+.playground-output--html h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 1rem 0 0.25rem;
+}
+
+.playground-output--html p {
+  margin: 0 0 0.75rem;
+}
+
+.playground-output--html a {
+  color: var(--rp-c-brand, #2b2b2b);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Ruby annotation styling */
+.playground-output--html ruby rt,
+.playground-output--text ruby rt {
+  font-size: 0.6em;
+  color: var(--rp-c-text-2, #666);
+}
+
+/* ── Conversion error (inline, beneath output) ─────────────────── */
+
+.playground-convert-error {
+  font-size: 0.8125rem;
+  color: #c0392b;
+  margin: 0.25rem 0 0;
+}
+
+/* ── Loading state ─────────────────────────────────────────────── */
+
+.playground-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 400px;
+  color: var(--rp-c-text-2, #666);
+  font-size: 0.9375rem;
+}
+
+.playground-loading p {
+  margin: 0;
+}
+
+@keyframes playground-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.playground-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--rp-c-brand-lighter, #ddd);
+  border-top-color: var(--rp-c-brand, #2b2b2b);
+  border-radius: 50%;
+  animation: playground-spin 0.75s linear infinite;
+}
+
+/* ── Error state ───────────────────────────────────────────────── */
+
+.playground-error {
+  padding: 1rem 1.25rem;
+  border: 1px solid #f5c6c6;
+  border-radius: 6px;
+  background: #fff5f5;
+  color: #c0392b;
+}
+
+.dark .playground-error {
+  background: #2d1212;
+  border-color: #6b2020;
+  color: #f5a0a0;
+}
+
+.playground-error-msg {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Mobile ────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .playground-editor {
+    grid-template-columns: 1fr;
+    height: auto;
+    max-height: none;
+  }
+
+  .playground-textarea,
+  .playground-output {
+    min-height: 280px;
+  }
+}
