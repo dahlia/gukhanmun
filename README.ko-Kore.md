@@ -1,3 +1,8 @@
+<picture>
+  <source srcset="logo-square-white.svg" media="(prefers-color-scheme: dark)">
+  <img src="logo-square.svg" width="75" height="75">
+</picture>
+
 Gukhanmun
 =========
 

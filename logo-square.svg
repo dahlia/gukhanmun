@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+  width="490"
+  height="490"
+  viewBox="0 0 129.64583 129.64584"
+  version="1.1"
+  id="svg1"
+  inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+  sodipodi:docname="logo-square.svg"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:svg="http://www.w3.org/2000/svg"
+>
+  <sodipodi:namedview
+    id="namedview1"
+    pagecolor="#ffffff"
+    bordercolor="#000000"
+    borderopacity="0.25"
+    inkscape:showpageshadow="2"
+    inkscape:pageopacity="0.0"
+    inkscape:pagecheckerboard="0"
+    inkscape:deskcolor="#d1d1d1"
+    inkscape:document-units="px"
+    inkscape:zoom="2.3125818"
+    inkscape:cx="265.28791"
+    inkscape:cy="280.2063"
+    inkscape:window-width="3072"
+    inkscape:window-height="1659"
+    inkscape:window-x="0"
+    inkscape:window-y="0"
+    inkscape:window-maximized="1"
+    inkscape:current-layer="layer6"
+    showgrid="false"
+  />
+  <defs
+    id="defs1"
+  />
+  <g
+    inkscape:groupmode="layer"
+    id="layer6"
+    inkscape:label="square"
+    style="display: inline"
+  >
+    <path
+      id="rect10"
+      style="display: inline; fill: currentColor; fill-opacity: 1; fill-rule: evenodd; stroke: none; stroke-dasharray: none; stroke-opacity: 1"
+      inkscape:label="square"
+      d="M 9.2604168 9.2604168 L 9.2604168 120.38542 L 120.38542 120.38542 L 120.38542 60.192709 L 111.125 60.192709 L 111.125 93.927085 L 101.86458 93.927085 L 101.86458 18.520834 L 111.125 18.520834 L 111.125 50.932292 L 120.38542 50.932292 L 120.38542 9.2604168 L 9.2604168 9.2604168 z M 23.151042 18.520834 A 4.6302085 4.6302085 0 0 1 27.78125 23.151042 A 4.6302085 4.6302085 0 0 1 23.151042 27.78125 A 4.6302085 4.6302085 0 0 1 18.520834 23.151042 A 4.6302085 4.6302085 0 0 1 23.151042 18.520834 z M 50.932292 18.520834 L 60.192709 18.520834 L 60.192709 27.78125 L 69.453126 27.78125 L 69.453126 18.520834 L 78.713543 18.520834 L 78.713543 27.78125 L 92.604168 27.78125 L 92.604168 37.041667 L 37.041667 37.041667 L 37.041667 27.78125 L 50.932292 27.78125 L 50.932292 18.520834 z M 23.151042 37.041667 A 4.6302085 4.6302085 0 0 1 27.78125 41.671876 A 4.6302085 4.6302085 0 0 1 23.151042 46.302084 A 4.6302085 4.6302085 0 0 1 18.520834 41.671876 A 4.6302085 4.6302085 0 0 1 23.151042 37.041667 z M 64.822401 41.671876 C 77.553526 41.671876 87.974476 52.091276 87.974476 64.822401 C 87.974476 77.553525 77.553526 87.974476 64.822401 87.974476 C 52.091275 87.974476 41.671876 77.553525 41.671876 64.822401 C 41.671876 52.091276 52.091275 41.671876 64.822401 41.671876 z M 64.822401 50.931776 C 57.095912 50.931776 50.931776 57.095914 50.931776 64.822401 C 50.931776 72.548887 57.095912 78.713026 64.822401 78.713026 C 72.548889 78.713026 78.713026 72.548887 78.713026 64.822401 C 78.713026 57.095914 72.548889 50.931776 64.822401 50.931776 z M 18.520834 55.562501 L 27.78125 55.562501 L 27.78125 92.604168 L 18.520834 92.604168 L 18.520834 55.562501 z M 37.041667 92.604168 L 46.302084 92.604168 L 46.302084 101.86458 L 111.125 101.86458 L 111.125 111.125 L 46.302084 111.125 L 37.041667 111.125 L 37.041667 92.604168 z "
+    />
+  </g>
+  <g
+    inkscape:groupmode="layer"
+    id="layer3"
+    inkscape:label="glyph"
+  />
+</svg>
