@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prebuild": "pnpm --filter @gukhanmun/types run build",
+    "prebuild": "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/napi run build",
     "build": "rspress build",
     "dev": "rspress dev",
     "preview": "rspress preview"
