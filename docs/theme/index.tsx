@@ -15,16 +15,56 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import "./index.css";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  copyToClipboard,
   IconArrowDown,
+  IconLink,
+  IconSuccess,
   Layout as OriginalLayout,
   SvgWrapper,
   useHoverGroup,
 } from "@rspress/core/theme-original";
-import { usePage } from "@rspress/core/runtime";
+import { routePathToMdPath, useI18n, usePage, usePageData } from "@rspress/core/runtime";
 
 export * from "@rspress/core/theme-original";
+
+// Rspress's outline renders an "Open in chat" row whose dropdown is built
+// solely from the "chatgpt"/"claude" view options, so "markdownLink" yields an
+// empty menu, and there is no config flag to hide the row. It also ships a
+// "Copy Markdown" button (LlmsCopyRow) but no way to grab the Markdown link
+// itself. We override the open-in-chat slot to instead copy the current page's
+// Markdown URL. The stock Outline imports LlmsOpenRow from
+// "@rspress/core/theme", which resolves to this module, so this explicit
+// export shadows the star re-export above.
+export function LlmsOpenRow() {
+  const t = useI18n();
+  const { page } = usePageData();
+  const pathname = routePathToMdPath(page.routePath);
+  const [isFinished, setFinished] = useState(false);
+  const timer = useRef<number | null>(null);
+
+  const handleClick = useCallback(async () => {
+    if (!pathname || typeof window === "undefined") return;
+    const fullUrl = new URL(pathname, window.location.origin).toString();
+    if (!(await copyToClipboard(fullUrl))) return;
+    setFinished(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      setFinished(false);
+      timer.current = null;
+    }, 1500);
+  }, [pathname]);
+
+  if (!pathname) return null;
+
+  return (
+    <button className="rp-outline__action-row" onClick={handleClick}>
+      <SvgWrapper icon={isFinished ? IconSuccess : IconLink} />
+      <span>{t("copyMarkdownLinkText")}</span>
+    </button>
+  );
+}
 
 function EnvSwitcher() {
   const [env, setEnv] = useState<"stable" | "canary" | null>(null);

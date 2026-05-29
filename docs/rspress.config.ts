@@ -80,7 +80,6 @@ export default defineConfig({
       docRepoBaseUrl: "https://github.com/dahlia/gukhanmun/tree/main/docs",
     },
     llmsUI: {
-      viewOptions: ["markdownLink"],
       placement: "outline",
     },
     socialLinks: [
