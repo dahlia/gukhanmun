@@ -174,6 +174,15 @@ If you use AI tools (such as Claude Code, GitHub Copilot, Cursor, etc.) while
 contributing, you must disclose this in your pull request description and
 commit messages.  See [*AI\_POLICY.md*](./AI_POLICY.md) for the complete policy.
 
+In commit messages, disclose AI assistance with an `Assisted-by` trailer of the
+form `AGENT_NAME:MODEL_VERSION`, one line per tool.  Do not use `Co-authored-by`
+for AI assistants; that trailer is reserved for human co-authors.
+
+~~~~
+Assisted-by: Claude Code:claude-opus-4-8
+Assisted-by: Codex:gpt-5.5
+~~~~
+
 
 Release process
 ---------------
