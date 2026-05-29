@@ -31,10 +31,10 @@ From crates.io
 If you have a Rust toolchain installed, install from crates.io:
 
 ~~~~ sh
-cargo install gukhanmun
+cargo install gukhanmun-cli gukhanmun-mkdict
 ~~~~
 
-This compiles the binary and places it in *~/.cargo/bin/*.  Make sure that
+This compiles the binaries and places them in *~/.cargo/bin/*.  Make sure that
 directory is on your `PATH`.
 
 
@@ -63,4 +63,5 @@ Verify the installation
 
 ~~~~ sh
 gukhanmun --help
+gukhanmun-mkdict --help
 ~~~~
