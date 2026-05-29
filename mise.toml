@@ -238,6 +238,10 @@ run = "cargo run -p gukhanmun-unihan -- --check"
 
 [tasks.gukhanmun]
 description = "Run the gukhanmun plain-text CLI"
+# Run in the directory mise was invoked from (default is the project root), so
+# relative path arguments resolve against the user's current directory.  cargo
+# still finds the workspace by walking up to its Cargo.toml.
+dir = "{{cwd}}"
 run = "cargo run -p gukhanmun-cli --"
 
 [tasks.insta-review]
