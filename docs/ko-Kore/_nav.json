@@ -1,0 +1,22 @@
+[
+  {
+    "text": "演習場",
+    "link": "/playground",
+    "activeMatch": "/playground"
+  },
+  {
+    "text": "案內書",
+    "link": "/guide/cli/install",
+    "activeMatch": "/guide/"
+  },
+  {
+    "text": "參照",
+    "link": "/api/",
+    "activeMatch": "/api/"
+  },
+  {
+    "text": "內部 構造",
+    "link": "/internals/design",
+    "activeMatch": "/internals/"
+  }
+]

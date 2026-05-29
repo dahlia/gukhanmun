@@ -18,6 +18,7 @@ import "./Playground.css";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@rspress/core/runtime";
 import type {
   ContextWindow,
   Format,
@@ -93,54 +94,6 @@ const DEFAULTS: Record<FormatKey, string> = {
   markdown: DEFAULT_MARKDOWN,
   html: DEFAULT_HTML,
 };
-
-const RENDERING_OPTIONS: [RenderMode, string][] = [
-  ["hangul-only", "Hangul only"],
-  ["hangul-hanja-parens", "Hangul (漢字)"],
-  ["hanja-hangul-parens", "漢字 (hangul)"],
-  ["ruby-on-hangul", "Ruby 漢字 over hangul"],
-  ["ruby-on-hanja", "Ruby hangul over 漢字"],
-  ["original", "Keep original"],
-];
-
-const PRESET_OPTIONS: [Preset, string][] = [
-  ["ko-kr", "South Korean (ko-kr)"],
-  ["ko-kp", "North Korean (ko-kp)"],
-];
-
-const ORIGINAL_GLOSS_OPTIONS: [OriginalGloss, string][] = [
-  ["parens", "Parentheses"],
-  ["ruby", "Ruby"],
-];
-
-const SEGMENTATION_OPTIONS: [Segmentation, string][] = [
-  ["lattice", "Lattice (accurate)"],
-  ["eager", "Eager (fast)"],
-];
-
-const NUMERAL_OPTIONS: [NumeralStrategy, string][] = [
-  ["hangul-phonetic", "Hangul phonetic"],
-  ["positional-arabic", "Positional Arabic"],
-  ["additive-arabic", "Additive Arabic"],
-  ["smart", "Smart"],
-];
-
-const WINDOW_OPTIONS: [ContextWindow, string][] = [
-  ["off", "Off"],
-  ["per-block", "Per block"],
-  ["per-section", "Per section"],
-  ["per-document", "Per document"],
-];
-
-const DETECTION_OPTIONS: [HomophoneDetection, string][] = [
-  ["context-local", "Context-local"],
-  ["dictionary-wide", "Dictionary-wide"],
-];
-
-const RECOVERY_OPTIONS: [Recovery, string][] = [
-  ["strict", "Strict"],
-  ["lenient", "Lenient"],
-];
 
 // Preset-specific defaults, mirroring the engine's own resolution.  Switching
 // preset resets the two dependent toggles so the UI reflects what the preset
@@ -240,6 +193,8 @@ function TextField(
 }
 
 export function Playground() {
+  const t = useI18n<typeof import("i18n")>();
+
   const [status, setStatus] = useState<Status>("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -266,6 +221,49 @@ export function Playground() {
   const [skipAnnotation, setSkipAnnotation] = useState("");
   const [preserveClasses, setPreserveClasses] = useState("");
   const [preserveAttributes, setPreserveAttributes] = useState("");
+
+  // Option labels are localized via the i18n table, so they follow the active
+  // documentation language.  The option *values* are the engine's stable keys.
+  const RENDERING_OPTIONS: [RenderMode, string][] = [
+    ["hangul-only", t("pgRenderHangulOnly")],
+    ["hangul-hanja-parens", t("pgRenderHangulHanja")],
+    ["hanja-hangul-parens", t("pgRenderHanjaHangul")],
+    ["ruby-on-hangul", t("pgRenderRubyHangul")],
+    ["ruby-on-hanja", t("pgRenderRubyHanja")],
+    ["original", t("pgRenderOriginal")],
+  ];
+  const PRESET_OPTIONS: [Preset, string][] = [
+    ["ko-kr", t("pgPresetKoKr")],
+    ["ko-kp", t("pgPresetKoKp")],
+  ];
+  const ORIGINAL_GLOSS_OPTIONS: [OriginalGloss, string][] = [
+    ["parens", t("pgGlossParens")],
+    ["ruby", t("pgGlossRuby")],
+  ];
+  const SEGMENTATION_OPTIONS: [Segmentation, string][] = [
+    ["lattice", t("pgSegLattice")],
+    ["eager", t("pgSegEager")],
+  ];
+  const NUMERAL_OPTIONS: [NumeralStrategy, string][] = [
+    ["hangul-phonetic", t("pgNumHangulPhonetic")],
+    ["positional-arabic", t("pgNumPositional")],
+    ["additive-arabic", t("pgNumAdditive")],
+    ["smart", t("pgNumSmart")],
+  ];
+  const WINDOW_OPTIONS: [ContextWindow, string][] = [
+    ["off", t("pgWindowOff")],
+    ["per-block", t("pgWindowPerBlock")],
+    ["per-section", t("pgWindowPerSection")],
+    ["per-document", t("pgWindowPerDocument")],
+  ];
+  const DETECTION_OPTIONS: [HomophoneDetection, string][] = [
+    ["context-local", t("pgDetectContextLocal")],
+    ["dictionary-wide", t("pgDetectDictionaryWide")],
+  ];
+  const RECOVERY_OPTIONS: [Recovery, string][] = [
+    ["strict", t("pgRecoveryStrict")],
+    ["lenient", t("pgRecoveryLenient")],
+  ];
 
   const gRef = useRef<Gukhanmun | null>(null);
   const dictRef = useRef<Uint8Array | null>(null);
@@ -429,13 +427,13 @@ export function Playground() {
       {status === "loading" && (
         <div className="playground-loading">
           <div className="playground-spinner" aria-hidden="true" />
-          <p>Loading the converter and dictionary…</p>
+          <p>{t("pgLoading")}</p>
         </div>
       )}
 
       {status === "error" && (
         <div className="playground-error" role="alert">
-          <strong>Something went wrong.</strong>
+          <strong>{t("pgErrorTitle")}</strong>
           {errorMsg && <pre className="playground-error-msg">{errorMsg}</pre>}
         </div>
       )}
@@ -444,114 +442,117 @@ export function Playground() {
         <>
           <div className="playground-options">
             <Field
-              label="Input format"
+              label={t("pgInputFormat")}
               value={format}
-              options={[["text", "Plain text"], ["markdown", "Markdown"], ["html", "HTML"]]}
+              options={[["text", t("pgFormatText")], ["markdown", t("pgFormatMarkdown")], [
+                "html",
+                t("pgFormatHtml"),
+              ]]}
               onChange={handleFormatChange}
             />
             <Field
-              label="Preset"
+              label={t("pgPreset")}
               value={preset}
               options={PRESET_OPTIONS}
               onChange={handlePresetChange}
             />
             <Field
-              label="Rendering"
+              label={t("pgRendering")}
               value={rendering}
               options={RENDERING_OPTIONS}
               onChange={setRendering}
             />
             {rendering === "original" && (
               <Field
-                label="Original gloss"
+                label={t("pgOriginalGloss")}
                 value={originalGloss}
                 options={ORIGINAL_GLOSS_OPTIONS}
                 onChange={setOriginalGloss}
               />
             )}
             <Field
-              label="Segmentation"
+              label={t("pgSegmentation")}
               value={segmentation}
               options={SEGMENTATION_OPTIONS}
               onChange={setSegmentation}
             />
             <Field
-              label="Numerals"
+              label={t("pgNumerals")}
               value={numerals}
               options={NUMERAL_OPTIONS}
               onChange={setNumerals}
             />
             <Field
-              label="Homophone window"
+              label={t("pgHomophoneWindow")}
               value={homophoneWindow}
               options={WINDOW_OPTIONS}
               onChange={setHomophoneWindow}
             />
             <Field
-              label="Homophone detection"
+              label={t("pgHomophoneDetection")}
               value={homophoneDetection}
               options={DETECTION_OPTIONS}
               onChange={setHomophoneDetection}
             />
             <Field
-              label="First-occurrence window"
+              label={t("pgFirstOccurrenceWindow")}
               value={firstOccurrenceWindow}
               options={WINDOW_OPTIONS}
               onChange={setFirstOccurrenceWindow}
             />
             {format === "html" && (
               <Field
-                label="HTML recovery"
+                label={t("pgHtmlRecovery")}
                 value={recovery}
                 options={RECOVERY_OPTIONS}
                 onChange={setRecovery}
               />
             )}
             <Toggle
-              label="Initial sound law (頭音法則)"
+              label={t("pgInitialSoundLaw")}
               checked={initialSoundLaw}
               onChange={setInitialSoundLaw}
             />
             <Toggle
-              label="Standard Korean Dictionary (標準國語大辭典)"
+              label={t("pgStdict")}
               checked={useDictionary}
               onChange={setUseDictionary}
             />
           </div>
 
           <details className="playground-advanced">
-            <summary>Directives{format === "html" ? " and HTML preservation" : ""}</summary>
+            <summary>{format === "html" ? t("pgDirectivesHtml") : t("pgDirectives")}</summary>
             <div className="playground-advanced-grid">
               <TextField
-                label="Require hanja"
+                label={t("pgRequireHanja")}
                 value={requireHanja}
-                placeholder="e.g. 漢 字"
+                placeholder={t("pgPhRequireHanja")}
                 onChange={setRequireHanja}
               />
               <TextField
-                label="Require hangul"
+                label={t("pgRequireHangul")}
                 value={requireHangul}
-                placeholder="e.g. 東"
+                placeholder={t("pgPhRequireHangul")}
                 onChange={setRequireHangul}
               />
               <TextField
-                label="Skip annotation"
+                label={t("pgSkipAnnotation")}
                 value={skipAnnotation}
-                placeholder="e.g. 中"
+                placeholder={t("pgPhSkipAnnotation")}
                 onChange={setSkipAnnotation}
               />
               {format === "html" && (
                 <>
                   <TextField
-                    label="Preserve classes"
+                    label={t("pgPreserveClasses")}
                     value={preserveClasses}
-                    placeholder="e.g. no-translate code"
+                    placeholder={t("pgPhPreserveClasses")}
                     onChange={setPreserveClasses}
                   />
                   <TextField
-                    label="Preserve attributes"
+                    label={t("pgPreserveAttributes")}
                     value={preserveAttributes}
-                    placeholder="e.g. data-no-translate"
+                    placeholder={t("pgPhPreserveAttributes")}
                     onChange={setPreserveAttributes}
                   />
                 </>
@@ -561,18 +562,18 @@ export function Playground() {
 
           <div className="playground-editor">
             <div className="playground-panel">
-              <span className="playground-panel-label">Input</span>
+              <span className="playground-panel-label">{t("pgInput")}</span>
               <textarea
                 className="playground-textarea"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 spellCheck={false}
-                aria-label="Input text"
+                aria-label={t("pgInputAria")}
               />
             </div>
 
             <div className="playground-panel">
-              <span className="playground-panel-label">Preview</span>
+              <span className="playground-panel-label">{t("pgPreview")}</span>
               {format === "text"
                 ? (
                   <pre className="playground-output playground-output--text">

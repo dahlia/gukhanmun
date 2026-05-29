@@ -1,0 +1,27 @@
+[
+  {
+    "type": "custom-link",
+    "label": "@gukhanmun/types",
+    "link": "../../api/js/modules/_gukhanmun_types"
+  },
+  {
+    "type": "custom-link",
+    "label": "@gukhanmun/napi",
+    "link": "../../api/js/modules/_gukhanmun_napi"
+  },
+  {
+    "type": "custom-link",
+    "label": "@gukhanmun/wasm",
+    "link": "../../api/js/modules/_gukhanmun_wasm"
+  },
+  {
+    "type": "custom-link",
+    "label": "@gukhanmun/stdict-cdb",
+    "link": "../../api/js/modules/_gukhanmun_stdict-cdb"
+  },
+  {
+    "type": "custom-link",
+    "label": "@gukhanmun/stdict-fst",
+    "link": "../../api/js/modules/_gukhanmun_stdict-fst"
+  }
+]

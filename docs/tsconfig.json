@@ -15,6 +15,7 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
+    "paths": { "i18n": ["./i18n.json"] },
 
     /* type checking */
     "strict": true,

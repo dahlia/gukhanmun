@@ -24,6 +24,22 @@ import { pluginTypeDoc } from "@rspress/plugin-typedoc";
 export default defineConfig({
   root: __dirname,
   title: "Gukhanmun",
+  lang: "en",
+  locales: [
+    {
+      lang: "en",
+      label: "English",
+      title: "Gukhanmun",
+      description:
+        "Rust/JavaScript library that converts mixed-script Korean into hangul-only text",
+    },
+    {
+      lang: "ko-Kore",
+      label: "韓國語 (國漢文)",
+      title: "Gukhanmun",
+      description: "國漢文混用體 韓國語를 한글 專用 텍스트로 變換하는 Rust/JavaScript 라이브러리",
+    },
+  ],
   route: {
     excludeConvention: ["theme/**", "doc_build/**", "rspress.config.ts", "README.md"],
     cleanUrls: true,
@@ -51,7 +67,7 @@ export default defineConfig({
         path.join(path.dirname(__dirname), "packages", "stdict-cdb", "index.ts"),
         path.join(path.dirname(__dirname), "packages", "stdict-fst", "index.ts"),
       ],
-      outDir: "api/js",
+      outDir: "en/api/js",
     }),
   ],
   builderConfig: {

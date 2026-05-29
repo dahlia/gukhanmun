@@ -1,0 +1,18 @@
+[
+  "index",
+  {
+    "type": "custom-link",
+    "label": "變更來歷 (英文)",
+    "link": "../../api/changelog"
+  },
+  {
+    "type": "dir-section-header",
+    "label": "Rust (英文)",
+    "name": "rust"
+  },
+  {
+    "type": "dir-section-header",
+    "label": "JavaScript (英文)",
+    "name": "js"
+  }
+]
