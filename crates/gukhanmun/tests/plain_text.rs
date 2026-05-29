@@ -34,9 +34,53 @@ fn default_ko_kr_converts_bundled_word() {
 #[cfg(feature = "stdict")]
 #[test]
 fn default_ko_kr_marks_homonyms_with_hanja() {
+    // Default detection is context-local: a homophone is glossed only when a
+    // different-hanja reading-mate actually co-occurs within the context
+    // window.  `天地` and `天池` both read 천지, so both are glossed here.
+    let converter = Builder::new().build().expect("default builder");
+    let output = converter
+        .convert_text_to_string("天地와 天池")
+        .expect("convert");
+    assert_eq!(output, "천지(天地)와 천지(天池)");
+}
+
+#[cfg(feature = "stdict")]
+#[test]
+fn default_ko_kr_leaves_standalone_homophone_unglossed() {
+    // `天地` has dictionary-wide reading-mates (`天池`, `淺智`, ...) but none
+    // of them occur in this input, so context-local detection leaves it as
+    // plain hangul.
     let converter = Builder::new().build().expect("default builder");
     let output = converter.convert_text_to_string("天地").expect("convert");
+    assert_eq!(output, "천지");
+}
+
+#[cfg(feature = "stdict")]
+#[test]
+fn dictionary_wide_glosses_standalone_homophone() {
+    use gukhanmun::HomophoneDetection;
+
+    // Dictionary-wide detection glosses any reading shared by another hanja
+    // form anywhere in the bundled dictionary, even with no in-text collision.
+    let converter = Builder::new()
+        .homophone_detection(HomophoneDetection::DictionaryWide)
+        .build()
+        .expect("default builder");
+    let output = converter.convert_text_to_string("天地").expect("convert");
     assert_eq!(output, "천지(天地)");
+}
+
+#[cfg(feature = "stdict")]
+#[test]
+fn default_ko_kr_leaves_uncollided_word_unglossed() {
+    // `言語` (언어) is glossed by no curated require-hanja rule, and no other
+    // 언어-reading hanja form occurs in this input, so the default
+    // context-local detection leaves it as plain hangul.
+    let converter = Builder::new().build().expect("default builder");
+    assert_eq!(
+        converter.convert_text_to_string("言語").expect("convert"),
+        "언어"
+    );
 }
 
 #[cfg(feature = "stdict")]

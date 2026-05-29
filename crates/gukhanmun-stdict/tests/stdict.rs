@@ -203,16 +203,13 @@ fn bundled_suffix_table_rows_are_well_formed() {
 fn bundled_rules_set_require_hanja_marks() {
     let dict = gukhanmun_stdict::ko_kr();
 
-    let entries = [
-        // entry-kind rules
-        "漢字", "天地", "史記", "詐欺",
-        // reading-kind rules: every 사기-reading entry should be marked,
-        // not only those listed by entry rules.
-        "士氣", "事機", // reading-kind rules: 회의-reading entries.
-        "會意", "回議", // contains-kind rules: entries containing rare hanja.
-        "馳驟", "勃鬱", "交龜",
-    ];
-    for hanja in entries {
+    // Only `contains`-kind rules remain in the bundled rules file: they mark
+    // entries that embed a rare or multi-reading hanja glyph regardless of
+    // homophony.  Common-but-homophonous words such as `漢字`/`天地` are no
+    // longer pinned with require_hanja; they are governed by the configurable
+    // homophone detection strategy instead.
+    let marked = ["馳驟", "勃鬱", "交龜"];
+    for hanja in marked {
         let entry = dict
             .lookup(hanja)
             .unwrap()
@@ -222,19 +219,58 @@ fn bundled_rules_set_require_hanja_marks() {
             "require_hanja not set for `{hanja}`"
         );
     }
+
+    // Homophonous common words must stay unmarked so context-local detection
+    // controls whether they are glossed.
+    let unmarked = ["漢字", "天地", "史記", "詐欺", "會議", "懷疑"];
+    for hanja in unmarked {
+        let entry = dict
+            .lookup(hanja)
+            .unwrap()
+            .unwrap_or_else(|| panic!("no exact match for `{hanja}` in bundled stdict"));
+        assert!(
+            !entry.mark().require_hanja,
+            "require_hanja unexpectedly set for `{hanja}`"
+        );
+    }
 }
 
 #[test]
-fn bundled_rules_drive_hangul_only_rendering_with_disambiguating_hanja() {
+fn bundled_contains_rules_drive_hangul_only_rendering_with_disambiguating_hanja() {
     let dict = gukhanmun_stdict::ko_kr();
 
+    // Words embedding a rare hanja are always glossed by the surviving
+    // `contains` rules, even standalone.
+    assert_eq!(
+        convert_plain_text("馳驟", dict, RenderMode::HangulOnly),
+        "치취(馳驟)"
+    );
+    assert_eq!(
+        convert_plain_text("勃鬱", dict, RenderMode::HangulOnly),
+        "발울(勃鬱)"
+    );
+}
+
+#[test]
+fn homophone_words_follow_context_local_detection() {
+    let dict = gukhanmun_stdict::ko_kr();
+
+    // Standalone homophonous words are no longer pinned to require_hanja, so
+    // context-local detection leaves them as plain hangul.
     assert_eq!(
         convert_plain_text("漢字", dict, RenderMode::HangulOnly),
-        "한자(漢字)"
+        "한자"
     );
     assert_eq!(
         convert_plain_text("史記", dict, RenderMode::HangulOnly),
-        "사기(史記)"
+        "사기"
+    );
+
+    // A genuine in-window collision is still glossed under context-local
+    // detection (`漢字`, `漢子`, `韓子` all read 한자).
+    assert_eq!(
+        convert_plain_text("漢字와 漢子", dict, RenderMode::HangulOnly),
+        "한자(漢字)와 한자(漢子)"
     );
 }
 

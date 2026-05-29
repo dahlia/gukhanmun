@@ -34,11 +34,10 @@ fn converts_stdin_to_stdout_with_bundled_stdict_by_default() {
         .write_stdin("漢字 北京 標識 一分錢 布告하다 佈告하다\n")
         .assert()
         .success()
-        // 漢字 keeps its gloss via the bundled require-hanja rule; 布告하다 and
-        // 佈告하다 share 포고하다 within the line, so the default context-local
-        // detection glosses both.  標識 has no in-text homophone here and is
-        // therefore left as plain hangul.
-        .stdout("한자(漢字) 베이징 표지 일푼전 포고하다(布告하다) 포고하다(佈告하다)\n");
+        // 布告하다 and 佈告하다 share 포고하다 within the line, so the default
+        // context-local detection glosses both.  漢字 and 標識 have no in-text
+        // homophone here and are therefore left as plain hangul.
+        .stdout("한자 베이징 표지 일푼전 포고하다(布告하다) 포고하다(佈告하다)\n");
 }
 
 #[test]
@@ -134,7 +133,7 @@ fn html_preserve_class_flag_preserves_matching_elements() {
         .write_stdin("<div class=\"no-translate\">漢字</div><div>漢字</div>")
         .assert()
         .success()
-        .stdout("<div class=\"no-translate\">漢字</div><div>한자(漢字)</div>");
+        .stdout("<div class=\"no-translate\">漢字</div><div>한자</div>");
 }
 
 #[test]
@@ -150,7 +149,7 @@ fn html_preserve_class_flag_inherits_to_descendants() {
         .write_stdin("<section class=\"no-translate\"><p>漢字</p></section><p>漢字</p>")
         .assert()
         .success()
-        .stdout("<section class=\"no-translate\"><p>漢字</p></section><p>한자(漢字)</p>");
+        .stdout("<section class=\"no-translate\"><p>漢字</p></section><p>한자</p>");
 }
 
 #[test]
@@ -166,7 +165,7 @@ fn html_preserve_attr_flag_with_value_matches_exact_value() {
         .write_stdin("<p translate=\"no\">漢字</p><p translate=\"yes\">漢字</p>")
         .assert()
         .success()
-        .stdout("<p translate=\"no\">漢字</p><p translate=\"yes\">한자(漢字)</p>");
+        .stdout("<p translate=\"no\">漢字</p><p translate=\"yes\">한자</p>");
 }
 
 #[test]
@@ -182,7 +181,7 @@ fn html_preserve_attr_flag_without_value_matches_presence() {
         .write_stdin("<p data-no-mt>漢字</p><p>漢字</p>")
         .assert()
         .success()
-        .stdout("<p data-no-mt>漢字</p><p>한자(漢字)</p>");
+        .stdout("<p data-no-mt>漢字</p><p>한자</p>");
 }
 
 #[test]
@@ -198,7 +197,7 @@ fn html_preserve_class_flag_decodes_html_entities_in_attribute_value() {
         .write_stdin("<div class=\"no&#45;translate\">漢字</div><div>漢字</div>")
         .assert()
         .success()
-        .stdout("<div class=\"no&#45;translate\">漢字</div><div>한자(漢字)</div>");
+        .stdout("<div class=\"no&#45;translate\">漢字</div><div>한자</div>");
 }
 
 #[test]
@@ -214,7 +213,7 @@ fn html_preserve_attr_flag_decodes_html_entities_in_attribute_value() {
         .write_stdin("<p data-tag=\"A&amp;B\">漢字</p><p data-tag=\"AB\">漢字</p>")
         .assert()
         .success()
-        .stdout("<p data-tag=\"A&amp;B\">漢字</p><p data-tag=\"AB\">한자(漢字)</p>");
+        .stdout("<p data-tag=\"A&amp;B\">漢字</p><p data-tag=\"AB\">한자</p>");
 }
 
 #[test]
@@ -237,7 +236,7 @@ fn html_preserve_flags_compose_or_semantics() {
         .assert()
         .success()
         .stdout(
-            "<p class=\"skip\">漢字</p><p data-no-mt>漢字</p><p class=\"no-translate\">漢字</p><p>한자(漢字)</p>",
+            "<p class=\"skip\">漢字</p><p data-no-mt>漢字</p><p class=\"no-translate\">漢字</p><p>한자</p>",
         );
 }
 
