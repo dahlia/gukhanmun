@@ -26,10 +26,10 @@ use gukhanmun::html::{HtmlElementInfo, HtmlFragmentReader, HtmlFragmentWriter, H
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
     Builder, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter, HanjaDictionary,
-    HomophoneMarker, InputToken, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData,
-    Preset as UmbrellaPreset, RecoverableInputError, Recovery, RenderMode, RenderOptions,
-    RenderedToken, Renderer, RubyBase, SegmentationStrategy, UserDirectives, apply_user_directives,
-    recover_input_token, render_tokens_iter, write_plain_text,
+    HomophoneDetection, HomophoneMarker, InputToken, NumeralStrategy, OriginalGloss, OutputToken,
+    PlainScopeData, Preset as UmbrellaPreset, RecoverableInputError, Recovery, RenderMode,
+    RenderOptions, RenderedToken, Renderer, RubyBase, SegmentationStrategy, UserDirectives,
+    apply_user_directives, recover_input_token, render_tokens_iter, write_plain_text,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -166,6 +166,12 @@ struct RenderingPolicyArgs {
     #[arg(long, value_enum)]
     disambiguation: Option<CliContextWindow>,
 
+    /// Homophone detection strategy.  context-local glosses a reading only when
+    /// a different-meaning homophone appears within the disambiguation window;
+    /// dictionary-wide also glosses readings shared by other dictionary entries.
+    #[arg(long = "homophone-detection", value_enum)]
+    homophone_detection: Option<CliHomophoneDetection>,
+
     /// Context for clearing repeated dictionary presentation requirements.
     /// off leaves every occurrence as marked by dictionaries and directives.
     #[arg(long, value_enum)]
@@ -288,6 +294,12 @@ enum CliContextWindow {
     PerBlock,
     PerSection,
     PerDocument,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum CliHomophoneDetection {
+    ContextLocal,
+    DictionaryWide,
 }
 
 fn main() -> Result<()> {
@@ -482,6 +494,9 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
 
     if let Some(disambiguation) = cli.rendering.disambiguation {
         builder = builder.homophone_window(disambiguation.into());
+    }
+    if let Some(detection) = cli.rendering.homophone_detection {
+        builder = builder.homophone_detection(detection.into());
     }
     if let Some(first_occurrence) = cli.rendering.first_occurrence {
         builder = builder.first_occurrence_window(first_occurrence.into());
@@ -1110,7 +1125,11 @@ fn convert_html_document(
     let mut reader = HtmlFragmentReader::with_options(converter.html_reader_options());
     let mut engine =
         Engine::<HtmlScopeData, _>::with_options(converter.dictionary(), options.engine);
-    let mut homophones = HomophoneMarker::new(converter.dictionary(), options.homophone_window);
+    let mut homophones = HomophoneMarker::with_detection(
+        converter.dictionary(),
+        options.homophone_window,
+        options.homophone_detection,
+    );
     let mut first_occurrences = FirstOccurrenceFilter::new(options.first_occurrence_window);
     let mut renderer = Renderer::new(options.rendering);
     let mut writer = HtmlFragmentWriter::new(output);
@@ -1401,6 +1420,15 @@ impl From<CliContextWindow> for ContextWindow {
             CliContextWindow::PerBlock => Self::PerBlock,
             CliContextWindow::PerSection => Self::PerSection,
             CliContextWindow::PerDocument => Self::PerDocument,
+        }
+    }
+}
+
+impl From<CliHomophoneDetection> for HomophoneDetection {
+    fn from(detection: CliHomophoneDetection) -> Self {
+        match detection {
+            CliHomophoneDetection::ContextLocal => Self::ContextLocal,
+            CliHomophoneDetection::DictionaryWide => Self::DictionaryWide,
         }
     }
 }

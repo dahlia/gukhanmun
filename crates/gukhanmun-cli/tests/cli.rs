@@ -34,7 +34,11 @@ fn converts_stdin_to_stdout_with_bundled_stdict_by_default() {
         .write_stdin("漢字 北京 標識 一分錢 布告하다 佈告하다\n")
         .assert()
         .success()
-        .stdout("한자(漢字) 베이징 표지(標識) 일푼전 포고하다(布告하다) 포고하다(佈告하다)\n");
+        // 漢字 keeps its gloss via the bundled require-hanja rule; 布告하다 and
+        // 佈告하다 share 포고하다 within the line, so the default context-local
+        // detection glosses both.  標識 has no in-text homophone here and is
+        // therefore left as plain hangul.
+        .stdout("한자(漢字) 베이징 표지 일푼전 포고하다(布告하다) 포고하다(佈告하다)\n");
 }
 
 #[test]
@@ -601,6 +605,8 @@ fn disambiguation_per_document_marks_dictionary_homophones() {
             dictionary.to_str().unwrap(),
             "--disambiguation",
             "per-document",
+            "--homophone-detection",
+            "dictionary-wide",
         ])
         .write_stdin("漢字\n")
         .assert()

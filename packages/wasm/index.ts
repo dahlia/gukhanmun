@@ -28,6 +28,7 @@ import type {
   Format,
   Gukhanmun,
   GukhanmunOptions,
+  HomophoneDetection,
   NumeralStrategy,
   Preset,
   Recovery,
@@ -46,6 +47,7 @@ export type {
   Gukhanmun,
   GukhanmunFactory,
   GukhanmunOptions,
+  HomophoneDetection,
   HtmlOptions,
   NumeralStrategy,
   OriginalGloss,
@@ -279,6 +281,7 @@ interface ResolvedOptions {
   readonly numerals: NumeralStrategy;
   readonly initialSoundLaw: boolean;
   readonly homophoneWindow: ContextWindow;
+  readonly homophoneDetection: HomophoneDetection;
   readonly firstOccurrenceWindow: ContextWindow;
   readonly recovery: Recovery;
 }
@@ -375,6 +378,7 @@ function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
     numerals: opts.numerals ?? "hangul-phonetic",
     initialSoundLaw: opts.initialSoundLaw ?? (koKp ? false : true),
     homophoneWindow: opts.homophoneWindow ?? (koKp ? "off" : "per-block"),
+    homophoneDetection: opts.homophoneDetection ?? "context-local",
     firstOccurrenceWindow: opts.firstOccurrenceWindow ?? "off",
     recovery: opts.recovery ?? "strict",
   };
@@ -433,6 +437,7 @@ function buildRawOptions(
     numerals: resolved.numerals,
     initialSoundLaw: resolved.initialSoundLaw,
     homophoneWindow: resolved.homophoneWindow,
+    homophoneDetection: resolved.homophoneDetection,
     firstOccurrenceWindow: resolved.firstOccurrenceWindow,
     recovery: resolved.recovery,
   };

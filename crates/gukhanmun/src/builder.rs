@@ -18,11 +18,11 @@
 
 use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter,
-    HanjaDictionary, HomophoneMarker, InputToken, NumeralStrategy, OutputToken, PlainScopeData,
-    Recovery, RenderOptions, RenderedToken, ScopeData, SegmentationStrategy, UserDirectives,
-    apply_user_directives, apply_user_directives_iter, filter_first_occurrences, mark_homophones,
-    process_tokens_iter_with_options, read_plain_text, recover_input_tokens, render_tokens_iter,
-    write_plain_text,
+    HanjaDictionary, HomophoneDetection, HomophoneMarker, InputToken, NumeralStrategy, OutputToken,
+    PlainScopeData, Recovery, RenderOptions, RenderedToken, ScopeData, SegmentationStrategy,
+    UserDirectives, apply_user_directives, apply_user_directives_iter, filter_first_occurrences,
+    mark_homophones_with_detection, process_tokens_iter_with_options, read_plain_text,
+    recover_input_tokens, render_tokens_iter, write_plain_text,
 };
 
 #[cfg(not(feature = "stdict"))]
@@ -156,6 +156,16 @@ impl<'a> Builder<'a> {
     /// Sets the homophone disambiguation context window.
     pub fn homophone_window(mut self, window: ContextWindow) -> Self {
         self.options.homophone_window = window;
+        self
+    }
+
+    /// Sets the homophone detection strategy.
+    ///
+    /// Defaults to [`HomophoneDetection::ContextLocal`]; pass
+    /// [`HomophoneDetection::DictionaryWide`] to gloss readings shared by other
+    /// dictionary entries even when no homophone appears in the text.
+    pub fn homophone_detection(mut self, detection: HomophoneDetection) -> Self {
+        self.options.homophone_detection = detection;
         self
     }
 
@@ -462,7 +472,11 @@ impl<'a> Converter<'a> {
         };
         let homophone_iter = MiddlewareIter::new(
             engine_iter,
-            HomophoneMarker::new(&self.dictionary, self.options.homophone_window),
+            HomophoneMarker::with_detection(
+                &self.dictionary,
+                self.options.homophone_window,
+                self.options.homophone_detection,
+            ),
             HomophoneMarker::push_token,
             HomophoneMarker::finish,
         );
@@ -485,10 +499,11 @@ impl<'a> Converter<'a> {
     {
         let output_tokens =
             process_tokens_iter_with_options(input_tokens, &self.dictionary, self.options.engine);
-        let output_tokens = mark_homophones(
+        let output_tokens = mark_homophones_with_detection(
             output_tokens,
             &self.dictionary,
             self.options.homophone_window,
+            self.options.homophone_detection,
         );
         let output_tokens =
             filter_first_occurrences(output_tokens, self.options.first_occurrence_window);

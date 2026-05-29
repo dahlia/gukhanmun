@@ -111,9 +111,10 @@ text that follows North Korean spelling conventions.
 Homophone disambiguation window
 -------------------------------
 
-When the same hanja character appears multiple times, Gukhanmun can mark
-repeated occurrences to help readers distinguish homophones.
-`homophoneWindow` sets the scope across which repetitions are tracked:
+Different hanja words can share the same hangul reading (for example, 連霸 and
+連敗 are both 연패).  In `"hangul-only"` rendering mode, Gukhanmun can keep the
+hanja in parentheses for such words so readers can tell them apart.
+`homophoneWindow` sets the scope across which a reading is considered ambiguous:
 
 | Value                               | Behaviour                                        |
 | ----------------------------------- | ------------------------------------------------ |
@@ -132,8 +133,35 @@ const g = await load({ homophoneWindow: "per-section" });
 const g = await load({ homophoneWindow: "per-document" });
 ~~~~
 
-Wider windows are appropriate for dense hanja texts where the same character
-recurs across many sections.
+Wider windows are appropriate for dense hanja texts where readings recur across
+many sections.
+
+
+Homophone detection strategy
+----------------------------
+
+`homophoneDetection` chooses *which* readings count as ambiguous within the
+window:
+
+| Value                       | Behaviour                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `"context-local"` (default) | Gloss a word only when a different-meaning homophone actually appears in the window. |
+| `"dictionary-wide"`         | Also gloss readings shared by other hanja forms anywhere in the dictionary.          |
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({ homophoneDetection: "context-local" });    // default
+const g = await load({ homophoneDetection: "dictionary-wide" });
+~~~~
+
+`"context-local"` keeps hangul-only output clean: a word is glossed only when
+the surrounding text genuinely makes it ambiguous.  `"dictionary-wide"` is
+broader, but with a large reference dictionary such as the Standard Korean
+Dictionary nearly every common reading has some homophone, so it glosses most
+Sino-Korean words.  To always gloss a specific word regardless of context, use
+a `requireHanja` directive instead (see [*User directives*](./directives.md)).
 
 
 First-occurrence clearing window

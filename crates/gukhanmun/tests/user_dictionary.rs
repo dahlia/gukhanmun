@@ -16,7 +16,7 @@
 
 //! Custom-dictionary and user-directive composition tests.
 
-use gukhanmun::{Builder, ContextWindow, DirectiveAction, MapDictionary};
+use gukhanmun::{Builder, ContextWindow, DirectiveAction, HomophoneDetection, MapDictionary};
 
 #[test]
 fn earlier_dictionaries_win_over_later_ones() {
@@ -37,7 +37,7 @@ fn earlier_dictionaries_win_over_later_ones() {
 }
 
 #[test]
-fn homophone_marker_emits_hanja_when_window_active() {
+fn context_local_detection_emits_hanja_for_in_text_collision() {
     let mut user = MapDictionary::new();
     user.insert("家長", "가장");
     user.insert("假裝", "가장");
@@ -47,6 +47,48 @@ fn homophone_marker_emits_hanja_when_window_active() {
         .homophone_window(ContextWindow::PerDocument)
         .build()
         .expect("builder");
+    // Both homophones share 가장 and both appear, so the default context-local
+    // strategy glosses each occurrence.
+    assert_eq!(
+        converter
+            .convert_text_to_string("家長과 假裝")
+            .expect("convert"),
+        "가장(家長)과 가장(假裝)"
+    );
+}
+
+#[test]
+fn context_local_detection_leaves_isolated_word_unglossed() {
+    let mut user = MapDictionary::new();
+    user.insert("家長", "가장");
+    user.insert("假裝", "가장");
+    let converter = Builder::new()
+        .no_bundled_stdict()
+        .push_dictionary(user)
+        .homophone_window(ContextWindow::PerDocument)
+        .build()
+        .expect("builder");
+    // 假裝 (가장) never appears, so 家長 is left as plain hangul by default.
+    assert_eq!(
+        converter.convert_text_to_string("家長").expect("convert"),
+        "가장"
+    );
+}
+
+#[test]
+fn dictionary_wide_detection_emits_hanja_without_in_text_collision() {
+    let mut user = MapDictionary::new();
+    user.insert("家長", "가장");
+    user.insert("假裝", "가장");
+    let converter = Builder::new()
+        .no_bundled_stdict()
+        .push_dictionary(user)
+        .homophone_window(ContextWindow::PerDocument)
+        .homophone_detection(HomophoneDetection::DictionaryWide)
+        .build()
+        .expect("builder");
+    // The opt-in dictionary-wide strategy glosses 家長 because 假裝 shares its
+    // reading in the dictionary, even though it is absent from the text.
     assert_eq!(
         converter.convert_text_to_string("家長").expect("convert"),
         "가장(家長)"

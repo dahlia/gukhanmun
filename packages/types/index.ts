@@ -164,6 +164,22 @@ export type NumeralStrategy =
  */
 export type ContextWindow = "off" | "per-block" | "per-section" | "per-document";
 
+// ── Homophone detection ──────────────────────────────────────────────────────
+
+/**
+ * Selects how the homophone marker decides that a reading needs its hanja shown
+ * in `rendering: "hangul-only"`.  Corresponds to Rust `HomophoneDetection`.
+ *
+ * - `"context-local"` — Gloss a reading only when a different-meaning homophone
+ *   actually appears within the {@link ContextWindow}.  This keeps hangul-only
+ *   output clean and is the default.
+ * - `"dictionary-wide"` — Also gloss readings shared by other hanja forms
+ *   anywhere in the dictionary, even when no homophone appears in the text.
+ *   With a large reference dictionary this glosses most Sino-Korean words; words
+ *   that should always be glossed are better expressed with `requireHanja`.
+ */
+export type HomophoneDetection = "context-local" | "dictionary-wide";
+
 // ── Recovery ───────────────────────────────────────────────────────────────
 
 /**
@@ -381,13 +397,22 @@ export interface GukhanmunOptions {
   readonly initialSoundLaw?: boolean;
   /**
    * Context window for homophone disambiguation.  The `HomophoneMarker`
-   * middleware sets `homophone = true` on annotations whose hangul reading is
-   * shared by another hanja form within this window.  Defaults to
-   * `"per-block"`.
+   * middleware sets `homophone = true` on annotations whose hangul reading
+   * collides within this window.  Defaults to `"per-block"`.
    *
    * @see {@link ContextWindow}
    */
   readonly homophoneWindow?: ContextWindow;
+  /**
+   * Strategy that decides which readings count as homophones needing a hanja
+   * gloss.  Defaults to `"context-local"`, which glosses a reading only when a
+   * different-meaning homophone appears within {@link homophoneWindow}.  Use
+   * `"dictionary-wide"` to also gloss readings shared by other dictionary
+   * entries.
+   *
+   * @see {@link HomophoneDetection}
+   */
+  readonly homophoneDetection?: HomophoneDetection;
   /**
    * Context window for first-occurrence filtering.  The
    * `FirstOccurrenceFilter` middleware clears `requireHanja` /

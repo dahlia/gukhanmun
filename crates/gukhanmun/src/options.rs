@@ -17,7 +17,8 @@
 //! Conversion presets and the consolidated option bag.
 
 use gukhanmun_core::{
-    ContextWindow, EngineOptions, NumeralStrategy, Recovery, RenderOptions, SegmentationStrategy,
+    ContextWindow, EngineOptions, HomophoneDetection, NumeralStrategy, Recovery, RenderOptions,
+    SegmentationStrategy,
 };
 
 /// Conversion preset that selects the orthographic conventions of a Korean
@@ -55,6 +56,7 @@ impl Preset {
                     numeral_strategy: NumeralStrategy::HangulPhonetic,
                 },
                 homophone_window: ContextWindow::PerBlock,
+                homophone_detection: HomophoneDetection::ContextLocal,
                 first_occurrence_window: ContextWindow::Off,
                 recovery: Recovery::Strict,
             },
@@ -66,6 +68,7 @@ impl Preset {
                     numeral_strategy: NumeralStrategy::HangulPhonetic,
                 },
                 homophone_window: ContextWindow::Off,
+                homophone_detection: HomophoneDetection::ContextLocal,
                 first_occurrence_window: ContextWindow::Off,
                 recovery: Recovery::Strict,
             },
@@ -97,6 +100,17 @@ pub struct ConversionOptions {
 
     /// Context window over which homophone disambiguation is computed.
     pub homophone_window: ContextWindow,
+
+    /// Strategy that decides which dictionary readings are treated as
+    /// homophones needing a parenthesized hanja gloss in
+    /// [`RenderMode::HangulOnly`](gukhanmun_core::RenderMode::HangulOnly).
+    ///
+    /// Defaults to [`HomophoneDetection::ContextLocal`], which glosses a word
+    /// only when a different-meaning homophone actually appears within the
+    /// [`homophone_window`](Self::homophone_window).  Switch to
+    /// [`HomophoneDetection::DictionaryWide`] to also gloss readings shared by
+    /// other entries anywhere in the dictionary.
+    pub homophone_detection: HomophoneDetection,
 
     /// Context window for clearing repeated `require_hanja` /
     /// `require_hangul` flags after the first occurrence of each hanja form.

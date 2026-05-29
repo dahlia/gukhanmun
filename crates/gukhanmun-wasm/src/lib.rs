@@ -36,8 +36,8 @@ use gukhanmun::fst::FstDictionary;
 use gukhanmun::html::HtmlElementInfo;
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
-    Builder, ContextWindow, Converter, DirectiveAction, NumeralStrategy, OriginalGloss, Preset,
-    Recovery, RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
+    Builder, ContextWindow, Converter, DirectiveAction, HomophoneDetection, NumeralStrategy,
+    OriginalGloss, Preset, Recovery, RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
 };
 
 // ── Option deserialization structs ──────────────────────────────────────────
@@ -52,6 +52,7 @@ struct JsOptions {
     numerals: Option<String>,
     initial_sound_law: Option<bool>,
     homophone_window: Option<String>,
+    homophone_detection: Option<String>,
     first_occurrence_window: Option<String>,
     recovery: Option<String>,
     directives: Option<JsDirectives>,
@@ -152,6 +153,9 @@ impl WasmGukhanmun {
         }
         if let Some(w) = &opts.homophone_window {
             builder = builder.homophone_window(parse_context_window(w)?);
+        }
+        if let Some(d) = &opts.homophone_detection {
+            builder = builder.homophone_detection(parse_homophone_detection(d)?);
         }
         if let Some(w) = &opts.first_occurrence_window {
             builder = builder.first_occurrence_window(parse_context_window(w)?);
@@ -438,6 +442,17 @@ fn parse_context_window(s: &str) -> Result<ContextWindow, JsValue> {
         other => Err(make_error(
             "invalid-input",
             &format!("unknown context window: {other}"),
+        )),
+    }
+}
+
+fn parse_homophone_detection(s: &str) -> Result<HomophoneDetection, JsValue> {
+    match s {
+        "context-local" => Ok(HomophoneDetection::ContextLocal),
+        "dictionary-wide" => Ok(HomophoneDetection::DictionaryWide),
+        other => Err(make_error(
+            "invalid-input",
+            &format!("unknown homophone detection: {other}"),
         )),
     }
 }

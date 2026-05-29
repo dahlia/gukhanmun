@@ -32,8 +32,8 @@
 mod common;
 
 use gukhanmun_core::{
-    ContextWindow, Engine, EngineOptions, InputToken, MapDictionary, OutputToken, PlainScopeData,
-    mark_homophones, process_tokens_with_options,
+    ContextWindow, Engine, EngineOptions, HomophoneDetection, InputToken, MapDictionary,
+    OutputToken, PlainScopeData, mark_homophones_with_detection, process_tokens_with_options,
 };
 
 fn run(
@@ -121,6 +121,11 @@ fn homophone_marker_flags_shared_reading() {
         &dict,
         EngineOptions::default(),
     );
-    let marked = mark_homophones(tokens, &dict, ContextWindow::PerBlock);
+    let marked = mark_homophones_with_detection(
+        tokens,
+        &dict,
+        ContextWindow::PerBlock,
+        HomophoneDetection::DictionaryWide,
+    );
     assert_snapshot!(common::tokens_to_snapshot_value(&marked));
 }

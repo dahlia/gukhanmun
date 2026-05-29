@@ -7,6 +7,7 @@ import type {
   Format,
   Gukhanmun,
   GukhanmunOptions,
+  HomophoneDetection,
   NumeralStrategy,
   OriginalGloss,
   Preset,
@@ -113,6 +114,11 @@ const WINDOW_OPTIONS: [ContextWindow, string][] = [
   ["per-block", "Per block"],
   ["per-section", "Per section"],
   ["per-document", "Per document"],
+];
+
+const DETECTION_OPTIONS: [HomophoneDetection, string][] = [
+  ["context-local", "Context-local"],
+  ["dictionary-wide", "Dictionary-wide"],
 ];
 
 const RECOVERY_OPTIONS: [Recovery, string][] = [
@@ -234,6 +240,9 @@ export function Playground() {
   const [numerals, setNumerals] = useState<NumeralStrategy>("hangul-phonetic");
   const [initialSoundLaw, setInitialSoundLaw] = useState(true);
   const [homophoneWindow, setHomophoneWindow] = useState<ContextWindow>("per-block");
+  const [homophoneDetection, setHomophoneDetection] = useState<HomophoneDetection>(
+    "context-local",
+  );
   const [firstOccurrenceWindow, setFirstOccurrenceWindow] = useState<ContextWindow>("off");
   const [recovery, setRecovery] = useState<Recovery>("strict");
   const [requireHanja, setRequireHanja] = useState("");
@@ -269,6 +278,7 @@ export function Playground() {
       numerals,
       initialSoundLaw,
       homophoneWindow,
+      homophoneDetection,
       firstOccurrenceWindow,
       recovery,
       dictionaries: useDictionary && dictRef.current
@@ -360,6 +370,7 @@ export function Playground() {
     numerals,
     initialSoundLaw,
     homophoneWindow,
+    homophoneDetection,
     firstOccurrenceWindow,
     recovery,
     requireHanja,
@@ -459,6 +470,12 @@ export function Playground() {
               value={homophoneWindow}
               options={WINDOW_OPTIONS}
               onChange={setHomophoneWindow}
+            />
+            <Field
+              label="Homophone detection"
+              value={homophoneDetection}
+              options={DETECTION_OPTIONS}
+              onChange={setHomophoneDetection}
             />
             <Field
               label="First-occurrence window"

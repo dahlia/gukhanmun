@@ -1846,6 +1846,35 @@ pub enum ContextWindow {
     PerDocument,
 }
 
+/// How homophone disambiguation decides that an annotation needs its hanja
+/// shown in [`RenderMode::HangulOnly`].
+///
+/// The two strategies differ in what counts as a homophone collision:
+///
+/// `ContextLocal` (the default) marks an annotation only when another reading
+/// with a *different* hanja form actually appears within the same context
+/// window.  This keeps hangul-only output clean: a Sino-Korean word is glossed
+/// only when the surrounding text genuinely makes it ambiguous.
+///
+/// `DictionaryWide` additionally marks an annotation whenever its reading is
+/// shared by any other hanja form anywhere in the dictionary, regardless of
+/// whether those alternatives occur in the text.  With a large reference
+/// dictionary such as the Standard Korean Dictionary almost every common
+/// reading has some homophone, so this strategy glosses most Sino-Korean
+/// words.  It is preserved as an opt-in for callers that want maximal
+/// disambiguation; words that should always be glossed regardless of context
+/// are better expressed through [`MatchMark::require_hanja`].
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum HomophoneDetection {
+    /// Mark only readings that collide within the active context window.
+    #[default]
+    ContextLocal,
+
+    /// Also mark readings shared by other hanja forms anywhere in the
+    /// dictionary.
+    DictionaryWide,
+}
+
 /// Action applied when a user directive predicate matches an annotation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DirectiveAction {
@@ -1962,11 +1991,9 @@ impl UserDirectivePredicate<'_> {
 
 /// Sets `homophone` on dictionary annotations sharing a reading.
 ///
-/// The marker builds one optional homophone index from the supplied dictionary
-/// and falls back to [`HanjaDictionary::has_homophone`] for lookup-only
-/// dictionaries. It also preserves the context-local heuristic. Fallback
-/// annotations are ignored because they are phonetic fragments rather than
-/// known lexical homophones.
+/// Uses [`HomophoneDetection::ContextLocal`], marking only readings that
+/// collide within the active context window.  Use
+/// [`mark_homophones_with_detection`] to opt into dictionary-wide marking.
 pub fn mark_homophones<S, D>(
     tokens: impl IntoIterator<Item = OutputToken<S>>,
     dictionary: &D,
@@ -1976,12 +2003,42 @@ where
     S: ScopeData,
     D: HanjaDictionary + ?Sized,
 {
+    mark_homophones_with_detection(tokens, dictionary, window, HomophoneDetection::ContextLocal)
+}
+
+/// Sets `homophone` on dictionary annotations sharing a reading, choosing the
+/// detection strategy explicitly.
+///
+/// With [`HomophoneDetection::ContextLocal`] an annotation is marked only when
+/// another hanja form with the same reading occurs within the context window,
+/// so no dictionary index is built.  With
+/// [`HomophoneDetection::DictionaryWide`] the marker also builds one homophone
+/// index from the supplied dictionary and falls back to
+/// [`HanjaDictionary::has_homophone`] for lookup-only dictionaries.  Fallback
+/// (non-dictionary) annotations are ignored either way because they are
+/// phonetic fragments rather than known lexical homophones.
+pub fn mark_homophones_with_detection<S, D>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    dictionary: &D,
+    window: ContextWindow,
+    detection: HomophoneDetection,
+) -> Vec<OutputToken<S>>
+where
+    S: ScopeData,
+    D: HanjaDictionary + ?Sized,
+{
     if window == ContextWindow::Off {
         return tokens.into_iter().collect();
     }
 
-    let index = HomophoneIndex::from_dictionary(dictionary);
-    let lookup_fallback = index.is_none().then_some(dictionary);
+    let index = match detection {
+        HomophoneDetection::ContextLocal => None,
+        HomophoneDetection::DictionaryWide => HomophoneIndex::from_dictionary(dictionary),
+    };
+    let lookup_fallback = match detection {
+        HomophoneDetection::ContextLocal => None,
+        HomophoneDetection::DictionaryWide => index.is_none().then_some(dictionary),
+    };
     ContextMiddleware::new(window, |tokens| {
         mark_homophones_in_context(tokens, index.as_ref(), lookup_fallback);
     })
@@ -2024,17 +2081,42 @@ impl<'a, S> HomophoneMarker<'a, S>
 where
     S: ScopeData,
 {
-    /// Creates a homophone marker for the selected context window.
+    /// Creates a homophone marker for the selected context window using
+    /// [`HomophoneDetection::ContextLocal`].
+    ///
+    /// Use [`HomophoneMarker::with_detection`] to opt into dictionary-wide
+    /// marking.
     pub fn new<D>(dictionary: &'a D, window: ContextWindow) -> Self
     where
         D: HanjaDictionary + ?Sized,
     {
-        let index = if window == ContextWindow::Off {
-            None
-        } else {
-            HomophoneIndex::from_dictionary(dictionary)
+        Self::with_detection(dictionary, window, HomophoneDetection::ContextLocal)
+    }
+
+    /// Creates a homophone marker for the selected context window and detection
+    /// strategy.
+    ///
+    /// With [`HomophoneDetection::ContextLocal`] no dictionary index is built;
+    /// only readings that collide within the context window are marked.  With
+    /// [`HomophoneDetection::DictionaryWide`] a homophone index (or
+    /// [`HanjaDictionary::has_homophone`] fallback) is consulted as well.
+    pub fn with_detection<D>(
+        dictionary: &'a D,
+        window: ContextWindow,
+        detection: HomophoneDetection,
+    ) -> Self
+    where
+        D: HanjaDictionary + ?Sized,
+    {
+        let index = match detection {
+            _ if window == ContextWindow::Off => None,
+            HomophoneDetection::ContextLocal => None,
+            HomophoneDetection::DictionaryWide => HomophoneIndex::from_dictionary(dictionary),
         };
-        let lookup_fallback = index.is_none().then_some(dictionary);
+        let lookup_fallback = match detection {
+            HomophoneDetection::ContextLocal => None,
+            HomophoneDetection::DictionaryWide => index.is_none().then_some(dictionary),
+        };
         Self {
             inner: ContextMiddleware::new(
                 window,

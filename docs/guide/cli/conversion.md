@@ -85,9 +85,11 @@ gukhanmun --initial-sound-law input.txt     # enable (redundant for ko-kr)
 Homophone disambiguation
 ------------------------
 
-When the same hanja appears multiple times in a window, Gukhanmun can mark
-repeated occurrences so readers can tell them apart.  `--disambiguation`
-sets the scope of that window:
+Different hanja words can share the same hangul reading (for example, 連霸 and
+連敗 are both 연패).  In the default `hangul-only` rendering mode, Gukhanmun
+can keep the hanja in parentheses for such words so readers can tell them
+apart. `--disambiguation` sets the scope across which a reading is considered
+ambiguous:
 
 | Value                             | Behaviour                                  |
 | --------------------------------- | ------------------------------------------ |
@@ -99,6 +101,24 @@ sets the scope of that window:
 ~~~~ sh
 gukhanmun --disambiguation per-section input.txt
 ~~~~
+
+`--homophone-detection` chooses which readings count as ambiguous within the
+window:
+
+| Value                     | Behaviour                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `context-local` (default) | Gloss a word only when a different-meaning homophone actually appears in the window. |
+| `dictionary-wide`         | Also gloss readings shared by other hanja forms anywhere in the dictionary.          |
+
+~~~~ sh
+gukhanmun --homophone-detection dictionary-wide input.txt
+~~~~
+
+`context-local` keeps hangul-only output clean.  `dictionary-wide` is broader,
+but with the bundled Standard Korean Dictionary nearly every common reading has
+some homophone, so it glosses most Sino-Korean words.  To always gloss a
+specific word regardless of context, use the `--require-hanja` flag instead
+(see [*User directives*](./directives.md)).
 
 
 First-occurrence clearing

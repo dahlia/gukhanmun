@@ -1,0 +1,13 @@
+description = """
+Opening paragraph of the Constitution of the Republic of Korea, converted with
+the bundled Standard Korean Dictionary in the default `hangul` rendering mode.
+
+Pins the context-local homophone-detection default: a Sino-Korean word is glossed
+with parenthesized hanja only when a different-meaning homophone actually appears
+within the same paragraph.  No word in this paragraph has an in-paragraph
+homophone, and none match a bundled `require_hanja` rule, so the whole text
+renders as plain hangul.  Under the old dictionary-wide default most of these
+words were needlessly glossed.
+"""
+preset = "ko-kr"
+use_bundled_stdict = true

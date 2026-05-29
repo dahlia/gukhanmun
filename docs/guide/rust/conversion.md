@@ -86,9 +86,11 @@ characters not found in any dictionary:
 Homophone disambiguation window
 -------------------------------
 
-When the same hanja character appears multiple times, Gukhanmun can mark
-repeated occurrences to help readers distinguish homophones.
-`homophone_window` sets the scope across which repetitions are tracked:
+Different hanja words can share the same hangul reading (for example, 連霸 and
+連敗 are both 연패).  In `RenderMode::HangulOnly`, Gukhanmun can keep the hanja
+in parentheses for such words so readers can tell them apart.
+`homophone_window` sets the scope across which a reading is considered
+ambiguous:
 
 | Value                                    | Behaviour                                        |
 | ---------------------------------------- | ------------------------------------------------ |
@@ -106,8 +108,35 @@ builder.homophone_window(ContextWindow::PerSection);
 builder.homophone_window(ContextWindow::PerDocument);
 ~~~~
 
-Wider windows are appropriate for dense hanja texts where the same character
-recurs across many sections.
+Wider windows are appropriate for dense hanja texts where readings recur across
+many sections.
+
+
+Homophone detection strategy
+----------------------------
+
+`homophone_detection` chooses *which* readings count as ambiguous within the
+window:
+
+| Value                                        | Behaviour                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `HomophoneDetection::ContextLocal` (default) | Gloss a word only when a different-meaning homophone actually appears in the window. |
+| `HomophoneDetection::DictionaryWide`         | Also gloss readings shared by other hanja forms anywhere in the dictionary.          |
+
+~~~~ rust
+use gukhanmun::HomophoneDetection;
+
+builder.homophone_detection(HomophoneDetection::ContextLocal);    // default
+builder.homophone_detection(HomophoneDetection::DictionaryWide);
+~~~~
+
+`ContextLocal` keeps hangul-only output clean: a word is glossed only when the
+surrounding text genuinely makes it ambiguous.  `DictionaryWide` is broader, but
+with a large reference dictionary such as the bundled Standard Korean Dictionary
+nearly every common reading has some homophone, so it glosses most Sino-Korean
+words.  To always gloss a specific word regardless of context, use a
+`DirectiveAction::RequireHanja` directive instead (see
+[*User directives*](./directives.md)).
 
 
 First-occurrence clearing window
