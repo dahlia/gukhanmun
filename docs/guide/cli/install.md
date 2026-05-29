@@ -50,6 +50,14 @@ Download the archive for your platform, extract it, and place the `gukhanmun`
 binary somewhere on your `PATH`.
 
 
+The `gukhanmun-mkdict` companion
+--------------------------------
+
+The mise install and the prebuilt archives also include `gukhanmun-mkdict`, the
+tool for compiling [custom dictionaries](/guide/cli/dictionary).  No separate
+installation step is needed.
+
+
 Verify the installation
 -----------------------
 

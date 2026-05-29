@@ -27,6 +27,26 @@
   order: 1;
 }
 
+/* Body link affordance.  The achromatic brand color leaves in-prose links
+   nearly indistinguishable from surrounding text (Rspress colors body links
+   with --rp-c-brand-dark and adds no underline at rest).  Rather than adding
+   hue, restore affordance with a persistent underline.  The scope mirrors
+   Rspress's own `.rp-doc a.rp-link` rule, so only prose links are affected,
+   not nav, sidebar, TOC, or heading anchors.  Avoiding :where() keeps this
+   more specific than the built-in rule, so it wins regardless of load order. */
+.rp-doc a.rp-link:not(.rp-header-anchor) {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+/* On hover Rspress adds a 1px border-bottom; with the persistent underline
+   that reads as a double line, so replace it with a thicker underline. */
+.rp-doc a.rp-link:not(.rp-header-anchor):hover {
+  border-bottom: none;
+  text-decoration-thickness: 2px;
+}
+
 .dark {
   /* Brand: silver */
   --rp-c-brand: #d0d0d0;

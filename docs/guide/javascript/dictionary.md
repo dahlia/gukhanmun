@@ -116,3 +116,12 @@ const g = await load({
   ],
 });
 ~~~~
+
+
+Building a custom dictionary
+----------------------------
+
+The *.gukfst* and *.gukcdb* files loaded above are compiled artifacts, built
+from a plain text table with the `gukhanmun-mkdict` tool.  See
+[*Building a custom dictionary*](../cli/dictionary.md#building-a-custom-dictionary)
+in the CLI guide for how to author and compile dictionary sources.

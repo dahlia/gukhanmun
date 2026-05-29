@@ -9,6 +9,14 @@ file with a hanja key in the first column and a hangul reading in the second.
 Installation
 ------------
 
+The `gukhanmun-mkdict` binary is bundled alongside `gukhanmun`, so installing
+the CLI via mise or from a prebuilt release archive installs the builder too,
+with no Rust toolchain required:
+
+<https://github.com/dahlia/gukhanmun/releases>
+
+With a Rust toolchain, you can also install it from crates.io:
+
 ~~~~ sh
 cargo install gukhanmun-mkdict
 ~~~~
@@ -53,8 +61,8 @@ gukhanmun-mkdict --output stdict.gukfst \
     --metadata built=$(date -I) \
     words.tsv
 
-# Validate entries without writing output:
-gukhanmun-mkdict --validate words.tsv
+# Write the dictionary and verify every entry round-trips:
+gukhanmun-mkdict --validate --output stdict.gukfst words.tsv
 ~~~~
 
 

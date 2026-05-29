@@ -101,6 +101,11 @@ Follow these prose conventions:
  -  Write “hangul” and “hanja” in lowercase; they are common nouns, not proper
     nouns.  Ethnic and language names are proper nouns and take an initial
     capital: Korean, Sino-Korean, Chinese.
+ -  When linking between pages of the Rspress documentation site under *docs/*,
+    use a relative path ending in the `.md` or `.mdx` extension, optionally
+    followed by an anchor (for example,
+    `../cli/dictionary.md#building-a-custom-dictionary`).  The explicit
+    extension keeps the anchor intact through `hongdown`.
 
 
 Testing

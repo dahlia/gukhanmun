@@ -74,6 +74,16 @@ After editing any Markdown file, format it with `hongdown`:
 hongdown -w path/to/file.md
 ~~~~
 
+When linking from one documentation page to another, use a relative path that
+ends in the `.md` or `.mdx` extension, optionally followed by an anchor:
+
+~~~~ md
+See [building a custom dictionary](../cli/dictionary.md#building-a-custom-dictionary).
+~~~~
+
+Rspress resolves these to the right route, and the explicit extension keeps the
+anchor intact through `hongdown`.
+
 For prose conventions (sentence case, em dash avoidance, italics for paths,
 etc.), see the *Writing docs* section of
 [*CONTRIBUTING.md*](../CONTRIBUTING.md).
