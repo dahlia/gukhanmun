@@ -60,6 +60,9 @@ struct Cli {
     #[command(flatten)]
     html: HtmlArgs,
 
+    #[command(flatten)]
+    markdown: MarkdownArgs,
+
     /// Enable debug-level logging to stderr.  Equivalent to RUST_LOG=debug
     /// when RUST_LOG is not already set.  Use RUST_LOG for finer control
     /// (e.g. RUST_LOG=trace).
@@ -240,6 +243,21 @@ struct HtmlArgs {
     html_preserve_attr: Vec<String>,
 }
 
+#[derive(Debug, Args)]
+#[command(next_help_heading = "Markdown")]
+struct MarkdownArgs {
+    /// Also convert selected YAML front matter values, addressed by a JSONPath
+    /// expression (for example `$.hero.tagline` or `$.hero.actions[*].text`).
+    /// Each matched string scalar is converted from mixed script to hangul;
+    /// non-string matches are left untouched.  May be repeated.  The whole
+    /// front matter block is reformatted on output, but only matched values
+    /// change.  When given without a leading YAML front matter block, a warning
+    /// is logged and only the Markdown body is converted.  Only valid with
+    /// `--format text/markdown`.
+    #[arg(long = "markdown-frontmatter-convert", value_name = "JSONPATH")]
+    frontmatter_convert: Vec<String>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Format {
     PlainText,
@@ -323,12 +341,22 @@ fn run(cli: Cli) -> Result<()> {
             .map(detect_format)
             .unwrap_or(Format::PlainText)
     });
+    if !cli.markdown.frontmatter_convert.is_empty() && !matches!(format, Format::Markdown(_)) {
+        bail!("--markdown-frontmatter-convert is only valid with --format text/markdown");
+    }
     let converter = build_converter(&cli, format)?;
+    let frontmatter_selectors = cli.markdown.frontmatter_convert.as_slice();
 
     if let (Some(input_path), Some(output_path)) = (&cli.io.input, &cli.io.output)
         && is_same_existing_file(input_path, output_path)?
     {
-        return convert_file_in_place(input_path, output_path, &converter, format);
+        return convert_file_in_place(
+            input_path,
+            output_path,
+            &converter,
+            format,
+            frontmatter_selectors,
+        );
     }
 
     let input: Box<dyn BufRead> = match &cli.io.input {
@@ -347,7 +375,7 @@ fn run(cli: Cli) -> Result<()> {
         None => Box::new(BufWriter::new(io::stdout().lock())),
     };
 
-    convert_document(input, output, &converter, format)
+    convert_document(input, output, &converter, format, frontmatter_selectors)
 }
 
 fn convert_file_in_place(
@@ -355,6 +383,7 @@ fn convert_file_in_place(
     output_path: &Path,
     converter: &gukhanmun::Converter<'_>,
     format: Format,
+    frontmatter_selectors: &[String],
 ) -> Result<()> {
     let original_permissions = fs::metadata(input_path)
         .with_context(|| format!("failed to inspect input {}", input_path.display()))?
@@ -374,7 +403,7 @@ fn convert_file_in_place(
                 .with_context(|| format!("failed to open input {}", input_path.display()))?,
         );
         let output = BufWriter::new(temp_file);
-        convert_document(input, output, converter, format)?;
+        convert_document(input, output, converter, format, frontmatter_selectors)?;
         fs::rename(&temp_path, output_path).with_context(|| {
             format!(
                 "failed to replace {} with temporary output {}",
@@ -920,11 +949,14 @@ fn convert_document(
     output: impl Write,
     converter: &gukhanmun::Converter<'_>,
     format: Format,
+    frontmatter_selectors: &[String],
 ) -> Result<()> {
     match format {
         Format::PlainText => convert_plain_document(input, output, converter),
         Format::Html => convert_html_document(input, output, converter),
-        Format::Markdown(variant) => convert_markdown_document(input, output, converter, variant),
+        Format::Markdown(variant) => {
+            convert_markdown_document(input, output, converter, variant, frontmatter_selectors)
+        }
     }
 }
 
@@ -1347,20 +1379,160 @@ fn convert_markdown_document(
     mut output: impl Write,
     converter: &gukhanmun::Converter<'_>,
     variant: MarkdownVariant,
+    frontmatter_selectors: &[String],
 ) -> Result<()> {
     let mut content = String::new();
     input
         .read_to_string(&mut content)
         .context("failed to read UTF-8 input")?;
-    let converted = converter
-        .convert_markdown_to_string(&content, variant)
+
+    // A leading YAML front matter block is always split off so it is never
+    // mangled by the Markdown converter.  By default it passes through verbatim;
+    // it is only parsed and (selectively) converted when JSONPath selectors are
+    // supplied.
+    let (front_matter, body) = match split_front_matter(&content) {
+        Some((raw, inner, body)) => (Some((raw, inner)), body),
+        None => {
+            if !frontmatter_selectors.is_empty() {
+                tracing::warn!(
+                    "--markdown-frontmatter-convert was given but the input has no YAML front \
+                     matter; converting the Markdown body only"
+                );
+            }
+            (None, content.as_str())
+        }
+    };
+
+    // hongdown must format the body alone: it would otherwise treat the `---`
+    // front matter fences as thematic breaks and reflow the YAML block.
+    let converted_body = converter
+        .convert_markdown_to_string(body, variant)
         .map_err(|error| anyhow::anyhow!("failed to convert Markdown: {error}"))?;
-    let converted = hongdown::format(&converted, &markdown_format_options())
+    let converted_body = hongdown::format(&converted_body, &markdown_format_options())
         .context("failed to format Markdown output")?;
+
+    if let Some((raw, inner)) = front_matter {
+        if frontmatter_selectors.is_empty() {
+            // No selectors: preserve the original front matter byte-for-byte.
+            output
+                .write_all(raw.as_bytes())
+                .context("failed to write output")?;
+        } else {
+            let converted_front_matter =
+                convert_front_matter(inner, frontmatter_selectors, converter)?;
+            output
+                .write_all(b"---\n")
+                .context("failed to write output")?;
+            output
+                .write_all(converted_front_matter.as_bytes())
+                .context("failed to write output")?;
+            output
+                .write_all(b"---\n")
+                .context("failed to write output")?;
+        }
+    }
     output
-        .write_all(converted.as_bytes())
+        .write_all(converted_body.as_bytes())
         .context("failed to write output")?;
     output.flush().context("failed to flush output")
+}
+
+/// Splits a leading YAML front matter block from a Markdown document.
+///
+/// Returns `Some((raw, inner, body))` when `content` begins with a line that is
+/// exactly `---` (trailing whitespace and an optional leading UTF-8 BOM are
+/// tolerated) and a later line is exactly `---` or `...`.  `raw` is the whole
+/// original block including any leading BOM and both delimiter lines (so
+/// passthrough stays byte-for-byte), `inner` is the text between the fences (for
+/// parsing), and `body` is the remainder after the closing fence.  `raw` and
+/// `body` together reconstruct `content` exactly.  Returns `None` when no such
+/// block is present, so a leading `---` without a closing fence stays ordinary
+/// Markdown.
+fn split_front_matter(content: &str) -> Option<(&str, &str, &str)> {
+    // Tolerate a leading BOM when detecting the opening fence, but keep it in
+    // `raw` so the byte-for-byte passthrough does not silently drop it.
+    let bom_len = if content.starts_with('\u{feff}') {
+        '\u{feff}'.len_utf8()
+    } else {
+        0
+    };
+    let after_bom = &content[bom_len..];
+    let first_newline = after_bom.find('\n')?;
+    if after_bom[..first_newline].trim_end() != "---" {
+        return None;
+    }
+    let after_open = bom_len + first_newline + 1;
+    let rest = &content[after_open..];
+
+    let mut offset = 0;
+    for line in rest.split_inclusive('\n') {
+        let trimmed = line.strip_suffix('\n').unwrap_or(line);
+        let trimmed = trimmed.strip_suffix('\r').unwrap_or(trimmed);
+        if matches!(trimmed.trim_end(), "---" | "...") {
+            let close_end = offset + line.len();
+            let raw = &content[..after_open + close_end];
+            let inner = &rest[..offset];
+            let body = &rest[close_end..];
+            return Some((raw, inner, body));
+        }
+        offset += line.len();
+    }
+    None
+}
+
+/// Converts the YAML front matter values addressed by the given JSONPath
+/// `selectors`, returning the re-serialised YAML (always newline-terminated).
+///
+/// Each matched string scalar is converted from mixed script to hangul via the
+/// plain-text converter; non-string matches are left untouched.  A selector
+/// that matches no node logs a warning and is skipped.  The block is round
+/// tripped through `serde_json::Value`, so the whole front matter is reformatted
+/// even though only matched values change.
+fn convert_front_matter(
+    yaml: &str,
+    selectors: &[String],
+    converter: &gukhanmun::Converter<'_>,
+) -> Result<String> {
+    use jsonpath_rust::JsonPath;
+    use jsonpath_rust::query::queryable::Queryable;
+
+    // An empty front matter block parses to a YAML null, which would serialise
+    // back as the literal `null`; preserve it verbatim instead.
+    if yaml.trim().is_empty() {
+        return Ok(if yaml.ends_with('\n') || yaml.is_empty() {
+            yaml.to_owned()
+        } else {
+            format!("{yaml}\n")
+        });
+    }
+
+    let mut value: serde_json::Value =
+        noyalib::from_str(yaml).context("failed to parse YAML front matter")?;
+
+    for selector in selectors {
+        let paths = value.query_only_path(selector).map_err(|error| {
+            anyhow::anyhow!("invalid front matter JSONPath `{selector}`: {error}")
+        })?;
+        if paths.is_empty() {
+            tracing::warn!("front matter JSONPath `{selector}` matched no nodes");
+            continue;
+        }
+        for path in paths {
+            if let Some(serde_json::Value::String(text)) = value.reference_mut(path) {
+                let converted = converter.convert_text_to_string(text).map_err(|error| {
+                    anyhow::anyhow!("failed to convert front matter value: {error}")
+                })?;
+                *text = converted;
+            }
+        }
+    }
+
+    let mut serialized =
+        noyalib::to_string(&value).context("failed to serialise YAML front matter")?;
+    if !serialized.ends_with('\n') {
+        serialized.push('\n');
+    }
+    Ok(serialized)
 }
 
 impl From<Rendering> for RenderMode {

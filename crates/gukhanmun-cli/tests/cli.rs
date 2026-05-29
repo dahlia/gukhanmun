@@ -1062,6 +1062,158 @@ fn format_text_markdown_gfm_variant_extra_whitespace_and_unknown_param() {
 }
 
 #[test]
+fn markdown_frontmatter_convert_converts_selected_field_only() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/markdown",
+            "--disambiguation",
+            "off",
+            "--markdown-frontmatter-convert",
+            "$.title",
+        ])
+        .write_stdin("---\ntitle: 北京\nsubtitle: 北京\n---\n\n# 北京\n")
+        .assert()
+        .success()
+        // `title` is converted; `subtitle` keeps its hanja; the body is converted.
+        .stdout("---\ntitle: 베이징\nsubtitle: 北京\n---\n베이징\n======\n");
+}
+
+#[test]
+fn markdown_frontmatter_convert_supports_wildcard_selector() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/markdown",
+            "--disambiguation",
+            "off",
+            "--markdown-frontmatter-convert",
+            "$.items[*].text",
+        ])
+        .write_stdin("---\nitems:\n  - text: 北京\n  - text: 北京\n---\n\nbody\n")
+        .assert()
+        .success()
+        .stdout("---\nitems:\n  - text: 베이징\n  - text: 베이징\n---\nbody\n");
+}
+
+#[test]
+fn markdown_frontmatter_convert_leaves_non_string_matches_untouched() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/markdown",
+            "--disambiguation",
+            "off",
+            "--markdown-frontmatter-convert",
+            "$.count",
+        ])
+        .write_stdin("---\ncount: 3\ntitle: 北京\n---\n\nbody\n")
+        .assert()
+        .success()
+        // A numeric match is left as-is; an untargeted hanja field is preserved.
+        .stdout("---\ncount: 3\ntitle: 北京\n---\nbody\n");
+}
+
+#[test]
+fn markdown_frontmatter_convert_without_frontmatter_warns_and_converts_body() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/markdown",
+            "--disambiguation",
+            "off",
+            "--markdown-frontmatter-convert",
+            "$.title",
+        ])
+        .write_stdin("# 北京\n")
+        .assert()
+        .success()
+        .stdout("베이징\n======\n")
+        .stderr(predicates::str::contains("no YAML front matter"));
+}
+
+#[test]
+fn markdown_frontmatter_convert_rejects_non_markdown_format() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/plain",
+            "--markdown-frontmatter-convert",
+            "$.title",
+        ])
+        .write_stdin("北京\n")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "--markdown-frontmatter-convert is only valid with --format text/markdown",
+        ));
+}
+
+#[test]
+fn markdown_frontmatter_convert_preserves_empty_frontmatter_block() {
+    // An empty front matter block must not be serialised back as a literal
+    // `null`.
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/markdown",
+            "--disambiguation",
+            "off",
+            "--markdown-frontmatter-convert",
+            "$.title",
+        ])
+        .write_stdin("---\n---\n\n# 北京\n")
+        .assert()
+        .success()
+        .stdout("---\n---\n베이징\n======\n");
+}
+
+#[test]
+fn markdown_without_flag_preserves_frontmatter_verbatim() {
+    // Front matter is always split off: without a selector it passes through
+    // byte-for-byte (its hanja is not converted) while the body is converted.
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown", "--disambiguation", "off"])
+        .write_stdin("---\ntitle: 北京\n---\n\n# 北京\n")
+        .assert()
+        .success()
+        .stdout("---\ntitle: 北京\n---\n베이징\n======\n");
+}
+
+#[test]
+fn markdown_without_flag_preserves_leading_bom_with_frontmatter() {
+    // A leading UTF-8 BOM in front of the front matter must survive verbatim
+    // passthrough.
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown", "--disambiguation", "off"])
+        .write_stdin("\u{feff}---\ntitle: 北京\n---\n\nbody\n")
+        .assert()
+        .success()
+        .stdout("\u{feff}---\ntitle: 北京\n---\nbody\n");
+}
+
+#[test]
+fn markdown_without_flag_preserves_frontmatter_formatting() {
+    // Verbatim passthrough keeps quoting/comments/closing fence style that the
+    // parse-and-reserialise path would normalise away.
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown", "--disambiguation", "off"])
+        .write_stdin("---\n# a comment\ntitle: \"北京\"\n...\nbody\n")
+        .assert()
+        .success()
+        .stdout("---\n# a comment\ntitle: \"北京\"\n...\nbody\n");
+}
+
+#[test]
 fn html_extension_infers_html_format() {
     let temp = tempdir().unwrap();
     let input = temp.path().join("doc.html");
