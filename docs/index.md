@@ -3,7 +3,6 @@ pageType: home
 
 hero:
   name: Gukhanmun
-  text: Mixed-script to hangul!
   tagline: Rust/JavaScript library that converts mixed-script Korean into hangul-only text
   actions:
   - theme: brand

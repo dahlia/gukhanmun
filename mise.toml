@@ -7,6 +7,7 @@ node = "26"
 deno = "2"
 bun = "1"
 "aqua:nushell/nushell" = "0.113.0"
+"pipx:fonttools" = { version = "4.63.0", extras = "woff" }
 
 [tools.rust]
 version = "1.95.0"
@@ -255,3 +256,7 @@ run = [
 description = "Build the Rspress documentation site for production"
 depends = ["wasm-build", "stdict-fst-data", "stdict-cdb-data", "js-install"]
 run = "pnpm --filter @gukhanmun/docs run build"
+
+[tasks.docs-fonts]
+description = "Subset Noto Sans/Serif KR to the glyphs used by the docs hero animation"
+run = "node docs/scripts/subset-hero-fonts.mjs"

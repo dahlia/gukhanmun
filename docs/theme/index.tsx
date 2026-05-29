@@ -28,6 +28,7 @@ import {
 import { routePathToMdPath, useI18n, usePage, usePageData } from "@rspress/core/runtime";
 
 export * from "@rspress/core/theme-original";
+export { HomeHero } from "./HomeHero";
 
 // Rspress's outline renders an "Open in chat" row whose dropdown is built
 // solely from the "chatgpt"/"claude" view options, so "markdownLink" yields an

@@ -1,0 +1,112 @@
+/* Animated hero subtitle: mixed-script Korean rolling over into hangul. */
+
+/* Self-hosted subsets covering only the glyphs the hero animates; regenerate
+   with `mise run docs-fonts` after editing hero-sentences.json. */
+@font-face {
+  font-family: "Noto Sans KR";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/noto-sans-kr-hero.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Serif KR";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/noto-serif-kr-hero.woff2") format("woff2");
+}
+
+.hero-conv {
+  margin-top: 0.5rem;
+  min-height: 2.8em;
+  display: flex;
+  align-items: center;
+
+  /* Serif for the native-hangul glue (particles, endings); the converting word
+     itself is sans in both its hanja and hangul forms (set on the pair below). */
+  font-family: "Noto Serif KR", serif;
+  font-size: clamp(1.5rem, 1.05rem + 1.9vw, 2.25rem);
+  line-height: 1.4;
+  font-weight: 600;
+
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.hero-conv--hidden {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.hero-conv__line {
+  margin: 0;
+  /* Korean orthography: never break inside a word. */
+  word-break: keep-all;
+}
+
+/* Each converting word stacks its hanja and hangul forms in one grid cell.
+   Both forms stay in normal flow and share a single line box, so they sit on
+   the same baseline as the surrounding text. (An absolutely positioned overlay
+   computes its own line box and ends up a few pixels low.)
+
+   The cell width is driven by the syllable count (--n), not by max content,
+   because hanja are full-width (1em) while Noto Sans KR hangul is narrower
+   (measured 0.92em). Sizing to the wider hanja would leave dead space around
+   the shorter hangul; instead the cell shrinks to the hangul width as the word
+   converts, so the line tightens up rather than leaving a gap. Using em keeps
+   this correct as the responsive font-size changes. */
+.hero-conv__pair {
+  display: inline-grid;
+  white-space: nowrap;
+  width: calc(var(--n) * 1em);
+  transition: width 0.4s ease 0.15s;
+}
+
+.hero-conv__pair.is-converted {
+  width: calc(var(--n) * 0.92em);
+}
+
+.hero-conv__hanja,
+.hero-conv__hangul {
+  grid-area: 1 / 1;
+  /* Sans for the converting word, hanja and resulting hangul alike. */
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+/* Pure crossfade, no vertical motion. The hanja fades out a little faster than
+   the hangul fades in, so the two different glyphs never sit muddily on top of
+   each other at half opacity. */
+.hero-conv__hanja {
+  color: var(--rp-home-hero-secondary-color);
+  transition: opacity 0.3s ease, color 0.3s ease;
+}
+
+.hero-conv__hangul {
+  opacity: 0;
+  transition: opacity 0.4s ease 0.15s;
+}
+
+.hero-conv__pair.is-converted .hero-conv__hanja {
+  opacity: 0;
+}
+
+.hero-conv__pair.is-converted .hero-conv__hangul {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-conv,
+  .hero-conv__pair,
+  .hero-conv__hanja,
+  .hero-conv__hangul {
+    transition: none;
+  }
+
+  .hero-conv--hidden {
+    opacity: 1;
+    transform: none;
+  }
+}
