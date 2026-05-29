@@ -68,6 +68,31 @@ Avoid relying on globally installed Rust tools or ad hoc command variants when
 working on this repository. Add or update a mise task when the project needs a
 new repeated development command.
 
+Every new source file (Rust, TypeScript, JavaScript) must open with the GPLv3
+notice block:
+
+~~~~ rust
+// Gukhanmun: <one-line description of what this file does>.
+// Copyright (C) <year>  Hong Minhee
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+~~~~
+
+Use `//` line comments for both Rust and TypeScript/JavaScript files.  Place
+the block before any other content (imports, `#![...]` attributes, module
+docs, etc.).
+
 Document every new public Rust API with rustdoc comments. Public documentation
 should explain the API's role, important invariants, and where it fits in the
 pipeline so that `mise run doc` stays useful as an API review gate.
