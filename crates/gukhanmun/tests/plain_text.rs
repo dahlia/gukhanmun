@@ -39,6 +39,63 @@ fn default_ko_kr_marks_homonyms_with_hanja() {
     assert_eq!(output, "천지(天地)");
 }
 
+#[cfg(feature = "stdict")]
+#[test]
+fn bundled_initial_sound_law_follows_position() {
+    // Hangul-only rendering with homophone marking disabled keeps the
+    // assertions focused on the reading itself.
+    let converter = Builder::new()
+        .rendering(RenderMode::HangulOnly)
+        .homophone_window(ContextWindow::Off)
+        .build()
+        .expect("default builder");
+    let convert = |input| converter.convert_text_to_string(input).expect("convert");
+
+    // Regression: the bundled dictionary stores the word-initial reading
+    // (`年` → `연`), but after a number `年` keeps its original sound.
+    assert_eq!(convert("1998年"), "1998년");
+    assert_eq!(convert("年"), "연");
+
+    // Multi-syllable suffix overrides recorded by the dictionary.
+    assert_eq!(convert("1990年代"), "1990년대");
+    assert_eq!(convert("2024年度"), "2024년도");
+    assert_eq!(convert("年代"), "연대");
+
+    // Single hanja resolved from the bundled unihan readings, both positions.
+    assert_eq!(convert("理"), "이");
+    assert_eq!(convert("5理"), "5리");
+
+    // `曆` keeps its original sound outside word-initial position even though
+    // the dictionary has no standalone word-initial head word for it.
+    assert_eq!(convert("佛曆"), "불력");
+    assert_eq!(convert("曆"), "역");
+
+    // Compounds the dictionary already reads correctly must not be perturbed by
+    // the single-hanja or multi-syllable rules.
+    assert_eq!(convert("理論"), "이론");
+    assert_eq!(convert("論理"), "논리");
+}
+
+#[cfg(feature = "stdict")]
+#[test]
+fn ko_kp_keeps_original_sound_everywhere() {
+    let converter = Builder::with_preset(Preset::KoKp)
+        .bundled_stdict()
+        .rendering(RenderMode::HangulOnly)
+        .build()
+        .expect("ko-kp builder");
+    // With initial sound law disabled the original sound is used in every
+    // position, word-initial included.
+    assert_eq!(
+        converter.convert_text_to_string("年").expect("convert"),
+        "년"
+    );
+    assert_eq!(
+        converter.convert_text_to_string("1998年").expect("convert"),
+        "1998년"
+    );
+}
+
 #[test]
 fn user_dictionary_overrides_fallback() {
     let mut user = MapDictionary::new();

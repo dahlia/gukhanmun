@@ -16,8 +16,8 @@
 
 //! Extractor for Standard Korean Language Dictionary JSON dumps.
 
-use std::collections::BTreeMap;
 use std::collections::btree_map::Entry as BTreeEntry;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{Cursor, Read, Seek, Write};
 use std::path::Path;
@@ -53,30 +53,26 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// the TSV schema consumed by `gukhanmun-mkdict`.
 pub fn extract_path_to_tsv(path: &Path, writer: impl Write) -> Result<ExtractStats> {
     let mut extractor = Extractor::default();
-
-    if path.is_dir() {
-        tracing::info!(path = %path.display(), input_type = "dir", "extracting Standard Korean Language Dictionary");
-        let mut paths = fs::read_dir(path)?
-            .map(|entry| entry.map(|entry| entry.path()))
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        paths.sort();
-        for path in paths {
-            if path
-                .extension()
-                .is_some_and(|extension| extension == "json")
-            {
-                extractor.read_json(fs::File::open(path)?)?;
-            }
-        }
-    } else if path.extension().is_some_and(|extension| extension == "zip") {
-        tracing::info!(path = %path.display(), input_type = "zip", "extracting Standard Korean Language Dictionary");
-        extractor.read_zip(fs::File::open(path)?)?;
-    } else {
-        tracing::info!(path = %path.display(), input_type = "json", "extracting Standard Korean Language Dictionary");
-        extractor.read_json(fs::File::open(path)?)?;
-    }
-
+    extractor.read_path(path)?;
     extractor.write_tsv(writer)
+}
+
+/// Extracts both the canonical dictionary TSV and the multi-syllable suffix
+/// override TSV from a Standard Korean Language Dictionary dump path.
+///
+/// `tsv_writer` receives the canonical `hanja\treading\t…` rows consumed by
+/// `gukhanmun-mkdict`; `suffix_writer` receives the `hanja\tinitial\tsuffix`
+/// rows that record multi-syllable entries whose leading morpheme keeps its
+/// original sound outside word-initial position (see [`crate::ko_kr`]).
+pub fn extract_path_to_files(
+    path: &Path,
+    tsv_writer: impl Write,
+    suffix_writer: impl Write,
+) -> Result<ExtractStats> {
+    let mut extractor = Extractor::default();
+    extractor.read_path(path)?;
+    extractor.write_suffix_tsv(suffix_writer)?;
+    extractor.write_tsv(tsv_writer)
 }
 
 /// Extracts a canonical dictionary TSV from one Standard Korean Language
@@ -110,9 +106,38 @@ pub struct ExtractStats {
 struct Extractor {
     stats: ExtractStats,
     entries: BTreeMap<String, Entry>,
+    /// Word-initial readings seen for multi-syllable hanja keys.
+    initial_forms: BTreeMap<String, BTreeSet<String>>,
+    /// Suffix and bound-noun readings seen for multi-syllable hanja keys.
+    suffix_forms: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl Extractor {
+    fn read_path(&mut self, path: &Path) -> Result<()> {
+        if path.is_dir() {
+            tracing::info!(path = %path.display(), input_type = "dir", "extracting Standard Korean Language Dictionary");
+            let mut paths = fs::read_dir(path)?
+                .map(|entry| entry.map(|entry| entry.path()))
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            paths.sort();
+            for path in paths {
+                if path
+                    .extension()
+                    .is_some_and(|extension| extension == "json")
+                {
+                    self.read_json(fs::File::open(path)?)?;
+                }
+            }
+        } else if path.extension().is_some_and(|extension| extension == "zip") {
+            tracing::info!(path = %path.display(), input_type = "zip", "extracting Standard Korean Language Dictionary");
+            self.read_zip(fs::File::open(path)?)?;
+        } else {
+            tracing::info!(path = %path.display(), input_type = "json", "extracting Standard Korean Language Dictionary");
+            self.read_json(fs::File::open(path)?)?;
+        }
+        Ok(())
+    }
+
     fn read_zip<R>(&mut self, reader: R) -> Result<()>
     where
         R: Read + Seek,
@@ -187,8 +212,10 @@ impl Extractor {
             return;
         };
         let priority = entry_priority(&word_info, originals);
+        let suffix_headword = is_suffix_headword(&word_info);
 
         for key in keys {
+            self.track_multisyllable_form(&key, &reading, suffix_headword);
             match self.entries.entry(key) {
                 BTreeEntry::Vacant(entry) => {
                     entry.insert(Entry {
@@ -208,6 +235,53 @@ impl Extractor {
                 }
             }
         }
+    }
+
+    /// Records a multi-syllable hanja key's reading under its word-initial or
+    /// suffix bucket, so [`Extractor::write_suffix_tsv`] can later emit the
+    /// keys whose leading morpheme keeps its original sound outside word-initial
+    /// position. Single hanja are intentionally skipped: their initial sound law
+    /// is recovered by the engine from the bundled unihan readings.
+    fn track_multisyllable_form(&mut self, key: &str, reading: &str, suffix_headword: bool) {
+        if key.chars().take(2).count() < 2
+            || !key.chars().all(is_hanja)
+            || reading.chars().count() != key.chars().count()
+        {
+            return;
+        }
+        let bucket = if suffix_headword {
+            &mut self.suffix_forms
+        } else {
+            &mut self.initial_forms
+        };
+        bucket
+            .entry(key.to_owned())
+            .or_default()
+            .insert(reading.to_owned());
+    }
+
+    /// Writes the multi-syllable suffix override table.
+    ///
+    /// A row is emitted for every hanja key that has both a word-initial reading
+    /// `I` and a suffix or bound-noun reading `S` that differ only in their first
+    /// syllable (the initial sound law alternation, for example `年代` →
+    /// `연대`/`년대`). Wholesale alternations from semantically distinct readings
+    /// are excluded by the first-syllable-only test.
+    fn write_suffix_tsv(&self, mut writer: impl Write) -> Result<()> {
+        writeln!(writer, "hanja\tinitial\tsuffix")?;
+        for (key, suffixes) in &self.suffix_forms {
+            let Some(initials) = self.initial_forms.get(key) else {
+                continue;
+            };
+            if let Some((initial, suffix)) = initials
+                .iter()
+                .flat_map(|initial| suffixes.iter().map(move |suffix| (initial, suffix)))
+                .find(|(initial, suffix)| differs_only_in_first_syllable(initial, suffix))
+            {
+                writeln!(writer, "{key}\t{initial}\t{suffix}")?;
+            }
+        }
+        Ok(())
     }
 
     fn write_tsv(mut self, mut writer: impl Write) -> Result<ExtractStats> {
@@ -258,6 +332,7 @@ struct WordInfo {
 
 #[derive(Debug, Deserialize)]
 struct PosInfo {
+    pos: Option<String>,
     #[serde(default)]
     comm_pattern_info: Vec<CommPatternInfo>,
 }
@@ -493,6 +568,33 @@ fn decode_entity(entity: &str) -> Option<char> {
                 .and_then(|value| value.parse().ok())
         })?;
     char::from_u32(value)
+}
+
+/// Returns whether a head word denotes a suffix or bound noun, whose hanja keep
+/// their original (non-word-initial) sound. Suffixes are written with a leading
+/// hyphen (`-년`); bound nouns carry the `의존 명사` part of speech. Prefixes
+/// (`부-`, trailing hyphen) are word-initial and excluded.
+fn is_suffix_headword(word_info: &WordInfo) -> bool {
+    let leading_hyphen = word_info
+        .word
+        .as_deref()
+        .is_some_and(|word| word.trim_start().starts_with('-'));
+    let bound_noun = word_info
+        .pos_info
+        .iter()
+        .any(|pos| pos.pos.as_deref() == Some("의존 명사"));
+    leading_hyphen || bound_noun
+}
+
+/// Returns whether two equal-length readings differ in exactly their first
+/// syllable, the shape of an initial sound law alternation (`연대`/`년대`).
+fn differs_only_in_first_syllable(a: &str, b: &str) -> bool {
+    let mut a = a.chars();
+    let mut b = b.chars();
+    match (a.next(), b.next()) {
+        (Some(first_a), Some(first_b)) if first_a != first_b => a.eq(b),
+        _ => false,
+    }
 }
 
 fn normalize_word(word: &str) -> String {

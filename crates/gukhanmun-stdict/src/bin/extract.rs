@@ -32,6 +32,11 @@ struct Cli {
 
     #[arg(short, long, value_name = "PATH")]
     output: Option<PathBuf>,
+
+    /// Path to write the multi-syllable suffix override TSV
+    /// (`hanja\tinitial\tsuffix`).
+    #[arg(long, value_name = "PATH")]
+    suffix_output: Option<PathBuf>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -43,7 +48,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_writer(io::stderr)
         .init();
     let mut output = Vec::new();
-    let stats = gukhanmun_stdict::extract::extract_path_to_tsv(&cli.input, &mut output)?;
+    let stats = if let Some(suffix_path) = cli.suffix_output {
+        let mut suffix_output = Vec::new();
+        let stats = gukhanmun_stdict::extract::extract_path_to_files(
+            &cli.input,
+            &mut output,
+            &mut suffix_output,
+        )?;
+        fs::write(suffix_path, suffix_output)?;
+        stats
+    } else {
+        gukhanmun_stdict::extract::extract_path_to_tsv(&cli.input, &mut output)?
+    };
     if let Some(path) = cli.output {
         fs::write(path, output)?;
     } else {

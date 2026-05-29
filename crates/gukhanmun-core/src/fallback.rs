@@ -442,7 +442,7 @@ fn large_place_value(ch: char) -> Option<u128> {
     10u128.checked_pow(exponent)
 }
 
-fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
+pub(crate) fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
     KHANGUL_READINGS
         .binary_search_by_key(&ch, |(hanja, _)| *hanja)
         .ok()
@@ -511,7 +511,7 @@ pub(crate) fn is_hanja_numeral(ch: char) -> bool {
     numeral_reading(ch).is_some()
 }
 
-fn should_apply_yeol_yul(previous_reading: Option<char>, current_reading: &str) -> bool {
+pub(crate) fn should_apply_yeol_yul(previous_reading: Option<char>, current_reading: &str) -> bool {
     matches!(current_reading, "렬" | "률")
         && previous_reading.is_some_and(has_no_batchim_or_nieun_batchim)
 }
@@ -524,7 +524,7 @@ fn has_no_batchim_or_nieun_batchim(ch: char) -> bool {
     final_index == 0 || final_index == 4
 }
 
-fn apply_initial_sound_law_to_first_syllable(reading: &str) -> String {
+pub(crate) fn apply_initial_sound_law_to_first_syllable(reading: &str) -> String {
     let mut chars = reading.chars();
     let Some(first) = chars.next() else {
         return String::new();

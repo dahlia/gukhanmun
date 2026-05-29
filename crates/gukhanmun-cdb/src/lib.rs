@@ -173,6 +173,7 @@ impl HanjaDictionary for CdbDictionary {
                     matches.push(Match {
                         byte_len: prefix.len(),
                         reading: entry.reading,
+                        suffix_reading: None,
                         mark: entry.mark,
                     });
                 }

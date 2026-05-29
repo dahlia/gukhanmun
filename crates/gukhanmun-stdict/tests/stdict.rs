@@ -18,7 +18,7 @@ use std::fs;
 use std::io::Write;
 
 use assert_cmd::Command;
-use gukhanmun_core::{RenderMode, convert_plain_text};
+use gukhanmun_core::{HanjaDictionary, RenderMode, convert_plain_text};
 use gukhanmun_stdict::extract::{ExtractStats, extract_json_reader_to_tsv};
 use proptest::prelude::*;
 use tempfile::tempdir;
@@ -130,6 +130,73 @@ fn bundled_dictionary_converts_stdict_entries() {
         convert_plain_text("입口字집", dict, RenderMode::HangulOnly),
         "입구자집"
     );
+}
+
+#[test]
+fn bundled_dictionary_applies_initial_sound_law_by_position() {
+    let dict = gukhanmun_stdict::ko_kr();
+
+    // `年` after a number keeps its original sound (single-hanja unihan path).
+    assert_eq!(
+        convert_plain_text("1998年", dict, RenderMode::HangulOnly),
+        "1998년"
+    );
+    // Multi-syllable suffix overrides from the bundled `suffix.tsv`.
+    assert_eq!(
+        convert_plain_text("1990年代", dict, RenderMode::HangulOnly),
+        "1990년대"
+    );
+}
+
+#[test]
+fn bundled_multi_syllable_matches_carry_suffix_reading() {
+    let dict = gukhanmun_stdict::ko_kr();
+
+    let year_decade = dict
+        .matches_at("年代")
+        .find(|matched| matched.byte_len == "年代".len())
+        .expect("年代 matches in bundled dictionary");
+    assert_eq!(year_decade.reading, "연대");
+    assert_eq!(year_decade.suffix_reading.as_deref(), Some("년대"));
+
+    // Single hanja carry no suffix override; the engine handles their initial
+    // sound law from the unihan readings instead.
+    let year = dict
+        .matches_at("年")
+        .find(|matched| matched.byte_len == "年".len())
+        .expect("年 matches in bundled dictionary");
+    assert_eq!(year.suffix_reading, None);
+}
+
+#[test]
+fn bundled_suffix_table_rows_are_well_formed() {
+    let table = include_str!("../data/suffix.tsv");
+    let mut lines = table.lines();
+    assert_eq!(lines.next(), Some("hanja\tinitial\tsuffix"));
+    let mut count = 0;
+    for line in lines.filter(|line| !line.is_empty()) {
+        count += 1;
+        let fields: Vec<&str> = line.split('\t').collect();
+        assert_eq!(fields.len(), 3, "row `{line}` must have three fields");
+        let [hanja, initial, suffix] = [fields[0], fields[1], fields[2]];
+        // Multi-syllable hanja key only (single hanja are handled by the engine).
+        assert!(
+            hanja.chars().count() >= 2 && hanja.chars().all(|c| !c.is_ascii()),
+            "key `{hanja}` must be a multi-syllable hanja string"
+        );
+        // The two readings differ only in their first syllable.
+        assert_eq!(initial.chars().count(), suffix.chars().count());
+        assert_ne!(
+            initial.chars().next(),
+            suffix.chars().next(),
+            "row `{line}` first syllables must differ"
+        );
+        assert!(
+            initial.chars().skip(1).eq(suffix.chars().skip(1)),
+            "row `{line}` must differ only in the first syllable"
+        );
+    }
+    assert!(count > 0, "suffix.tsv should record at least one override");
 }
 
 #[test]

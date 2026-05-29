@@ -221,6 +221,7 @@ impl HanjaDictionary for FstDictionary {
                     matches.push(Match {
                         byte_len: key.len(),
                         reading: entry.reading,
+                        suffix_reading: None,
                         mark: entry.mark,
                     });
                 }

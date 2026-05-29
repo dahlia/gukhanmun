@@ -38,7 +38,9 @@ use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use fallback::{
-    FallbackPart, FallbackState, fallback_reading_for_run, phoneticize_fallback_run_with_state,
+    FallbackPart, FallbackState, apply_initial_sound_law_to_first_syllable,
+    fallback_reading_for_run, phoneticize_fallback_run_with_state, phoneticize_hanja_char,
+    should_apply_yeol_yul,
 };
 use generated::unihan_readings::KHANGUL_READINGS;
 use segment::{Segment, segment_text};
@@ -354,7 +356,22 @@ pub struct Match {
     pub byte_len: usize,
 
     /// The hangul reading for the matched hanja prefix.
+    ///
+    /// This is the word-initial reading, which already reflects South Korean
+    /// initial sound law where it applies (for example `年` reads `연`).
     pub reading: String,
+
+    /// The reading to use when this match is *not* word-initial, when it
+    /// differs from [`Match::reading`] by initial sound law.
+    ///
+    /// Dictionaries set this for multi-syllable entries whose leading morpheme
+    /// keeps its original sound outside word-initial position, as the Standard
+    /// Korean Language Dictionary records through its suffix and bound-noun
+    /// head words (for example `年代` reads `연대` word-initially but `년대`
+    /// after a number). Single-hanja initial sound law is handled by the engine
+    /// from the bundled unihan readings and does not need this field. `None`
+    /// means the reading is position independent.
+    pub suffix_reading: Option<String>,
 
     /// Dictionary-provided rendering constraints for this match.
     pub mark: MatchMark,
@@ -449,6 +466,7 @@ impl HanjaDictionary for UnihanCharDict {
             khangul_reading(ch).map(|reading| Match {
                 byte_len: ch.len_utf8(),
                 reading: reading.to_string(),
+                suffix_reading: None,
                 mark: MatchMark::default(),
             })
         });
@@ -679,6 +697,7 @@ pub enum NumeralStrategy {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct DictionaryEntry {
     reading: String,
+    suffix_reading: Option<String>,
     mark: MatchMark,
 }
 
@@ -711,6 +730,29 @@ impl MapDictionary {
         reading: impl Into<String>,
         mark: MatchMark,
     ) {
+        self.insert_entry(hanja, reading, None, mark);
+    }
+
+    /// Inserts an entry that carries a distinct non-word-initial reading.
+    ///
+    /// `suffix` is the reading used when the match is not word-initial (see
+    /// [`Match::suffix_reading`]); `reading` is the word-initial reading.
+    pub fn insert_with_suffix(
+        &mut self,
+        hanja: impl Into<String>,
+        reading: impl Into<String>,
+        suffix: impl Into<String>,
+    ) {
+        self.insert_entry(hanja, reading, Some(suffix.into()), MatchMark::default());
+    }
+
+    fn insert_entry(
+        &mut self,
+        hanja: impl Into<String>,
+        reading: impl Into<String>,
+        suffix_reading: Option<String>,
+        mark: MatchMark,
+    ) {
         let hanja = hanja.into();
         let word_chars = hanja.chars().count();
         self.max_word_chars = Some(self.max_word_chars.map_or(word_chars, |max| {
@@ -720,6 +762,7 @@ impl MapDictionary {
             hanja,
             DictionaryEntry {
                 reading: reading.into(),
+                suffix_reading,
                 mark,
             },
         );
@@ -745,6 +788,7 @@ impl HanjaDictionary for MapDictionary {
                 .map(|(hanja, entry)| Match {
                     byte_len: hanja.len(),
                     reading: entry.reading.clone(),
+                    suffix_reading: entry.suffix_reading.clone(),
                     mark: entry.mark,
                 }),
         )
@@ -1427,21 +1471,30 @@ fn process_segments_with_state<S, D>(
                 byte_start,
                 byte_end,
                 reading,
+                suffix_reading,
                 mark,
             } => {
                 let source = &text[*byte_start..*byte_end];
+                let effective = dictionary_effective_reading(
+                    source,
+                    reading,
+                    suffix_reading.as_deref(),
+                    options,
+                    fallback_state.starts_word,
+                    fallback_state.previous_reading,
+                );
                 output.push(OutputToken::Annotated(Annotation {
                     hanja: source.to_string(),
                     homophone: false,
-                    reading: reading.clone(),
+                    reading: effective.clone(),
                     require_hanja: mark.require_hanja,
                     require_hangul: mark.require_hangul,
                     first_in_context: true,
                     skip_annotation: false,
                     from_dictionary: true,
                 }));
-                if should_preserve_dictionary_context(source, reading, options) {
-                    update_fallback_state_for_reading(reading, fallback_state);
+                if should_preserve_dictionary_context(source, &effective, options) {
+                    update_fallback_state_for_reading(&effective, fallback_state);
                 } else {
                     *fallback_state = FallbackState::default();
                 }
@@ -1545,6 +1598,58 @@ fn update_fallback_state_for_text(text: &str, state: &mut FallbackState) {
     } else {
         *state = FallbackState::default();
     }
+}
+
+/// Chooses the reading a dictionary match should emit at its position.
+///
+/// South Korean initial sound law (頭音法則) makes some morphemes read
+/// differently word-initially than elsewhere. The bundled dictionary stores the
+/// word-initial form, so a bare match would render `1998年` as `1998연` instead
+/// of `1998년`. This applies the position-correct reading:
+///
+///  -  When the match carries an explicit [`Match::suffix_reading`] (a
+///     multi-syllable entry the Standard Korean Language Dictionary records with
+///     a distinct suffix or bound-noun form, such as `年代`), that suffix
+///     reading is used outside word-initial position.
+///  -  Otherwise, for a single hanja whose bundled unihan reading undergoes
+///     initial sound law, the original (non-word-initial) reading is recovered
+///     from the unihan table. This covers every such hanja without per-entry
+///     data. The match's reading must already be one of the two law variants so
+///     unrelated readings (and non-law hanja) are left untouched. The
+///     `렬`/`률` → `열`/`율` rule after a vowel or `ㄴ` coda is honored through
+///     [`should_apply_yeol_yul`], matching fallback behavior.
+///
+/// With initial sound law disabled (for example the North Korean preset) the
+/// original reading is used everywhere.
+fn dictionary_effective_reading(
+    source: &str,
+    reading: &str,
+    suffix_reading: Option<&str>,
+    options: EngineOptions,
+    starts_word: bool,
+    previous_reading: Option<char>,
+) -> String {
+    if let Some(suffix) = suffix_reading {
+        return if starts_word && options.initial_sound_law {
+            reading.to_string()
+        } else {
+            suffix.to_string()
+        };
+    }
+
+    let mut chars = source.chars();
+    if let (Some(ch), None) = (chars.next(), chars.next())
+        && let Some(base) = phoneticize_hanja_char(ch)
+    {
+        let initial = apply_initial_sound_law_to_first_syllable(base);
+        if initial != base && (reading == base || reading == initial) {
+            let apply_law = options.initial_sound_law
+                && (starts_word || should_apply_yeol_yul(previous_reading, base));
+            return if apply_law { initial } else { base.to_string() };
+        }
+    }
+
+    reading.to_string()
 }
 
 fn should_preserve_dictionary_context(source: &str, reading: &str, options: EngineOptions) -> bool {

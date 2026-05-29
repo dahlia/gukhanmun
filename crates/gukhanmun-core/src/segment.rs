@@ -25,6 +25,7 @@ pub(crate) enum Segment {
         byte_start: usize,
         byte_end: usize,
         reading: String,
+        suffix_reading: Option<String>,
         mark: MatchMark,
     },
     Fallback {
@@ -175,6 +176,7 @@ where
                         byte_start: byte_offset + byte_start,
                         byte_end: byte_offset + byte_end,
                         reading: matched.reading,
+                        suffix_reading: matched.suffix_reading,
                         mark: matched.mark,
                     },
                 );
@@ -238,6 +240,7 @@ where
                 byte_start: byte_offset + byte_start,
                 byte_end: byte_offset + byte_end,
                 reading: matched.reading,
+                suffix_reading: matched.suffix_reading,
                 mark: matched.mark,
             });
             start_char = end_char;

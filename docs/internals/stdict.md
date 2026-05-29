@@ -34,12 +34,38 @@ Place the downloaded zip wherever convenient, then run:
 ~~~~ sh
 cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- \
   -o crates/gukhanmun-stdict/data/stdict.tsv \
+  --suffix-output crates/gukhanmun-stdict/data/suffix.tsv \
   ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260506.zip
 ~~~~
 
 The extractor writes deterministic UTF-8 TSV sorted by dictionary key.  The
 `gukhanmun-stdict` build script then invokes `gukhanmun-mkdict` to build the
 embedded FST at compile time.
+
+
+Suffix readings
+---------------
+
+South Korean initial sound law (頭音法則) makes some hanja read differently
+word-initially than elsewhere, so `年` reads `연` in `年度` but `년` in
+`1998년`. The engine recovers the original sound of a *single* hanja outside
+word-initial position from the bundled unihan readings, so the canonical TSV
+needs no extra data for single hanja.
+
+Multi-syllable compounds are different: only the dictionary knows which ones
+keep their original leading sound outside word-initial position.  The dictionary
+records this through suffix head words (written with a leading hyphen, such as
+`-년대`) and bound-noun head words.  The extractor collects these and, for every
+hanja-only key of two or more characters whose word-initial reading `I` and
+suffix reading `S` differ only in their first syllable, writes a row
+`hanja<TAB>I<TAB>S` to *crates/gukhanmun-stdict/data/suffix.tsv* (for example
+`年代<TAB>연대<TAB>년대`).  The first-syllable-only test excludes semantically
+distinct readings such as `便` (`편`/`변`).  Single hanja are intentionally
+omitted because the engine handles them from the unihan readings.
+
+`gukhanmun_stdict::ko_kr` returns a `KoKrDictionary` that wraps the embedded FST
+and attaches each suffix reading to the matching entry, so the engine can pick
+the position-correct reading.
 
 
 Extraction policy

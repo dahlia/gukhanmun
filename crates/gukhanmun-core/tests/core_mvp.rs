@@ -257,6 +257,83 @@ fn unihan_char_dictionary_matches_fallback_canonical_reading_without_initial_sou
 }
 
 #[test]
+fn single_hanja_dictionary_reading_follows_initial_sound_law_by_position() {
+    // The dictionary stores the word-initial form; the engine recovers the
+    // original sound outside word-initial position from the unihan readings.
+    let mut dict = MapDictionary::new();
+    dict.insert("年", "연");
+
+    assert_eq!(
+        convert_plain_text("年", &dict, RenderMode::HangulOnly),
+        "연"
+    );
+    assert_eq!(
+        convert_plain_text("1998年", &dict, RenderMode::HangulOnly),
+        "1998년"
+    );
+
+    // With initial sound law disabled the original sound is used everywhere.
+    let no_law = EngineOptions {
+        initial_sound_law: false,
+        ..EngineOptions::default()
+    };
+    assert_eq!(
+        convert_plain_text_with_options("年", &dict, RenderMode::HangulOnly, no_law),
+        "년"
+    );
+}
+
+#[test]
+fn single_hanja_dictionary_reading_honors_yeol_yul_rule() {
+    // `률`/`렬` keep the `율`/`열` form after a vowel or `ㄴ` coda even outside
+    // word-initial position, just as fallback does.
+    let mut dict = MapDictionary::new();
+    dict.insert("比", "비");
+    dict.insert("學", "학");
+    dict.insert("率", "률");
+    dict.insert("列", "렬");
+
+    // `比` ends in a vowel, so `率`/`列` take the `율`/`열` form.
+    assert_eq!(
+        convert_plain_text("比率", &dict, RenderMode::HangulOnly),
+        "비율"
+    );
+    assert_eq!(
+        convert_plain_text("比列", &dict, RenderMode::HangulOnly),
+        "비열"
+    );
+    // `學` ends in a `ㄱ` coda, so the original `률` is kept.
+    assert_eq!(
+        convert_plain_text("學率", &dict, RenderMode::HangulOnly),
+        "학률"
+    );
+}
+
+#[test]
+fn multi_syllable_suffix_reading_follows_position() {
+    // A dictionary that records a distinct suffix reading (as the Standard
+    // Korean Language Dictionary does for `年代`).
+    let mut dict = MapDictionary::new();
+    dict.insert_with_suffix("年代", "연대", "년대");
+    dict.insert("理論", "이론");
+
+    assert_eq!(
+        convert_plain_text("年代", &dict, RenderMode::HangulOnly),
+        "연대"
+    );
+    assert_eq!(
+        convert_plain_text("1990年代", &dict, RenderMode::HangulOnly),
+        "1990년대"
+    );
+    // A multi-syllable entry without a suffix reading is left untouched, even
+    // though its leading hanja undergoes initial sound law.
+    assert_eq!(
+        convert_plain_text("理論", &dict, RenderMode::HangulOnly),
+        "이론"
+    );
+}
+
+#[test]
 fn chain_dictionary_keeps_first_match_for_duplicate_lengths() {
     let mut high = MapDictionary::new();
     high.insert("漢字", "사용자");
@@ -2276,6 +2353,7 @@ impl HanjaDictionary for CountingDictionary {
                 .map(|(hanja, reading)| gukhanmun_core::Match {
                     byte_len: hanja.len(),
                     reading: reading.into(),
+                    suffix_reading: None,
                     mark: MatchMark::default(),
                 }),
         )
@@ -2299,6 +2377,7 @@ impl HanjaDictionary for OrderedDictionary {
                 .map(|(hanja, reading)| gukhanmun_core::Match {
                     byte_len: hanja.len(),
                     reading: reading.into(),
+                    suffix_reading: None,
                     mark: MatchMark::default(),
                 }),
         )
