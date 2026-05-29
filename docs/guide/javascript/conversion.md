@@ -164,6 +164,22 @@ Sino-Korean words.  To always gloss a specific word regardless of context, use
 a `requireHanja` directive instead (see [*User directives*](./directives.md)).
 
 
+Only recognized words are disambiguated
+---------------------------------------
+
+Homophone disambiguation operates on words the dictionary recognizes as units.
+A hanja sequence with no dictionary entry of its own is not treated as a single
+word, and its fallback (non-dictionary) characters are never glossed; any
+recognized single-character entries inside it (such as `紫`) are still handled
+on their own.  For example, with the Standard Korean Dictionary loaded, `自由`
+and `子游` are both entries read `자유`, so `自由와 子游` renders as
+`자유(自由)와 자유(子游)`; but `紫楡` has no entry of its own, so under the
+default context-local strategy `自由와 紫楡` renders as `자유와 자유` with no
+gloss, because the engine never sees a second `자유` unit to collide with
+`自由`.  To disambiguate the whole term, add it to a
+[custom dictionary](./dictionary.md) so the engine treats it as a single unit.
+
+
 First-occurrence clearing window
 --------------------------------
 
