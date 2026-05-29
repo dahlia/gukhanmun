@@ -453,7 +453,10 @@ fn ruby_on_hangul_emits_ruby_element_inside_paragraph() {
         RenderMode::Ruby(RubyBase::OnHangul),
     );
 
-    assert_eq!(output, "<p><ruby>한자<rt>漢字</rt></ruby> 만세</p>");
+    assert_eq!(
+        output,
+        "<p><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby> 만세</p>"
+    );
 }
 
 #[test]
@@ -464,7 +467,10 @@ fn ruby_on_hanja_emits_hanja_base_in_ruby_element() {
         RenderMode::Ruby(RubyBase::OnHanja),
     );
 
-    assert_eq!(output, "<p><ruby>漢字<rt>한자</rt></ruby></p>");
+    assert_eq!(
+        output,
+        "<p><ruby>漢字<rp>(</rp><rt>한자</rt><rp>)</rp></ruby></p>"
+    );
 }
 
 #[test]
@@ -488,7 +494,7 @@ fn ruby_mode_skips_non_korean_lang_scope() {
 
     assert_eq!(
         output,
-        "<p lang=\"ja\">漢字 <span lang=ko><ruby>한자<rt>漢字</rt></ruby></span></p>"
+        "<p lang=\"ja\">漢字 <span lang=ko><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby></span></p>"
     );
 }
 
@@ -496,7 +502,7 @@ fn ruby_mode_skips_non_korean_lang_scope() {
 fn ruby_emits_inline_markup_for_root_level_text() {
     let output = convert_html_fragment("漢字", &dictionary(), RenderMode::Ruby(RubyBase::OnHangul));
 
-    assert_eq!(output, "<ruby>한자<rt>漢字</rt></ruby>");
+    assert_eq!(output, "<ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>");
 }
 
 #[test]
@@ -509,7 +515,7 @@ fn ruby_inside_text_only_elements_falls_back_to_parens() {
 
     assert_eq!(
         output,
-        "<title>한자(漢字)</title><p><ruby>한자<rt>漢字</rt></ruby><option>한자(漢字)</option></p>"
+        "<title>한자(漢字)</title><p><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby><option>한자(漢字)</option></p>"
     );
 }
 
@@ -522,7 +528,7 @@ fn ruby_writer_escapes_hostile_dictionary_readings() {
 
     assert_eq!(
         output,
-        "<p><ruby>&lt;script&gt;alert(1)&lt;/script&gt;<rt>漢字</rt></ruby></p>"
+        "<p><ruby>&lt;script&gt;alert(1)&lt;/script&gt;<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby></p>"
     );
 }
 
@@ -544,7 +550,10 @@ fn original_mode_with_ruby_gloss_uses_ruby_for_required_hangul_entries() {
 
     let output = convert_html_fragment("<p>漢字</p>", &dict, options);
 
-    assert_eq!(output, "<p><ruby>漢字<rt>한자</rt></ruby></p>");
+    assert_eq!(
+        output,
+        "<p><ruby>漢字<rp>(</rp><rt>한자</rt><rp>)</rp></ruby></p>"
+    );
 }
 
 fn convert_with_reader_options(input: &str, options: &HtmlReaderOptions<'_>) -> String {

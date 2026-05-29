@@ -330,7 +330,7 @@ fn ruby_on_hangul_emits_inline_html_in_paragraph() {
 
     assert_eq!(
         events(&output),
-        events("<ruby>한자<rt>漢字</rt></ruby> 만세\n")
+        events("<ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby> 만세\n")
     );
 }
 
@@ -344,7 +344,10 @@ fn ruby_on_hanja_emits_inline_html_with_hanja_base() {
     )
     .unwrap();
 
-    assert_eq!(events(&output), events("<ruby>漢字<rt>한자</rt></ruby>\n"));
+    assert_eq!(
+        events(&output),
+        events("<ruby>漢字<rp>(</rp><rt>한자</rt><rp>)</rp></ruby>\n")
+    );
 }
 
 #[test]
@@ -359,7 +362,9 @@ fn ruby_mode_does_not_touch_code_span_or_block() {
 
     assert_eq!(
         events(&output),
-        events("`漢字`\n\n```text\n北京\n```\n\n<ruby>한자<rt>漢字</rt></ruby>\n")
+        events(
+            "`漢字`\n\n```text\n北京\n```\n\n<ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>\n"
+        )
     );
 }
 
@@ -376,7 +381,7 @@ fn ruby_inside_inline_html_text_only_element_falls_back_to_parens() {
     assert_eq!(
         events(&output),
         events(
-            "Paragraph with <option>한자(漢字)</option> inline and <ruby>한자<rt>漢字</rt></ruby>.\n"
+            "Paragraph with <option>한자(漢字)</option> inline and <ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>.\n"
         )
     );
 }
@@ -396,7 +401,9 @@ fn ruby_inside_emphasis_within_text_only_inline_html_falls_back_to_parens() {
 
     assert_eq!(
         events(&output),
-        events("Paragraph <option>**한자(漢字)**</option> and <ruby>한자<rt>漢字</rt></ruby>.\n")
+        events(
+            "Paragraph <option>**한자(漢字)**</option> and <ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>.\n"
+        )
     );
 }
 
@@ -415,7 +422,9 @@ fn ruby_writer_escapes_hostile_dictionary_readings() {
 
     assert_eq!(
         events(&output),
-        events("<ruby>&lt;script&gt;alert(1)&lt;/script&gt;<rt>漢字</rt></ruby>\n")
+        events(
+            "<ruby>&lt;script&gt;alert(1)&lt;/script&gt;<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>\n"
+        )
     );
 }
 
@@ -444,7 +453,10 @@ fn original_with_ruby_gloss_renders_required_hangul_as_inline_html() {
 
     let output = convert_markdown("漢字\n", &dict, options, MarkdownVariant::CommonMark).unwrap();
 
-    assert_eq!(events(&output), events("<ruby>漢字<rt>한자</rt></ruby>\n"));
+    assert_eq!(
+        events(&output),
+        events("<ruby>漢字<rp>(</rp><rt>한자</rt><rp>)</rp></ruby>\n")
+    );
 }
 
 #[test]

@@ -50,8 +50,13 @@ annotation.  Requires HTML or Markdown output (`-f text/html` or
 
 ~~~~ sh
 echo "漢字" | gukhanmun -f text/html --rendering ruby-on-hangul
-# → <ruby>한자<rt>漢字</rt></ruby>
+# → <ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>
 ~~~~
+
+The `<rp>` elements hold parenthesized fallback text.  Browsers that support
+`<ruby>` hide them and stack the annotation above the base, while browsers
+without `<ruby>` support display the gloss in parentheses (`한자(漢字)`)
+instead of running it into the base text.
 
 ### `ruby-on-hanja`
 
@@ -60,7 +65,7 @@ annotation.
 
 ~~~~ sh
 echo "漢字" | gukhanmun -f text/html --rendering ruby-on-hanja
-# → <ruby>漢字<rt>한자</rt></ruby>
+# → <ruby>漢字<rp>(</rp><rt>한자</rt><rp>)</rp></ruby>
 ~~~~
 
 ### `original`
@@ -68,10 +73,10 @@ echo "漢字" | gukhanmun -f text/html --rendering ruby-on-hanja
 Keeps the original hanja in the output and adds a gloss only where needed to
 disambiguate homophones.  Use `--original-gloss` to choose the gloss style:
 
-| `--original-gloss` | Output                           |
-| ------------------ | -------------------------------- |
-| `parens`           | 漢字(한자)                       |
-| `ruby`             | `<ruby>漢字<rt>한자</rt></ruby>` |
+| `--original-gloss` | Output                                               |
+| ------------------ | ---------------------------------------------------- |
+| `parens`           | 漢字(한자)                                           |
+| `ruby`             | `<ruby>漢字<rp>(</rp><rt>한자</rt><rp>)</rp></ruby>` |
 
 ~~~~ sh
 echo "漢字" | gukhanmun --rendering original --original-gloss parens

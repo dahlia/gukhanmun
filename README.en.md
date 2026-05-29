@@ -162,13 +162,13 @@ Rendering modes
 The renderer is decoupled from the engine and middlewares. The mode is chosen
 per conversion call.
 
-| Mode                                          | Rust enum variant               | Output for 漢字                                  |
-| --------------------------------------------- | ------------------------------- | ------------------------------------------------ |
-| Hangul only                                   | `RenderMode::HangulOnly`        | 한자                                             |
-| Hangul with hanja in parentheses              | `RenderMode::HangulHanjaParens` | 한자(漢字)                                       |
-| Hanja with hangul in parentheses              | `RenderMode::HanjaHangulParens` | 漢字(한자)                                       |
-| Ruby markup                                   | `RenderMode::Ruby`              | `<ruby>한자<rt>漢字</rt></ruby>`                 |
-| Original mixed script with selective glossing | `RenderMode::Original`          | 漢字 (glossed only when `require_hangul` is set) |
+| Mode                                          | Rust enum variant               | Output for 漢字                                      |
+| --------------------------------------------- | ------------------------------- | ---------------------------------------------------- |
+| Hangul only                                   | `RenderMode::HangulOnly`        | 한자                                                 |
+| Hangul with hanja in parentheses              | `RenderMode::HangulHanjaParens` | 한자(漢字)                                           |
+| Hanja with hangul in parentheses              | `RenderMode::HanjaHangulParens` | 漢字(한자)                                           |
+| Ruby markup                                   | `RenderMode::Ruby`              | `<ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>` |
+| Original mixed script with selective glossing | `RenderMode::Original`          | 漢字 (glossed only when `require_hangul` is set)     |
 
 `HangulOnly` adds hanja in parentheses automatically when the dictionary flags
 the word as having a homophone or as requiring disambiguation.

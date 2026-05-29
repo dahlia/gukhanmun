@@ -70,5 +70,11 @@ Combine `-f text/html` with `--rendering ruby-on-hangul` or
 
 ~~~~ sh
 echo "<p>漢字</p>" | gukhanmun -f text/html --rendering ruby-on-hangul
-# → <p><ruby>한자<rt>漢字</rt></ruby></p>
+# → <p><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby></p>
 ~~~~
+
+The annotation is wrapped in `<rp>` (ruby parenthesis) elements.  Browsers
+that understand `<ruby>` hide the `<rp>` content and render the reading
+stacked above the base; browsers without `<ruby>` support fall back to
+showing the parenthesized gloss inline (`한자(漢字)`), which keeps the
+output readable everywhere.

@@ -98,5 +98,9 @@ const g = await load({
 });
 
 console.log(g.convert("<p>漢字</p>", "html"));
-// → <p><ruby>한자<rt>漢字</rt></ruby></p>
+// → <p><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby></p>
 ~~~~
+
+The `<rp>` (ruby parenthesis) elements provide a fallback: browsers without
+`<ruby>` support display the reading in parentheses (`한자(漢字)`) rather
+than running it into the base text.

@@ -94,5 +94,5 @@ fn html_ruby_rendering_emits_ruby_tags() {
     let output = converter
         .convert_html_fragment_to_string("<p>學校</p>")
         .expect("html");
-    assert!(output.contains("<ruby>학교<rt>學校</rt></ruby>"));
+    assert!(output.contains("<ruby>학교<rp>(</rp><rt>學校</rt><rp>)</rp></ruby>"));
 }

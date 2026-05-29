@@ -567,9 +567,13 @@ The `HanjaHangulParens` renderer always emits `한자(한글)`. This is useful f
 academic and historical-document styles that lead with hanja.
 
 The `Ruby` renderer emits a `<ruby>` element with a sub-mode that determines
-which side is the base: `<ruby>한글<rt>한자</rt></ruby>` for `on-hangul`, and
-`<ruby>한자<rt>한글</rt></ruby>` for `on-hanja`. If the current scope returns
-false from `allows_inline_markup()`, the renderer falls back to parens.
+which side is the base: `<ruby>한글<rp>(</rp><rt>한자</rt><rp>)</rp></ruby>`
+for `on-hangul`, and `<ruby>한자<rp>(</rp><rt>한글</rt><rp>)</rp></ruby>` for
+`on-hanja`. The `<rp>` elements carry parenthesized fallback text so that
+browsers without `<ruby>` support render the annotation inline as
+`base(gloss)` (`한글(한자)` for `on-hangul`, `한자(한글)` for `on-hanja`)
+rather than running it into the base. If the current scope returns false from
+`allows_inline_markup()`, the renderer falls back to parens.
 
 The `Original` renderer emits the original hanja as plain text. Only
 annotations with `require_hangul`, or those marked by a user directive, receive

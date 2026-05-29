@@ -98,7 +98,7 @@ fn ruby_rendering_in_html_emits_ruby_element() {
         .write_stdin("<p>漢字</p>")
         .assert()
         .success()
-        .stdout("<p><ruby>한자<rt>漢字</rt></ruby></p>");
+        .stdout("<p><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby></p>");
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn original_with_ruby_gloss_uses_ruby_element_in_html_when_required() {
         .write_stdin("<p>漢字</p>")
         .assert()
         .success()
-        .stdout("<p><ruby>漢字<rt>한자</rt></ruby></p>");
+        .stdout("<p><ruby>漢字<rp>(</rp><rt>한자</rt><rp>)</rp></ruby></p>");
 }
 
 #[test]

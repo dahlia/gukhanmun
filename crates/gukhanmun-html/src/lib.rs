@@ -691,9 +691,11 @@ pub fn try_read_html_fragment_with_options(
 /// `Text` and `Verbatim` tokens are passed through without additional
 /// escaping (the reader does not entity-encode `Text` either, so this matches
 /// the original input form). Renderer-emitted `Ruby` tokens are wrapped in a
-/// `<ruby><rt>...</rt></ruby>` element with HTML-special characters escaped
-/// in both the base text and the `rt` gloss; that prevents any user- or
-/// dictionary-supplied reading from breaking out of the markup.
+/// `<ruby>...<rp>(</rp><rt>...</rt><rp>)</rp></ruby>` element with
+/// HTML-special characters escaped in both the base text and the `rt` gloss;
+/// that prevents any user- or dictionary-supplied reading from breaking out of
+/// the markup. The `<rp>` elements supply parenthesized fallback text for
+/// browsers that do not support `<ruby>`.
 pub fn write_html_fragment(
     tokens: impl IntoIterator<Item = RenderedToken<HtmlScopeData>>,
 ) -> String {
@@ -755,9 +757,9 @@ where
             RenderedToken::Ruby { base, rt } => {
                 self.output.write_all(b"<ruby>")?;
                 write_escaped_html_text(&mut self.output, &base)?;
-                self.output.write_all(b"<rt>")?;
+                self.output.write_all(b"<rp>(</rp><rt>")?;
                 write_escaped_html_text(&mut self.output, &rt)?;
-                self.output.write_all(b"</rt></ruby>")?;
+                self.output.write_all(b"</rt><rp>)</rp></ruby>")?;
             }
         }
         Ok(())

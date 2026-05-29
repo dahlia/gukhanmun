@@ -1763,10 +1763,14 @@ pub enum RenderMode {
 /// Selects which side of a `<ruby>` element is the base text.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RubyBase {
-    /// `<ruby>hangul<rt>hanja</rt></ruby>`; hangul is the base, hanja is the gloss.
+    /// `<ruby>hangul<rp>(</rp><rt>hanja</rt><rp>)</rp></ruby>`; hangul is the
+    /// base, hanja is the gloss. The `<rp>` elements provide parenthesized
+    /// fallback text for browsers without `<ruby>` support.
     OnHangul,
 
-    /// `<ruby>hanja<rt>hangul</rt></ruby>`; hanja is the base, hangul is the gloss.
+    /// `<ruby>hanja<rp>(</rp><rt>hangul</rt><rp>)</rp></ruby>`; hanja is the
+    /// base, hangul is the gloss. The `<rp>` elements provide parenthesized
+    /// fallback text for browsers without `<ruby>` support.
     OnHanja,
 }
 

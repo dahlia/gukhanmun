@@ -614,12 +614,12 @@ where
                     return Some(Event::InlineHtml(CowStr::from(text)));
                 }
                 RenderedToken::Ruby { base, rt } => {
-                    let mut markup = String::with_capacity(base.len() + rt.len() + 25);
+                    let mut markup = String::with_capacity(base.len() + rt.len() + 45);
                     markup.push_str("<ruby>");
                     push_escaped_html_text(&mut markup, &base);
-                    markup.push_str("<rt>");
+                    markup.push_str("<rp>(</rp><rt>");
                     push_escaped_html_text(&mut markup, &rt);
-                    markup.push_str("</rt></ruby>");
+                    markup.push_str("</rt><rp>)</rp></ruby>");
                     return Some(Event::InlineHtml(CowStr::from(markup)));
                 }
             }
