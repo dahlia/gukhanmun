@@ -38,6 +38,7 @@ const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
 #[derive(Debug, Parser)]
 #[command(
     name = "gukhanmun",
+    version,
     about = "Convert Korean mixed-script plain text into hangul text."
 )]
 struct Cli {

@@ -29,6 +29,7 @@ use tracing_subscriber::EnvFilter;
 #[derive(Debug, Parser)]
 #[command(
     name = "gukhanmun-mkdict",
+    version,
     about = "Build Gukhanmun dictionary backend files from canonical TSV input."
 )]
 struct Cli {
