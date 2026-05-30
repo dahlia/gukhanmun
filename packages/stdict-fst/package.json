@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/stdict-fst",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Standard Korean Language Dictionary bundled as an FST binary for @gukhanmun/wasm and @gukhanmun/napi.",
   "type": "module",
   "exports": {
