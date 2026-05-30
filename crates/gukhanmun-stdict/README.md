@@ -1,9 +1,17 @@
 gukhanmun-stdict
 ================
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 Bundled South Korean Standard Dictionary (標準國語大辭典) for Gukhanmun,
 compiled into an FST binary and embedded in the crate at build time. No
 external file or network access is required at runtime.
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun-stdict?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun-stdict
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun-stdict
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation

@@ -1,10 +1,18 @@
 gukhanmun-markdown
 ==================
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 Markdown adapter for the Gukhanmun pipeline. Parses Markdown with
 `pulldown-cmark`, maps each event to a core token, converts hanja in text runs
 while preserving code spans, code blocks, and raw HTML, then serializes the
 output back to Markdown via `pulldown-cmark-to-cmark`.
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun-markdown?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun-markdown
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun-markdown
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation

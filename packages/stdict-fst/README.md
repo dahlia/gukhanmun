@@ -1,9 +1,20 @@
 @gukhanmun/stdict-fst
 =====================
 
+[![JSR][JSR badge]][JSR]
+[![npm][npm badge]][npm]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 Standard Korean Language Dictionary (표준국어대사전, 標準國語大辭典) compiled
 into a Gukhanmun FST binary and distributed as an npm package. Use this with
 `@gukhanmun/wasm` or `@gukhanmun/napi` when `ko-KR` readings are needed.
+
+[JSR badge]: https://jsr.io/badges/@gukhanmun/stdict-fst
+[JSR]: https://jsr.io/@gukhanmun/stdict-fst
+[npm badge]: https://img.shields.io/npm/v/@gukhanmun/stdict-fst?logo=npm
+[npm]: https://www.npmjs.com/package/@gukhanmun/stdict-fst
+[GPL badge]: https://img.shields.io/npm/l/%40gukhanmun%2Fstdict-fst
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation

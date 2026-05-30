@@ -8,12 +8,31 @@ Gukhanmun
 
 *다른 言語: [English](README.en.md) (英語).*
 
+[![crates.io][crates.io badge]][crates.io]
+[![JSR][JSR badge]][JSR]
+[![npm][npm badge]][npm]
+[![GitHub Actions][GitHub Actions badge]][GitHub Actions]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+[![GitHub Sponsors][GitHub Sponsors badge]][GitHub Sponsors]
+
 Gukhanmun은 國漢文混用體로 쓰인 韓國語 텍스트를 한글 專用 텍스트로 變換하는
 Rust 라이브러리이다. [Seonbi]의 後繼 프로젝트로서, 漢字 變換 파이프라인에
 集中하면서 스트리밍 入出力·結合 可能한 辭典·라티스 基盤 分割·多樣한 出力
 形式 等의 軸으로 擴張되었다. Rust 라이브러리·命令줄 道具 形態로 提供되며,
 WebAssembly·Node-API 바인딩은 計劃 中이다.
 
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun
+[JSR badge]: https://jsr.io/badges/@gukhanmun/types
+[JSR]: https://jsr.io/@gukhanmun
+[npm badge]: https://img.shields.io/npm/v/@gukhanmun/types?logo=npm
+[npm]: https://www.npmjs.com/package/@gukhanmun/types
+[GitHub Actions badge]: https://github.com/dahlia/gukhanmun/actions/workflows/main.yaml/badge.svg
+[GitHub Actions]: https://github.com/dahlia/gukhanmun/actions/workflows/main.yaml
+[GPL badge]: https://img.shields.io/github/license/dahlia/gukhanmun
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
+[GitHub Sponsors badge]: https://img.shields.io/github/sponsors/dahlia?logo=githubsponsors
+[GitHub Sponsors]: https://github.com/sponsors/dahlia
 [Seonbi]: https://github.com/dahlia/seonbi
 
 

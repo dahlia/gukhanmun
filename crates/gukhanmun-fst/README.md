@@ -1,8 +1,16 @@
 gukhanmun-fst
 =============
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 FST dictionary backend for Gukhanmun. Implements `HanjaDictionary` over a
 custom binary format built on top of the `fst` crate's sorted-map structure.
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun-fst?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun-fst
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun-fst
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 File format

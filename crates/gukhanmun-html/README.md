@@ -1,11 +1,19 @@
 gukhanmun-html
 ==============
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 HTML fragment adapter for the Gukhanmun pipeline. Parses HTML with
 `html5ever`, classifies each element into a policy (preserve, inline, block),
 and produces a token stream that the core engine can process. The writer
 serializes the engine's output back into HTML, keeping all original attributes
 and tag structure intact.
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun-html?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun-html
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun-html
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation

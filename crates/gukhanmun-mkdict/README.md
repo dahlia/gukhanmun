@@ -1,9 +1,17 @@
 gukhanmun-mkdict
 ================
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 Command-line tool that compiles hanja dictionary source data into Gukhanmun's
 binary dictionary formats (FST or CDB). The typical input is a tab-separated
 file with a hanja key in the first column and a hangul reading in the second.
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun-mkdict?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun-mkdict
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun-mkdict
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation

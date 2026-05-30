@@ -1,10 +1,18 @@
 gukhanmun-cdb
 =============
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 CDB dictionary backend for Gukhanmun. Implements `HanjaDictionary` over a
 CDB-based file format that is trivially auditable: the on-disk layout is a
 standard CDB header followed by CBOR metadata and trie records, with no
 proprietary compression.
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun-cdb?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun-cdb
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun-cdb
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 File format

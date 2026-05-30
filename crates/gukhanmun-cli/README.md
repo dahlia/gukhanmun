@@ -1,9 +1,17 @@
 gukhanmun-cli
 =============
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 The `gukhanmun` command-line binary. Reads Korean mixed-script text from a
 file or standard input and writes hangul-converted text to a file or standard
 output. HTML and Markdown formats are supported in addition to plain text.
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun-cli?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun-cli
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun-cli
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation

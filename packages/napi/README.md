@@ -1,9 +1,17 @@
 @gukhanmun/napi
 ===============
 
+[![npm][npm badge]][npm]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 Node.js native addon implementation of the Gukhanmun hanja-to-hangul converter,
 built with napi-rs. Requires Node.js 20+. For environments other than Node.js
 (browsers, Deno, Bun via WASM), use `@gukhanmun/wasm` instead.
+
+[npm badge]: https://img.shields.io/npm/v/@gukhanmun/napi?logo=npm
+[npm]: https://www.npmjs.com/package/@gukhanmun/napi
+[GPL badge]: https://img.shields.io/npm/l/%40gukhanmun%2Fnapi
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation

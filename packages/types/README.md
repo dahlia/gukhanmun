@@ -1,9 +1,20 @@
 @gukhanmun/types
 ================
 
+[![JSR][JSR badge]][JSR]
+[![npm][npm badge]][npm]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 TypeScript type declarations for the Gukhanmun JavaScript API. This package
 carries no runtime code; it exists so that both `@gukhanmun/wasm` and
 `@gukhanmun/napi` can share the same type definitions without duplicating them.
+
+[JSR badge]: https://jsr.io/badges/@gukhanmun/types
+[JSR]: https://jsr.io/@gukhanmun/types
+[npm badge]: https://img.shields.io/npm/v/@gukhanmun/types?logo=npm
+[npm]: https://www.npmjs.com/package/@gukhanmun/types
+[GPL badge]: https://img.shields.io/npm/l/%40gukhanmun%2Ftypes
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation

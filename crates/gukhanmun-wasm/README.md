@@ -1,12 +1,20 @@
 gukhanmun-wasm
 ==============
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 WebAssembly binding for Gukhanmun, generated with `wasm-bindgen`. Exposes
 `WasmGukhanmun` (an owning converter instance) and `WasmStream` (a streaming
 handle for chunked input) to JavaScript.
 
 This crate is the Rust side of the `@gukhanmun/wasm` npm package. End users
 interact with the TypeScript wrapper, not with this crate directly.
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun-wasm?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun-wasm
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun-wasm
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Exposed types

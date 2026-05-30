@@ -1,9 +1,17 @@
 gukhanmun-core
 ==============
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 Format-neutral core of the Gukhanmun hanja-to-hangul pipeline. The crate is
 `no_std` + `alloc`, so it is suitable for embedded and WASM targets. Format
 adapters, dictionary backends, and runtime I/O live in separate crates.
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun-core?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun-core
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun-core
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 What this crate provides

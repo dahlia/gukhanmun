@@ -1,9 +1,20 @@
 @gukhanmun/wasm
 ===============
 
+[![JSR][JSR badge]][JSR]
+[![npm][npm badge]][npm]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 WebAssembly implementation of the Gukhanmun hanja-to-hangul converter. Runs in
 any WebAssembly-capable environment: browsers, Deno 2.0+, Node.js 20+, and Bun
 1.0+.
+
+[JSR badge]: https://jsr.io/badges/@gukhanmun/wasm
+[JSR]: https://jsr.io/@gukhanmun/wasm
+[npm badge]: https://img.shields.io/npm/v/@gukhanmun/wasm?logo=npm
+[npm]: https://www.npmjs.com/package/@gukhanmun/wasm
+[GPL badge]: https://img.shields.io/npm/l/%40gukhanmun%2Fwasm
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation

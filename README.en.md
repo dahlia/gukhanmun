@@ -8,6 +8,13 @@ Gukhanmun
 
 *Also available: [韓國語](README.ko-Kore.md) (Korean).*
 
+[![crates.io][crates.io badge]][crates.io]
+[![JSR][JSR badge]][JSR]
+[![npm][npm badge]][npm]
+[![GitHub Actions][GitHub Actions badge]][GitHub Actions]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+[![GitHub Sponsors][GitHub Sponsors badge]][GitHub Sponsors]
+
 Gukhanmun converts Korean text written in mixed script (國漢文混用體, hanja
 characters interleaved with hangul) into hangul-only text. It is the successor
 to [Seonbi], narrowed to the hanja-to-hangul conversion pipeline and extended
@@ -16,6 +23,18 @@ segmentation, and a wider range of output formats. The library is implemented
 in Rust and exposed as a Rust library, a command-line tool, and (planned)
 WebAssembly and Node-API bindings.
 
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun
+[JSR badge]: https://jsr.io/badges/@gukhanmun/types
+[JSR]: https://jsr.io/@gukhanmun
+[npm badge]: https://img.shields.io/npm/v/@gukhanmun/types?logo=npm
+[npm]: https://www.npmjs.com/package/@gukhanmun/types
+[GitHub Actions badge]: https://github.com/dahlia/gukhanmun/actions/workflows/main.yaml/badge.svg
+[GitHub Actions]: https://github.com/dahlia/gukhanmun/actions/workflows/main.yaml
+[GPL badge]: https://img.shields.io/github/license/dahlia/gukhanmun
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
+[GitHub Sponsors badge]: https://img.shields.io/github/sponsors/dahlia?logo=githubsponsors
+[GitHub Sponsors]: https://github.com/sponsors/dahlia
 [Seonbi]: https://github.com/dahlia/seonbi
 
 

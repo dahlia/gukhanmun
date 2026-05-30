@@ -1,9 +1,18 @@
 gukhanmun
 =========
 
+[![crates.io][crates.io badge]][crates.io]
+[![License: GPL-3.0-only][GPL badge]][GPL]
+
 Umbrella library for hanja-to-hangul conversion. This crate wires together the
 engine, format adapters, and dictionary backends from the workspace into a
 single `Builder`/`Converter` facade.
+
+
+[crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
+[crates.io]: https://crates.io/crates/gukhanmun
+[GPL badge]: https://img.shields.io/crates/l/gukhanmun
+[GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
 Installation
