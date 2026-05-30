@@ -19,6 +19,17 @@ import { normalizeImagePath, useFrontmatter } from "@rspress/core/runtime";
 import { Button, Link, renderHtmlOrText } from "@rspress/core/theme-original";
 import { HeroConversion } from "./HeroConversion";
 
+// This component reuses the upstream `.rp-home-hero*` classes, whose styling
+// lives in the stock HomeHero module's `import "./index.css"` side effect.
+// Because our theme shadows the HomeHero export, nothing references that
+// upstream module anymore, so a production build tree-shakes it away (the core
+// package declares `sideEffects: ["*.css", ...]`, marking every JS module
+// side-effect-free) and the hero loses its layout and typography. Dev keeps all
+// modules, so the breakage only shows up after `rspress build`. Pull the
+// stylesheet in directly so it survives regardless of tree-shaking; the
+// `./dist/*` subpath is exposed by @rspress/core's package exports.
+import "@rspress/core/dist/theme/components/HomeHero/index.css";
+
 // Mirrors @rspress/core's stock HomeHero, but replaces the static `text`
 // subtitle with the HeroConversion animation so the landing page demonstrates,
 // rather than merely states, what Gukhanmun does. Everything else (brand title,
