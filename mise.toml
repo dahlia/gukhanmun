@@ -94,6 +94,7 @@ run = [
   "deno check packages/stdict-fst/index.ts",
   "deno check packages/stdict-cdb/index.ts",
   "deno check tests/js/wasm.test.ts",
+  "deno check tests/js/napi.test.ts",
 ]
 
 [tasks.js-lint]
@@ -168,12 +169,22 @@ depends = ["wasm-build", "stdict-fst-data", "stdict-cdb-data", "js-install"]
 run = "pnpm -r run build"
 
 [tasks.js-test]
-description = "Run JavaScript tests on Node.js, Deno, and Bun"
-depends = ["wasm-build", "stdict-fst-data", "napi-build", "js-install"]
+description = "Run JavaScript integration tests on Node.js, Deno, and Bun"
+depends = [
+  "wasm-build",
+  "stdict-fst-data",
+  "stdict-cdb-data",
+  "napi-build",
+  "js-install",
+]
+# Both bindings run on all three runtimes.  The wasm binding loads its module
+# and dictionary files via fetch(file://) (Deno/Bun) or node:fs (Node); the
+# napi native addon needs Deno's --allow-ffi/--allow-env/--allow-sys on top of
+# --allow-read.
 run = [
   "node --test tests/js/wasm.test.ts tests/js/napi.test.ts",
-  "deno test --allow-read tests/js/wasm.test.ts",
-  "bun test tests/js/wasm.test.ts",
+  "deno test --allow-read --allow-env --allow-ffi --allow-sys tests/js/wasm.test.ts tests/js/napi.test.ts",
+  "bun test tests/js/wasm.test.ts tests/js/napi.test.ts",
 ]
 
 [tasks.js-sync-version]

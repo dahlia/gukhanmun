@@ -131,20 +131,22 @@ function detectPlatformPackage(): string {
 /**
  * Loads the native addon at module initialisation time.
  *
- * When installed from npm the platform-specific optional dependency is tried
- * first.  Falls back to a locally-built binary (produced by
- * `mise run napi-build`) for development.
+ * A locally-built binary (produced by `mise run napi-build`) is tried first so
+ * development and CI exercise the freshly compiled addon; a stale platform
+ * optional-dependency binary must never shadow it.  A published install ships
+ * only `dist/` (see the package `files` field), so no local binary is present
+ * there and resolution falls through to the platform-specific optional
+ * dependency.
  */
 const nativeAddon = (() => {
   const req = createRequire(import.meta.url);
   try {
-    return req(detectPlatformPackage()) as NapiAddon;
+    return req("./gukhanmun_napi.node") as NapiAddon;
   } catch {
-    // Fall back to local binary for development after `mise run napi-build`
     try {
-      return req("./gukhanmun_napi.node") as NapiAddon;
-    } catch {
       return req("../gukhanmun_napi.node") as NapiAddon;
+    } catch {
+      return req(detectPlatformPackage()) as NapiAddon;
     }
   }
 })();
