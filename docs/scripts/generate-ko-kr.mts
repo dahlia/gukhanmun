@@ -32,7 +32,9 @@ type Path = ReturnType<typeof $.path>;
 const here = $.path(fileURLToPath(import.meta.url)).parentOrThrow();
 const docsDir = here.parentOrThrow();
 const workspaceRoot = docsDir.parentOrThrow();
-const bin = workspaceRoot.join("target", "release", "gukhanmun");
+// Cargo names the binary `gukhanmun.exe` on Windows; `gukhanmun` elsewhere.
+const exe = process.platform === "win32" ? "gukhanmun.exe" : "gukhanmun";
+const bin = workspaceRoot.join("target", "release", exe);
 const srcDir = docsDir.join("ko-Kore");
 const outDir = docsDir.join("ko-KR");
 
