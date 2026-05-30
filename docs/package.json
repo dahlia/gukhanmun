@@ -29,6 +29,7 @@
     "marked": "^18.0.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "rspress-plugin-katex": "^1.0.1",
     "rspress-plugin-mermaid": "^1.0.1"
   }
 }

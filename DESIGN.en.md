@@ -427,7 +427,7 @@ Lookup walks one character at a time from the cursor position. On a miss, no
 longer match is possible from this position and the walk terminates. On a hit
 with `is_complete = 1`, the match is yielded; on a hit with `is_complete = 0`,
 the walk continues to look for longer matches. The cost is
-$O(\\text{max\\\_word\\\_chars})$ CDB lookups per position, and each CDB lookup
+$O(\text{max_word_chars})$ CDB lookups per position, and each CDB lookup
 is $O(1)$. The size cost is real: every prefix of every entry occupies a
 record, so the bundled stdict CDB is roughly twice the size of the source TSV.
 The trade-off is that CDB's simplicity (six syscalls of file format,

@@ -39,10 +39,10 @@ gukhanmun -d legal.gukfst -d names.gukcdb input.txt
 
 Gukhanmun supports two binary dictionary formats:
 
-| Format | Extension | Lookup        | Notes                                               |
-| ------ | --------- | ------------- | --------------------------------------------------- |
-| FST    | *.gukfst* | O(key length) | Preferred for lattice segmentation; smaller on disk |
-| CDB    | *.gukcdb* | O(1)          | Simpler layout; easier to audit by hand             |
+| Format | Extension | Lookup                 | Notes                                               |
+| ------ | --------- | ---------------------- | --------------------------------------------------- |
+| FST    | *.gukfst* | $O(\text{key length})$ | Preferred for lattice segmentation; smaller on disk |
+| CDB    | *.gukcdb* | $O(1)$                 | Simpler layout; easier to audit by hand             |
 
 Dictionaries are tried in the order they appear on the command line, with the
 bundled dictionary consulted last.  The first match wins.

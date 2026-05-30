@@ -26,7 +26,7 @@ macos-arm64 = "wasm-pack-v*-aarch64-apple-darwin.tar.gz"
 windows-x64 = "wasm-pack-v*-x86_64-pc-windows-msvc.tar.gz"
 
 [tools."github:dahlia/hongdown"]
-version = "0.3.11"
+version = "0.4.1"
 
 [tools."github:dahlia/hongdown".platforms]
 linux-x64 = "hongdown-*-x86_64-unknown-linux-musl.tar.bz2"
