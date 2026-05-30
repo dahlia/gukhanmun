@@ -49,16 +49,43 @@ depends = [
 description = "Run the full CI verification gate"
 depends = ["check", "test", "doc", "js-build", "js-test"]
 
+[tasks.rust-init]
+description = "Materialize the pinned Rust toolchain in a single rustup process"
+shell = "nu -c"
+# mise's rust tool is a symlink backend that defers to the system rustup, so the
+# toolchain and its components are not actually downloaded until the first cargo
+# invocation.  Under `mise run ci` several cargo tasks start at once and race to
+# populate ~/.rustup/downloads, which intermittently fails with a rename error
+# on a partial download (seen on macOS CI).  Every Rust task depends on this one
+# so the DAG runs it exactly once, up front, in a single rustup process.  The
+# toolchain spec is read straight from [tools.rust] to stay in sync with it.
+run = """
+let rust = (open mise.toml | get tools.rust)
+# rustup wants each component/target as its own flag occurrence, not several
+# values after one flag, so expand into [--component x --component y ...].
+let comp_args = ($rust.components | split row "," | each { |c| ["--component" $c] } | flatten)
+let target_args = ($rust.targets | split row "," | each { |t| ["--target" $t] } | flatten)
+(
+  rustup toolchain install $rust.version
+    --profile $rust.profile
+    ...$comp_args
+    ...$target_args
+    --no-self-update
+)
+"""
+
 [tasks.bump]
 description = "Preview a workspace + JS manifest version bump"
 usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
 shell = "nu -c"
+depends = ["rust-init"]
 run = "cargo release --workspace --no-publish --no-tag --no-push $env.usage_version"
 
 [tasks.bump-execute]
 description = "Create one signed commit bumping the workspace and the packages/ JS manifests"
 usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
 shell = "nu -c"
+depends = ["rust-init"]
 # cargo-release bumps the shared Cargo version, the intra-workspace dependency
 # requirements, and Cargo.lock, then writes a signed commit.  It knows nothing
 # about the package.json/deno.json manifests under packages/, so we sync those
@@ -77,26 +104,32 @@ git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json
 
 [tasks.typecheck]
 description = "Check all Rust workspace targets"
+depends = ["rust-init"]
 run = "cargo check --workspace --all-targets"
 
 [tasks.clippy]
 description = "Lint all Rust workspace targets"
+depends = ["rust-init"]
 run = "cargo clippy --workspace --all-targets"
 
 [tasks.fmt]
 description = "Format code and docs"
+depends = ["rust-init"]
 run = ["cargo fmt --all", "hongdown --write", "mise fmt", "deno fmt packages/"]
 
 [tasks.fmt-check]
 description = "Check code, docs, and mise formatting"
+depends = ["rust-init"]
 run = ["cargo fmt --all --check", "hongdown --check", "mise fmt --check"]
 
 [tasks.test]
 description = "Run Rust workspace tests"
+depends = ["rust-init"]
 run = "cargo test --workspace"
 
 [tasks.doc]
 description = "Build Rust API documentation with warnings denied"
+depends = ["rust-init"]
 env = { RUSTDOCFLAGS = "-D warnings" }
 run = "cargo doc --workspace --no-deps"
 
@@ -140,6 +173,7 @@ run = "deno fmt --check"
 [tasks.wasm-build]
 description = "Build gukhanmun-wasm WASM module for web, nodejs, and deno targets"
 shell = "nu -c"
+depends = ["rust-init"]
 run = """
 let out = $"(pwd)/packages/wasm/wasm"
 wasm-pack build crates/gukhanmun-wasm --release --target web --out-dir $"($out)/web"
@@ -150,6 +184,7 @@ wasm-pack build crates/gukhanmun-wasm --release --target deno --out-dir $"($out)
 [tasks.stdict-fst-data]
 description = "Build gukhanmun-stdict (release) and copy FST binary to packages/stdict-fst/"
 shell = "nu -c"
+depends = ["rust-init"]
 run = """
 cargo build -p gukhanmun-stdict --release
 let matches = (
@@ -165,6 +200,7 @@ cp ($matches | first) packages/stdict-fst/stdict.fst
 [tasks.napi-build]
 description = "Build the gukhanmun-napi native Node.js addon"
 shell = "nu -c"
+depends = ["rust-init"]
 run = """
 cargo build -p gukhanmun-napi --release
 match $nu.os-info.name {
@@ -177,6 +213,7 @@ match $nu.os-info.name {
 [tasks.stdict-cdb-data]
 description = "Build gukhanmun-mkdict (release) and generate CDB binary to packages/stdict-cdb/"
 shell = "nu -c"
+depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-stdict"
 cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb --rules $"($manifest_dir)/data/rules.tsv" $"($manifest_dir)/data/stdict.tsv"
@@ -256,14 +293,17 @@ deno publish --allow-dirty
 
 [tasks.wasm-check]
 description = "Verify gukhanmun compiles for wasm32-unknown-unknown (html+fst features)"
+depends = ["rust-init"]
 run = "cargo check -p gukhanmun --no-default-features --features 'html,fst' --target wasm32-unknown-unknown"
 
 [tasks.generate-unihan]
 description = "Regenerate Unihan kHangul fallback reading data"
+depends = ["rust-init"]
 run = "cargo run -p gukhanmun-unihan --"
 
 [tasks.generate-unihan-check]
 description = "Check generated Unihan kHangul fallback reading data"
+depends = ["rust-init"]
 run = "cargo run -p gukhanmun-unihan -- --check"
 
 [tasks.gukhanmun]
@@ -272,10 +312,12 @@ description = "Run the gukhanmun plain-text CLI"
 # relative path arguments resolve against the user's current directory.  cargo
 # still finds the workspace by walking up to its Cargo.toml.
 dir = "{{cwd}}"
+depends = ["rust-init"]
 run = "cargo run -p gukhanmun-cli --"
 
 [tasks.insta-review]
 description = "Interactively review and accept/reject pending insta snapshots"
+depends = ["rust-init"]
 run = "cargo insta review"
 
 # The ko-KR locale is generated by the docs package's own prebuild/predev
