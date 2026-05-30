@@ -33,4 +33,4 @@ Format guide for contributors:
 Version 0.1.0
 -------------
 
-To be released.
+Initial release.  Released on May 30, 2026.
