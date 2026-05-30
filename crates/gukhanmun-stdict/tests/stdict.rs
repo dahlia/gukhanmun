@@ -110,6 +110,10 @@ fn bundled_dictionary_converts_stdict_entries() {
     assert_eq!(dict.lookup("北京").unwrap().unwrap().reading(), "베이징");
     assert_eq!(dict.lookup("標識").unwrap().unwrap().reading(), "표지");
     assert_eq!(dict.lookup("一分錢").unwrap().unwrap().reading(), "일푼전");
+    // `引` carries its Sino-Korean reading 인 (so 引數 -> 인수, 引用 -> 인용);
+    // it must not map to the 삐끼 (Japanese 引き) loanword headword, which would
+    // otherwise shadow the correct reading for every 引 compound.
+    assert_eq!(dict.lookup("引").unwrap().unwrap().reading(), "인");
     assert_eq!(
         dict.lookup("布告하다").unwrap().unwrap().reading(),
         "포고하다"
