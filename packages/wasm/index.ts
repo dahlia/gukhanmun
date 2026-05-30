@@ -173,10 +173,13 @@ let wasmInit: Promise<WasmGlue> | undefined;
  * Loads and caches the WASM module.  The module URL is resolved relative to
  * this source file so it works with Deno's module graph and `import.meta.url`.
  *
- * Node.js `fetch()` does not support `file://` URLs, so on Node.js the WASM
- * binary is read via `node:fs/promises` and passed directly as a `Uint8Array`
- * to the web-target init function, bypassing the streaming-fetch path.
- * Deno and Bun support `fetch()` for `file://` URLs and use the default path.
+ * Node.js `fetch()` does not support `file://` URLs, so when the binary is a
+ * `file:` URL on Node.js it is read via `node:fs/promises` and passed directly
+ * as a `Uint8Array` to the web-target init function, bypassing the
+ * streaming-fetch path.  Every other case uses `fetch`: Deno and Bun support
+ * `fetch()` for `file://` URLs, and a non-`file:` URL (such as the `https:`
+ * URL of a JSR install run on Deno, where `process.versions.node` is also
+ * defined) must be fetched since `node:fs` would reject it.
  */
 function ensureWasm(): Promise<WasmGlue> {
   if (!wasmInit) {
@@ -190,7 +193,10 @@ function ensureWasm(): Promise<WasmGlue> {
       // time; they are produced by `mise run wasm-build`.
       const mod = (await import(/* webpackIgnore: true */ glueHref)) as unknown as WasmGlue;
       const wasmUrl = new URL("./wasm/web/gukhanmun_wasm_bg.wasm", import.meta.url);
-      if (isNodeLike()) {
+      // Read from disk only when fetch cannot: Node.js with a file: URL.  Any
+      // non-file: URL (e.g. an https: JSR install on Deno, where isNodeLike()
+      // is also true) must go through fetch, matching resolveDictionary below.
+      if (isNodeLike() && wasmUrl.protocol === "file:") {
         // Non-literal specifier prevents deno check from statically resolving
         // node:fs/promises types, which would require @types/node.
         const specifier: string = "node:fs/promises";

@@ -31,11 +31,14 @@ console.log(g.convert("漢字를 한글로")); // "한자를 한글로"
 
 `stdictCdb()` returns a `DictionarySource` record (a
 `{ format: "cdb", bytes: Uint8Array }` object). `stdictCdbBytes()` returns only
-the `Uint8Array` when you need the raw bytes. `stdictCdbUrl` is the URL of the
+the `Uint8Array` when you need the raw bytes; pass an explicit `URL` to load a
+relocated copy instead of the bundled one. `stdictCdbUrl` is the URL of the
 binary inside the package, useful for preloading or caching.
 
-On Node.js the bytes are read with `node:fs/promises`. On all other runtimes
-they are fetched with `fetch`.
+`stdictCdbBytes()` picks how to load from the URL scheme, not the runtime: a
+`file:` URL (the usual case for an npm install) is read from disk with
+`node:fs/promises`, while any other scheme (such as the `https:` URL of a Deno
+install from JSR) is fetched with `fetch`.
 
 
 Relation to `@gukhanmun/stdict-fst`

@@ -95,6 +95,7 @@ run = [
   "deno check packages/stdict-cdb/index.ts",
   "deno check tests/js/wasm.test.ts",
   "deno check tests/js/napi.test.ts",
+  "deno check tests/js/stdict-loader.test.ts",
 ]
 
 [tasks.js-lint]
@@ -182,9 +183,9 @@ depends = [
 # napi native addon needs Deno's --allow-ffi/--allow-env/--allow-sys on top of
 # --allow-read.
 run = [
-  "node --test tests/js/wasm.test.ts tests/js/napi.test.ts",
-  "deno test --allow-read --allow-env --allow-ffi --allow-sys tests/js/wasm.test.ts tests/js/napi.test.ts",
-  "bun test tests/js/wasm.test.ts tests/js/napi.test.ts",
+  "node --test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts",
+  "deno test --allow-read --allow-env --allow-ffi --allow-sys tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts",
+  "bun test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts",
 ]
 
 [tasks.js-sync-version]

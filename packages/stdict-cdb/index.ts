@@ -53,23 +53,33 @@ interface NodeFsPromises {
 /**
  * Loads the bundled Standard Korean Language Dictionary as raw bytes.
  *
- * On Node.js uses `node:fs/promises`; on all other runtimes uses `fetch`.
+ * The access strategy is chosen from the URL scheme, not from the host
+ * runtime.  A `file:` URL is read from disk with `node:fs/promises` (Node.js,
+ * Deno, and Bun all provide it, and it is the only option since Node.js's
+ * `fetch` rejects `file:` URLs); any other scheme is retrieved with `fetch`.
  *
+ * Branching on the scheme is what makes a JSR install work on Deno: there
+ * `import.meta.url` (and therefore {@link stdictCdbUrl}) is an `https:` URL,
+ * yet Deno also exposes `process.versions.node`, so a runtime sniff would
+ * wrongly take the `node:fs` path and `readFile` would reject the `https:`
+ * URL with "The URL must be of scheme file".
+ *
+ * @param url Location of the CDB binary to read.  Defaults to the bundled
+ *   {@link stdictCdbUrl}; pass another URL to load a relocated copy.
  * @returns The CDB binary as a `Uint8Array`.
  */
-export async function stdictCdbBytes(): Promise<Uint8Array<ArrayBuffer>> {
-  if (
-    typeof (globalThis as { process?: { versions?: { node?: unknown } } })
-      .process?.versions?.node === "string"
-  ) {
+export async function stdictCdbBytes(
+  url: URL = stdictCdbUrl,
+): Promise<Uint8Array<ArrayBuffer>> {
+  if (url.protocol === "file:") {
     // Use a non-literal specifier so TypeScript does not statically resolve
     // the node:fs/promises module type (which would require @types/node).
     const specifier: string = "node:fs/promises";
     const fs = (await import(/* webpackIgnore: true */ specifier)) as unknown as NodeFsPromises;
-    const buf = await fs.readFile(stdictCdbUrl);
+    const buf = await fs.readFile(url);
     return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
   }
-  const response = await fetch(stdictCdbUrl);
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch stdict CDB: HTTP ${response.status}`);
   }
