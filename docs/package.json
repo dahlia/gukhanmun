@@ -12,16 +12,12 @@
     "preview": "rspress preview"
   },
   "dependencies": {
-    "@rspress/core": "^2.0.12",
-    "dompurify": "^3.4.7",
-    "marked": "^18.0.4"
-  },
-  "devDependencies": {
     "@gukhanmun/napi": "workspace:*",
     "@gukhanmun/stdict-cdb": "workspace:*",
     "@gukhanmun/stdict-fst": "workspace:*",
     "@gukhanmun/types": "workspace:*",
     "@gukhanmun/wasm": "workspace:*",
+    "@rspress/core": "^2.0.12",
     "@rspress/plugin-sitemap": "^2.0.13",
     "@rspress/plugin-twoslash": "^2.0.13",
     "@rspress/plugin-typedoc": "^2.0.13",
@@ -29,7 +25,10 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "dax": "^0.48.1",
+    "dompurify": "^3.4.7",
+    "marked": "^18.0.4",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "rspress-plugin-mermaid": "^1.0.1"
   }
 }

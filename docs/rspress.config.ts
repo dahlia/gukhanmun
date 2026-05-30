@@ -16,6 +16,7 @@
 
 import path from "node:path";
 import process from "node:process";
+import mermaid from "rspress-plugin-mermaid";
 import { defineConfig } from "@rspress/core";
 import { pluginSitemap } from "@rspress/plugin-sitemap";
 import { pluginTwoslash } from "@rspress/plugin-twoslash";
@@ -60,6 +61,7 @@ export default defineConfig({
   llms: true,
   plugins: [
     ...(process.env.SITE_URL ? [pluginSitemap({ siteUrl: process.env.SITE_URL })] : []),
+    mermaid(),
     pluginTwoslash({
       twoslashOptions: {
         compilerOptions: {
