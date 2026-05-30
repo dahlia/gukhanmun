@@ -54,7 +54,7 @@ This is how `gukhanmun-stdict` embeds the Standard Korean Dictionary.
 Building dictionary files
 -------------------------
 
-Use `gukhanmun-mkdict` to compile TSV or CSV source data into a `.gukfst`
+Use `gukhanmun-mkdict` to compile TSV or CSV source data into a *.gukfst*
 file. The `gukhanmun-stdict` crate builds the bundled dictionary at Cargo
 build time using this same tool.
 

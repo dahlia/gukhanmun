@@ -18,8 +18,8 @@
  * WebAssembly implementation of the Gukhanmun hanja-to-hangul converter.
  *
  * Provides the same `{@link load}` / `{@link Gukhanmun}` contract as
- * `@gukhanmun/napi` but runs in any WebAssembly-capable environment —
- * browsers, Deno 2.0+, Node 20+, and Bun 1.0+.
+ * `@gukhanmun/napi` but runs in any WebAssembly-capable environment—browsers,
+ * Deno 2.0+, Node 20+, and Bun 1.0+.
  *
  * The WASM module is initialised lazily on the first `load()` call and
  * cached for subsequent calls.  Dictionary data (FST format) must be
@@ -101,17 +101,22 @@ interface WasmGlue {
    * Initialises the WASM module.  Accepts the new object form
    * `{ module_or_path }` expected by wasm-bindgen ≥ 0.2.93.
    */
-  default(
-    input?: { module_or_path: ArrayBuffer | ArrayBufferView | string | URL },
-  ): Promise<unknown>;
+  default(input?: {
+    module_or_path: ArrayBuffer | ArrayBufferView | string | URL;
+  }): Promise<unknown>;
   /** The exported `WasmGukhanmun` class constructor. */
-  WasmGukhanmun: new (options: unknown, dictionaries: unknown) => WasmHandleInternal;
+  WasmGukhanmun: new (
+    options: unknown,
+    dictionaries: unknown,
+  ) => WasmHandleInternal;
 }
 
 // ── Node.js detection ────────────────────────────────────────────────────────
 
 interface NodeFsPromises {
-  readFile(path: URL): Promise<{ buffer: ArrayBuffer; byteOffset: number; byteLength: number }>;
+  readFile(
+    path: URL,
+  ): Promise<{ buffer: ArrayBuffer; byteOffset: number; byteLength: number }>;
 }
 
 function isNodeLike(): boolean {
@@ -144,7 +149,10 @@ export class GukhanmunError extends Error {
    * at the FFI boundary.  The first element is the root cause; the last is
    * the immediate error.
    */
-  readonly chain: readonly { readonly code: ErrorCode; readonly message: string }[];
+  readonly chain: readonly {
+    readonly code: ErrorCode;
+    readonly message: string;
+  }[];
 
   /**
    * Creates a new `GukhanmunError`.
@@ -183,16 +191,19 @@ let wasmInit: Promise<WasmGlue> | undefined;
  */
 function ensureWasm(): Promise<WasmGlue> {
   if (!wasmInit) {
-    const glueHref = new URL(
-      "./wasm/web/gukhanmun_wasm.js",
-      import.meta.url,
-    ).href;
+    const glueHref = new URL("./wasm/web/gukhanmun_wasm.js", import.meta.url)
+      .href;
     wasmInit = (async () => {
-      // Dynamic import with a runtime URL — not statically analysed so deno
+      // Dynamic import with a runtime URL—not statically analysed so deno
       // check does not fail when the generated glue files are absent at dev
       // time; they are produced by `mise run wasm-build`.
-      const mod = (await import(/* webpackIgnore: true */ glueHref)) as unknown as WasmGlue;
-      const wasmUrl = new URL("./wasm/web/gukhanmun_wasm_bg.wasm", import.meta.url);
+      const mod = (await import(
+        /* webpackIgnore: true */ glueHref
+      )) as unknown as WasmGlue;
+      const wasmUrl = new URL(
+        "./wasm/web/gukhanmun_wasm_bg.wasm",
+        import.meta.url,
+      );
       // Read from disk only when fetch cannot: Node.js with a file: URL.  Any
       // non-file: URL (e.g. an https: JSR install on Deno, where isNodeLike()
       // is also true) must go through fetch, matching resolveDictionary below.
@@ -200,9 +211,15 @@ function ensureWasm(): Promise<WasmGlue> {
         // Non-literal specifier prevents deno check from statically resolving
         // node:fs/promises types, which would require @types/node.
         const specifier: string = "node:fs/promises";
-        const fs = (await import(/* webpackIgnore: true */ specifier)) as unknown as NodeFsPromises;
+        const fs = (await import(
+          /* webpackIgnore: true */ specifier
+        )) as unknown as NodeFsPromises;
         const buf = await fs.readFile(wasmUrl);
-        const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+        const bytes = new Uint8Array(
+          buf.buffer,
+          buf.byteOffset,
+          buf.byteLength,
+        );
         await mod.default({ module_or_path: bytes });
       } else {
         // Fetch the binary explicitly rather than letting the glue resolve it
@@ -212,7 +229,9 @@ function ensureWasm(): Promise<WasmGlue> {
         // the glue from looking up the original unhashed filename and 404ing.
         const response = await fetch(wasmUrl);
         if (!response.ok) {
-          throw new Error(`Failed to fetch WASM binary: HTTP ${response.status}`);
+          throw new Error(
+            `Failed to fetch WASM binary: HTTP ${response.status}`,
+          );
         }
         const bytes = new Uint8Array(await response.arrayBuffer());
         await mod.default({ module_or_path: bytes });
@@ -247,7 +266,9 @@ async function resolveDictionary(
       url = new URL(str);
     } else if (isNodeLike()) {
       const specifier: string = "node:url";
-      const nodeUrl = (await import(/* webpackIgnore: true */ specifier)) as unknown as {
+      const nodeUrl = (await import(
+        /* webpackIgnore: true */ specifier
+      )) as unknown as {
         pathToFileURL(path: string): URL;
       };
       url = nodeUrl.pathToFileURL(str);
@@ -260,7 +281,9 @@ async function resolveDictionary(
   }
   if (isNodeLike() && url.protocol === "file:") {
     const specifier: string = "node:fs/promises";
-    const fs = (await import(/* webpackIgnore: true */ specifier)) as unknown as NodeFsPromises;
+    const fs = (await import(
+      /* webpackIgnore: true */ specifier
+    )) as unknown as NodeFsPromises;
     let buf: { buffer: ArrayBuffer; byteOffset: number; byteLength: number };
     try {
       buf = await fs.readFile(url);
@@ -290,7 +313,10 @@ async function resolveDictionary(
       `Failed to fetch dictionary: HTTP ${response.status}`,
     );
   }
-  return { format: source.format, bytes: new Uint8Array(await response.arrayBuffer()) };
+  return {
+    format: source.format,
+    bytes: new Uint8Array(await response.arrayBuffer()),
+  };
 }
 
 // ── GukhanmunImpl ────────────────────────────────────────────────────────────
@@ -378,7 +404,9 @@ function liftError(raw: unknown): GukhanmunError {
   if (raw instanceof GukhanmunError) return raw;
   if (raw != null && typeof raw === "object") {
     const obj = raw as Record<string, unknown>;
-    const code = (typeof obj["code"] === "string" ? obj["code"] : "internal") as ErrorCode;
+    const code = (
+      typeof obj["code"] === "string" ? obj["code"] : "internal"
+    ) as ErrorCode;
     const message = typeof obj["message"] === "string" ? obj["message"] : String(raw);
     const chain = Array.isArray(obj["chain"])
       ? (obj["chain"] as { code: ErrorCode; message: string }[])

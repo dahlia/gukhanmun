@@ -127,7 +127,7 @@ Follow these prose conventions:
     nouns.  Ethnic and language names are proper nouns and take an initial
     capital: Korean, Sino-Korean, Chinese.
  -  When linking between pages of the Rspress documentation site under *docs/*,
-    use a relative path ending in the `.md` or `.mdx` extension, optionally
+    use a relative path ending in the *.md* or *.mdx* extension, optionally
     followed by an anchor (for example,
     `../cli/dictionary.md#building-a-custom-dictionary`).  The explicit
     extension keeps the anchor intact through `hongdown`.
@@ -155,8 +155,8 @@ The test suite is laid out along the four axes documented in
  -  **Snapshot tests** use `insta` and live in
     *crates/gukhanmun-core/tests/snapshots.rs*.  The recorded shape is the
     test-layer projection `common::tokens_to_snapshot_value`, not a derived
-    `Serialize` on the public types — internal renames inside `gukhanmun-core`
-    do not churn `.snap` files automatically.
+    `Serialize` on the public types—internal renames inside `gukhanmun-core`
+    do not churn *.snap* files automatically.
 
  -  **CommonMark conformance** lives under *tests/fixtures/commonmark/* and
     runs through the same fixture harness.  Each case is a hanja-free

@@ -162,7 +162,11 @@ export type NumeralStrategy =
  *   entire token stream and is appropriate only for small inputs or when full
  *   accuracy matters more than latency.
  */
-export type ContextWindow = "off" | "per-block" | "per-section" | "per-document";
+export type ContextWindow =
+  | "off"
+  | "per-block"
+  | "per-section"
+  | "per-document";
 
 // ── Homophone detection ──────────────────────────────────────────────────────
 
@@ -288,7 +292,7 @@ export type DictionarySource = FileDictionarySource;
 export interface HtmlOptions {
   /**
    * Class names whose containing element (and all descendants) should be
-   * treated as a preserved region — the engine skips their text content.
+   * treated as a preserved region—the engine skips their text content.
    *
    * Equivalent to passing `--html-preserve-class NAME` to the CLI one or
    * more times.
@@ -528,7 +532,10 @@ export interface Gukhanmun {
    */
   readonly options: Readonly<
     Required<
-      Omit<GukhanmunOptions, "dictionaries" | "directives" | "html" | "originalGloss">
+      Omit<
+        GukhanmunOptions,
+        "dictionaries" | "directives" | "html" | "originalGloss"
+      >
     >
   >;
 }
@@ -642,5 +649,8 @@ export declare class GukhanmunError extends Error {
    * cause; subsequent entries are deeper causes.  Empty when there is no
    * chain.
    */
-  readonly chain: readonly { readonly code: ErrorCode; readonly message: string }[];
+  readonly chain: readonly {
+    readonly code: ErrorCode;
+    readonly message: string;
+  }[];
 }

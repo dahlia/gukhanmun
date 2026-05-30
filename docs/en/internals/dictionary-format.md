@@ -49,8 +49,8 @@ hanja	hangul	require_hanja	require_hangul	category
 CSV and JSONL input
 -------------------
 
-`gukhanmun-mkdict` chooses the input parser from each file extension.  `.tsv`
-uses the canonical TSV parser, `.csv` uses the CSV parser, `.jsonl` uses the
+`gukhanmun-mkdict` chooses the input parser from each file extension.  *.tsv*
+uses the canonical TSV parser, *.csv* uses the CSV parser, *.jsonl* uses the
 JSON Lines parser, and unknown extensions are treated as TSV for compatibility.
 
 CSV files use the same header names as TSV:

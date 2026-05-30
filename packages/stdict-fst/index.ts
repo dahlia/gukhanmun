@@ -45,7 +45,7 @@ interface NodeBuffer {
   readonly byteLength: number;
 }
 
-// Minimal fs/promises interface — only what we use.
+// Minimal fs/promises interface—only what we use.
 interface NodeFsPromises {
   readFile(path: URL): Promise<NodeBuffer>;
 }
@@ -75,7 +75,9 @@ export async function stdictFstBytes(
     // Use a non-literal specifier so TypeScript does not statically resolve
     // the node:fs/promises module type (which would require @types/node).
     const specifier: string = "node:fs/promises";
-    const fs = (await import(/* webpackIgnore: true */ specifier)) as unknown as NodeFsPromises;
+    const fs = (await import(
+      /* webpackIgnore: true */ specifier
+    )) as unknown as NodeFsPromises;
     const buf = await fs.readFile(url);
     return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
   }

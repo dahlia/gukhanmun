@@ -2,7 +2,7 @@ description = """
 Fenced code blocks are emitted as Verbatim, so hanja inside them stays
 untouched while surrounding prose still converts.  The expected output
 adopts `pulldown-cmark-to-cmark`'s default fence (four backticks) rather
-than the input's tilde fence — Gukhanmun preserves the block semantically,
+than the input's tilde fence—Gukhanmun preserves the block semantically,
 not byte-for-byte.
 """
 preset = "ko-kr"

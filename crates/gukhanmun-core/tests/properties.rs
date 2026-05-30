@@ -19,7 +19,7 @@
 //!
 //! These complement the case-driven assertions in `core_mvp.rs` by giving
 //! the engine and renderer randomised hangul / hanja / mixed-script inputs
-//! and asserting structural invariants — currently the "hangul-only input
+//! and asserting structural invariants—currently the "hangul-only input
 //! is a no-op" and "chunked streaming equals one-shot" contracts.  New
 //! property tests should consume the strategies in `common::*` so the
 //! generator surface stays consistent across the test suite.

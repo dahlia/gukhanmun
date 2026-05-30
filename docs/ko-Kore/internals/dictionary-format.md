@@ -47,8 +47,8 @@ hanja	hangul	require_hanja	require_hangul	category
 CSV와 JSONL 入力
 ----------------
 
-`gukhanmun-mkdict`는 各 파일 擴張子로부터 入力 파서를 고릅니다.  `.tsv`는 正準
-TSV 파서를, `.csv`는 CSV 파서를, `.jsonl`은 JSON Lines 파서를 使用하며, 알 수
+`gukhanmun-mkdict`는 各 파일 擴張子로부터 入力 파서를 고릅니다.  *.tsv*는 正準
+TSV 파서를, *.csv*는 CSV 파서를, *.jsonl*은 JSON Lines 파서를 使用하며, 알 수
 없는 擴張子는 互換性을 爲해 TSV로 다뤄집니다.
 
 CSV 파일은 TSV와 같은 헤더 이름을 使用합니다:

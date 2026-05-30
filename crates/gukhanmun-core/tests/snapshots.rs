@@ -26,7 +26,7 @@
 //! The recorded shape lives in `tests/common/mod.rs` (the
 //! `tokens_to_snapshot_value` projection).  Snapshots intentionally do
 //! *not* serialise the public `OutputToken` / `Annotation` types
-//! directly — that way a rename inside the core crate does not silently
+//! directly—that way a rename inside the core crate does not silently
 //! churn every `.snap` file.
 
 mod common;
@@ -53,7 +53,7 @@ fn run(
 
 /// Asserts a JSON snapshot with `sort_maps` enabled.  `insta` defaults to
 /// insertion-order key emission, which would couple snapshot output to
-/// `serde_json`'s active backend — when any workspace dependency enables
+/// `serde_json`'s active backend—when any workspace dependency enables
 /// `serde_json/preserve_order`, Cargo feature unification flips ordering
 /// to insertion order and silently churns every recorded `.snap`.  Sorting
 /// maps centrally here pins the recorded shape regardless of the active

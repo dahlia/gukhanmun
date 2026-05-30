@@ -768,7 +768,7 @@ fn build_html_preserve_predicate(
 ///
 /// The outer `Option` distinguishes attribute absence (`None`) from presence:
 /// `Some(None)` is a boolean attribute (no `=`), `Some(Some(value))` carries
-/// the decoded value.  The scanner is intentionally narrow — it understands
+/// the decoded value.  The scanner is intentionally narrow—it understands
 /// the same attribute shape as [`gukhanmun::html`]'s lang parser but does not
 /// touch DOCTYPE quirks or attribute aliases.
 fn find_attribute_value(raw_attributes: &str, name: &str) -> Option<Option<String>> {

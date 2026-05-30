@@ -17,7 +17,7 @@
 //! Shared `proptest` strategies and snapshot helpers used by the core
 //! crate's test binaries.
 //!
-//! The strategies are deliberately compact — narrow enough to produce
+//! The strategies are deliberately compact—narrow enough to produce
 //! interesting inputs for the engine (mixing hanja, hangul, and connective
 //! punctuation) without exploring the full Unicode space, which makes
 //! shrinking tractable and counter-examples readable.
@@ -78,7 +78,7 @@ pub fn mixed_script_dictionary() -> MapDictionary {
 /// The projection is owned by the test layer rather than derived from
 /// `#[derive(Serialize)]` on the public types, so a rename of an internal
 /// field in `gukhanmun-core` does not silently churn every recorded
-/// `.snap` file — the projection has to be updated deliberately.  The
+/// `.snap` file—the projection has to be updated deliberately.  The
 /// output is an array; each element is one of:
 ///
 /// * `{"open": <scope>}` where `<scope>` is the projection from

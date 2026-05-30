@@ -97,7 +97,7 @@ impl From<pulldown_cmark_to_cmark::Error> for MarkdownError {
 /// and task lists as defined by GitHub Flavored Markdown.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum MarkdownVariant {
-    /// CommonMark only — no GFM extensions.
+    /// CommonMark only—no GFM extensions.
     #[default]
     CommonMark,
     /// GitHub Flavored Markdown: tables, footnotes, strikethrough, task lists.

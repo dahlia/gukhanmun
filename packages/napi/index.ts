@@ -25,7 +25,7 @@
  * locally with `mise run napi-build`.
  *
  * The `load()` factory is asynchronous for API uniformity with the WASM
- * backend, but the native addon is synchronously ready — dictionary data is
+ * backend, but the native addon is synchronously ready—dictionary data is
  * the only async part.
  *
  * @example
@@ -174,7 +174,10 @@ export class GukhanmunError extends Error {
    * at the FFI boundary.  The first element is the root cause; the last is
    * the immediate error.
    */
-  readonly chain: readonly { readonly code: ErrorCode; readonly message: string }[];
+  readonly chain: readonly {
+    readonly code: ErrorCode;
+    readonly message: string;
+  }[];
 
   /**
    * Creates a new `GukhanmunError`.
@@ -228,13 +231,19 @@ function liftNapiError(raw: unknown): GukhanmunError {
 
 // ── Dictionary loading ────────────────────────────────────────────────────────
 
-async function resolveDictionary(source: DictionarySource): Promise<RawDictInput> {
+async function resolveDictionary(
+  source: DictionarySource,
+): Promise<RawDictInput> {
   let bytes: Buffer;
   if (source.data instanceof ArrayBuffer) {
     bytes = Buffer.from(source.data);
   } else if (ArrayBuffer.isView(source.data)) {
     const view = source.data as ArrayBufferView;
-    bytes = Buffer.from(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength);
+    bytes = Buffer.from(
+      view.buffer as ArrayBuffer,
+      view.byteOffset,
+      view.byteLength,
+    );
   } else {
     let url: URL;
     if (source.data instanceof URL) {
@@ -364,7 +373,10 @@ class GukhanmunImpl implements Gukhanmun {
    */
   convert(source: string, format?: Format): string {
     try {
-      return this.#handle.convert(source, format != null ? JSON.stringify(format) : null);
+      return this.#handle.convert(
+        source,
+        format != null ? JSON.stringify(format) : null,
+      );
     } catch (e) {
       throw liftNapiError(e);
     }
@@ -426,7 +438,9 @@ class GukhanmunImpl implements Gukhanmun {
  */
 export async function load(options: GukhanmunOptions = {}): Promise<Gukhanmun> {
   const resolved = resolveOptions(options);
-  const dicts = await Promise.all((options.dictionaries ?? []).map(resolveDictionary));
+  const dicts = await Promise.all(
+    (options.dictionaries ?? []).map(resolveDictionary),
+  );
   const optionsJson = JSON.stringify(buildRawOptions(options, resolved));
   let handle: NapiHandle;
   try {

@@ -27,7 +27,7 @@ preset and any dictionary overrides used to drive the regression assertion.
 Seonbi's `大韓民國憲法第十號前文.ko-Kore.html` corpus is intentionally not
 ported in the initial batch.  Its `ko-KR` and `ko-KP` reference outputs lean
 heavily on Seonbi's automatic word-spacing pass — a behaviour Gukhanmun does
-not provide — so a faithful expected file requires hand-derivation against
+not provide—so a faithful expected file requires hand-derivation against
 the bundled *Standard Korean Language Dictionary*.  It is tracked as a
 follow-up regression once the dictionary-driven expected output can be
 generated reproducibly.

@@ -1158,7 +1158,7 @@ pub struct InlineStartTag {
 /// Classifies a single inline HTML fragment into its structural role.
 ///
 /// The input should be the raw text of a single `pulldown-cmark`
-/// `Event::InlineHtml` or `Event::Html` token — a complete single-tag string.
+/// `Event::InlineHtml` or `Event::Html` token—a complete single-tag string.
 /// The function uses the same scanner primitives as the HTML adapter, so all
 /// policy decisions (preserved tags, void elements, `lang` extraction) are
 /// consistent with `HtmlFragmentReader`.
@@ -1221,8 +1221,8 @@ fn is_preserved_tag(tag_name: &str) -> bool {
 }
 
 /// HTML5 elements whose content model is text-only (no phrasing or flow
-/// content). Text conversion is still safe inside them — the engine can map
-/// `漢字` to `한자` — but inline markup such as `<ruby>` would produce invalid
+/// content). Text conversion is still safe inside them—the engine can map
+/// `漢字` to `한자`—but inline markup such as `<ruby>` would produce invalid
 /// content, so the scope reports `allows_inline_markup = false` and renderers
 /// fall back to parens.
 fn is_text_only_content_tag(tag_name: &str) -> bool {

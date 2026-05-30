@@ -266,8 +266,8 @@ impl Rule {
     /// Creates a rule for programmatic callers.
     ///
     /// This constructor is unchecked: the pattern, mark bits, and reason are
-    /// stored verbatim.  All semantic validation — non-empty pattern, at least
-    /// one mark bit set, and `contains` patterns that are hanja-only — runs in
+    /// stored verbatim.  All semantic validation—non-empty pattern, at least
+    /// one mark bit set, and `contains` patterns that are hanja-only—runs in
     /// [`apply_rules`], so even programmatically constructed rules surface the
     /// same errors as rules parsed from a TSV file.
     pub fn new(

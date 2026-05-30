@@ -75,7 +75,7 @@ hongdown -w path/to/file.md
 ~~~~
 
 When linking from one documentation page to another, use a relative path that
-ends in the `.md` or `.mdx` extension, optionally followed by an anchor:
+ends in the *.md* or *.mdx* extension, optionally followed by an anchor:
 
 ~~~~ md
 See [building a custom dictionary](../cli/dictionary.md#building-a-custom-dictionary).

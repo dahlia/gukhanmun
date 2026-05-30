@@ -247,7 +247,7 @@ fn streaming_iter_is_lazy_for_unconsumed_tokens() {
         .build()
         .expect("builder");
     // Pull a handful of tokens then drop the iterator without consuming the
-    // rest — there should be no panic and no requirement to drive the upstream
+    // rest—there should be no panic and no requirement to drive the upstream
     // reader to completion before yielding the first token.
     let mut iter = converter.convert_text_iter("學校 學校 學校 學校 學校");
     let _first_two: Vec<_> = iter.by_ref().take(2).collect();
@@ -281,7 +281,7 @@ fn streaming_iter_does_not_drain_upstream_ahead_of_demand() {
     let mut output = converter.convert_tokens(upstream);
 
     // After pulling the first output token, the upstream must not have been
-    // fully drained. The engine needs some lookahead — but it must not have
+    // fully drained. The engine needs some lookahead—but it must not have
     // walked the entire 50-token input just to yield the first rendered
     // token.
     let _first = output.next().expect("at least one output token");

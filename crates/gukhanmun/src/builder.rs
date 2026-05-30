@@ -444,9 +444,9 @@ impl<'a> Converter<'a> {
     /// pipeline.
     ///
     /// This is the format-agnostic streaming entry point. Pair it with any
-    /// reader that produces [`InputToken<S>`] for some [`ScopeData`] `S` —
-    /// the umbrella crate ships readers for plain text, HTML fragments, and
-    /// Markdown — and consume the returned iterator at the caller's pace.
+    /// reader that produces [`InputToken<S>`] for some [`ScopeData`] `S`—the
+    /// umbrella crate ships readers for plain text, HTML fragments, and
+    /// Markdown—and consume the returned iterator at the caller's pace.
     ///
     /// The implementation feeds the upstream into a streaming [`Engine`]
     /// one token at a time, so the upstream is never drained ahead of demand

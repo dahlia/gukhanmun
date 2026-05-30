@@ -295,7 +295,7 @@ fn malformed_fragments_do_not_panic() {
     );
 
     // The unclosed `<![CDATA[` region is a recoverable error, so lenient
-    // recovery preserves it verbatim — its `漢字` is no longer converted.
+    // recovery preserves it verbatim—its `漢字` is no longer converted.
     assert_eq!(output, "<p>한자 <1invalid> 베이징 <![CDATA[漢字");
 }
 

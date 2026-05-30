@@ -271,7 +271,7 @@ pub enum RenderedToken<S> {
     /// `<ruby>` element, Markdown emits inline HTML, and plain text falls back
     /// to parenthesized text. Because the variant carries the base and gloss
     /// as separate strings rather than pre-built markup, each writer is
-    /// responsible for escaping the contents according to its own rules — the
+    /// responsible for escaping the contents according to its own rules—the
     /// renderer never injects raw HTML produced by string concatenation.
     ///
     /// Renderers only emit this variant when the active scope reports
