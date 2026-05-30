@@ -42,12 +42,13 @@ Each value matched by a selector is converted from mixed script to hangul.
 Only string scalars are converted; numbers, booleans, and other non-string
 matches are left untouched, as are any fields no selector points at.
 
-> [!NOTE]
-> Without any selector the front matter is preserved byte-for-byte.  As soon as
-> a selector is given, the block is parsed and re-serialised, so the whole block
-> is reformatted on output (comments are dropped and quoting style may change),
-> even though only matched values change.  A leading `---` without a closing
-> fence stays ordinary Markdown.  This flag is only valid with
-> `--format text/markdown`.
+:::note
+Without any selector the front matter is preserved byte-for-byte.  As soon as
+a selector is given, the block is parsed and re-serialised, so the whole block
+is reformatted on output (comments are dropped and quoting style may change),
+even though only matched values change.  A leading `---` without a closing
+fence stays ordinary Markdown.  This flag is only valid with
+`--format text/markdown`.
+:::
 
 [JSONPath]: https://www.rfc-editor.org/rfc/rfc9535

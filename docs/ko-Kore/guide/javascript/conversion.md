@@ -103,8 +103,8 @@ const g = await load({ initialSoundLaw: true });   // ko-kr의 基本
 const g = await load({ initialSoundLaw: false });  // ko-kp의 基本
 ~~~~
 
-北韓 正書法(`"ko-kp"` 프리셋)이나 北韓 綴字 慣行을 따르는 텍스트를 處理할 때는
-이를 끕니다.
+北朝鮮 正書法(`"ko-kp"` 프리셋)이나 北朝鮮 綴字 慣行을 따르는 텍스트를 處理할
+때는 이를 끕니다.
 
 
 同音異義 區別 窓
