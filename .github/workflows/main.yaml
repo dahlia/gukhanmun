@@ -886,6 +886,7 @@ jobs:
     - uses: actions/download-artifact@v8
       with:
         path: release-assets
+        pattern: "{crate-packages,npm-packages,binary-*}"
         merge-multiple: true
     - name: Dump release assets
       if: runner.debug == '1'
