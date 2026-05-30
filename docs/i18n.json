@@ -1,95 +1,182 @@
 {
-  "languagesText": { "ko-Kore": "言語" },
-  "themeText": { "ko-Kore": "테마" },
-  "versionsText": { "ko-Kore": "版本" },
-  "menuTitle": { "ko-Kore": "사이드바 메뉴" },
-  "outlineTitle": { "ko-Kore": "이 페이지 目次" },
-  "scrollToTopText": { "ko-Kore": "맨 위로" },
-  "lastUpdatedText": { "ko-Kore": "最終 修正" },
-  "prevPageText": { "ko-Kore": "以前 페이지" },
-  "nextPageText": { "ko-Kore": "다음 페이지" },
-  "sourceCodeText": { "ko-Kore": "소스 코드" },
-  "searchPlaceholderText": { "ko-Kore": "檢索" },
-  "searchPanelCancelText": { "ko-Kore": "取消" },
-  "searchNoResultsText": { "ko-Kore": "一致하는 結果가 없습니다" },
-  "searchSuggestedQueryText": { "ko-Kore": "다른 키워드로 檢索해 보세요" },
-  "overview.filterNameText": { "ko-Kore": "필터" },
-  "overview.filterPlaceholderText": { "ko-Kore": "API 檢索" },
-  "overview.filterNoResultText": { "ko-Kore": "一致하는 API가 없습니다" },
-  "openInText": { "ko-Kore": "{{name}}에서 열기" },
-  "copyMarkdownText": { "ko-Kore": "Markdown 複寫" },
-  "copyMarkdownLinkText": { "en": "Copy Markdown link", "ko-Kore": "Markdown 링크 複寫" },
-  "editLinkText": { "ko-Kore": "이 페이지 編輯" },
-  "codeButtonGroupCopyButtonText": { "ko-Kore": "코드 複寫" },
-  "codeButtonGroupWrapButtonText": { "ko-Kore": "코드 줄바꿈 轉換" },
-  "notFoundText": { "ko-Kore": "페이지를 찾을 수 없음" },
-  "takeMeHomeText": { "ko-Kore": "홈으로 移動" },
-  "promptCopyText": { "ko-Kore": "프롬프트 複寫" },
-  "promptCopiedText": { "ko-Kore": "複寫됨" },
-  "promptExpandText": { "ko-Kore": "펼치기" },
-  "promptCollapseText": { "ko-Kore": "접기" },
+  "languagesText": { "ko-Kore": "言語", "ko-KR": "언어" },
+  "themeText": { "ko-Kore": "테마", "ko-KR": "테마" },
+  "versionsText": { "ko-Kore": "版本", "ko-KR": "판본" },
+  "menuTitle": { "ko-Kore": "사이드바 메뉴", "ko-KR": "사이드바 메뉴" },
+  "outlineTitle": { "ko-Kore": "이 페이지 目次", "ko-KR": "이 페이지 목차" },
+  "scrollToTopText": { "ko-Kore": "맨 위로", "ko-KR": "맨 위로" },
+  "lastUpdatedText": { "ko-Kore": "最終 修正", "ko-KR": "최종 수정" },
+  "prevPageText": { "ko-Kore": "以前 페이지", "ko-KR": "이전 페이지" },
+  "nextPageText": { "ko-Kore": "다음 페이지", "ko-KR": "다음 페이지" },
+  "sourceCodeText": { "ko-Kore": "소스 코드", "ko-KR": "소스 코드" },
+  "searchPlaceholderText": { "ko-Kore": "檢索", "ko-KR": "검색" },
+  "searchPanelCancelText": { "ko-Kore": "取消", "ko-KR": "취소" },
+  "searchNoResultsText": {
+    "ko-Kore": "一致하는 結果가 없습니다",
+    "ko-KR": "일치하는 결과가 없습니다"
+  },
+  "searchSuggestedQueryText": {
+    "ko-Kore": "다른 키워드로 檢索해 보세요",
+    "ko-KR": "다른 키워드로 검색해 보세요"
+  },
+  "overview.filterNameText": { "ko-Kore": "필터", "ko-KR": "필터" },
+  "overview.filterPlaceholderText": { "ko-Kore": "API 檢索", "ko-KR": "API 검색" },
+  "overview.filterNoResultText": {
+    "ko-Kore": "一致하는 API가 없습니다",
+    "ko-KR": "일치하는 API가 없습니다"
+  },
+  "openInText": { "ko-Kore": "{{name}}에서 열기", "ko-KR": "{{name}}에서 열기" },
+  "copyMarkdownText": { "ko-Kore": "Markdown 複寫", "ko-KR": "Markdown 복사" },
+  "copyMarkdownLinkText": {
+    "en": "Copy Markdown link",
+    "ko-Kore": "Markdown 링크 複寫",
+    "ko-KR": "Markdown 링크 복사"
+  },
+  "editLinkText": { "ko-Kore": "이 페이지 編輯", "ko-KR": "이 페이지 편집" },
+  "codeButtonGroupCopyButtonText": { "ko-Kore": "코드 複寫", "ko-KR": "코드 복사" },
+  "codeButtonGroupWrapButtonText": { "ko-Kore": "코드 줄바꿈 轉換", "ko-KR": "코드 줄바꿈 전환" },
+  "notFoundText": { "ko-Kore": "페이지를 찾을 수 없음", "ko-KR": "페이지를 찾을 수 없음" },
+  "takeMeHomeText": { "ko-Kore": "홈으로 移動", "ko-KR": "홈으로 이동" },
+  "promptCopyText": { "ko-Kore": "프롬프트 複寫", "ko-KR": "프롬프트 복사" },
+  "promptCopiedText": { "ko-Kore": "複寫됨", "ko-KR": "복사됨" },
+  "promptExpandText": { "ko-Kore": "펼치기", "ko-KR": "펼치기" },
+  "promptCollapseText": { "ko-Kore": "접기", "ko-KR": "접기" },
 
   "pgLoading": {
     "en": "Loading the converter and dictionary…",
-    "ko-Kore": "變換器와 辭典을 불러오는 中…"
+    "ko-Kore": "變換器와 辭典을 불러오는 中…",
+    "ko-KR": "변환기와 사전을 불러오는 중…"
   },
-  "pgErrorTitle": { "en": "Something went wrong.", "ko-Kore": "무언가 잘못되었습니다." },
-  "pgInputFormat": { "en": "Input format", "ko-Kore": "入力 形式" },
-  "pgPreset": { "en": "Preset", "ko-Kore": "프리셋" },
-  "pgRendering": { "en": "Rendering", "ko-Kore": "렌더링" },
-  "pgOriginalGloss": { "en": "Original gloss", "ko-Kore": "原文 倂記" },
-  "pgSegmentation": { "en": "Segmentation", "ko-Kore": "分割" },
-  "pgNumerals": { "en": "Numerals", "ko-Kore": "數詞" },
-  "pgHomophoneWindow": { "en": "Homophone window", "ko-Kore": "同音異義 窓" },
-  "pgHomophoneDetection": { "en": "Homophone detection", "ko-Kore": "同音異義 探知" },
-  "pgFirstOccurrenceWindow": { "en": "First-occurrence window", "ko-Kore": "最初 出現 窓" },
-  "pgHtmlRecovery": { "en": "HTML recovery", "ko-Kore": "HTML 復舊" },
-  "pgInitialSoundLaw": { "en": "Initial sound law (頭音法則)", "ko-Kore": "頭音法則" },
+  "pgErrorTitle": {
+    "en": "Something went wrong.",
+    "ko-Kore": "무언가 잘못되었습니다.",
+    "ko-KR": "무언가 잘못되었습니다."
+  },
+  "pgInputFormat": { "en": "Input format", "ko-Kore": "入力 形式", "ko-KR": "입력 형식" },
+  "pgPreset": { "en": "Preset", "ko-Kore": "프리셋", "ko-KR": "프리셋" },
+  "pgRendering": { "en": "Rendering", "ko-Kore": "렌더링", "ko-KR": "렌더링" },
+  "pgOriginalGloss": { "en": "Original gloss", "ko-Kore": "原文 倂記", "ko-KR": "원문 병기" },
+  "pgSegmentation": { "en": "Segmentation", "ko-Kore": "分割", "ko-KR": "분할" },
+  "pgNumerals": { "en": "Numerals", "ko-Kore": "數詞", "ko-KR": "수사" },
+  "pgHomophoneWindow": {
+    "en": "Homophone window",
+    "ko-Kore": "同音異義 窓",
+    "ko-KR": "동음이의 창"
+  },
+  "pgHomophoneDetection": {
+    "en": "Homophone detection",
+    "ko-Kore": "同音異義 探知",
+    "ko-KR": "동음이의 탐지"
+  },
+  "pgFirstOccurrenceWindow": {
+    "en": "First-occurrence window",
+    "ko-Kore": "最初 出現 窓",
+    "ko-KR": "최초 출현 창"
+  },
+  "pgHtmlRecovery": { "en": "HTML recovery", "ko-Kore": "HTML 復舊", "ko-KR": "HTML 복구" },
+  "pgInitialSoundLaw": {
+    "en": "Initial sound law (頭音法則)",
+    "ko-Kore": "頭音法則",
+    "ko-KR": "두음법칙"
+  },
   "pgStdict": {
     "en": "Standard Korean Dictionary (標準國語大辭典)",
-    "ko-Kore": "《標準國語大辭典》"
+    "ko-Kore": "《標準國語大辭典》",
+    "ko-KR": "《표준국어대사전》"
   },
-  "pgDirectives": { "en": "Directives", "ko-Kore": "指示" },
-  "pgDirectivesHtml": { "en": "Directives and HTML preservation", "ko-Kore": "指示 및 HTML 保存" },
-  "pgRequireHanja": { "en": "Require hanja", "ko-Kore": "漢字 強制" },
-  "pgRequireHangul": { "en": "Require hangul", "ko-Kore": "한글 強制" },
-  "pgSkipAnnotation": { "en": "Skip annotation", "ko-Kore": "倂記 省略" },
-  "pgPreserveClasses": { "en": "Preserve classes", "ko-Kore": "保存할 클래스" },
-  "pgPreserveAttributes": { "en": "Preserve attributes", "ko-Kore": "保存할 屬性" },
-  "pgInput": { "en": "Input", "ko-Kore": "入力" },
-  "pgPreview": { "en": "Preview", "ko-Kore": "미리보기" },
-  "pgInputAria": { "en": "Input text", "ko-Kore": "入力 텍스트" },
-  "pgFormatText": { "en": "Plain text", "ko-Kore": "純粹 텍스트" },
-  "pgFormatMarkdown": { "en": "Markdown", "ko-Kore": "Markdown" },
-  "pgFormatHtml": { "en": "HTML", "ko-Kore": "HTML" },
-  "pgPhRequireHanja": { "en": "e.g. 漢 字", "ko-Kore": "例: 漢 字" },
-  "pgPhRequireHangul": { "en": "e.g. 東", "ko-Kore": "例: 東" },
-  "pgPhSkipAnnotation": { "en": "e.g. 中", "ko-Kore": "例: 中" },
-  "pgPhPreserveClasses": { "en": "e.g. no-translate code", "ko-Kore": "例: no-translate code" },
-  "pgPhPreserveAttributes": { "en": "e.g. data-no-translate", "ko-Kore": "例: data-no-translate" },
+  "pgDirectives": { "en": "Directives", "ko-Kore": "指示", "ko-KR": "지시" },
+  "pgDirectivesHtml": {
+    "en": "Directives and HTML preservation",
+    "ko-Kore": "指示 및 HTML 保存",
+    "ko-KR": "지시 및 HTML 보존"
+  },
+  "pgRequireHanja": { "en": "Require hanja", "ko-Kore": "漢字 強制", "ko-KR": "한자 강제" },
+  "pgRequireHangul": { "en": "Require hangul", "ko-Kore": "한글 強制", "ko-KR": "한글 강제" },
+  "pgSkipAnnotation": { "en": "Skip annotation", "ko-Kore": "倂記 省略", "ko-KR": "병기 생략" },
+  "pgPreserveClasses": {
+    "en": "Preserve classes",
+    "ko-Kore": "保存할 클래스",
+    "ko-KR": "보존할 클래스"
+  },
+  "pgPreserveAttributes": {
+    "en": "Preserve attributes",
+    "ko-Kore": "保存할 屬性",
+    "ko-KR": "보존할 속성"
+  },
+  "pgInput": { "en": "Input", "ko-Kore": "入力", "ko-KR": "입력" },
+  "pgPreview": { "en": "Preview", "ko-Kore": "미리보기", "ko-KR": "미리보기" },
+  "pgInputAria": { "en": "Input text", "ko-Kore": "入力 텍스트", "ko-KR": "입력 텍스트" },
+  "pgFormatText": { "en": "Plain text", "ko-Kore": "純粹 텍스트", "ko-KR": "순수 텍스트" },
+  "pgFormatMarkdown": { "en": "Markdown", "ko-Kore": "Markdown", "ko-KR": "Markdown" },
+  "pgFormatHtml": { "en": "HTML", "ko-Kore": "HTML", "ko-KR": "HTML" },
+  "pgPhRequireHanja": { "en": "e.g. 漢 字", "ko-Kore": "例: 漢 字", "ko-KR": "예: 한 자" },
+  "pgPhRequireHangul": { "en": "e.g. 東", "ko-Kore": "例: 東", "ko-KR": "예: 동" },
+  "pgPhSkipAnnotation": { "en": "e.g. 中", "ko-Kore": "例: 中", "ko-KR": "예: 중" },
+  "pgPhPreserveClasses": {
+    "en": "e.g. no-translate code",
+    "ko-Kore": "例: no-translate code",
+    "ko-KR": "예: no-translate code"
+  },
+  "pgPhPreserveAttributes": {
+    "en": "e.g. data-no-translate",
+    "ko-Kore": "例: data-no-translate",
+    "ko-KR": "예: data-no-translate"
+  },
 
-  "pgRenderHangulOnly": { "en": "Hangul only", "ko-Kore": "한글 專用" },
-  "pgRenderHangulHanja": { "en": "Hangul (漢字)", "ko-Kore": "한글(漢字)" },
-  "pgRenderHanjaHangul": { "en": "漢字 (hangul)", "ko-Kore": "漢字(한글)" },
-  "pgRenderRubyHangul": { "en": "Ruby 漢字 over hangul", "ko-Kore": "한글 위 漢字 루비" },
-  "pgRenderRubyHanja": { "en": "Ruby hangul over 漢字", "ko-Kore": "漢字 위 한글 루비" },
-  "pgRenderOriginal": { "en": "Keep original", "ko-Kore": "原文 維持" },
-  "pgPresetKoKr": { "en": "South Korean (ko-kr)", "ko-Kore": "南韓 (ko-kr)" },
-  "pgPresetKoKp": { "en": "North Korean (ko-kp)", "ko-Kore": "北朝鮮 (ko-kp)" },
-  "pgGlossParens": { "en": "Parentheses", "ko-Kore": "括弧" },
-  "pgGlossRuby": { "en": "Ruby", "ko-Kore": "루비" },
-  "pgSegLattice": { "en": "Lattice (accurate)", "ko-Kore": "라티스 (正確)" },
-  "pgSegEager": { "en": "Eager (fast)", "ko-Kore": "貪慾 (빠름)" },
-  "pgNumHangulPhonetic": { "en": "Hangul phonetic", "ko-Kore": "한글 表音" },
-  "pgNumPositional": { "en": "Positional Arabic", "ko-Kore": "位置 아라비아" },
-  "pgNumAdditive": { "en": "Additive Arabic", "ko-Kore": "加算 아라비아" },
-  "pgNumSmart": { "en": "Smart", "ko-Kore": "스마트" },
-  "pgWindowOff": { "en": "Off", "ko-Kore": "끔" },
-  "pgWindowPerBlock": { "en": "Per block", "ko-Kore": "블록 單位" },
-  "pgWindowPerSection": { "en": "Per section", "ko-Kore": "섹션 單位" },
-  "pgWindowPerDocument": { "en": "Per document", "ko-Kore": "文書 單位" },
-  "pgDetectContextLocal": { "en": "Context-local", "ko-Kore": "文脈 局所" },
-  "pgDetectDictionaryWide": { "en": "Dictionary-wide", "ko-Kore": "辭典 全體" },
-  "pgRecoveryStrict": { "en": "Strict", "ko-Kore": "嚴格" },
-  "pgRecoveryLenient": { "en": "Lenient", "ko-Kore": "寬大" }
+  "pgRenderHangulOnly": { "en": "Hangul only", "ko-Kore": "한글 專用", "ko-KR": "한글 전용" },
+  "pgRenderHangulHanja": { "en": "Hangul (漢字)", "ko-Kore": "한글(漢字)", "ko-KR": "한글(한자)" },
+  "pgRenderHanjaHangul": { "en": "漢字 (hangul)", "ko-Kore": "漢字(한글)", "ko-KR": "한자(한글)" },
+  "pgRenderRubyHangul": {
+    "en": "Ruby 漢字 over hangul",
+    "ko-Kore": "한글 위 漢字 루비",
+    "ko-KR": "한글 위 한자 루비"
+  },
+  "pgRenderRubyHanja": {
+    "en": "Ruby hangul over 漢字",
+    "ko-Kore": "漢字 위 한글 루비",
+    "ko-KR": "한자 위 한글 루비"
+  },
+  "pgRenderOriginal": { "en": "Keep original", "ko-Kore": "原文 維持", "ko-KR": "원문 유지" },
+  "pgPresetKoKr": {
+    "en": "South Korean (ko-kr)",
+    "ko-Kore": "南韓 (ko-kr)",
+    "ko-KR": "남한 (ko-kr)"
+  },
+  "pgPresetKoKp": {
+    "en": "North Korean (ko-kp)",
+    "ko-Kore": "北朝鮮 (ko-kp)",
+    "ko-KR": "북조선 (ko-kp)"
+  },
+  "pgGlossParens": { "en": "Parentheses", "ko-Kore": "括弧", "ko-KR": "괄호" },
+  "pgGlossRuby": { "en": "Ruby", "ko-Kore": "루비", "ko-KR": "루비" },
+  "pgSegLattice": {
+    "en": "Lattice (accurate)",
+    "ko-Kore": "라티스 (正確)",
+    "ko-KR": "라티스 (정확)"
+  },
+  "pgSegEager": { "en": "Eager (fast)", "ko-Kore": "貪慾 (빠름)", "ko-KR": "탐욕 (빠름)" },
+  "pgNumHangulPhonetic": { "en": "Hangul phonetic", "ko-Kore": "한글 表音", "ko-KR": "한글 표음" },
+  "pgNumPositional": {
+    "en": "Positional Arabic",
+    "ko-Kore": "位置 아라비아",
+    "ko-KR": "위치 아라비아"
+  },
+  "pgNumAdditive": {
+    "en": "Additive Arabic",
+    "ko-Kore": "加算 아라비아",
+    "ko-KR": "가산 아라비아"
+  },
+  "pgNumSmart": { "en": "Smart", "ko-Kore": "스마트", "ko-KR": "스마트" },
+  "pgWindowOff": { "en": "Off", "ko-Kore": "끔", "ko-KR": "끔" },
+  "pgWindowPerBlock": { "en": "Per block", "ko-Kore": "블록 單位", "ko-KR": "블록 단위" },
+  "pgWindowPerSection": { "en": "Per section", "ko-Kore": "섹션 單位", "ko-KR": "섹션 단위" },
+  "pgWindowPerDocument": { "en": "Per document", "ko-Kore": "文書 單位", "ko-KR": "문서 단위" },
+  "pgDetectContextLocal": { "en": "Context-local", "ko-Kore": "文脈 局所", "ko-KR": "문맥 국소" },
+  "pgDetectDictionaryWide": {
+    "en": "Dictionary-wide",
+    "ko-Kore": "辭典 全體",
+    "ko-KR": "사전 전체"
+  },
+  "pgRecoveryStrict": { "en": "Strict", "ko-Kore": "嚴格", "ko-KR": "엄격" },
+  "pgRecoveryLenient": { "en": "Lenient", "ko-Kore": "寬大", "ko-KR": "관대" }
 }

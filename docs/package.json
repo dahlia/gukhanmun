@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prebuild": "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/napi run build",
+    "gen:ko-kr": "cargo build --release -p gukhanmun-cli && node scripts/generate-ko-kr.mts",
+    "prebuild": "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/napi run build && pnpm gen:ko-kr",
+    "predev": "pnpm gen:ko-kr",
     "build": "rspress build",
     "dev": "rspress dev",
     "preview": "rspress preview"
@@ -26,6 +28,7 @@
     "@types/node": "^22.8.1",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
+    "dax": "^0.48.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   }

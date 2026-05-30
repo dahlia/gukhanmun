@@ -39,6 +39,14 @@ export default defineConfig({
       title: "Gukhanmun",
       description: "國漢文混用體 韓國語를 한글 專用 텍스트로 變換하는 Rust/JavaScript 라이브러리",
     },
+    {
+      // Auto-generated from ko-Kore by docs/scripts/generate-ko-kr.mts; see the
+      // `docs-ko-kr` mise task. The ko-KR/ tree is gitignored.
+      lang: "ko-KR",
+      label: "한국어 (한글)",
+      title: "Gukhanmun",
+      description: "국한문혼용체 한국어를 한글 전용 텍스트로 변환하는 Rust/JavaScript 라이브러리",
+    },
   ],
   route: {
     excludeConvention: ["theme/**", "doc_build/**", "rspress.config.ts", "README.md"],

@@ -60,6 +60,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
+      dax:
+        specifier: ^0.48.1
+        version: 0.48.1
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -623,6 +626,9 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  dax@0.48.1:
+    resolution: {integrity: sha512-H6lkWiNWCS5F6bLdD/BCuWU6TKkbcYYrRTFepqBKU2ShpIbR54B7LLMP3CcZeg8a6MIegROuNfUSvkjTfhxMPA==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -1309,6 +1315,9 @@ packages:
   unconfig@7.5.0:
     resolution: {integrity: sha512-oi8Qy2JV4D3UQ0PsopR28CzdQ3S/5A1zwsUwp/rosSbfhJ5z7b90bIyTwi/F7hCLD4SGcZVjDzd4XoUQcEanvA==}
 
+  undici-types@5.28.4:
+    resolution: {integrity: sha512-3OeMF5Lyowe8VW0skf5qaIE7Or3yS9LS7fvMUI0gg4YxpIBVg0L8BxCmROw2CcYhSkpR68Epz7CGc8MPj94Uww==}
+
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
@@ -1895,6 +1904,10 @@ snapshots:
       toggle-selection: 1.0.6
 
   csstype@3.2.3: {}
+
+  dax@0.48.1:
+    dependencies:
+      undici-types: 5.28.4
 
   debug@4.4.3:
     dependencies:
@@ -2979,6 +2992,8 @@ snapshots:
       jiti: 2.7.0
       quansync: 1.0.0
       unconfig-core: 7.5.0
+
+  undici-types@5.28.4: {}
 
   undici-types@6.21.0: {}
 

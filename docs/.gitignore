@@ -8,6 +8,10 @@ node_modules
 dist/
 doc_build/
 
+# Generated docs locale (hangul-only Korean, built from ko-Kore by the
+# docs-ko-kr mise task)
+/ko-KR/
+
 # IDE
 .vscode/*
 !.vscode/extensions.json
