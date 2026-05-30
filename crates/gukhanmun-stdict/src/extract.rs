@@ -215,6 +215,16 @@ impl Extractor {
         let suffix_headword = is_suffix_headword(&word_info);
 
         for key in keys {
+            // A single hanja borrowed for a foreign reading (the loanword 삐끼
+            // from Japanese 引き, keyed on 引) would otherwise shadow that
+            // character's Sino-Korean reading in every compound containing it
+            // (引數 → 삐끼수 instead of 인수). Single hanja are recovered more
+            // accurately from the engine's bundled unihan readings (引 → 인), so
+            // drop single-character foreign-spelling keys. Multi-character
+            // foreign units such as 北京 → 베이징 are kept.
+            if priority == EntryPriority::ForeignHanjaSpelling && key.chars().count() == 1 {
+                continue;
+            }
             self.track_multisyllable_form(&key, &reading, suffix_headword);
             match self.entries.entry(key) {
                 BTreeEntry::Vacant(entry) => {

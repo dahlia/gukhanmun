@@ -50,12 +50,16 @@ fn extracts_canonical_tsv_from_synthetic_json() {
     assert_eq!(
         stats,
         ExtractStats {
-            items_seen: 15,
+            items_seen: 16,
             entries_written: 12,
             duplicate_keys: 3,
             skipped_items: 2,
         }
     );
+    // `北京` (multi-character) keeps its foreign reading 베이징, but the
+    // single-character foreign loanword 삐끼 (Hiki[引]) does not emit a 引 key:
+    // single hanja borrowed for a foreign reading are dropped so they cannot
+    // shadow the Sino-Korean reading (引 → 인) recovered from unihan.
     assert_eq!(
         String::from_utf8(output).unwrap(),
         "hanja\thangul\trequire_hanja\trequire_hangul\n\
@@ -313,20 +317,38 @@ proptest! {
 
         let stats = extract_json_reader_to_tsv(json.as_bytes(), &mut output).unwrap();
 
-        prop_assert_eq!(
-            stats,
-            ExtractStats {
-                items_seen: 1,
-                entries_written: 1,
-                duplicate_keys: 0,
-                skipped_items: 0,
-            }
-        );
         let output = String::from_utf8(output).unwrap();
-        let expected = format!("{hanja}\t{reading}\tfalse\tfalse\n");
         let discarded_prefix = format!("{romanized}[");
-        prop_assert!(output.contains(&expected));
         prop_assert!(!output.contains(&discarded_prefix));
+        if hanja.chars().count() == 1 {
+            // A single hanja borrowed for a foreign reading is dropped so it
+            // cannot shadow the character's Sino-Korean reading, which is
+            // recovered from the engine's unihan fallback instead.
+            prop_assert_eq!(
+                stats,
+                ExtractStats {
+                    items_seen: 1,
+                    entries_written: 0,
+                    duplicate_keys: 0,
+                    skipped_items: 0,
+                }
+            );
+            let dropped_key = format!("{hanja}\t");
+            prop_assert!(!output.contains(&dropped_key));
+        } else {
+            // Multi-character foreign units keep their hanja spelling.
+            prop_assert_eq!(
+                stats,
+                ExtractStats {
+                    items_seen: 1,
+                    entries_written: 1,
+                    duplicate_keys: 0,
+                    skipped_items: 0,
+                }
+            );
+            let expected = format!("{hanja}\t{reading}\tfalse\tfalse\n");
+            prop_assert!(output.contains(&expected));
+        }
     }
 }
 
@@ -403,6 +425,16 @@ fn synthetic_json() -> &'static str {
           "word_type": "외래어",
           "original_language_info": [
             { "original_language": "Beijing[北京]", "language_type": "안 밝힘" }
+          ]
+        }
+      },
+      {
+        "word_info": {
+          "word": "삐끼",
+          "word_unit": "단어",
+          "word_type": "외래어",
+          "original_language_info": [
+            { "original_language": "Hiki[引]", "language_type": "안 밝힘" }
           ]
         }
       },

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 379b741b2e9f615d1da122e3aaebdd0b07efd7a682f881e5fb3092e06301b970 # shrinks to romanized = "A", hanja = "一", reading = "가"
