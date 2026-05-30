@@ -50,12 +50,30 @@ description = "Run the full CI verification gate"
 depends = ["check", "test", "doc", "js-build", "js-test"]
 
 [tasks.bump]
-description = "Preview a workspace version bump"
-run = "cargo release --workspace --no-publish --no-tag --no-push"
+description = "Preview a workspace + JS manifest version bump"
+usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
+shell = "nu -c"
+run = "cargo release --workspace --no-publish --no-tag --no-push $env.usage_version"
 
 [tasks.bump-execute]
-description = "Commit a signed workspace version bump"
-run = "cargo release --workspace --no-publish --no-tag --no-push --execute"
+description = "Create one signed commit bumping the workspace and the packages/ JS manifests"
+usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
+shell = "nu -c"
+# cargo-release bumps the shared Cargo version, the intra-workspace dependency
+# requirements, and Cargo.lock, then writes a signed commit.  It knows nothing
+# about the package.json/deno.json manifests under packages/, so we sync those
+# to the same version and fold exactly them into that one signed commit; the
+# explicit pathspec keeps any unrelated working-tree change out of the bump.
+# The JS version is read back from Cargo.toml after cargo-release runs, so it
+# tracks the version actually applied even when <version> is a bump level such
+# as "patch" or "minor".  Run this on a clean tree; cargo-release refuses to
+# bump when there are uncommitted changes.
+run = """
+cargo release --workspace --no-publish --no-tag --no-push --execute $env.usage_version
+$env.VERSION = (open Cargo.toml | get workspace.package.version)
+mise run js-sync-version
+git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json
+"""
 
 [tasks.typecheck]
 description = "Check all Rust workspace targets"

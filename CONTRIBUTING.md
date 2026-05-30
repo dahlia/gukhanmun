@@ -217,18 +217,33 @@ Assisted-by: Codex:gpt-5.5
 Release process
 ---------------
 
-This repository keeps the workspace version set to the next planned release,
-not the last released version.  Branch builds therefore publish development
-versions such as `1.2.4-dev.456+<sha>` while `1.2.4` is in development.  After
-releasing `1.2.4`, immediately bump the workspace to `1.2.5` before landing
-new work.
+The single source of truth for the version is `workspace.package.version` in
+*Cargo.toml*.  This repository keeps it set to the *next* planned release, not
+the last released one.  Branch builds therefore publish development versions
+such as `1.2.4-dev.456+<sha>` while `1.2.4` is in development, and the release
+itself is just a signed tag whose name equals that version.  After releasing
+`1.2.4`, immediately bump the workspace to `1.2.5` before landing new work.
 
-Version bumps use `cargo-release` through `mise`.  The bump command updates the
-shared workspace version, updates intra-workspace dependency version
-requirements, and creates a signed commit.  It does not create tags, push, or
-publish to crates.io.
+CI derives every published version from `workspace.package.version` at publish
+time: the `x.y.z-dev.N+<sha>` development publishes on `main` and the `x.y.z`
+release publishes on a tag, restamping the Rust and JavaScript manifests alike.
+You never hand-edit those versions for a release; the bump command below is the
+only place a contributor sets a version.
 
-Before releasing, make sure your local Git signing setup can sign both commits
+### Version bumps
+
+Version bumps go through `mise run bump-execute`, which wraps `cargo-release`.
+`cargo-release` updates the shared workspace version, the intra-workspace
+dependency requirements, and *Cargo.lock*, then writes a signed commit.  It does
+not understand the npm and JSR manifests, so the task additionally syncs every
+*package.json* and *deno.json* under *packages/* to the version `cargo-release`
+applied and folds exactly those manifests into that one signed commit.  The task
+never tags, pushes, or publishes.
+
+Run the bump on a clean working tree: `cargo-release` refuses to proceed when
+there are uncommitted changes, and the bump amends its own commit.
+
+Before bumping, make sure your local Git signing setup can sign both commits
 and tags:
 
 ~~~~ sh
@@ -237,16 +252,16 @@ git config commit.gpgsign
 git config tag.gpgSign
 ~~~~
 
-### Bumping the next development version
-
-Preview the bump first:
+Preview the bump first; this runs `cargo-release` in dry-run mode and changes
+nothing:
 
 ~~~~ sh
 mise run bump -- 1.2.5
 ~~~~
 
 Inspect the planned workspace and intra-workspace dependency updates.  When the
-preview is correct, create the signed bump commit:
+preview is correct, create the signed bump commit, which covers the Rust crates
+and every published JavaScript package under *packages/* together:
 
 ~~~~ sh
 mise run bump-execute -- 1.2.5
@@ -263,8 +278,9 @@ git push
 Prepare *CHANGES.md* so it contains a `Version x.y.z` section for the release.
 The GitHub Release body is cut from that section.
 
-When the current workspace version is ready to release, create and push a
-signed tag with the exact same version:
+A release does not bump anything; it tags the version that
+`workspace.package.version` already holds.  Create and push a signed tag with
+that exact version:
 
 ~~~~ sh
 git tag -s 1.2.4 -m "Release 1.2.4"
@@ -273,18 +289,18 @@ git push origin 1.2.4
 
 The *main.yaml* workflow verifies that the tag is signed and matches
 `workspace.package.version`, runs the full CI gate, verifies locked crate
-packages, publishes all crates to crates.io, builds release binaries, and
-creates the GitHub release.
+packages, publishes all crates to crates.io and all packages to npm and JSR,
+builds release binaries, and creates the GitHub release.
 
-If a new workspace crate is added, seed that crate name on crates.io once
-before relying on GitHub Actions trusted publishing for it.  Trusted publishing
-is used for normal release and development publishes after the crate already
-exists on crates.io.
+If a new workspace crate or JavaScript package is added, seed its name on the
+relevant registry (crates.io, npm, or JSR) once before relying on trusted
+publishing for it.  Trusted publishing is used for normal release and
+development publishes after the package already exists.
 
-After the release succeeds, start the next development cycle immediately:
+After the release succeeds, start the next development cycle immediately by
+bumping to the next version:
 
 ~~~~ sh
-mise run bump -- 1.2.5
 mise run bump-execute -- 1.2.5
 git push
 ~~~~

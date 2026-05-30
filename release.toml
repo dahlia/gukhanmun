@@ -9,4 +9,6 @@ push = false
 tag = false
 tag-name = "{{version}}"
 tag-message = "Release {{version}}"
-pre-release-commit-message = "Version bump: {{version}}"
+pre-release-commit-message = """Version bump: {{version}}
+
+[ci skip]"""
