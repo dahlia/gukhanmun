@@ -351,6 +351,34 @@ fn ruby_on_hanja_emits_inline_html_with_hanja_base() {
 }
 
 #[test]
+fn ruby_inside_shortcut_reference_link_preserves_definition_label() {
+    let mut dict = dictionary();
+    dict.insert("大韓民國", "대한민국");
+    dict.insert("憲法", "헌법");
+
+    let output = convert_markdown(
+        "[大韓民國憲法]\n\n[大韓民國憲法]: https://example.com/law\n",
+        &dict,
+        RenderMode::Ruby(RubyBase::OnHanja),
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert!(
+        output.contains("[<ruby>大韓民國<rp>(</rp><rt>대한민국</rt><rp>)</rp></ruby><ruby>憲法<rp>(</rp><rt>헌법</rt><rp>)</rp></ruby>][大韓民國憲法]"),
+        "converted shortcut link should keep a non-empty reference label: {output}"
+    );
+    assert!(
+        output.contains("[大韓民國憲法]: https://example.com/law"),
+        "reference definition label should be preserved: {output}"
+    );
+    assert!(
+        !output.contains("[]:"),
+        "writer must not emit an empty reference definition: {output}"
+    );
+}
+
+#[test]
 fn ruby_mode_does_not_touch_code_span_or_block() {
     let output = convert_markdown(
         "`漢字`\n\n```text\n北京\n```\n\n漢字\n",
