@@ -33,7 +33,7 @@ Format guide for contributors:
 Version 0.1.1
 -------------
 
-To be released.
+Released on June 1, 2026.
 
 ### gukhanmun
 
