@@ -6,14 +6,14 @@
 Gukhanmun
 =========
 
-*Also available: [韓國語](README.ko-Kore.md) (Korean).*
-
 [![crates.io][crates.io badge]][crates.io]
 [![JSR][JSR badge]][JSR]
 [![npm][npm badge]][npm]
 [![GitHub Actions][GitHub Actions badge]][GitHub Actions]
 [![License: GPL-3.0-only][GPL badge]][GPL]
 [![GitHub Sponsors][GitHub Sponsors badge]][GitHub Sponsors]
+
+*Also available: [韓國語](README.ko-Kore.md) (Korean).*
 
 Gukhanmun converts Korean text written in mixed script (國漢文混用體, hanja
 characters interleaved with hangul) into hangul-only text. It is the successor
@@ -65,9 +65,39 @@ Installation
 
 ### Command-line tool
 
+#### Via mise
+
+If you use [mise], install a prebuilt binary with a single command:
+
 ~~~~ sh
-cargo install gukhanmun-cli
+mise use -g "github:dahlia/gukhanmun[asset_pattern=gukhanmun-{{ version }}-*.{% if os() == 'windows' %}zip{% else %}tar.bz2{% endif %}]"
 ~~~~
+
+The `-g` flag installs it globally.  Omit it to activate the tool only in the
+current project directory.
+
+#### From crates.io
+
+If you have a Rust toolchain installed, install from crates.io:
+
+~~~~ sh
+cargo install gukhanmun-cli gukhanmun-mkdict
+~~~~
+
+This compiles the binaries and places them in *~/.cargo/bin/*.  Make sure that
+directory is on your `PATH`.
+
+#### Prebuilt binaries
+
+Prebuilt binaries for Linux (x86\_64, aarch64), macOS (x86\_64, aarch64), and
+Windows (x86\_64) are attached to each release on GitHub:
+
+<https://github.com/dahlia/gukhanmun/releases>
+
+Download the archive for your platform, extract it, and place the `gukhanmun`
+binary somewhere on your `PATH`.
+
+[mise]: https://mise.jdx.dev/
 
 ### Rust library
 

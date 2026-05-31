@@ -16,7 +16,7 @@ Via mise
 If you use [mise], install a prebuilt binary with a single command:
 
 ~~~~ sh
-mise use -g github:dahlia/gukhanmun
+mise use -g "github:dahlia/gukhanmun[asset_pattern=gukhanmun-{{ version }}-*.{% if os() == 'windows' %}zip{% else %}tar.bz2{% endif %}]"
 ~~~~
 
 The `-g` flag installs it globally.  Omit it to activate the tool only in the
