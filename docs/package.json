@@ -17,6 +17,7 @@
     "@gukhanmun/stdict-fst": "workspace:*",
     "@gukhanmun/types": "workspace:*",
     "@gukhanmun/wasm": "workspace:*",
+    "@plausible-analytics/tracker": "^0.4.5",
     "@rspress/core": "^2.0.12",
     "@rspress/plugin-sitemap": "^2.0.13",
     "@rspress/plugin-twoslash": "^2.0.13",

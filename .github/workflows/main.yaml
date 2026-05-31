@@ -800,6 +800,7 @@ jobs:
           ${{ github.ref_type == 'tag'
               && 'https://gukhanmun.org/'
               || 'https://canary.gukhanmun.org/' }}
+        PLAUSIBLE_DOMAIN: ${{ vars.PLAUSIBLE_DOMAIN }}
       run: |
         set -euo pipefail
         mise run docs-build
