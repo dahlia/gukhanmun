@@ -35,6 +35,32 @@ Version 0.1.1
 
 To be released.
 
+### gukhanmun
+
+ -  Fixed ruby rendering inside Markdown shortcut reference links so the
+    high-level Markdown conversion API no longer emits an empty `[]:`
+    reference definition.
+
+### gukhanmun-cli
+
+ -  Fixed ruby rendering inside Markdown shortcut reference links so CLI
+    Markdown conversion no longer emits an empty `[]:` reference definition.
+
+### gukhanmun-markdown
+
+ -  Fixed ruby rendering inside Markdown shortcut reference links so the
+    Markdown adapter no longer emits an empty `[]:` reference definition.
+
+### @gukhanmun/napi
+
+ -  Fixed ruby rendering inside Markdown shortcut reference links so Node-API
+    Markdown conversion no longer emits an empty `[]:` reference definition.
+
+### @gukhanmun/wasm
+
+ -  Fixed ruby rendering inside Markdown shortcut reference links so WebAssembly
+    Markdown conversion no longer emits an empty `[]:` reference definition.
+
 
 Version 0.1.0
 -------------

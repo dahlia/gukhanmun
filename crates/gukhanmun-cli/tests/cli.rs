@@ -998,6 +998,25 @@ fn format_text_markdown_converts_markdown_input() {
 }
 
 #[test]
+fn format_text_markdown_ruby_reference_link_preserves_definition_label() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown", "--rendering", "ruby-on-hanja"])
+        .write_stdin("[大韓民國憲法]\n\n[大韓民國憲法]: https://example.com/law\n")
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("[<ruby>大韓民國")
+                .and(predicate::str::contains("][大韓民國憲法]"))
+                .and(predicate::str::contains(
+                    "[大韓民國憲法]: https://example.com/law",
+                ))
+                .and(predicate::str::contains("[]:").not())
+                .and(predicate::str::contains("\\[]:").not()),
+        );
+}
+
+#[test]
 fn format_text_markdown_does_not_transform_punctuation() {
     // Hongdown's punctuation options (curly quotes, em dash, ellipsis) must be
     // disabled so non-hanja text content is not unexpectedly mutated.

@@ -26,7 +26,7 @@ use gukhanmun_core::{
     ScopeData, mark_homophones, process_tokens_iter_with_options, render_tokens_iter,
 };
 use gukhanmun_html::{InlineHtml, classify_inline_html, is_korean_lang};
-use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 /// Adapter-owned scope data for Markdown documents.
 ///
@@ -644,11 +644,46 @@ fn push_escaped_html_text(output: &mut String, input: &str) {
 
 fn open_event(data: &MarkdownScopeData) -> Event<'static> {
     match &data.node {
-        MarkdownNode::Container(tag) => Event::Start(tag.clone()),
+        MarkdownNode::Container(tag) => Event::Start(container_start_event_tag(tag)),
         MarkdownNode::Leaf(node) => leaf_to_event(node),
         MarkdownNode::InlineHtmlElement { raw_start, .. } => {
             Event::InlineHtml(CowStr::from(raw_start.clone()))
         }
+    }
+}
+
+fn container_start_event_tag(tag: &Tag<'static>) -> Tag<'static> {
+    match tag {
+        // `pulldown-cmark-to-cmark` rebuilds shortcut/collapsed reference
+        // definitions from text-like child events. Ruby renders as inline HTML,
+        // so use full references and keep the parser-provided label in `id`.
+        Tag::Link {
+            link_type,
+            dest_url,
+            title,
+            id,
+        } if matches!(link_type, LinkType::Shortcut | LinkType::Collapsed) && !id.is_empty() => {
+            Tag::Link {
+                link_type: LinkType::Reference,
+                dest_url: dest_url.clone(),
+                title: title.clone(),
+                id: id.clone(),
+            }
+        }
+        Tag::Image {
+            link_type,
+            dest_url,
+            title,
+            id,
+        } if matches!(link_type, LinkType::Shortcut | LinkType::Collapsed) && !id.is_empty() => {
+            Tag::Image {
+                link_type: LinkType::Reference,
+                dest_url: dest_url.clone(),
+                title: title.clone(),
+                id: id.clone(),
+            }
+        }
+        _ => tag.clone(),
     }
 }
 
