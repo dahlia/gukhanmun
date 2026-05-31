@@ -762,7 +762,7 @@ jobs:
     - uses: jdx/mise-action@v4
       with:
         cache: true
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v6
       with:
         registry-url: 'https://registry.npmjs.org'
     - name: Dump debug context
@@ -798,7 +798,7 @@ jobs:
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
         mise run js-sync-version
     - name: Download NAPI platform binaries
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: napi-*
         merge-multiple: false
@@ -910,7 +910,7 @@ jobs:
     needs: build-docs
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       with:
         name: docs-site
         path: docs-site
@@ -938,7 +938,7 @@ jobs:
       pages: write
       id-token: write
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       with:
         name: docs-site
         path: docs-site
