@@ -23,9 +23,19 @@ import { pluginSitemap } from "@rspress/plugin-sitemap";
 import { pluginTwoslash } from "@rspress/plugin-twoslash";
 import { pluginTypeDoc } from "@rspress/plugin-typedoc";
 
+const siteUrl = process.env.SITE_URL ?? "https://gukhanmun.org";
+
 export default defineConfig({
   root: __dirname,
   title: "Gukhanmun",
+  head: [
+    ["meta", { property: "og:image", content: `${siteUrl}/og.png` }],
+    ["meta", { property: "og:image:type", content: "image/png" }],
+    ["meta", { property: "og:image:width", content: "1280" }],
+    ["meta", { property: "og:image:height", content: "640" }],
+    ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    ["meta", { name: "twitter:image", content: `${siteUrl}/og.png` }],
+  ],
   lang: "en",
   locales: [
     {
@@ -61,7 +71,7 @@ export default defineConfig({
   },
   llms: true,
   plugins: [
-    ...(process.env.SITE_URL ? [pluginSitemap({ siteUrl: process.env.SITE_URL })] : []),
+    ...(process.env.SITE_URL ? [pluginSitemap({ siteUrl })] : []),
     mermaid(),
     katex(),
     pluginTwoslash({
