@@ -1,4 +1,4 @@
-// Gukhanmun: TypeScript environment declarations for the Gukhanmun docs theme.
+// Gukhanmun: Plausible Analytics initializer for the docs site.
 // Copyright (C) 2026  Hong Minhee
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,14 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-declare module "*.css";
+import { useEffect } from "react";
 
 declare const __PLAUSIBLE_DOMAIN__: string;
 
-interface ImportMetaEnv {
-  readonly SSG_MD: boolean;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
+export default function PlausibleAnalytics() {
+  useEffect(() => {
+    if (!__PLAUSIBLE_DOMAIN__) return;
+    void import("@plausible-analytics/tracker").then(({ init }) => {
+      init({ domain: __PLAUSIBLE_DOMAIN__ });
+    });
+  }, []);
+  return null;
 }

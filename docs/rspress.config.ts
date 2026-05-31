@@ -24,6 +24,7 @@ import { pluginTwoslash } from "@rspress/plugin-twoslash";
 import { pluginTypeDoc } from "@rspress/plugin-typedoc";
 
 const siteUrl = process.env.SITE_URL ?? "https://gukhanmun.org";
+const plausibleDomain = process.env.PLAUSIBLE_DOMAIN;
 
 export default defineConfig({
   root: __dirname,
@@ -69,6 +70,9 @@ export default defineConfig({
     light: "/logo.svg",
     dark: "/logo-dark.svg",
   },
+  globalUIComponents: plausibleDomain
+    ? [path.join(__dirname, "theme", "PlausibleAnalytics.tsx")]
+    : [],
   llms: true,
   plugins: [
     ...(process.env.SITE_URL ? [pluginSitemap({ siteUrl })] : []),
@@ -93,6 +97,11 @@ export default defineConfig({
     }),
   ],
   builderConfig: {
+    source: {
+      define: {
+        __PLAUSIBLE_DOMAIN__: JSON.stringify(plausibleDomain ?? ""),
+      },
+    },
     resolve: {
       alias: {
         // Explicit paths avoid pnpm symlink traversal issues in Rspack.
