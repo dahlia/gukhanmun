@@ -10,13 +10,13 @@ description: |-
 Gukhanmun은 런타임 依存性이 없는 單一 바이너리로 配布됩니다.
 
 
-mise를 通하여
+mise를 通해서
 -------------
 
 [mise]를 使用한다면, 미리 빌드된 바이너리를 命令 하나로 設置할 수 있습니다:
 
 ~~~~ sh
-mise use -g github:dahlia/gukhanmun
+mise use -g "github:dahlia/gukhanmun[asset_pattern=gukhanmun-{{ version }}-*.{% if os() == 'windows' %}zip{% else %}tar.bz2{% endif %}]"
 ~~~~
 
 `-g` 플래그는 全域으로 設置합니다.  이를 省略하면 現在 프로젝트 디렉터리에서만
