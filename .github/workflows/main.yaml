@@ -515,7 +515,7 @@ jobs:
             cp target/${{ matrix.target }}/release/libgukhanmun_napi.so gukhanmun_napi.node
             ;;
         esac
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: napi-${{ matrix.target }}
         path: gukhanmun_napi.node
@@ -804,7 +804,7 @@ jobs:
       run: |
         set -euo pipefail
         mise run docs-build
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: docs-site
         path: docs/doc_build
