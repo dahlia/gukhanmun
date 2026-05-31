@@ -119,6 +119,29 @@ gukhanmun-cdb  = "0.1"
 gukhanmun-stdict = "0.1"
 ~~~~
 
+### JavaScript/TypeScript library
+
+Install the WebAssembly package for most JavaScript environments:
+
+~~~~ sh
+npm  add       @gukhanmun/wasm @gukhanmun/stdict-fst
+pnpm add       @gukhanmun/wasm @gukhanmun/stdict-fst
+yarn add       @gukhanmun/wasm @gukhanmun/stdict-fst
+bun  add       @gukhanmun/wasm @gukhanmun/stdict-fst
+deno add --jsr @gukhanmun/wasm @gukhanmun/stdict-fst
+~~~~
+
+Of you need better server-side performance and don't mind a native dependency,
+install the Node-API package instead:
+
+~~~~ sh
+npm  add     @gukhanmun/napi     @gukhanmun/stdict-fst
+pnpm add     @gukhanmun/napi     @gukhanmun/stdict-fst
+yarn add     @gukhanmun/napi     @gukhanmun/stdict-fst
+bun  add     @gukhanmun/napi     @gukhanmun/stdict-fst
+deno add npm:@gukhanmun/napi jsr:@gukhanmun/stdict-fst
+~~~~
+
 
 Quick start
 -----------

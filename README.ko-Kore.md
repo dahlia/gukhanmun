@@ -116,6 +116,29 @@ gukhanmun-cdb  = "0.1"
 gukhanmun-stdict = "0.1"
 ~~~~
 
+### JavaScript/TypeScript 라이브러리
+
+大部分의 JavaScript 環境의 境遇 WebAssembly 패키지를 設置하면 됩니다:
+
+~~~~ sh
+npm  add       @gukhanmun/wasm @gukhanmun/stdict-fst
+pnpm add       @gukhanmun/wasm @gukhanmun/stdict-fst
+yarn add       @gukhanmun/wasm @gukhanmun/stdict-fst
+bun  add       @gukhanmun/wasm @gukhanmun/stdict-fst
+deno add --jsr @gukhanmun/wasm @gukhanmun/stdict-fst
+~~~~
+
+또는, 더 나은 서버 사이드 性能을 爲해 네이티브 依存關係를 개의치 않는다면,
+Node-API 패키지를 設置할 수도 있습니다:
+
+~~~~ sh
+npm  add     @gukhanmun/napi     @gukhanmun/stdict-fst
+pnpm add     @gukhanmun/napi     @gukhanmun/stdict-fst
+yarn add     @gukhanmun/napi     @gukhanmun/stdict-fst
+bun  add     @gukhanmun/napi     @gukhanmun/stdict-fst
+deno add npm:@gukhanmun/napi jsr:@gukhanmun/stdict-fst
+~~~~
+
 
 使用 例
 -------
