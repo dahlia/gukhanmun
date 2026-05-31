@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/napi-aarch64-apple-darwin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Native binary for @gukhanmun/napi on aarch64-apple-darwin.",
   "os": [
     "darwin"
