@@ -674,6 +674,7 @@ jobs:
         mkdir -p "dist/$asset"
         cp "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}" "dist/$asset/"
         cp "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}" "dist/$asset/"
+        cp LICENSE README.*.md "dist/$asset/"
 
         if [[ "${{ matrix.archive }}" == "zip" ]]; then
           (cd dist && 7z a "$asset.zip" "$asset")
