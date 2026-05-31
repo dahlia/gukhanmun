@@ -614,7 +614,54 @@ jobs:
           args+=(-vv)
         fi
 
+        if [[ "${{ matrix.target }}" == *-pc-windows-msvc ]]; then
+          export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C target-feature=+crt-static"
+        fi
+
         cargo "${args[@]}"
+    - name: Verify Windows release binary CRT linkage
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if (-not $installPath) {
+          throw "Visual Studio with VC tools was not found."
+        }
+
+        $vsDevCmd = Join-Path $installPath "Common7\Tools\VsDevCmd.bat"
+        $binaries = @(
+          "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}",
+          "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}"
+        )
+        $forbiddenPattern = "^\s*(vcruntime.*|msvcp.*|concrt.*|ucrtbase|api-ms-win-crt-.*)\.dll\s*$"
+
+        foreach ($binary in $binaries) {
+          $script = @"
+        call "$vsDevCmd" -no_logo -arch=x64
+        dumpbin /dependents "$binary"
+        "@
+          $batchFile = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName() + ".cmd")
+          Set-Content -Path $batchFile -Value $script -Encoding ASCII
+          try {
+            $output = & cmd.exe /d /q /c "`"$batchFile`"" 2>&1
+            $exitCode = $LASTEXITCODE
+          } finally {
+            Remove-Item $batchFile
+          }
+
+          $output | Write-Output
+          if ($exitCode -ne 0) {
+            throw "dumpbin failed for $binary with exit code $exitCode."
+          }
+
+          $forbidden = $output | Where-Object { $_ -match $forbiddenPattern }
+          if ($forbidden) {
+            throw "$binary imports dynamic CRT DLLs: $($forbidden -join ', ')"
+          }
+        }
     - name: Archive release binaries
       shell: bash
       run: |

@@ -35,6 +35,9 @@ Version 0.1.2
 
 To be released.
 
+ -  Static-link the Windows release CLI executables against the MSVC C runtime
+    so the release archives no longer require Visual C++ runtime DLLs.
+
 
 Version 0.1.1
 -------------
