@@ -430,6 +430,7 @@ jobs:
           jq -r 'keys[]' |
           while read -r crate
         do
+          crate="${crate%$'\r'}"
           edit_toml "workspace.dependencies.get(\"$crate\").version = \"${{ needs.artifact-context.outputs.version }}\""
         done
 
@@ -596,6 +597,51 @@ jobs:
 
         rustup target list --installed
         rustc -Vv --target ${{ matrix.target }} || true
+    - name: Prepare dev artifact version
+      if: github.ref_type != 'tag'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        edit_toml() {
+          local query="$1"
+          dasel -i toml --root "$query" < Cargo.toml > Cargo.toml.tmp
+          mv Cargo.toml.tmp Cargo.toml
+        }
+
+        edit_toml "workspace.package.version = \"${{ needs.artifact-context.outputs.version }}\""
+        dasel -i toml -o json 'workspace.dependencies' < Cargo.toml |
+          jq -r 'keys[]' |
+          while read -r crate
+        do
+          crate="${crate%$'\r'}"
+          edit_toml "workspace.dependencies.get(\"$crate\").version = \"${{ needs.artifact-context.outputs.version }}\""
+        done
+
+        cargo update --workspace
+    - name: Verify release binary package versions
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        actual_versions="$(
+          cargo metadata --locked --no-deps --format-version 1 |
+            jq -r '.packages[] | select(.name == "gukhanmun-cli" or .name == "gukhanmun-mkdict") | "\(.name)=\(.version)"'
+        )"
+
+        for package in gukhanmun-cli gukhanmun-mkdict; do
+          if ! grep -Fxq "$package=${{ needs.artifact-context.outputs.version }}" <<< "$actual_versions"; then
+            echo "::error::$package version does not match artifact version ${{ needs.artifact-context.outputs.version }}"
+            echo "$actual_versions"
+            exit 1
+          fi
+        done
     - name: Build release binaries
       shell: bash
       run: |
