@@ -88,6 +88,32 @@ fn collapses_in_the_html_pipeline() {
 }
 
 #[test]
+fn collapses_in_the_html_pipeline_across_stdin_chunks() {
+    // The HTML path streams `push_token` per stdin read and drains a tail at
+    // EOF; split the parenthetical across two writes so a regression that only
+    // handled a single buffered payload would be caught.
+    let mut child = StdCommand::new(assert_cmd::cargo::cargo_bin("gukhanmun"))
+        .args(["--format", "text/html"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    stdin.write_all("<p>庫間(".as_bytes()).unwrap();
+    stdin.flush().unwrap();
+    stdin.write_all("곳간)</p>".as_bytes()).unwrap();
+    stdin.flush().unwrap();
+    drop(stdin);
+
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "<p>곳간(庫間)</p>"
+    );
+}
+
+#[test]
 fn help_groups_options_by_pipeline_area() {
     let assert = Command::cargo_bin("gukhanmun")
         .unwrap()
