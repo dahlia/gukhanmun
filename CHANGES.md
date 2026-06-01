@@ -33,7 +33,7 @@ Format guide for contributors:
 Version 0.1.2
 -------------
 
-To be released.
+Released on June 1, 2026.
 
  -  Static-link the Windows release CLI executables against the MSVC C runtime
     so the release archives no longer require Visual C++ runtime DLLs.
