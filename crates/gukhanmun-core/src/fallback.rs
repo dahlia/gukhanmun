@@ -17,7 +17,7 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use crate::generated::unihan_readings::KHANGUL_READINGS;
+use crate::generated::unihan_readings::{KHANGUL_ALL_READINGS, KHANGUL_READINGS};
 use crate::{EngineOptions, NumeralStrategy};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -447,6 +447,23 @@ pub(crate) fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
         .binary_search_by_key(&ch, |(hanja, _)| *hanja)
         .ok()
         .map(|index| KHANGUL_READINGS[index].1)
+}
+
+/// Returns every distinct Sino-Korean reading Unihan records for `ch`, with the
+/// canonical (fallback) reading first.
+///
+/// Unlike [`phoneticize_hanja_char`], which yields only the single reading used
+/// for character-by-character conversion, this exposes the full reading set so
+/// the parenthetical-annotation collapser can recognise an author-supplied
+/// alternative reading (for example `數字(수자)`, where `數` also reads `삭`, or
+/// `議論(의론)` versus `議論(의논)`). Returns an empty slice when `ch` has no
+/// recorded reading.
+pub(crate) fn khangul_all_readings(ch: char) -> &'static [&'static str] {
+    KHANGUL_ALL_READINGS
+        .binary_search_by_key(&ch, |(hanja, _)| *hanja)
+        .ok()
+        .map(|index| KHANGUL_ALL_READINGS[index].1)
+        .unwrap_or(&[])
 }
 
 fn numeral_reading(ch: char) -> Option<&'static str> {

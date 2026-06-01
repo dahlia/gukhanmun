@@ -58,6 +58,7 @@ impl Preset {
                 homophone_window: ContextWindow::PerBlock,
                 homophone_detection: HomophoneDetection::ContextLocal,
                 first_occurrence_window: ContextWindow::Off,
+                collapse_redundant_parens: true,
                 recovery: Recovery::Strict,
             },
             Preset::KoKp => ConversionOptions {
@@ -70,6 +71,7 @@ impl Preset {
                 homophone_window: ContextWindow::Off,
                 homophone_detection: HomophoneDetection::ContextLocal,
                 first_occurrence_window: ContextWindow::Off,
+                collapse_redundant_parens: true,
                 recovery: Recovery::Strict,
             },
         }
@@ -115,6 +117,17 @@ pub struct ConversionOptions {
     /// Context window for clearing repeated `require_hanja` /
     /// `require_hangul` flags after the first occurrence of each hanja form.
     pub first_occurrence_window: ContextWindow,
+
+    /// Whether redundant parenthetical reading annotations are collapsed.
+    ///
+    /// When enabled (the default), an explicit gloss such as `庫間(곳간)` or
+    /// `곳간(庫間)` is recognised, the redundant parenthetical text is removed,
+    /// and the surviving annotation is marked to show both scripts in every
+    /// render mode.  A parenthetical that pins an alternative reading (for
+    /// example `數字(수자)`) overrides the dictionary reading for that
+    /// occurrence.  See
+    /// [`RedundantParenCollapser`](gukhanmun_core::RedundantParenCollapser).
+    pub collapse_redundant_parens: bool,
 
     /// How the engine handles reader-level errors.
     pub recovery: Recovery,
