@@ -230,8 +230,12 @@ impl Extractor {
             // dictionary also lists the saisiot-free homograph (수자) under the
             // same hanja key with equal priority, so the winner would otherwise
             // depend on dump order. Promote the prescribed (hanja, reading) pair
-            // above Default so it always wins for these six keys.
-            let priority = if is_saisiot_prescribed(&key, &reading) {
+            // above Default so it always wins for these six keys. Only a Default
+            // entry is promoted: a redirect-only entry must not outrank a
+            // substantive one, and a foreign-spelling entry must not be demoted.
+            let priority = if base_priority == EntryPriority::Default
+                && is_saisiot_prescribed(&key, &reading)
+            {
                 EntryPriority::SaisiotPrescribed
             } else {
                 base_priority
