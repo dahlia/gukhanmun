@@ -17,7 +17,7 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use crate::generated::unihan_readings::KHANGUL_READINGS;
+use crate::generated::unihan_readings::{KHANGUL_ALL_READINGS, KHANGUL_READINGS};
 use crate::{EngineOptions, NumeralStrategy};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -449,6 +449,23 @@ pub(crate) fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
         .map(|index| KHANGUL_READINGS[index].1)
 }
 
+/// Returns every distinct Sino-Korean reading Unihan records for `ch`, with the
+/// canonical (fallback) reading first.
+///
+/// Unlike [`phoneticize_hanja_char`], which yields only the single reading used
+/// for character-by-character conversion, this exposes the full reading set so
+/// the parenthetical-annotation collapser can recognise an author-supplied
+/// alternative reading (for example `數字(수자)`, where `數` also reads `삭`, or
+/// `議論(의론)` versus `議論(의논)`). Returns an empty slice when `ch` has no
+/// recorded reading.
+pub(crate) fn khangul_all_readings(ch: char) -> &'static [&'static str] {
+    KHANGUL_ALL_READINGS
+        .binary_search_by_key(&ch, |(hanja, _)| *hanja)
+        .ok()
+        .map(|index| KHANGUL_ALL_READINGS[index].1)
+        .unwrap_or(&[])
+}
+
 fn numeral_reading(ch: char) -> Option<&'static str> {
     Some(match ch {
         '零' | '〇' => "영",
@@ -534,6 +551,24 @@ pub(crate) fn apply_initial_sound_law_to_first_syllable(reading: &str) -> String
     output.push(convert_initial_sound_law(first));
     output.extend(chars);
     output
+}
+
+/// Returns whether the single-syllable `reading`, after the initial sound law,
+/// equals `syllable`, without allocating.
+///
+/// This is the allocation-free counterpart to comparing a `syllable` against
+/// [`apply_initial_sound_law_to_first_syllable`]; it is used on the
+/// reading-validation hot path of the parenthetical collapser.  Multi-syllable
+/// readings never match, mirroring the single-syllable comparison there.
+pub(crate) fn reading_matches_with_initial_sound_law(reading: &str, syllable: char) -> bool {
+    let mut chars = reading.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if chars.next().is_some() {
+        return false;
+    }
+    convert_initial_sound_law(first) == syllable
 }
 
 fn convert_initial_sound_law(sound: char) -> char {

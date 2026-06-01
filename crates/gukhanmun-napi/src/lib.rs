@@ -53,6 +53,7 @@ struct JsOptions {
     homophone_window: Option<String>,
     homophone_detection: Option<String>,
     first_occurrence_window: Option<String>,
+    collapse_redundant_parens: Option<bool>,
     recovery: Option<String>,
     directives: Option<JsDirectives>,
     html: Option<JsHtmlOptions>,
@@ -177,6 +178,9 @@ impl NapiGukhanmun {
         }
         if let Some(w) = &opts.first_occurrence_window {
             builder = builder.first_occurrence_window(parse_context_window(w)?);
+        }
+        if let Some(v) = opts.collapse_redundant_parens {
+            builder = builder.collapse_redundant_parens(v);
         }
         if let Some(r) = &opts.recovery {
             builder = builder.recovery(parse_recovery(r)?);

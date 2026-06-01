@@ -35,6 +35,36 @@ Version 0.2.0
 
 To be released.
 
+### gukhanmun
+
+ -  Collapse redundant parenthetical reading annotations by default.  The new
+    `Builder::collapse_redundant_parens` opt-out disables it.  [[#3], [#4]]
+
+[#3]: https://github.com/dahlia/gukhanmun/issues/3
+[#4]: https://github.com/dahlia/gukhanmun/pull/4
+
+### gukhanmun-core
+
+ -  Added `RedundantParenCollapser`, a streaming middleware that collapses an
+    explicit parenthetical reading annotation into the hanja word it duplicates.
+    `庫間(곳간)` and `곳간(庫間)` now render with both scripts in every mode
+    instead of duplicating the reading, and a parenthetical that pins an
+    alternative reading (such as “數字(수자)”) overrides the dictionary reading
+    for that occurrence.  A definition gloss such as
+    “庫間(物件을 간직하여 두는 곳)” is left untouched.  Regenerated the bundled
+    Unihan reading data to also carry every kHangul reading per character
+    (`KHANGUL_ALL_READINGS`), which the collapser uses to validate alternative
+    readings.  [[#3], [#4]]
+ -  Marked `Annotation` `#[non_exhaustive]` so its policy flags can grow without
+    a breaking change (it gained a `from_source_gloss` flag here).  Construct it
+    from `Annotation::default()` and set the fields you need.  [[#3], [#4]]
+
+### gukhanmun-cli
+
+ -  Collapse redundant parenthetical reading annotations by default across the
+    plain-text, HTML, and Markdown pipelines.  The new `--no-collapse-parens`
+    flag disables it.  [[#3], [#4]]
+
 ### gukhanmun-stdict
 
  -  Fixed “數字” converting to “수자” instead of the orthographically
@@ -49,6 +79,16 @@ To be released.
 
 [#1]: https://github.com/dahlia/gukhanmun/issues/1
 [#2]: https://github.com/dahlia/gukhanmun/pull/2
+
+### @gukhanmun/napi
+
+ -  Collapse redundant parenthetical reading annotations by default; added the
+    `collapseRedundantParens` option to disable it.  [[#3], [#4]]
+
+### @gukhanmun/wasm
+
+ -  Collapse redundant parenthetical reading annotations by default; added the
+    `collapseRedundantParens` option to disable it.  [[#3], [#4]]
 
 
 Version 0.1.2

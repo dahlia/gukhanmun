@@ -108,6 +108,33 @@ Disable it for North Korean orthography (`"ko-kp"` preset) or when processing
 text that follows North Korean spelling conventions.
 
 
+Parenthetical reading annotations
+---------------------------------
+
+When a word carries an explicit parenthetical reading gloss, hanja-first
+(`庫間(곳간)`) or hangul-first (`곳간(庫間)`), Gukhanmun removes the redundant
+parenthetical by default and shows the word in both scripts (`곳간(庫間)`).  A
+parenthetical that pins an alternative reading overrides the dictionary reading
+for that occurrence, so `數字(수자)` becomes `수자(數字)` even though `數字`
+normally reads `숫자`.
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({ collapseRedundantParens: true });   // default
+const g = await load({ collapseRedundantParens: false });  // keep verbatim
+~~~~
+
+A reading annotation is told apart from a definition by two rules.  A
+parenthetical that exactly matches the word's reading always collapses (this
+covers 사이시옷 readings like `庫間(곳간)`).  Otherwise, an alternative reading
+is accepted only when it has one hangul syllable per hanja character, each a
+valid Sino-Korean reading of that character (as in `數字(수자)`).  A definition
+gloss such as `庫間(물건을 간직하여 두는 곳)` and a foreign transliteration such
+as `蔣介石(장제스)` match neither rule and are left untouched.
+
+
 Homophone disambiguation window
 -------------------------------
 

@@ -1,0 +1,13 @@
+description = """
+A hangul-first parenthetical gloss `곳간(庫間)` collapses to `곳간(庫間)` in
+hangul-only mode: the explicit hanja is honoured instead of being duplicated.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "庫間"
+reading = "곳간"

@@ -19,10 +19,11 @@
 use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter,
     HanjaDictionary, HomophoneDetection, HomophoneMarker, InputToken, NumeralStrategy, OutputToken,
-    PlainScopeData, Recovery, RenderOptions, RenderedToken, ScopeData, SegmentationStrategy,
-    UserDirectives, apply_user_directives, apply_user_directives_iter, filter_first_occurrences,
-    mark_homophones_with_detection, process_tokens_iter_with_options, read_plain_text,
-    recover_input_tokens, render_tokens_iter, write_plain_text,
+    PlainScopeData, Recovery, RedundantParenCollapser, RenderOptions, RenderedToken, ScopeData,
+    SegmentationStrategy, UserDirectives, apply_user_directives, apply_user_directives_iter,
+    collapse_redundant_parens, filter_first_occurrences, mark_homophones_with_detection,
+    process_tokens_iter_with_options, read_plain_text, recover_input_tokens, render_tokens_iter,
+    write_plain_text,
 };
 
 #[cfg(not(feature = "stdict"))]
@@ -172,6 +173,19 @@ impl<'a> Builder<'a> {
     /// Sets the first-occurrence reset context window.
     pub fn first_occurrence_window(mut self, window: ContextWindow) -> Self {
         self.options.first_occurrence_window = window;
+        self
+    }
+
+    /// Enables or disables collapsing of redundant parenthetical reading
+    /// annotations.
+    ///
+    /// Enabled by default.  When enabled, an explicit gloss such as `庫間(곳간)`
+    /// or `곳간(庫間)` is recognised, the redundant parenthetical is removed, and
+    /// the annotation is shown in both scripts in every render mode; a
+    /// parenthetical that pins an alternative reading (for example `數字(수자)`)
+    /// overrides the dictionary reading for that occurrence.
+    pub fn collapse_redundant_parens(mut self, enabled: bool) -> Self {
+        self.options.collapse_redundant_parens = enabled;
         self
     }
 
@@ -470,8 +484,16 @@ impl<'a> Converter<'a> {
             )),
             buffer: Vec::new().into_iter(),
         };
-        let homophone_iter = MiddlewareIter::new(
+        // Runs first, immediately after the engine, so later stages observe the
+        // corrected reading and presentation flags.
+        let collapse_iter = MiddlewareIter::new(
             engine_iter,
+            RedundantParenCollapser::new(self.options.collapse_redundant_parens),
+            RedundantParenCollapser::push_token,
+            RedundantParenCollapser::finish,
+        );
+        let homophone_iter = MiddlewareIter::new(
+            collapse_iter,
             HomophoneMarker::with_detection(
                 &self.dictionary,
                 self.options.homophone_window,
@@ -499,6 +521,8 @@ impl<'a> Converter<'a> {
     {
         let output_tokens =
             process_tokens_iter_with_options(input_tokens, &self.dictionary, self.options.engine);
+        let output_tokens =
+            collapse_redundant_parens(output_tokens, self.options.collapse_redundant_parens);
         let output_tokens = mark_homophones_with_detection(
             output_tokens,
             &self.dictionary,

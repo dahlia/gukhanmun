@@ -1,0 +1,14 @@
+description = """
+A parenthetical that is a definition, not a reading, must pass through
+untouched: the hangul has many more syllables than `庫間` has characters, so
+`庫間(물건을 간직하여 두는 곳)` renders as `곳간(물건을 간직하여 두는 곳)`.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "庫間"
+reading = "곳간"

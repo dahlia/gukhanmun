@@ -1,0 +1,14 @@
+description = """
+A hangul-first gloss `곳간(庫間)` in `original` render mode renders as
+`庫間(곳간)`: both scripts survive regardless of which one the author wrote first.
+"""
+preset = "ko-kr"
+rendering = "original"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "庫間"
+reading = "곳간"

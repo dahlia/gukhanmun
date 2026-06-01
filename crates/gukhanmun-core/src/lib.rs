@@ -39,8 +39,8 @@ use core::marker::PhantomData;
 
 use fallback::{
     FallbackPart, FallbackState, apply_initial_sound_law_to_first_syllable,
-    fallback_reading_for_run, phoneticize_fallback_run_with_state, phoneticize_hanja_char,
-    should_apply_yeol_yul,
+    fallback_reading_for_run, khangul_all_readings, phoneticize_fallback_run_with_state,
+    phoneticize_hanja_char, reading_matches_with_initial_sound_law, should_apply_yeol_yul,
 };
 use generated::unihan_readings::KHANGUL_READINGS;
 use segment::{Segment, segment_text};
@@ -291,7 +291,12 @@ pub enum RenderedToken<S> {
 /// The engine fills this value when it turns source hanja into a hangul
 /// reading. The flags describe known constraints; middlewares may adjust them
 /// before a renderer chooses the concrete output form.
-#[derive(Clone, Debug, Eq, PartialEq)]
+///
+/// This struct is `#[non_exhaustive]`, so additional flags can be added without
+/// a breaking change. Construct it from [`Annotation::default`] and set the
+/// fields you need; the public fields stay readable and writable.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[non_exhaustive]
 pub struct Annotation {
     /// The original hanja text from the input.
     pub hanja: String,
@@ -318,6 +323,17 @@ pub struct Annotation {
 
     /// Whether this annotation came from a dictionary match.
     pub from_dictionary: bool,
+
+    /// Whether the presentation requirements
+    /// ([`require_hanja`](Self::require_hanja) /
+    /// [`require_hangul`](Self::require_hangul)) were requested by an explicit
+    /// parenthetical gloss in the source, rather than by the dictionary.
+    ///
+    /// [`RedundantParenCollapser`] sets this when it collapses an author-written
+    /// gloss.  [`FirstOccurrenceFilter`] preserves the requirements on such
+    /// annotations instead of clearing them on repeats, so a word the author
+    /// glossed every time stays fully annotated every time.
+    pub from_source_gloss: bool,
 }
 
 /// Dictionary-provided rendering constraints for a match.
@@ -1492,6 +1508,7 @@ fn process_segments_with_state<S, D>(
                     first_in_context: true,
                     skip_annotation: false,
                     from_dictionary: true,
+                    from_source_gloss: false,
                 }));
                 if should_preserve_dictionary_context(source, &effective, options) {
                     update_fallback_state_for_reading(&effective, fallback_state);
@@ -1566,6 +1583,7 @@ fn process_fallback_text<S>(
                     first_in_context: true,
                     skip_annotation: false,
                     from_dictionary: false,
+                    from_source_gloss: false,
                 }));
             }
             FallbackPart::ReadingText(text) => push_text(output, &text),
@@ -2175,6 +2193,487 @@ where
     }
 }
 
+/// Streaming middleware that collapses an explicit parenthetical reading
+/// annotation into the converted hanja word it duplicates.
+///
+/// Mixed-script input sometimes spells a word together with a parenthetical
+/// gloss, either hanja-first (`庫間(곳간)`) or hangul-first (`곳간(庫間)`).  Left
+/// alone, the converter would render the hanja *and* keep the parenthetical,
+/// producing a redundant `곳간(곳간)`.  An author who wrote such a gloss meant
+/// "annotate this word fully", so this middleware detects the two patterns,
+/// removes the now-redundant parenthetical text, and sets both
+/// [`Annotation::require_hanja`] and [`Annotation::require_hangul`] on the
+/// surviving annotation.  Setting both flags reproduces the author's intent in
+/// every render mode: [`RenderMode::HangulOnly`] honours `require_hanja`
+/// (`곳간(庫間)`) while [`RenderMode::Original`] honours `require_hangul`
+/// (`庫間(곳간)`).
+///
+/// A parenthetical may also *pin an alternative reading*.  `數字` is normally
+/// read `숫자`, but in the sense "a few characters" it reads `수자`; writing
+/// `數字(수자)` fixes the reading for that occurrence.  Such a reading
+/// annotation is told apart from a definition gloss like
+/// `庫間(물건을 간직하여 두는 곳)` with a two-tier test against the candidate
+/// hangul `R`:
+///
+/// 1. **Exact match** — `R` equals the annotation's reading.  Collapse and keep
+///    the reading.
+/// 2. **Valid alternative reading** — `R` has exactly one hangul syllable per
+///    hanja character and every syllable is a recorded Unihan reading of its
+///    character (or the initial-sound-law variant of one).  Collapse and
+///    override the reading with `R`.
+///
+/// Anything else (definition glosses, foreign transliterations such as
+/// `蔣介石(장제스)`, or a syllable-count mismatch) is left untouched.
+///
+/// The middleware runs immediately after the engine, before
+/// [`HomophoneMarker`] and [`FirstOccurrenceFilter`], so later stages observe
+/// the corrected reading and flags.  It coalesces adjacent
+/// [`OutputToken::Text`] tokens (the streaming engine flushes non-hanja text at
+/// safe points, so `(곳간)` can arrive split as `(곳간` then `)`) and buffers
+/// only a bounded amount: a held annotation, the trailing matchable suffix of
+/// the preceding text, and the following parenthetical until it can be
+/// classified.  This keeps the streaming result identical to a one-shot
+/// conversion while staying responsive on long hanja-free runs.
+/// [`OutputToken::Open`], [`OutputToken::Close`], and [`OutputToken::Verbatim`]
+/// flush the buffer and pass through, so a match never crosses a scope
+/// boundary.  When `enabled` is `false` the middleware is an exact
+/// pass-through.
+///
+/// # Limitation
+///
+/// The collapser runs after the engine and never re-derives readings, so a
+/// hanja-first gloss immediately followed (with no space) by an initial-sound-law
+/// (頭音法則) character keeps the reading the engine chose with the parenthetical
+/// acting as a word boundary.  For example `學(학)率` collapses to `학(學)율`
+/// rather than `학률`: the engine read `率` as word-initial `율` because `)`
+/// separated it from `學`, and removing the gloss cannot recover the
+/// non-word-initial `률`.  This is narrow in practice; an intended compound is
+/// normally written `學率(학률)`.  Insert a space (`學(학) 率`) or gloss the whole
+/// compound to control the reading.
+pub struct RedundantParenCollapser<S>
+where
+    S: ScopeData,
+{
+    enabled: bool,
+    /// Coalesced trailing text held while no annotation is pending: a bounded
+    /// suffix (`[hangul]*` optionally ending in `(`) that could still become a
+    /// hangul-first match's preceding text once the next annotation arrives.
+    /// Everything before that suffix is emitted eagerly so streaming stays
+    /// responsive even for long hanja-free runs.
+    held_tail: String,
+    /// A held annotation whose following text is still being accumulated.
+    pending_annotation: Option<Annotation>,
+    /// The text immediately preceding [`Self::pending_annotation`].
+    preceding: String,
+    /// Coalesced text following [`Self::pending_annotation`], accumulated until
+    /// the parenthetical can be classified.
+    following: String,
+    _scope: PhantomData<fn(S)>,
+}
+
+impl<S> RedundantParenCollapser<S>
+where
+    S: ScopeData,
+{
+    /// Creates a collapser.  When `enabled` is `false` every token passes
+    /// through unchanged.
+    pub fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            held_tail: String::new(),
+            pending_annotation: None,
+            preceding: String::new(),
+            following: String::new(),
+            _scope: PhantomData,
+        }
+    }
+
+    /// Pushes one output token and returns tokens ready for downstream stages.
+    pub fn push_token(&mut self, token: OutputToken<S>) -> Vec<OutputToken<S>> {
+        if !self.enabled {
+            return Vec::from([token]);
+        }
+        let mut output = Vec::new();
+        match token {
+            OutputToken::Annotated(annotation) => {
+                // End any in-progress following text run by forcing a decision,
+                // then the held tail becomes this annotation's preceding text.
+                self.finalize_pending(&mut output);
+                self.preceding = core::mem::take(&mut self.held_tail);
+                self.pending_annotation = Some(annotation);
+            }
+            OutputToken::Text(text) => {
+                if self.pending_annotation.is_some() {
+                    self.following.push_str(&text);
+                    self.resolve_following(&mut output);
+                } else {
+                    self.held_tail.push_str(&text);
+                    self.emit_held_prefix(&mut output);
+                }
+            }
+            boundary => {
+                // Open / Close / Verbatim: a match may not cross this boundary,
+                // so finalize everything before passing the boundary through.
+                self.finalize_pending(&mut output);
+                if !self.held_tail.is_empty() {
+                    output.push(OutputToken::Text(core::mem::take(&mut self.held_tail)));
+                }
+                output.push(boundary);
+            }
+        }
+        output
+    }
+
+    /// Flushes buffered tokens and returns them.
+    pub fn finish(mut self) -> Vec<OutputToken<S>> {
+        if !self.enabled {
+            return Vec::new();
+        }
+        let mut output = Vec::new();
+        self.finalize_pending(&mut output);
+        if !self.held_tail.is_empty() {
+            output.push(OutputToken::Text(core::mem::take(&mut self.held_tail)));
+        }
+        output
+    }
+
+    /// Emits the part of [`Self::held_tail`] that can no longer participate in a
+    /// hangul-first match, keeping the bounded matchable suffix.
+    fn emit_held_prefix(&mut self, output: &mut Vec<OutputToken<S>>) {
+        let split = hangul_first_tail_start(&self.held_tail);
+        if split > 0 {
+            // Keep the (possibly long) prefix in the existing buffer and split
+            // off only the bounded suffix, avoiding a large copy and shift.
+            let suffix = self.held_tail.split_off(split);
+            let prefix = core::mem::replace(&mut self.held_tail, suffix);
+            output.push(OutputToken::Text(prefix));
+        }
+    }
+
+    /// Forces a pending annotation to resolve as if no further following text
+    /// will arrive (called at a boundary, a new annotation, or EOF).
+    fn finalize_pending(&mut self, output: &mut Vec<OutputToken<S>>) {
+        if self.pending_annotation.is_some() {
+            self.decide_following(true, output);
+        }
+    }
+
+    /// Resolves a pending annotation against the accumulated following text,
+    /// buffering more text when the parenthetical is still incomplete.
+    fn resolve_following(&mut self, output: &mut Vec<OutputToken<S>>) {
+        self.decide_following(false, output);
+    }
+
+    /// Classifies the pending annotation against `preceding` / `following`.
+    ///
+    /// With `flush` set, an otherwise-undecidable case is treated as a
+    /// non-match instead of requesting more text.
+    fn decide_following(&mut self, flush: bool, output: &mut Vec<OutputToken<S>>) {
+        let annotation = self
+            .pending_annotation
+            .as_ref()
+            .expect("decide_following called with a pending annotation");
+        match classify_following(&self.preceding, annotation, &self.following, flush) {
+            FollowingMatch::NeedMore => return,
+            FollowingMatch::NoMatch => {
+                if !self.preceding.is_empty() {
+                    output.push(OutputToken::Text(core::mem::take(&mut self.preceding)));
+                }
+                output.push(OutputToken::Annotated(
+                    self.pending_annotation.take().expect("pending annotation"),
+                ));
+                // The following text run continues as ordinary trailing text.
+                self.held_tail = core::mem::take(&mut self.following);
+            }
+            FollowingMatch::HanjaFirst {
+                collapsed,
+                leftover,
+            } => {
+                // The preceding text is unrelated; emit it verbatim.
+                if !self.preceding.is_empty() {
+                    output.push(OutputToken::Text(core::mem::take(&mut self.preceding)));
+                }
+                output.push(OutputToken::Annotated(collapsed));
+                self.pending_annotation = None;
+                self.held_tail = leftover;
+                self.following.clear();
+            }
+            FollowingMatch::HangulFirst {
+                remaining_preceding,
+                collapsed,
+                leftover,
+            } => {
+                if !remaining_preceding.is_empty() {
+                    output.push(OutputToken::Text(remaining_preceding));
+                }
+                output.push(OutputToken::Annotated(collapsed));
+                self.pending_annotation = None;
+                self.preceding.clear();
+                self.held_tail = leftover;
+                self.following.clear();
+            }
+        }
+        self.emit_held_prefix(output);
+    }
+}
+
+/// Upper bound on how many trailing hangul syllables are held as a hangul-first
+/// reading candidate.  A Sino-Korean reading written before `(` is at most a
+/// handful of syllables; this generous cap keeps `held_tail` bounded even for a
+/// pathological space-free hangul run (the only cost of exceeding it is that an
+/// implausibly long reading is not collapsed).
+const MAX_PRECEDING_READING_CHARS: usize = 64;
+
+/// Byte index where the matchable suffix of a held text run begins: up to
+/// [`MAX_PRECEDING_READING_CHARS`] trailing hangul syllables plus an optional
+/// final `(`.  Everything before this index can be emitted because it can no
+/// longer be the preceding text of a hangul-first match.
+fn hangul_first_tail_start(text: &str) -> usize {
+    let mut start = text.len();
+    let mut chars = text.char_indices().rev().peekable();
+    if let Some(&(index, '(')) = chars.peek() {
+        start = index;
+        chars.next();
+    }
+    let mut held = 0;
+    while held < MAX_PRECEDING_READING_CHARS {
+        match chars.peek() {
+            Some(&(index, ch)) if is_hangul_syllable(ch) => {
+                start = index;
+                held += 1;
+                chars.next();
+            }
+            _ => break,
+        }
+    }
+    start
+}
+
+/// Buffered counterpart to [`RedundantParenCollapser`] for non-streaming
+/// callers, mirroring [`mark_homophones_with_detection`] and
+/// [`filter_first_occurrences`].
+pub fn collapse_redundant_parens<S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    enabled: bool,
+) -> Vec<OutputToken<S>>
+where
+    S: ScopeData,
+{
+    if !enabled {
+        return tokens.into_iter().collect();
+    }
+    let mut collapser = RedundantParenCollapser::new(true);
+    let mut output = Vec::new();
+    for token in tokens {
+        output.extend(collapser.push_token(token));
+    }
+    output.extend(collapser.finish());
+    output
+}
+
+/// Classification of a parenthetical hangul string against an annotation.
+enum ReadingMatch {
+    /// The parenthetical equals the annotation's reading; keep the reading.
+    Keep,
+    /// The parenthetical is a valid alternative reading; override with it.
+    Override(String),
+}
+
+/// Classifies the parenthetical hangul `candidate` against an annotation's
+/// `hanja`/`reading`, returning `None` when it is neither the reading nor a
+/// valid alternative reading (so the tokens are left untouched).
+fn classify_reading(hanja: &str, reading: &str, candidate: &str) -> Option<ReadingMatch> {
+    if candidate == reading {
+        Some(ReadingMatch::Keep)
+    } else if is_valid_alternative_reading(hanja, candidate) {
+        Some(ReadingMatch::Override(candidate.to_string()))
+    } else {
+        None
+    }
+}
+
+/// Returns whether `candidate` is a valid Sino-Korean reading of `hanja`: one
+/// hangul syllable per hanja character, each a recorded Unihan reading of its
+/// character or the initial-sound-law variant of one.
+fn is_valid_alternative_reading(hanja: &str, candidate: &str) -> bool {
+    let mut hanja_chars = hanja.chars();
+    let mut candidate_chars = candidate.chars();
+    let mut matched_any = false;
+    loop {
+        match (hanja_chars.next(), candidate_chars.next()) {
+            (Some(hanja_char), Some(syllable)) => {
+                if !is_valid_char_reading(hanja_char, syllable) {
+                    return false;
+                }
+                matched_any = true;
+            }
+            (None, None) => return matched_any,
+            // Differing lengths: not a one-syllable-per-character reading.
+            _ => return false,
+        }
+    }
+}
+
+/// Returns whether `syllable` is a valid reading of the source character
+/// `source`: a recorded Unihan reading (or its initial-sound-law 頭音法則
+/// variant) when `source` is a hanja character, or the same syllable verbatim
+/// when `source` is itself hangul (as in a mixed-script entry such as `色깔論`).
+fn is_valid_char_reading(source: char, syllable: char) -> bool {
+    if !is_hangul_syllable(syllable) {
+        return false;
+    }
+    let readings = khangul_all_readings(source);
+    if readings.is_empty() {
+        // No recorded Sino-Korean reading: the source is the hangul portion of
+        // a mixed-script entry (or otherwise non-hanja), so it must appear
+        // verbatim in the candidate reading.
+        return source == syllable;
+    }
+    readings.iter().any(|reading| {
+        reading_is_syllable(reading, syllable)
+            || reading_matches_with_initial_sound_law(reading, syllable)
+    })
+}
+
+/// Returns whether the single-syllable `reading` is exactly `syllable`.
+fn reading_is_syllable(reading: &str, syllable: char) -> bool {
+    let mut chars = reading.chars();
+    chars.next() == Some(syllable) && chars.next().is_none()
+}
+
+/// Builds the collapsed annotation: both presentation flags set, with the
+/// reading overridden when the parenthetical pinned an alternative one.
+fn collapse_annotation(mut annotation: Annotation, reading_match: ReadingMatch) -> Annotation {
+    if let ReadingMatch::Override(reading) = reading_match {
+        annotation.reading = reading;
+    }
+    annotation.require_hanja = true;
+    annotation.require_hangul = true;
+    annotation.from_source_gloss = true;
+    annotation
+}
+
+/// Outcome of classifying a pending annotation against the text that follows
+/// it (and, for the hangul-first pattern, the text that precedes it).
+enum FollowingMatch {
+    /// The following text is an incomplete parenthetical; buffer more.
+    NeedMore,
+    /// Neither pattern applies; emit the tokens unchanged.
+    NoMatch,
+    /// Hanja-first `Annotated` + `(R)`: collapse, keeping the text after `)`.
+    HanjaFirst {
+        collapsed: Annotation,
+        leftover: String,
+    },
+    /// Hangul-first `R(` + `Annotated` + `)`: collapse, keeping the preceding
+    /// text before `R(` and the following text after `)`.
+    HangulFirst {
+        remaining_preceding: String,
+        collapsed: Annotation,
+        leftover: String,
+    },
+}
+
+/// Classifies a pending annotation against the accumulated `preceding` and
+/// `following` text.
+///
+/// `following` is coalesced across adjacent text tokens; the hanja-first arm
+/// buffers (returns [`FollowingMatch::NeedMore`]) until it sees the closing `)`
+/// or can rule a match out, which keeps the buffer bounded by the longest
+/// possible reading.  With `flush` set (a boundary or EOF ended the run) an
+/// otherwise-undecidable parenthetical is treated as a non-match.
+fn classify_following(
+    preceding: &str,
+    annotation: &Annotation,
+    following: &str,
+    flush: bool,
+) -> FollowingMatch {
+    let Some(first) = following.chars().next() else {
+        return if flush {
+            FollowingMatch::NoMatch
+        } else {
+            FollowingMatch::NeedMore
+        };
+    };
+    match first {
+        ')' => match match_hangul_first(preceding, annotation, following) {
+            Some((remaining_preceding, collapsed)) => FollowingMatch::HangulFirst {
+                remaining_preceding,
+                collapsed,
+                leftover: following[')'.len_utf8()..].to_string(),
+            },
+            None => FollowingMatch::NoMatch,
+        },
+        '(' => {
+            let content = &following['('.len_utf8()..];
+            match content.find(')') {
+                Some(close) => {
+                    let candidate = &content[..close];
+                    match classify_reading(&annotation.hanja, &annotation.reading, candidate) {
+                        Some(reading_match) => FollowingMatch::HanjaFirst {
+                            collapsed: collapse_annotation(annotation.clone(), reading_match),
+                            leftover: content[close + ')'.len_utf8()..].to_string(),
+                        },
+                        None => FollowingMatch::NoMatch,
+                    }
+                }
+                None => {
+                    // A reading is at most max(reading, hanja) syllables long, so
+                    // once the unclosed content exceeds that it cannot match.
+                    let max_reading = annotation
+                        .reading
+                        .chars()
+                        .count()
+                        .max(annotation.hanja.chars().count());
+                    if flush || content.chars().count() > max_reading {
+                        FollowingMatch::NoMatch
+                    } else {
+                        FollowingMatch::NeedMore
+                    }
+                }
+            }
+        }
+        _ => FollowingMatch::NoMatch,
+    }
+}
+
+/// Matches the hangul-first pattern preceding `Text("…R(")` + `Annotated` +
+/// following `Text(")…")`.  On success returns the preceding text remaining
+/// after stripping `R(` and the collapsed annotation.
+fn match_hangul_first(
+    preceding: &str,
+    annotation: &Annotation,
+    following: &str,
+) -> Option<(String, Annotation)> {
+    if !following.starts_with(')') {
+        return None;
+    }
+    let before = preceding.strip_suffix('(')?;
+
+    // Tier 1: the text just before `(` ends with the annotation's reading.
+    if !annotation.reading.is_empty()
+        && let Some(remaining) = before.strip_suffix(&annotation.reading)
+    {
+        let collapsed = collapse_annotation(annotation.clone(), ReadingMatch::Keep);
+        return Some((remaining.to_string(), collapsed));
+    }
+
+    // Tier 2: the trailing hanja-character count of hangul syllables form a
+    // valid alternative reading.  Slice `before` directly at the byte boundary
+    // of those trailing syllables rather than collecting it into a `Vec<char>`.
+    let syllable_count = annotation.hanja.chars().count();
+    if syllable_count == 0 {
+        return None;
+    }
+    let (split, _) = before.char_indices().rev().nth(syllable_count - 1)?;
+    let candidate = &before[split..];
+    let reading_match = classify_reading(&annotation.hanja, &annotation.reading, candidate)?;
+    Some((
+        before[..split].to_string(),
+        collapse_annotation(annotation.clone(), reading_match),
+    ))
+}
+
 /// Applies literal user directives to annotation policy flags.
 ///
 /// Rules only set flags; they do not render, remove, or reorder tokens.
@@ -2348,8 +2847,13 @@ fn filter_first_occurrences_in_context<S>(tokens: &mut [OutputToken<S>]) {
                 annotation.first_in_context = true;
             } else {
                 annotation.first_in_context = false;
-                annotation.require_hanja = false;
-                annotation.require_hangul = false;
+                // An explicit parenthetical gloss is the author asking for the
+                // annotation at every occurrence, so its requirements survive
+                // first-occurrence clearing; dictionary requirements do not.
+                if !annotation.from_source_gloss {
+                    annotation.require_hanja = false;
+                    annotation.require_hangul = false;
+                }
             }
         }
     }
@@ -2564,6 +3068,11 @@ fn parens(reading: &str, hanja: &str) -> String {
 /// structural tokens. The `render` argument accepts either a [`RenderMode`]
 /// (converted via `From<RenderMode>` for [`RenderOptions`]) or a full
 /// [`RenderOptions`] value.
+///
+/// Like the high-level umbrella default, this collapses redundant parenthetical
+/// reading annotations ([`RedundantParenCollapser`]); callers that need finer
+/// control (including disabling that step) should drive the individual stages
+/// instead.
 pub fn convert_plain_text<D, R>(input: &str, dictionary: &D, render: R) -> String
 where
     D: HanjaDictionary + ?Sized,
@@ -2587,6 +3096,7 @@ where
 {
     let input_tokens = read_plain_text(input);
     let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
+    let output_tokens = collapse_redundant_parens(output_tokens, true);
     let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
     let rendered_tokens = render_tokens(output_tokens, render);
     write_plain_text(rendered_tokens)
