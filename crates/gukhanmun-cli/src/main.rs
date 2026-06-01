@@ -146,7 +146,8 @@ struct ConversionArgs {
 
     /// Keep redundant parenthetical reading annotations instead of collapsing
     /// them.  By default an explicit gloss such as 庫間(곳간) or 곳간(庫間) is
-    /// collapsed to show both scripts once; this flag leaves the input as is.
+    /// collapsed to show both scripts once; this flag preserves the explicit
+    /// parenthetical text instead.
     #[arg(long)]
     no_collapse_parens: bool,
 }
