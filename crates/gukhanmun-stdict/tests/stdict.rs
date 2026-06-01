@@ -79,6 +79,28 @@ fn extracts_canonical_tsv_from_synthetic_json() {
 }
 
 #[test]
+fn saisiot_prescribed_reading_wins_regardless_of_dump_order() {
+    // Standard Korean Orthography §30 prescribes 數字 → 숫자. Both 수자 and 숫자
+    // are dictionary head words keyed on 數字 with otherwise equal priority, so
+    // before the §30 promotion the winner depended on which appeared first in
+    // the dump. The prescribed reading must now win either way.
+    for (first, second) in [("수자", "숫자"), ("숫자", "수자")] {
+        let json = saisiot_collision_json(first, second);
+        let mut output = Vec::new();
+        extract_json_reader_to_tsv(json.as_bytes(), &mut output).unwrap();
+        let output = String::from_utf8(output).unwrap();
+        assert!(
+            output.contains("數字\t숫자\tfalse\tfalse\n"),
+            "expected 數字 → 숫자 with dump order {first} then {second}, got:\n{output}"
+        );
+        assert!(
+            !output.contains("數字\t수자\t"),
+            "saisiot-free 수자 must not win for 數字 with dump order {first} then {second}"
+        );
+    }
+}
+
+#[test]
 fn cli_extracts_from_zip_archives() {
     let temp = tempdir().unwrap();
     let zip_path = temp.path().join("stdict.zip");
@@ -282,6 +304,34 @@ fn homophone_words_follow_context_local_detection() {
     );
 }
 
+#[test]
+fn bundled_dictionary_prefers_saisiot_prescribed_readings() {
+    let dict = gukhanmun_stdict::ko_kr();
+
+    // The six Standard Korean Orthography §30 saisiot compounds resolve to their
+    // prescribed saisiot reading, not the saisiot-free homograph.
+    for (hanja, reading) in [
+        ("庫間", "곳간"),
+        ("貰房", "셋방"),
+        ("數字", "숫자"),
+        ("車間", "찻간"),
+        ("退間", "툇간"),
+        ("回數", "횟수"),
+    ] {
+        assert_eq!(
+            dict.lookup(hanja).unwrap().unwrap().reading(),
+            reading,
+            "{hanja} should read {reading}"
+        );
+    }
+
+    // The reported regression: 數字 must convert to 숫자, not 수자.
+    assert_eq!(
+        convert_plain_text("數字", dict, RenderMode::HangulOnly),
+        "숫자"
+    );
+}
+
 proptest! {
     #[test]
     fn generated_single_hanja_items_extract_deterministically(
@@ -350,6 +400,14 @@ proptest! {
             prop_assert!(output.contains(&expected));
         }
     }
+}
+
+/// Builds a dump where two head words (`first` then `second`) both key on 數字,
+/// modelling the 수자/숫자 homograph collision the §30 promotion resolves.
+fn saisiot_collision_json(first: &str, second: &str) -> String {
+    format!(
+        r#"{{"channel":{{"item":[{{"word_info":{{"word":"{first}","word_unit":"단어","word_type":"한자어","original_language_info":[{{"original_language":"數字","language_type":"한자"}}]}}}},{{"word_info":{{"word":"{second}","word_unit":"단어","word_type":"한자어","original_language_info":[{{"original_language":"數字","language_type":"한자"}}]}}}}]}}}}"#
+    )
 }
 
 fn synthetic_json() -> &'static str {

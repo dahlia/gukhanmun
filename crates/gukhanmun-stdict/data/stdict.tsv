@@ -8995,7 +8995,6 @@ hanja	hangul	require_hanja	require_hangul
 也自無妨	야자무방	false	false
 也自無妨하다	야자무방하다	false	false
 也里可溫	예리커원	false	false
-乳	찌찌	false	false
 乳井	유정	false	false
 乳兄弟	유형제	false	false
 乳光	유광	false	false
@@ -16408,7 +16407,6 @@ hanja	hangul	require_hanja	require_hangul
 例飭	예칙	false	false
 例수롭다	예수롭다	false	false
 例컨대	예컨대	false	false
-侍	사무라이	false	false
 侍丁	시정	false	false
 侍下	시하	false	false
 侍下人	시하인	false	false
@@ -21912,7 +21910,7 @@ hanja	hangul	require_hanja	require_hangul
 允許하다	윤허하다	false	false
 允諧	윤해	false	false
 允諧하다	윤해하다	false	false
-元	위안	false	false
+元	원	false	false
 元亨利貞	원형이정	false	false
 元人百種曲	원인백종곡	false	false
 元人百種目	원인백종목	false	false
@@ -27537,7 +27535,6 @@ hanja	hangul	require_hanja	require_hangul
 冀望	기망	false	false
 冀望하다	기망하다	false	false
 冀願	기원	false	false
-円	엔	false	false
 冉伯牛	염백우	false	false
 冉冉	염염	false	false
 冉冉하다	염염하다	false	false
@@ -30291,7 +30288,7 @@ hanja	hangul	require_hanja	require_hangul
 刃創	인창	false	false
 刃器	인기	false	false
 刃物臺	인물대	false	false
-分	펀	false	false
+分	분	false	false
 分下	분하	false	false
 分下錢	분하전	false	false
 分下돈	분핫돈	false	false
@@ -36717,7 +36714,7 @@ hanja	hangul	require_hanja	require_hangul
 勿驚스럽다	물경스럽다	false	false
 匃施	개시	false	false
 匃施하다	개시하다	false	false
-包	파오	false	false
+包	포	false	false
 包主	포주	false	false
 包作	포작	false	false
 包匣	포갑	false	false
@@ -43348,7 +43345,6 @@ hanja	hangul	require_hanja	require_hangul
 另記	영기	false	false
 另記하다	영기하다	false	false
 叨冒	도모	false	false
-叩	다대기	false	false
 叩地叫天	고지규천	false	false
 叩扉	고비	false	false
 叩扉하다	고비하다	false	false
@@ -95052,7 +95048,7 @@ hanja	hangul	require_hanja	require_hangul
 手싸움	수싸움	false	false
 手읽기	수읽기	false	false
 手지니	수지니	false	false
-才	사이	false	false
+才	재	false	false
 才不足	재부족	false	false
 才不足하다	재부족하다	false	false
 才人	재인	false	false
@@ -104531,7 +104527,7 @@ hanja	hangul	require_hanja	require_hangul
 敢鬪	감투	false	false
 敢鬪하다	감투하다	false	false
 敢히	감히	false	false
-散	지라시	false	false
+散	산	false	false
 散之四方	산지사방	false	false
 散之四方하다	산지사방하다	false	false
 散之四處	산지사처	false	false
@@ -105214,7 +105210,7 @@ hanja	hangul	require_hanja	require_hangul
 數多히	수다히	false	false
 數奇	수기	false	false
 數奇하다	수기하다	false	false
-數字	수자	false	false
+數字	숫자	false	false
 數字付低音	숫자부저음	false	false
 數字旗	숫자기	false	false
 數字標低音	숫자표저음	false	false
@@ -116669,7 +116665,7 @@ hanja	hangul	require_hanja	require_hangul
 杜鵑酒	두견주	false	false
 杜鵑새	두견새	false	false
 杜鵑이	두견이	false	false
-杞	치	false	false
+杞	기	false	false
 杞憂	기우	false	false
 杞憂하다	기우하다	false	false
 杞柳	기류	false	false
@@ -122701,7 +122697,6 @@ hanja	hangul	require_hanja	require_hangul
 櫷木半닫이	귀목반닫이	false	false
 櫷木나무	귀목나무	false	false
 櫷木뒤주	귀목뒤주	false	false
-櫻	사쿠라	false	false
 櫻實	앵실	false	false
 櫻島섬	사쿠라지마섬	false	false
 櫻月	앵월	false	false
@@ -132003,7 +131998,7 @@ hanja	hangul	require_hanja	require_hangul
 洞네조리	동네조리	false	false
 洞넷집	동넷집	false	false
 洞뿔	통뿔	false	false
-津	쓰	false	false
+津	진	false	false
 津丹裝	진단장	false	false
 津丹裝하다	진단장하다	false	false
 津人	진인	false	false
@@ -140361,7 +140356,7 @@ hanja	hangul	require_hanja	require_hangul
 炒黑	초흑	false	false
 炒黑하다	초흑하다	false	false
 炒하다	초하다	false	false
-炕	캉	false	false
+炕	강	false	false
 炕暴	항포	false	false
 炕暴하다	항포하다	false	false
 炕洞	갱동	false	false
@@ -144950,7 +144945,7 @@ hanja	hangul	require_hanja	require_hangul
 版박이말	판박이말	false	false
 版짜기	판짜기	false	false
 牋	전	false	false
-牌	파이	false	false
+牌	패	false	false
 牌不進	패부진	false	false
 牌不進하다	패부진하다	false	false
 牌印	패인	false	false
@@ -152935,7 +152930,6 @@ hanja	hangul	require_hanja	require_hangul
 疇生하다	주생하다	false	false
 疇輩	주배	false	false
 疈辜	벽고	false	false
-疊	다다미	false	false
 疊出	첩출	false	false
 疊出하다	첩출하다	false	false
 疊勝舞	첩승무	false	false
@@ -157263,7 +157257,6 @@ hanja	hangul	require_hanja	require_hangul
 盤點	반점	false	false
 盤點하다	반점하다	false	false
 盤龍鏡	반룡경	false	false
-盥	다라이	false	false
 盥手	관수	false	false
 盥手하다	관수하다	false	false
 盥櫛	관즐	false	false
@@ -176240,7 +176233,7 @@ hanja	hangul	require_hanja	require_hangul
 縫製線	봉제선	false	false
 縫製하다	봉제하다	false	false
 縫針	봉침	false	false
-縮	지지미	false	false
+縮	축	false	false
 縮刷	축쇄	false	false
 縮刷版	축쇄판	false	false
 縮刷하다	축쇄하다	false	false
@@ -182537,7 +182530,7 @@ hanja	hangul	require_hanja	require_hangul
 胸骨	흉골	false	false
 胸髓	흉수	false	false
 胸高	흉고	false	false
-能	노	false	false
+能	능	false	false
 能不能	능불능	false	false
 能事	능사	false	false
 能仁	능인	false	false
@@ -199978,7 +199971,7 @@ hanja	hangul	require_hanja	require_hangul
 觀點	관점	false	false
 觀龍寺	관룡사	false	false
 觀하다	관하다	false	false
-角	자오	false	false
+角	각	false	false
 角倍率	각배율	false	false
 角列	각렬	false	false
 角列하다	각렬하다	false	false
@@ -206432,7 +206425,6 @@ hanja	hangul	require_hanja	require_hangul
 豕牢	시뢰	false	false
 豕突	시돌	false	false
 豕突하다	시돌하다	false	false
-豚	돈가스	false	false
 豚丹毒	돈단독	false	false
 豚兒	돈아	false	false
 豚拍	돈박	false	false
@@ -227289,7 +227281,6 @@ hanja	hangul	require_hanja	require_hangul
 鏜鈀	당파	false	false
 鏜鈀槍	당파창	false	false
 鏜鏜	당당	false	false
-鏝	고데	false	false
 鏝하다	고데하다	false	false
 鏡	경	false	false
 鏡中	경중	false	false
@@ -237204,7 +237195,7 @@ hanja	hangul	require_hanja	require_hangul
 靉靉	애애	false	false
 靉靉하다	애애하다	false	false
 靉靉히	애애히	false	false
-靑	칭	false	false
+靑	청	false	false
 靑一點	청일점	false	false
 靑丘	청구	false	false
 靑丘樂章	청구악장	false	false

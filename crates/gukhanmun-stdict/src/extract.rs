@@ -211,7 +211,7 @@ impl Extractor {
             self.stats.skipped_items += 1;
             return;
         };
-        let priority = entry_priority(&word_info, originals);
+        let base_priority = entry_priority(&word_info, originals);
         let suffix_headword = is_suffix_headword(&word_info);
 
         for key in keys {
@@ -222,9 +222,20 @@ impl Extractor {
             // accurately from the engine's bundled unihan readings (引 → 인), so
             // drop single-character foreign-spelling keys. Multi-character
             // foreign units such as 北京 → 베이징 are kept.
-            if priority == EntryPriority::ForeignHanjaSpelling && key.chars().count() == 1 {
+            if base_priority == EntryPriority::ForeignHanjaSpelling && key.chars().count() == 1 {
                 continue;
             }
+            // Standard Korean Orthography §30 (한글 맞춤법 第30項) spells six
+            // Sino-Korean compounds with a saisiot (數字 → 숫자, not 수자). The
+            // dictionary also lists the saisiot-free homograph (수자) under the
+            // same hanja key with equal priority, so the winner would otherwise
+            // depend on dump order. Promote the prescribed (hanja, reading) pair
+            // above Default so it always wins for these six keys.
+            let priority = if is_saisiot_prescribed(&key, &reading) {
+                EntryPriority::SaisiotPrescribed
+            } else {
+                base_priority
+            };
             self.track_multisyllable_form(&key, &reading, suffix_headword);
             match self.entries.entry(key) {
                 BTreeEntry::Vacant(entry) => {
@@ -369,7 +380,31 @@ struct OriginalLanguageInfo {
 enum EntryPriority {
     Redirect,
     Default,
+    SaisiotPrescribed,
     ForeignHanjaSpelling,
+}
+
+/// The six Sino-Korean compounds that Standard Korean Orthography §30
+/// (한글 맞춤법 第30項) spells with a saisiot (사이시옷), paired with the
+/// prescribed hangul reading. The list is closed and named directly by the
+/// orthographic standard, so no general saisiot heuristic is needed.
+const SAISIOT_PRESCRIBED: [(&str, &str); 6] = [
+    ("庫間", "곳간"),
+    ("貰房", "셋방"),
+    ("數字", "숫자"),
+    ("車間", "찻간"),
+    ("退間", "툇간"),
+    ("回數", "횟수"),
+];
+
+/// Returns whether `key` and `reading` are one of the six §30 saisiot pairs,
+/// whose reading [`Extractor::ingest_item`] promotes to
+/// [`EntryPriority::SaisiotPrescribed`] so it wins over a saisiot-free
+/// homograph sharing the same hanja key.
+fn is_saisiot_prescribed(key: &str, reading: &str) -> bool {
+    SAISIOT_PRESCRIBED
+        .iter()
+        .any(|&(hanja, hangul)| hanja == key && hangul == reading)
 }
 
 fn entry_priority(word_info: &WordInfo, originals: &[OriginalLanguageInfo]) -> EntryPriority {
