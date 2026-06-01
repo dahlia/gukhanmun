@@ -114,6 +114,25 @@ fn disabled_keeps_the_redundant_parenthetical() {
     assert_eq!(output, "곳간(곳간)");
 }
 
+/// A word the author glosses on every occurrence must stay fully annotated
+/// even when first-occurrence filtering would otherwise clear the requirement
+/// on the repeat.
+#[test]
+fn first_occurrence_filter_preserves_repeated_explicit_glosses() {
+    let mut dict = MapDictionary::new();
+    dict.insert("庫間", "곳간");
+    let output = Builder::new()
+        .no_bundled_stdict()
+        .push_dictionary(dict)
+        .homophone_window(ContextWindow::Off)
+        .first_occurrence_window(ContextWindow::PerDocument)
+        .build()
+        .expect("builder")
+        .convert_text_to_string("庫間(곳간) 庫間(곳간)")
+        .expect("convert");
+    assert_eq!(output, "곳간(庫間) 곳간(庫間)");
+}
+
 /// Streaming the parenthetical across a chunk boundary must match the one-shot
 /// (buffered) result; this guards the project's streaming-equals-one-shot
 /// invariant for the collapser.

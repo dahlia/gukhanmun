@@ -104,6 +104,7 @@ fn annotation(hanja: &str, reading: &str) -> Annotation {
         first_in_context: true,
         skip_annotation: false,
         from_dictionary: true,
+        from_source_gloss: false,
     }
 }
 
@@ -529,6 +530,7 @@ fn mixed_script_annotation_keeps_the_full_source_spelling() {
             first_in_context: true,
             skip_annotation: false,
             from_dictionary: true,
+            from_source_gloss: false,
         })]
     );
 }
@@ -1534,6 +1536,7 @@ fn arabic_numerals_emit_plain_text_not_annotations() {
                 first_in_context: true,
                 skip_annotation: false,
                 from_dictionary: false,
+                from_source_gloss: false,
             }),
         ]
     );
@@ -1616,6 +1619,7 @@ fn renderer_removes_annotations_from_the_stream() {
             first_in_context: true,
             skip_annotation: false,
             from_dictionary: true,
+            from_source_gloss: false,
         })],
         RenderMode::HangulOnly,
     );
@@ -2302,6 +2306,7 @@ proptest! {
                 first_in_context: true,
                 skip_annotation: false,
                 from_dictionary: true,
+                from_source_gloss: false,
             })],
         );
     }
@@ -2357,6 +2362,7 @@ proptest! {
                 first_in_context: true,
                 skip_annotation: false,
                 from_dictionary: true,
+                from_source_gloss: false,
             })],
             mode,
         );

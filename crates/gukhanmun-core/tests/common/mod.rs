@@ -114,6 +114,7 @@ fn annotation_to_value(ann: &Annotation) -> Value {
         "first_in_context": ann.first_in_context,
         "skip_annotation": ann.skip_annotation,
         "from_dictionary": ann.from_dictionary,
+        "from_source_gloss": ann.from_source_gloss,
     })
 }
 

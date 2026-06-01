@@ -318,6 +318,17 @@ pub struct Annotation {
 
     /// Whether this annotation came from a dictionary match.
     pub from_dictionary: bool,
+
+    /// Whether the presentation requirements
+    /// ([`require_hanja`](Self::require_hanja) /
+    /// [`require_hangul`](Self::require_hangul)) were requested by an explicit
+    /// parenthetical gloss in the source, rather than by the dictionary.
+    ///
+    /// [`RedundantParenCollapser`] sets this when it collapses an author-written
+    /// gloss.  [`FirstOccurrenceFilter`] preserves the requirements on such
+    /// annotations instead of clearing them on repeats, so a word the author
+    /// glossed every time stays fully annotated every time.
+    pub from_source_gloss: bool,
 }
 
 /// Dictionary-provided rendering constraints for a match.
@@ -1492,6 +1503,7 @@ fn process_segments_with_state<S, D>(
                     first_in_context: true,
                     skip_annotation: false,
                     from_dictionary: true,
+                    from_source_gloss: false,
                 }));
                 if should_preserve_dictionary_context(source, &effective, options) {
                     update_fallback_state_for_reading(&effective, fallback_state);
@@ -1566,6 +1578,7 @@ fn process_fallback_text<S>(
                     first_in_context: true,
                     skip_annotation: false,
                     from_dictionary: false,
+                    from_source_gloss: false,
                 }));
             }
             FallbackPart::ReadingText(text) => push_text(output, &text),
@@ -2513,6 +2526,7 @@ fn collapse_annotation(mut annotation: Annotation, reading_match: ReadingMatch) 
     }
     annotation.require_hanja = true;
     annotation.require_hangul = true;
+    annotation.from_source_gloss = true;
     annotation
 }
 
@@ -2810,8 +2824,13 @@ fn filter_first_occurrences_in_context<S>(tokens: &mut [OutputToken<S>]) {
                 annotation.first_in_context = true;
             } else {
                 annotation.first_in_context = false;
-                annotation.require_hanja = false;
-                annotation.require_hangul = false;
+                // An explicit parenthetical gloss is the author asking for the
+                // annotation at every occurrence, so its requirements survive
+                // first-occurrence clearing; dictionary requirements do not.
+                if !annotation.from_source_gloss {
+                    annotation.require_hanja = false;
+                    annotation.require_hangul = false;
+                }
             }
         }
     }

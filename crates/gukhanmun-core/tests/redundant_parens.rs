@@ -36,6 +36,7 @@ fn annotation(hanja: &str, reading: &str) -> Annotation {
         first_in_context: true,
         skip_annotation: false,
         from_dictionary: true,
+        from_source_gloss: false,
     }
 }
 

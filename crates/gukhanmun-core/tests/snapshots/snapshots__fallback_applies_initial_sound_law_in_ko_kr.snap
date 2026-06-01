@@ -7,6 +7,7 @@ expression: "common::tokens_to_snapshot_value(&tokens)"
     "annotated": {
       "first_in_context": true,
       "from_dictionary": false,
+      "from_source_gloss": false,
       "hanja": "來日",
       "homophone": false,
       "reading": "내일",
