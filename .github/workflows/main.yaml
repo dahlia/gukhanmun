@@ -430,6 +430,7 @@ jobs:
           jq -r 'keys[]' |
           while read -r crate
         do
+          crate="${crate%$'\r'}"
           edit_toml "workspace.dependencies.get(\"$crate\").version = \"${{ needs.artifact-context.outputs.version }}\""
         done
 
@@ -596,6 +597,51 @@ jobs:
 
         rustup target list --installed
         rustc -Vv --target ${{ matrix.target }} || true
+    - name: Prepare dev artifact version
+      if: github.ref_type != 'tag'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        edit_toml() {
+          local query="$1"
+          dasel -i toml --root "$query" < Cargo.toml > Cargo.toml.tmp
+          mv Cargo.toml.tmp Cargo.toml
+        }
+
+        edit_toml "workspace.package.version = \"${{ needs.artifact-context.outputs.version }}\""
+        dasel -i toml -o json 'workspace.dependencies' < Cargo.toml |
+          jq -r 'keys[]' |
+          while read -r crate
+        do
+          crate="${crate%$'\r'}"
+          edit_toml "workspace.dependencies.get(\"$crate\").version = \"${{ needs.artifact-context.outputs.version }}\""
+        done
+
+        cargo update --workspace
+    - name: Verify release binary package versions
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        actual_versions="$(
+          cargo metadata --locked --no-deps --format-version 1 |
+            jq -r '.packages[] | select(.name == "gukhanmun-cli" or .name == "gukhanmun-mkdict") | "\(.name)=\(.version)"'
+        )"
+
+        for package in gukhanmun-cli gukhanmun-mkdict; do
+          if ! grep -Fxq "$package=${{ needs.artifact-context.outputs.version }}" <<< "$actual_versions"; then
+            echo "::error::$package version does not match artifact version ${{ needs.artifact-context.outputs.version }}"
+            echo "$actual_versions"
+            exit 1
+          fi
+        done
     - name: Build release binaries
       shell: bash
       run: |
@@ -614,7 +660,54 @@ jobs:
           args+=(-vv)
         fi
 
+        if [[ "${{ matrix.target }}" == *-pc-windows-msvc ]]; then
+          export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C target-feature=+crt-static"
+        fi
+
         cargo "${args[@]}"
+    - name: Verify Windows release binary CRT linkage
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if (-not $installPath) {
+          throw "Visual Studio with VC tools was not found."
+        }
+
+        $vsDevCmd = Join-Path $installPath "Common7\Tools\VsDevCmd.bat"
+        $binaries = @(
+          "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}",
+          "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}"
+        )
+        $forbiddenPattern = "^\s*(vcruntime.*|msvcp.*|concrt.*|ucrtbase|api-ms-win-crt-.*)\.dll\s*$"
+
+        foreach ($binary in $binaries) {
+          $script = @"
+        call "$vsDevCmd" -no_logo -arch=x64
+        dumpbin /dependents "$binary"
+        "@
+          $batchFile = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName() + ".cmd")
+          Set-Content -Path $batchFile -Value $script -Encoding ASCII
+          try {
+            $output = & cmd.exe /d /q /c "`"$batchFile`"" 2>&1
+            $exitCode = $LASTEXITCODE
+          } finally {
+            Remove-Item $batchFile
+          }
+
+          $output | Write-Output
+          if ($exitCode -ne 0) {
+            throw "dumpbin failed for $binary with exit code $exitCode."
+          }
+
+          $forbidden = $output | Where-Object { $_ -match $forbiddenPattern }
+          if ($forbidden) {
+            throw "$binary imports dynamic CRT DLLs: $($forbidden -join ', ')"
+          }
+        }
     - name: Archive release binaries
       shell: bash
       run: |
@@ -627,11 +720,18 @@ jobs:
         mkdir -p "dist/$asset"
         cp "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}" "dist/$asset/"
         cp "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}" "dist/$asset/"
+        cp LICENSE README.*.md "dist/$asset/"
 
         if [[ "${{ matrix.archive }}" == "zip" ]]; then
-          (cd dist && 7z a "$asset.zip" "$asset")
+          (cd "dist/$asset" && 7z a "../$asset.zip" \
+            LICENSE README.*.md \
+            "gukhanmun${{ matrix.exe }}" \
+            "gukhanmun-mkdict${{ matrix.exe }}")
         else
-          tar -cjf "dist/$asset.tar.bz2" -C dist "$asset"
+          tar -cjf "dist/$asset.tar.bz2" -C "dist/$asset" \
+            LICENSE README.*.md \
+            "gukhanmun${{ matrix.exe }}" \
+            "gukhanmun-mkdict${{ matrix.exe }}"
         fi
 
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
@@ -668,7 +768,7 @@ jobs:
     - uses: jdx/mise-action@v4
       with:
         cache: true
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v6
       with:
         registry-url: 'https://registry.npmjs.org'
     - name: Dump debug context
@@ -704,7 +804,7 @@ jobs:
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
         mise run js-sync-version
     - name: Download NAPI platform binaries
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: napi-*
         merge-multiple: false
@@ -816,7 +916,7 @@ jobs:
     needs: build-docs
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       with:
         name: docs-site
         path: docs-site
@@ -844,7 +944,7 @@ jobs:
       pages: write
       id-token: write
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       with:
         name: docs-site
         path: docs-site
