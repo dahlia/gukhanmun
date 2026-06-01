@@ -396,15 +396,15 @@ enum EntryPriority {
 /// and named directly by the orthographic standard, so no general saisiot
 /// heuristic is needed.
 fn is_saisiot_prescribed(key: &str, reading: &str) -> bool {
-    matches!(
-        (key, reading),
-        ("庫間", "곳간")
-            | ("貰房", "셋방")
-            | ("數字", "숫자")
-            | ("車間", "찻간")
-            | ("退間", "툇간")
-            | ("回數", "횟수")
-    )
+    match key {
+        "庫間" => reading == "곳간",
+        "貰房" => reading == "셋방",
+        "數字" => reading == "숫자",
+        "車間" => reading == "찻간",
+        "退間" => reading == "툇간",
+        "回數" => reading == "횟수",
+        _ => false,
+    }
 }
 
 fn entry_priority(word_info: &WordInfo, originals: &[OriginalLanguageInfo]) -> EntryPriority {
