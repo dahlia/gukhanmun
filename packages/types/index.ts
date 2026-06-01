@@ -428,6 +428,19 @@ export interface GukhanmunOptions {
    */
   readonly firstOccurrenceWindow?: ContextWindow;
   /**
+   * Whether to collapse redundant parenthetical reading annotations.  Defaults
+   * to `true`.
+   *
+   * When enabled, an explicit gloss such as `庫間(곳간)` or `곳간(庫間)` is
+   * recognised, the redundant parenthetical is removed, and the annotation is
+   * shown in both scripts in every render mode.  A parenthetical that pins an
+   * alternative reading (for example `數字(수자)`) overrides the dictionary
+   * reading for that occurrence.  A parenthetical that is a definition rather
+   * than a reading (for example `庫間(물건을 간직하여 두는 곳)`) is left
+   * untouched.
+   */
+  readonly collapseRedundantParens?: boolean;
+  /**
    * Error recovery policy for HTML scanning.  Defaults to `"strict"`.
    * Ignored for non-HTML input formats.
    *

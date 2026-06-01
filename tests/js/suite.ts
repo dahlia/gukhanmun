@@ -214,6 +214,7 @@ export function registerSuite(name: string, binding: Binding): void {
       assert.equal(g.options.preset, "ko-kr");
       assert.equal(g.options.homophoneWindow, "off");
       assert.equal(g.options.initialSoundLaw, true);
+      assert.equal(g.options.collapseRedundantParens, true);
       assert.equal(typeof g.options.rendering, "string");
     });
 
@@ -222,6 +223,25 @@ export function registerSuite(name: string, binding: Binding): void {
       assert.equal(g.options.preset, "ko-kp");
       assert.equal(g.options.initialSoundLaw, false);
       assert.equal(g.options.homophoneWindow, "off");
+    });
+  });
+
+  // ── Redundant parenthetical collapsing ───────────────────────────────────
+  describe(`${name}: redundant parenthetical collapsing`, () => {
+    test("collapses an explicit reading gloss by default", async () => {
+      // 蔣介石 converts to 장개석 via the per-character fallback, so the matching
+      // parenthetical collapses without needing a dictionary.
+      const g = await load({ homophoneWindow: "off" });
+      assert.equal(g.convert("蔣介石(장개석)"), "장개석(蔣介石)");
+    });
+
+    test("collapseRedundantParens: false keeps the parenthetical", async () => {
+      const g = await load({
+        homophoneWindow: "off",
+        collapseRedundantParens: false,
+      });
+      assert.equal(g.options.collapseRedundantParens, false);
+      assert.equal(g.convert("蔣介石(장개석)"), "장개석(장개석)");
     });
   });
 

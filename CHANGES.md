@@ -77,6 +77,16 @@ To be released.
 [#1]: https://github.com/dahlia/gukhanmun/issues/1
 [#2]: https://github.com/dahlia/gukhanmun/pull/2
 
+### @gukhanmun/napi
+
+ -  Collapse redundant parenthetical reading annotations by default; added the
+    `collapseRedundantParens` option to disable it.  [[#3], [#4]]
+
+### @gukhanmun/wasm
+
+ -  Collapse redundant parenthetical reading annotations by default; added the
+    `collapseRedundantParens` option to disable it.  [[#3], [#4]]
+
 
 Version 0.1.2
 -------------

@@ -295,6 +295,7 @@ interface ResolvedOptions {
   readonly homophoneWindow: ContextWindow;
   readonly homophoneDetection: HomophoneDetection;
   readonly firstOccurrenceWindow: ContextWindow;
+  readonly collapseRedundantParens: boolean;
   readonly recovery: Recovery;
 }
 
@@ -310,6 +311,7 @@ function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
     homophoneWindow: opts.homophoneWindow ?? (koKp ? "off" : "per-block"),
     homophoneDetection: opts.homophoneDetection ?? "context-local",
     firstOccurrenceWindow: opts.firstOccurrenceWindow ?? "off",
+    collapseRedundantParens: opts.collapseRedundantParens ?? true,
     recovery: opts.recovery ?? "strict",
   };
 }
@@ -329,6 +331,7 @@ function buildRawOptions(
     homophoneWindow: resolved.homophoneWindow,
     homophoneDetection: resolved.homophoneDetection,
     firstOccurrenceWindow: resolved.firstOccurrenceWindow,
+    collapseRedundantParens: resolved.collapseRedundantParens,
     recovery: resolved.recovery,
   };
   if (resolved.rendering === "original" && opts.originalGloss != null) {
