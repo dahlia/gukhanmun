@@ -723,9 +723,15 @@ jobs:
         cp LICENSE README.*.md "dist/$asset/"
 
         if [[ "${{ matrix.archive }}" == "zip" ]]; then
-          (cd dist && 7z a "$asset.zip" "$asset")
+          (cd "dist/$asset" && 7z a "../$asset.zip" \
+            LICENSE README.*.md \
+            "gukhanmun${{ matrix.exe }}" \
+            "gukhanmun-mkdict${{ matrix.exe }}")
         else
-          tar -cjf "dist/$asset.tar.bz2" -C dist "$asset"
+          tar -cjf "dist/$asset.tar.bz2" -C "dist/$asset" \
+            LICENSE README.*.md \
+            "gukhanmun${{ matrix.exe }}" \
+            "gukhanmun-mkdict${{ matrix.exe }}"
         fi
 
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then

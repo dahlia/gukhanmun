@@ -38,6 +38,8 @@ To be released.
  -  Static-link the Windows release CLI executables against the MSVC C runtime
     so the release archives no longer require Visual C++ runtime DLLs.
  -  Include the license and root _README.\*.md_ files in CLI release archives.
+ -  Store CLI release archive contents at the archive root instead of wrapping
+    them in a top-level directory.
 
 
 Version 0.1.1
