@@ -1,0 +1,16 @@
+description = """
+With `collapse_redundant_parens` disabled, the redundant parenthetical is kept
+verbatim: `庫間(곳간)` renders as `곳간(곳간)`, the pre-feature behaviour.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[options]
+collapse_redundant_parens = false
+
+[[dictionary.records]]
+hanja = "庫間"
+reading = "곳간"

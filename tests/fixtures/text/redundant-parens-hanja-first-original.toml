@@ -1,0 +1,14 @@
+description = """
+The same hanja-first gloss `庫間(곳간)` in `original` render mode keeps the
+source hanja and the hangul gloss, rendering as `庫間(곳간)`.
+"""
+preset = "ko-kr"
+rendering = "original"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "庫間"
+reading = "곳간"

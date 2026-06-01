@@ -1,0 +1,14 @@
+description = """
+`數字` is normally read `숫자`, but the parenthetical `(수자)` pins the
+alternative reading `수자` (數=수, 字=자, a valid per-character Unihan reading).
+The override wins over the dictionary reading, rendering as `수자(數字)`.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "數字"
+reading = "숫자"

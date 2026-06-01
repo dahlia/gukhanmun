@@ -1,0 +1,10 @@
+description = """
+A foreign transliteration is not a valid Sino-Korean reading: `蔣介石` reads
+`장개석` per character (介 reads 개, not 제), so the parenthetical `(장제스)` is
+left untouched and the hanja converts via the per-character fallback.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"

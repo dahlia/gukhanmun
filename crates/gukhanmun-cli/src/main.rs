@@ -27,9 +27,10 @@ use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
     Builder, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter, HanjaDictionary,
     HomophoneDetection, HomophoneMarker, InputToken, NumeralStrategy, OriginalGloss, OutputToken,
-    PlainScopeData, Preset as UmbrellaPreset, RecoverableInputError, Recovery, RenderMode,
-    RenderOptions, RenderedToken, Renderer, RubyBase, SegmentationStrategy, UserDirectives,
-    apply_user_directives, recover_input_token, render_tokens_iter, write_plain_text,
+    PlainScopeData, Preset as UmbrellaPreset, RecoverableInputError, Recovery,
+    RedundantParenCollapser, RenderMode, RenderOptions, RenderedToken, Renderer, RubyBase,
+    ScopeData, SegmentationStrategy, UserDirectives, apply_user_directives, recover_input_token,
+    render_tokens_iter, write_plain_text,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -142,6 +143,12 @@ struct ConversionArgs {
     /// Disable the initial sound law (頭音法則), overriding the preset default.
     #[arg(short = 'I', long, visible_alias = "no-dueum")]
     no_initial_sound_law: bool,
+
+    /// Keep redundant parenthetical reading annotations instead of collapsing
+    /// them.  By default an explicit gloss such as 庫間(곳간) or 곳간(庫間) is
+    /// collapsed to show both scripts once; this flag leaves the input as is.
+    #[arg(long)]
+    no_collapse_parens: bool,
 }
 
 #[derive(Debug, Args)]
@@ -540,6 +547,9 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
     }
     if cli.conversion.no_initial_sound_law {
         builder = builder.initial_sound_law(false);
+    }
+    if cli.conversion.no_collapse_parens {
+        builder = builder.collapse_redundant_parens(false);
     }
     if cli.language.no_stdict {
         builder = builder.no_bundled_stdict();
@@ -977,6 +987,7 @@ fn convert_plain_document(
             engine,
             options.rendering,
             converter.directives(),
+            options.collapse_redundant_parens,
         );
     }
     // Plain text has no block or section scopes.  For homophone correctness,
@@ -1011,10 +1022,15 @@ fn convert_plain_stream_without_homophone_lookahead<D>(
     mut engine: Engine<PlainScopeData, D>,
     rendering: RenderOptions,
     directives: &UserDirectives<'_>,
+    collapse_parens: bool,
 ) -> Result<()>
 where
     D: HanjaDictionary + ?Sized,
 {
+    // The collapser runs immediately after the engine, mirroring the umbrella
+    // pipeline order; with no homophone/first-occurrence lookahead it is the
+    // only middleware between the engine and the renderer.
+    let mut collapser = RedundantParenCollapser::<PlainScopeData>::new(collapse_parens);
     let mut bytes = [0; 8192];
     let mut pending = Vec::new();
 
@@ -1031,6 +1047,7 @@ where
         process_utf8_prefix_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| {
             Ok(())
         })?;
+        let mut output_tokens = run_collapser(&mut collapser, output_tokens);
         if !directives.is_empty() {
             output_tokens = apply_user_directives(output_tokens, directives);
         }
@@ -1039,11 +1056,30 @@ where
     let mut output_tokens = Vec::new();
     flush_utf8_tail_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| Ok(()))?;
     output_tokens.extend(engine.finish());
+    let mut output_tokens = run_collapser(&mut collapser, output_tokens);
+    output_tokens.extend(collapser.finish());
     if !directives.is_empty() {
         output_tokens = apply_user_directives(output_tokens, directives);
     }
     write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
     output.flush().context("failed to flush output")
+}
+
+/// Feeds a batch of engine output tokens through a [`RedundantParenCollapser`],
+/// returning whatever it releases.  The collapser keeps its cross-batch state,
+/// so its [`RedundantParenCollapser::finish`] must still be drained at EOF.
+fn run_collapser<S>(
+    collapser: &mut RedundantParenCollapser<S>,
+    tokens: Vec<OutputToken<S>>,
+) -> Vec<OutputToken<S>>
+where
+    S: ScopeData,
+{
+    let mut collapsed = Vec::new();
+    for token in tokens {
+        collapsed.extend(collapser.push_token(token));
+    }
+    collapsed
 }
 
 fn write_plain_stream_chunk(
@@ -1158,6 +1194,8 @@ fn convert_html_document(
     let mut reader = HtmlFragmentReader::with_options(converter.html_reader_options());
     let mut engine =
         Engine::<HtmlScopeData, _>::with_options(converter.dictionary(), options.engine);
+    let mut collapser =
+        RedundantParenCollapser::<HtmlScopeData>::new(options.collapse_redundant_parens);
     let mut homophones = HomophoneMarker::with_detection(
         converter.dictionary(),
         options.homophone_window,
@@ -1180,6 +1218,7 @@ fn convert_html_document(
         {
             let mut pipeline = HtmlStreamPipeline {
                 engine: &mut engine,
+                collapser: &mut collapser,
                 homophones: &mut homophones,
                 first_occurrences: &mut first_occurrences,
                 directives: converter.directives(),
@@ -1197,6 +1236,7 @@ fn convert_html_document(
     {
         let mut pipeline = HtmlStreamPipeline {
             engine: &mut engine,
+            collapser: &mut collapser,
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
             directives: converter.directives(),
@@ -1212,6 +1252,7 @@ fn convert_html_document(
     {
         let mut pipeline = HtmlStreamPipeline {
             engine: &mut engine,
+            collapser: &mut collapser,
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
             directives: converter.directives(),
@@ -1222,8 +1263,18 @@ fn convert_html_document(
         pipeline.process_input_tokens(reader.finish())?;
     }
     let engine_tail = engine.finish();
+    let collapsed_engine_tail = run_collapser(&mut collapser, engine_tail);
     process_html_output_tokens(
-        engine_tail,
+        collapsed_engine_tail,
+        &mut homophones,
+        &mut first_occurrences,
+        converter.directives(),
+        &mut renderer,
+        &mut writer,
+    )?;
+    let collapser_tail = collapser.finish();
+    process_html_output_tokens(
+        collapser_tail,
         &mut homophones,
         &mut first_occurrences,
         converter.directives(),
@@ -1255,6 +1306,7 @@ where
     W: Write,
 {
     engine: &'p mut Engine<'d, HtmlScopeData, D>,
+    collapser: &'p mut RedundantParenCollapser<HtmlScopeData>,
     homophones: &'p mut HomophoneMarker<'d, HtmlScopeData>,
     first_occurrences: &'p mut FirstOccurrenceFilter<HtmlScopeData>,
     directives: &'p UserDirectives<'d>,
@@ -1276,8 +1328,9 @@ where
             let token = recover_input_token(token, self.recovery)
                 .map_err(|error| anyhow::anyhow!("failed to convert HTML fragment: {error}"))?;
             let output_tokens = self.engine.push_token(token);
+            let collapsed = run_collapser(self.collapser, output_tokens);
             process_html_output_tokens(
-                output_tokens,
+                collapsed,
                 self.homophones,
                 self.first_occurrences,
                 self.directives,

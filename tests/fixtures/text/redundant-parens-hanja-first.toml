@@ -1,0 +1,14 @@
+description = """
+A hanja-first parenthetical gloss `庫間(곳간)` collapses: the redundant `(곳간)`
+is removed and the annotation is shown in both scripts.  In the default
+hangul-only mode this renders as `곳간(庫間)`.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "庫間"
+reading = "곳간"

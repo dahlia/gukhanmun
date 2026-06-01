@@ -1,0 +1,14 @@
+description = """
+`議論` reads both `의논` and `의론`.  With the dictionary reading `의논`, the
+explicit `(의론)` pins the alternative `의론` (論 also reads 론 in Unihan),
+rendering as `의론(議論)`.
+"""
+preset = "ko-kr"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "議論"
+reading = "의논"

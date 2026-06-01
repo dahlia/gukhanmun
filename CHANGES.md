@@ -56,6 +56,12 @@ To be released.
     (`KHANGUL_ALL_READINGS`), which the collapser uses to validate alternative
     readings.  [[#3], [#4]]
 
+### gukhanmun-cli
+
+ -  Collapse redundant parenthetical reading annotations by default across the
+    plain-text, HTML, and Markdown pipelines.  The new `--no-collapse-parens`
+    flag disables it.  [[#3], [#4]]
+
 ### gukhanmun-stdict
 
  -  Fixed “數字” converting to “수자” instead of the orthographically

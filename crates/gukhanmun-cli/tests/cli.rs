@@ -41,6 +41,53 @@ fn converts_stdin_to_stdout_with_bundled_stdict_by_default() {
 }
 
 #[test]
+fn collapses_redundant_parenthetical_annotation_by_default() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .write_stdin("庫間(곳간)\n")
+        .assert()
+        .success()
+        .stdout("곳간(庫間)\n");
+}
+
+#[test]
+fn no_collapse_parens_keeps_the_redundant_parenthetical() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .arg("--no-collapse-parens")
+        .write_stdin("庫間(곳간)\n")
+        .assert()
+        .success()
+        .stdout("곳간(곳간)\n");
+}
+
+#[test]
+fn collapses_in_the_streaming_fast_path() {
+    // `--disambiguation off` selects the no-lookahead streaming path, which
+    // must still run the collapser.
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .arg("--disambiguation")
+        .arg("off")
+        .write_stdin("庫間(곳간)\n")
+        .assert()
+        .success()
+        .stdout("곳간(庫間)\n");
+}
+
+#[test]
+fn collapses_in_the_html_pipeline() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .arg("--format")
+        .arg("text/html")
+        .write_stdin("<p>庫間(곳간)</p>")
+        .assert()
+        .success()
+        .stdout("<p>곳간(庫間)</p>");
+}
+
+#[test]
 fn help_groups_options_by_pipeline_area() {
     let assert = Command::cargo_bin("gukhanmun")
         .unwrap()

@@ -31,7 +31,9 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use gukhanmun::{Builder, ContextWindow, MapDictionary, MatchMark, Preset, Recovery};
+use gukhanmun::{
+    Builder, ContextWindow, MapDictionary, MatchMark, Preset, Recovery, RenderMode, RubyBase,
+};
 use serde::Deserialize;
 
 /// Format inferred from a fixture's second-to-last extension (`*.input.html`
@@ -99,6 +101,9 @@ pub struct Sidecar {
     /// Preset used to seed the [`Builder`].  Defaults to `ko-kr`.
     #[serde(default)]
     pub preset: Option<PresetName>,
+    /// Render mode override.  Defaults to the preset's mode (`hangul-only`).
+    #[serde(default)]
+    pub rendering: Option<RenderingName>,
     /// Whether the bundled *Standard Korean Language Dictionary* is loaded.
     /// Defaults to `false` so fixtures stay reproducible without it.
     #[serde(default)]
@@ -166,6 +171,38 @@ impl PresetName {
     }
 }
 
+/// `rendering = "hangul-only" | "hangul-hanja-parens" | "hanja-hangul-parens"
+/// | "ruby-on-hangul" | "ruby-on-hanja" | "original"`.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RenderingName {
+    /// `RenderMode::HangulOnly`.
+    HangulOnly,
+    /// `RenderMode::HangulHanjaParens`.
+    HangulHanjaParens,
+    /// `RenderMode::HanjaHangulParens`.
+    HanjaHangulParens,
+    /// `RenderMode::Ruby(RubyBase::OnHangul)`.
+    RubyOnHangul,
+    /// `RenderMode::Ruby(RubyBase::OnHanja)`.
+    RubyOnHanja,
+    /// `RenderMode::Original`.
+    Original,
+}
+
+impl RenderingName {
+    fn into_render_mode(self) -> RenderMode {
+        match self {
+            RenderingName::HangulOnly => RenderMode::HangulOnly,
+            RenderingName::HangulHanjaParens => RenderMode::HangulHanjaParens,
+            RenderingName::HanjaHangulParens => RenderMode::HanjaHangulParens,
+            RenderingName::RubyOnHangul => RenderMode::Ruby(RubyBase::OnHangul),
+            RenderingName::RubyOnHanja => RenderMode::Ruby(RubyBase::OnHanja),
+            RenderingName::Original => RenderMode::Original,
+        }
+    }
+}
+
 /// Engine options that fixtures may override (`[options]` table).
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -173,6 +210,10 @@ pub struct SidecarOptions {
     /// Toggles the initial sound law.  Default follows the preset.
     #[serde(default)]
     pub initial_sound_law: Option<bool>,
+    /// Toggles collapsing of redundant parenthetical annotations.  Defaults to
+    /// the preset (enabled).
+    #[serde(default)]
+    pub collapse_redundant_parens: Option<bool>,
 }
 
 /// Stream-shaping middleware overrides (`[engine]` table).
@@ -489,6 +530,14 @@ pub fn run_fixture(fixture: &Fixture) -> RunResult {
         && let Some(law) = opts.initial_sound_law
     {
         builder = builder.initial_sound_law(law);
+    }
+    if let Some(opts) = sidecar.map(|s| &s.options)
+        && let Some(collapse) = opts.collapse_redundant_parens
+    {
+        builder = builder.collapse_redundant_parens(collapse);
+    }
+    if let Some(rendering) = sidecar.and_then(|s| s.rendering) {
+        builder = builder.rendering(rendering.into_render_mode());
     }
     if let Some(engine) = sidecar.map(|s| &s.engine)
         && let Some(window) = engine.disambiguation

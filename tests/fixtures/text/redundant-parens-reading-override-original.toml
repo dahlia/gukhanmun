@@ -1,0 +1,14 @@
+description = """
+The pinned alternative reading `數字(수자)` in `original` render mode renders as
+`數字(수자)`, keeping the source hanja with the overridden hangul gloss.
+"""
+preset = "ko-kr"
+rendering = "original"
+use_bundled_stdict = false
+
+[engine]
+disambiguation = "off"
+
+[[dictionary.records]]
+hanja = "數字"
+reading = "숫자"
