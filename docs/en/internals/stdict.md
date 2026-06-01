@@ -23,7 +23,7 @@ Snapshot
 | Source archive | *전체 내려받기\_표준국어대사전\_JSON\_20260506.zip*                |
 | Dump date      | 2026-05-06                                                         |
 | SHA-256        | `0da6bef096f892d7ab44e8f52ba3f16ece1e88fc8d823e7bc816f2c2d9689e46` |
-| TSV entries    | 260,697                                                            |
+| TSV entries    | 260,688                                                            |
 
 
 Regeneration
@@ -89,14 +89,26 @@ their `original_language` contains a standalone hanja spelling or a bracketed
 hanja spelling, such as `Beijing[北京]` or `haiku[俳句]`.  In those cases the
 hanja spelling is used as the lookup key and romanized text is discarded.
 Foreign-origin segments without such a hanja spelling are skipped so values
-like `←lipoic酸` do not become mixed-script keys.
+like `←lipoic酸` do not become mixed-script keys.  A single hanja borrowed for
+a foreign reading (such as `引` from Japanese `引き`) is dropped, however, so it
+cannot shadow that character's Sino-Korean reading in every compound that
+contains it (`引` → `인`, recovered from the bundled unihan readings, not
+`삐끼`).  Multi-character foreign spellings such as `北京` → `베이징` are kept.
 
 Alternate hanja spellings marked with `/(병기)` are expanded into separate TSV
 rows.  Duplicate keys keep the highest-priority reading.  Entries whose senses
 only redirect to another entry, such as `→ 표지03.`, lose to entries with
-substantive definitions for the same hanja spelling.  Bracketed loanword hanja
-spellings are preferred over native Sino-Korean readings for the same key, and
-otherwise the first reading encountered in sorted dump shard order is kept.
+substantive definitions for the same hanja spelling.  Multi-character bracketed
+loanword hanja spellings are preferred over native Sino-Korean readings for the
+same key, and otherwise the first reading encountered in sorted dump shard order
+is kept.
+
+The six Sino-Korean compounds that Standard Korean Orthography §30 spells with
+a saisiot (사이시옷), namely 곳간(庫間), 셋방(貰房), 숫자(數字), 찻간(車間),
+툇간(退間), and 횟수(回數), are promoted above the default priority, so the
+prescribed saisiot spelling wins over a saisiot-free homograph for those keys
+(數字 → 숫자, not 수자).  The list is closed and named directly by the
+orthographic standard, so no general saisiot heuristic is involved.
 
 The extractor itself writes `require_hanja` and `require_hangul` as `false` for
 every row.  Annotation marks are layered on later by the rules file (see

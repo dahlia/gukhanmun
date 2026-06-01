@@ -35,6 +35,21 @@ Version 0.2.0
 
 To be released.
 
+### gukhanmun-stdict
+
+ -  Fixed “數字” converting to “수자” instead of the orthographically
+    prescribed “숫자.”  The six *Standard Korean Orthography §30* (한글 맞춤法
+    第30項) saisiot (사이시옷) compounds (곳간, 셋방, 숫자, 찻간, 툇간, 횟수)
+    now win over their saisiot-free homographs regardless of dump order.
+    [[#1], [#2]]
+ -  Regenerated the bundled dictionary so single-hanja foreign-spelling head
+    words (such as “元” → “위안” or “円” → “엔”) no longer shadow the
+    Sino-Korean reading of those characters; the engine recovers their original
+    sound from the bundled unihan readings instead.
+
+[#1]: https://github.com/dahlia/gukhanmun/issues/1
+[#2]: https://github.com/dahlia/gukhanmun/pull/2
+
 
 Version 0.1.2
 -------------
