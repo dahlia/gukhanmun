@@ -1030,8 +1030,10 @@ where
 {
     // The collapser runs immediately after the engine, mirroring the umbrella
     // pipeline order; with no homophone/first-occurrence lookahead it is the
-    // only middleware between the engine and the renderer.
-    let mut collapser = RedundantParenCollapser::<PlainScopeData>::new(collapse_parens);
+    // only middleware between the engine and the renderer.  When disabled it is
+    // bypassed entirely rather than driven as a per-token pass-through.
+    let mut collapser =
+        collapse_parens.then(|| RedundantParenCollapser::<PlainScopeData>::new(true));
     let mut bytes = [0; 8192];
     let mut pending = Vec::new();
 
@@ -1048,7 +1050,10 @@ where
         process_utf8_prefix_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| {
             Ok(())
         })?;
-        let mut output_tokens = run_collapser(&mut collapser, output_tokens);
+        let mut output_tokens = match collapser.as_mut() {
+            Some(collapser) => run_collapser(collapser, output_tokens),
+            None => output_tokens,
+        };
         if !directives.is_empty() {
             output_tokens = apply_user_directives(output_tokens, directives);
         }
@@ -1057,8 +1062,13 @@ where
     let mut output_tokens = Vec::new();
     flush_utf8_tail_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| Ok(()))?;
     output_tokens.extend(engine.finish());
-    let mut output_tokens = run_collapser(&mut collapser, output_tokens);
-    output_tokens.extend(collapser.finish());
+    let mut output_tokens = match collapser.as_mut() {
+        Some(collapser) => run_collapser(collapser, output_tokens),
+        None => output_tokens,
+    };
+    if let Some(collapser) = collapser {
+        output_tokens.extend(collapser.finish());
+    }
     if !directives.is_empty() {
         output_tokens = apply_user_directives(output_tokens, directives);
     }
@@ -1195,8 +1205,10 @@ fn convert_html_document(
     let mut reader = HtmlFragmentReader::with_options(converter.html_reader_options());
     let mut engine =
         Engine::<HtmlScopeData, _>::with_options(converter.dictionary(), options.engine);
-    let mut collapser =
-        RedundantParenCollapser::<HtmlScopeData>::new(options.collapse_redundant_parens);
+    // Bypassed entirely when disabled rather than driven as a pass-through.
+    let mut collapser = options
+        .collapse_redundant_parens
+        .then(|| RedundantParenCollapser::<HtmlScopeData>::new(true));
     let mut homophones = HomophoneMarker::with_detection(
         converter.dictionary(),
         options.homophone_window,
@@ -1219,7 +1231,7 @@ fn convert_html_document(
         {
             let mut pipeline = HtmlStreamPipeline {
                 engine: &mut engine,
-                collapser: &mut collapser,
+                collapser: collapser.as_mut(),
                 homophones: &mut homophones,
                 first_occurrences: &mut first_occurrences,
                 directives: converter.directives(),
@@ -1237,7 +1249,7 @@ fn convert_html_document(
     {
         let mut pipeline = HtmlStreamPipeline {
             engine: &mut engine,
-            collapser: &mut collapser,
+            collapser: collapser.as_mut(),
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
             directives: converter.directives(),
@@ -1253,7 +1265,7 @@ fn convert_html_document(
     {
         let mut pipeline = HtmlStreamPipeline {
             engine: &mut engine,
-            collapser: &mut collapser,
+            collapser: collapser.as_mut(),
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
             directives: converter.directives(),
@@ -1264,7 +1276,10 @@ fn convert_html_document(
         pipeline.process_input_tokens(reader.finish())?;
     }
     let engine_tail = engine.finish();
-    let collapsed_engine_tail = run_collapser(&mut collapser, engine_tail);
+    let collapsed_engine_tail = match collapser.as_mut() {
+        Some(collapser) => run_collapser(collapser, engine_tail),
+        None => engine_tail,
+    };
     process_html_output_tokens(
         collapsed_engine_tail,
         &mut homophones,
@@ -1273,15 +1288,16 @@ fn convert_html_document(
         &mut renderer,
         &mut writer,
     )?;
-    let collapser_tail = collapser.finish();
-    process_html_output_tokens(
-        collapser_tail,
-        &mut homophones,
-        &mut first_occurrences,
-        converter.directives(),
-        &mut renderer,
-        &mut writer,
-    )?;
+    if let Some(collapser) = collapser {
+        process_html_output_tokens(
+            collapser.finish(),
+            &mut homophones,
+            &mut first_occurrences,
+            converter.directives(),
+            &mut renderer,
+            &mut writer,
+        )?;
+    }
     let homophone_tail = homophones.finish();
     process_html_first_occurrence_tokens(
         homophone_tail,
@@ -1307,7 +1323,7 @@ where
     W: Write,
 {
     engine: &'p mut Engine<'d, HtmlScopeData, D>,
-    collapser: &'p mut RedundantParenCollapser<HtmlScopeData>,
+    collapser: Option<&'p mut RedundantParenCollapser<HtmlScopeData>>,
     homophones: &'p mut HomophoneMarker<'d, HtmlScopeData>,
     first_occurrences: &'p mut FirstOccurrenceFilter<HtmlScopeData>,
     directives: &'p UserDirectives<'d>,
@@ -1329,7 +1345,10 @@ where
             let token = recover_input_token(token, self.recovery)
                 .map_err(|error| anyhow::anyhow!("failed to convert HTML fragment: {error}"))?;
             let output_tokens = self.engine.push_token(token);
-            let collapsed = run_collapser(self.collapser, output_tokens);
+            let collapsed = match self.collapser.as_deref_mut() {
+                Some(collapser) => run_collapser(collapser, output_tokens),
+                None => output_tokens,
+            };
             process_html_output_tokens(
                 collapsed,
                 self.homophones,

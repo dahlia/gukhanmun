@@ -2325,8 +2325,11 @@ where
     fn emit_held_prefix(&mut self, output: &mut Vec<OutputToken<S>>) {
         let split = hangul_first_tail_start(&self.held_tail);
         if split > 0 {
-            output.push(OutputToken::Text(self.held_tail[..split].to_string()));
-            self.held_tail.replace_range(..split, "");
+            // Keep the (possibly long) prefix in the existing buffer and split
+            // off only the bounded suffix, avoiding a large copy and shift.
+            let suffix = self.held_tail.split_off(split);
+            let prefix = core::mem::replace(&mut self.held_tail, suffix);
+            output.push(OutputToken::Text(prefix));
         }
     }
 
@@ -2439,7 +2442,10 @@ pub fn collapse_redundant_parens<S>(
 where
     S: ScopeData,
 {
-    let mut collapser = RedundantParenCollapser::new(enabled);
+    if !enabled {
+        return tokens.into_iter().collect();
+    }
+    let mut collapser = RedundantParenCollapser::new(true);
     let mut output = Vec::new();
     for token in tokens {
         output.extend(collapser.push_token(token));
