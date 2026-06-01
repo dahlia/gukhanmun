@@ -144,6 +144,14 @@ fn converts_plain_text_to_hangul_only() {
 }
 
 #[test]
+fn convert_plain_text_collapses_redundant_parens_like_the_default() {
+    let mut dict = MapDictionary::new();
+    dict.insert("庫間", "곳간");
+    let output = convert_plain_text("庫間(곳간)", &dict, RenderMode::HangulOnly);
+    assert_eq!(output, "곳간(庫間)");
+}
+
+#[test]
 fn converts_plain_text_to_hangul_hanja_parens() {
     let output = convert_plain_text(
         "天地玄黃과 漢字",

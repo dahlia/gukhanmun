@@ -3068,6 +3068,11 @@ fn parens(reading: &str, hanja: &str) -> String {
 /// structural tokens. The `render` argument accepts either a [`RenderMode`]
 /// (converted via `From<RenderMode>` for [`RenderOptions`]) or a full
 /// [`RenderOptions`] value.
+///
+/// Like the high-level umbrella default, this collapses redundant parenthetical
+/// reading annotations ([`RedundantParenCollapser`]); callers that need finer
+/// control (including disabling that step) should drive the individual stages
+/// instead.
 pub fn convert_plain_text<D, R>(input: &str, dictionary: &D, render: R) -> String
 where
     D: HanjaDictionary + ?Sized,
@@ -3091,6 +3096,7 @@ where
 {
     let input_tokens = read_plain_text(input);
     let output_tokens = process_tokens_with_options(input_tokens, dictionary, options);
+    let output_tokens = collapse_redundant_parens(output_tokens, true);
     let output_tokens = mark_homophones(output_tokens, dictionary, ContextWindow::PerBlock);
     let rendered_tokens = render_tokens(output_tokens, render);
     write_plain_text(rendered_tokens)
