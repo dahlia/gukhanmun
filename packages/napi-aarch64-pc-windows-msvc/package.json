@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/napi-aarch64-pc-windows-msvc",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Native binary for @gukhanmun/napi on aarch64-pc-windows-msvc.",
   "os": [
     "win32"

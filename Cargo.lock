@@ -797,7 +797,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "gukhanmun-cdb",
  "gukhanmun-core",
@@ -813,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-cdb"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "cdb",
  "ciborium",
@@ -827,7 +827,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-cli"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -847,7 +847,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-core"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "insta",
  "proptest",
@@ -859,7 +859,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-fst"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "ciborium",
  "fst",
@@ -873,7 +873,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-html"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "gukhanmun-core",
  "proptest",
@@ -884,7 +884,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-markdown"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "gukhanmun-core",
  "gukhanmun-html",
@@ -898,7 +898,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-mkdict"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -924,7 +924,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-napi"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "gukhanmun",
  "napi",
@@ -937,7 +937,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-stdict"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -959,7 +959,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-unihan"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "proptest",
  "sha2",
@@ -968,7 +968,7 @@ dependencies = [
 
 [[package]]
 name = "gukhanmun-wasm"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "gukhanmun",
  "js-sys",
