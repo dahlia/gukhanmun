@@ -291,7 +291,12 @@ pub enum RenderedToken<S> {
 /// The engine fills this value when it turns source hanja into a hangul
 /// reading. The flags describe known constraints; middlewares may adjust them
 /// before a renderer chooses the concrete output form.
-#[derive(Clone, Debug, Eq, PartialEq)]
+///
+/// This struct is `#[non_exhaustive]`, so additional flags can be added without
+/// a breaking change. Construct it from [`Annotation::default`] and set the
+/// fields you need; the public fields stay readable and writable.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[non_exhaustive]
 pub struct Annotation {
     /// The original hanja text from the input.
     pub hanja: String,

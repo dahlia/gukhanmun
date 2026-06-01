@@ -26,8 +26,18 @@ use gukhanmun_core::{
 
 type Token = OutputToken<PlainScopeData>;
 
+/// `Annotation` is `#[non_exhaustive]`, so this separate test crate builds it
+/// from `Default` plus field assignments rather than a struct literal.
+macro_rules! annotated {
+    { $($field:ident : $value:expr),* $(,)? } => {{
+        let mut annotation = Annotation::default();
+        $(annotation.$field = $value;)*
+        annotation
+    }};
+}
+
 fn annotation(hanja: &str, reading: &str) -> Annotation {
-    Annotation {
+    annotated! {
         hanja: hanja.into(),
         reading: reading.into(),
         homophone: false,

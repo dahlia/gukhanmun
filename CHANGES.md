@@ -55,6 +55,9 @@ To be released.
     Unihan reading data to also carry every kHangul reading per character
     (`KHANGUL_ALL_READINGS`), which the collapser uses to validate alternative
     readings.  [[#3], [#4]]
+ -  Marked `Annotation` `#[non_exhaustive]` so its policy flags can grow without
+    a breaking change (it gained a `from_source_gloss` flag here).  Construct it
+    from `Annotation::default()` and set the fields you need.  [[#3], [#4]]
 
 ### gukhanmun-cli
 
