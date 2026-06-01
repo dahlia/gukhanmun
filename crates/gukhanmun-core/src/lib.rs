@@ -2233,6 +2233,18 @@ where
 /// flush the buffer and pass through, so a match never crosses a scope
 /// boundary.  When `enabled` is `false` the middleware is an exact
 /// pass-through.
+///
+/// # Limitation
+///
+/// The collapser runs after the engine and never re-derives readings, so a
+/// hanja-first gloss immediately followed (with no space) by an initial-sound-law
+/// (頭音法則) character keeps the reading the engine chose with the parenthetical
+/// acting as a word boundary.  For example `學(학)率` collapses to `학(學)율`
+/// rather than `학률`: the engine read `率` as word-initial `율` because `)`
+/// separated it from `學`, and removing the gloss cannot recover the
+/// non-word-initial `률`.  This is narrow in practice; an intended compound is
+/// normally written `學率(학률)`.  Insert a space (`學(학) 率`) or gloss the whole
+/// compound to control the reading.
 pub struct RedundantParenCollapser<S>
 where
     S: ScopeData,
@@ -2498,7 +2510,7 @@ fn is_valid_alternative_reading(hanja: &str, candidate: &str) -> bool {
 }
 
 /// Returns whether `syllable` is a valid reading of the source character
-/// `source`: a recorded Unihan reading (or its initial-sound-law 두음법칙
+/// `source`: a recorded Unihan reading (or its initial-sound-law 頭音法則
 /// variant) when `source` is a hanja character, or the same syllable verbatim
 /// when `source` is itself hangul (as in a mixed-script entry such as `色깔論`).
 fn is_valid_char_reading(source: char, syllable: char) -> bool {
