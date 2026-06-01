@@ -82,6 +82,43 @@ gukhanmun --initial-sound-law input.txt     # enable (redundant for ko-kr)
 ~~~~
 
 
+Parenthetical reading annotations
+---------------------------------
+
+Mixed-script input sometimes spells a word together with an explicit
+parenthetical gloss, whether hanja-first (`庫間(곳간)`) or hangul-first
+(`곳간(庫間)`).  By default Gukhanmun recognizes such a gloss, removes the now
+redundant parenthetical, and shows the word in both scripts:
+
+| Input        | Default output | `--no-collapse-parens` |
+| ------------ | -------------- | ---------------------- |
+| `庫間(곳간)` | `곳간(庫間)`   | `곳간(곳간)`           |
+| `곳간(庫間)` | `곳간(庫間)`   | `곳간(곳간)`           |
+
+A parenthetical can also pin an alternative reading.  `數字` normally reads
+`숫자`, but `數字(수자)` fixes the reading to `수자` for that occurrence:
+
+~~~~ sh
+echo '數字(수자)' | gukhanmun  # 수자(數字)
+~~~~
+
+A reading annotation is told apart from a definition by two rules.  A
+parenthetical that exactly matches the word's reading always collapses (this
+covers 사이시옷 readings like `庫間(곳간)`).  Otherwise, an alternative reading
+is accepted only when it has one hangul syllable per hanja character, each a
+valid Sino-Korean reading of that character (as in `數字(수자)`).  A definition
+gloss matches neither rule and passes through untouched:
+
+~~~~ sh
+echo '庫間(물건을 간직하여 두는 곳)' | gukhanmun
+# 곳간(물건을 간직하여 두는 곳)
+~~~~
+
+Foreign transliterations are likewise left alone, because they are not valid
+per-character readings (for example `蔣介石(장제스)`, where `介` reads `개`, not
+`제`).  Pass `--no-collapse-parens` to disable the behaviour entirely.
+
+
 Homophone disambiguation
 ------------------------
 

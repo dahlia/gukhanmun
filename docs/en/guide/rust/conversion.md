@@ -83,6 +83,34 @@ characters not found in any dictionary:
 | 女子  | 여자                 | 녀자                  |
 
 
+Parenthetical reading annotations
+---------------------------------
+
+~~~~ rust
+builder.collapse_redundant_parens(true);   // enabled (default)
+builder.collapse_redundant_parens(false);  // keep the parenthetical verbatim
+~~~~
+
+When a word carries an explicit parenthetical reading gloss, hanja-first
+(`庫間(곳간)`) or hangul-first (`곳간(庫間)`), Gukhanmun removes the redundant
+parenthetical and marks the annotation so both scripts appear in every render
+mode: `곳간(庫間)` in `HangulOnly`, `庫間(곳간)` in `Original`.  A parenthetical
+that pins an alternative reading overrides the dictionary reading for that
+occurrence, so `數字(수자)` renders `수자(數字)` even though the dictionary
+reads `數字` as `숫자`.
+
+A reading annotation is distinguished from a definition by two rules.  A
+parenthetical that exactly matches the word's reading always collapses (this
+covers 사이시옷 readings like `庫間(곳간)`).  Otherwise, an alternative reading
+is accepted only when it has one hangul syllable per hanja character, each a
+valid Sino-Korean reading of that character (as in `數字(수자)`).  A definition
+gloss such as `庫間(물건을 간직하여 두는 곳)` and a foreign transliteration such
+as `蔣介石(장제스)` (where `介` reads `개`, not `제`) match neither rule and are
+left untouched.  The `RedundantParenCollapser` middleware runs first, before
+homophone marking, so the corrected reading and flags flow through the rest of
+the pipeline.
+
+
 Homophone disambiguation window
 -------------------------------
 
