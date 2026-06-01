@@ -553,6 +553,24 @@ pub(crate) fn apply_initial_sound_law_to_first_syllable(reading: &str) -> String
     output
 }
 
+/// Returns whether the single-syllable `reading`, after the initial sound law,
+/// equals `syllable`, without allocating.
+///
+/// This is the allocation-free counterpart to comparing a `syllable` against
+/// [`apply_initial_sound_law_to_first_syllable`]; it is used on the
+/// reading-validation hot path of the parenthetical collapser.  Multi-syllable
+/// readings never match, mirroring the single-syllable comparison there.
+pub(crate) fn reading_matches_with_initial_sound_law(reading: &str, syllable: char) -> bool {
+    let mut chars = reading.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if chars.next().is_some() {
+        return false;
+    }
+    convert_initial_sound_law(first) == syllable
+}
+
 fn convert_initial_sound_law(sound: char) -> char {
     let Some((base, final_index)) = hangul_base_and_final(sound) else {
         return sound;

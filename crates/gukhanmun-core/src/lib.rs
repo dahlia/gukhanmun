@@ -40,7 +40,7 @@ use core::marker::PhantomData;
 use fallback::{
     FallbackPart, FallbackState, apply_initial_sound_law_to_first_syllable,
     fallback_reading_for_run, khangul_all_readings, phoneticize_fallback_run_with_state,
-    phoneticize_hanja_char, should_apply_yeol_yul,
+    phoneticize_hanja_char, reading_matches_with_initial_sound_law, should_apply_yeol_yul,
 };
 use generated::unihan_readings::KHANGUL_READINGS;
 use segment::{Segment, segment_text};
@@ -2495,10 +2495,7 @@ fn is_valid_char_reading(source: char, syllable: char) -> bool {
     }
     readings.iter().any(|reading| {
         reading_is_syllable(reading, syllable)
-            || reading_is_syllable(
-                &apply_initial_sound_law_to_first_syllable(reading),
-                syllable,
-            )
+            || reading_matches_with_initial_sound_law(reading, syllable)
     })
 }
 
@@ -2625,21 +2622,17 @@ fn match_hangul_first(
     }
 
     // Tier 2: the trailing hanja-character count of hangul syllables form a
-    // valid alternative reading.
+    // valid alternative reading.  Slice `before` directly at the byte boundary
+    // of those trailing syllables rather than collecting it into a `Vec<char>`.
     let syllable_count = annotation.hanja.chars().count();
     if syllable_count == 0 {
         return None;
     }
-    let before_chars: Vec<char> = before.chars().collect();
-    if before_chars.len() < syllable_count {
-        return None;
-    }
-    let split = before_chars.len() - syllable_count;
-    let candidate: String = before_chars[split..].iter().collect();
-    let reading_match = classify_reading(&annotation.hanja, &annotation.reading, &candidate)?;
-    let remaining: String = before_chars[..split].iter().collect();
+    let (split, _) = before.char_indices().rev().nth(syllable_count - 1)?;
+    let candidate = &before[split..];
+    let reading_match = classify_reading(&annotation.hanja, &annotation.reading, candidate)?;
     Some((
-        remaining,
+        before[..split].to_string(),
         collapse_annotation(annotation.clone(), reading_match),
     ))
 }
