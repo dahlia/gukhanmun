@@ -73,12 +73,22 @@ interface NodeFsPromises {
   readFile(path: URL): Promise<NodeBuffer>;
 }
 
+function canReadLocalFile(): boolean {
+  const globals = globalThis as {
+    Deno?: unknown;
+    process?: { versions?: { bun?: unknown; node?: unknown } };
+  };
+  return globals.Deno !== undefined ||
+    typeof globals.process?.versions?.bun === "string" ||
+    typeof globals.process?.versions?.node === "string";
+}
+
 /**
  * Loads an Open Korean Dictionary CDB binary as raw bytes.
  *
  * The access strategy is chosen from the URL scheme, not from the host
- * runtime. A `file:` URL is read from disk with `node:fs/promises`; any other
- * scheme is retrieved with `fetch`.
+ * runtime. A `file:` URL is read from disk with `node:fs/promises` in
+ * Node.js, Deno, and Bun; any other scheme is retrieved with `fetch`.
  *
  * @param url Location of the CDB binary to read.
  * @returns The CDB binary as a `Uint8Array`.
@@ -86,7 +96,7 @@ interface NodeFsPromises {
 export async function opendictCdbBytes(
   url: URL,
 ): Promise<Uint8Array> {
-  if (url.protocol === "file:") {
+  if (url.protocol === "file:" && canReadLocalFile()) {
     const specifier: string = "node:fs/promises";
     const fs = (await import(
       /* webpackIgnore: true */ specifier

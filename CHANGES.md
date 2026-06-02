@@ -141,6 +141,8 @@ To be released.
     Korean (北韓語), dialect (方言), and archaic (옛말) categories as CDB
     binaries, with category-specific byte loaders and `FileDictionarySource`
     helpers.  [[#5], [#6]]
+ -  Avoids importing `node:fs/promises` in browser `file:` URL contexts; those
+    loads now use `fetch` like other browser URLs.  [[#5], [#6]]
 
 ### @gukhanmun/opendict-fst
 
@@ -148,6 +150,8 @@ To be released.
     Korean (北韓語), dialect (方言), and archaic (옛말) categories as FST
     binaries, with category-specific byte loaders and `FileDictionarySource`
     helpers.  [[#5], [#6]]
+ -  Avoids importing `node:fs/promises` in browser `file:` URL contexts; those
+    loads now use `fetch` like other browser URLs.  [[#5], [#6]]
 
 ### @gukhanmun/types
 
