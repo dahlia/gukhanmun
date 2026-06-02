@@ -20,10 +20,12 @@ default-members = [
     "crates/gukhanmun-cli",
     "crates/gukhanmun-cdb",
     "crates/gukhanmun-core",
+    "crates/gukhanmun-dict-extract",
     "crates/gukhanmun-fst",
     "crates/gukhanmun-html",
     "crates/gukhanmun-markdown",
     "crates/gukhanmun-mkdict",
+    "crates/gukhanmun-opendict",
     "crates/gukhanmun-stdict",
     "crates/gukhanmun-unihan",
 ]

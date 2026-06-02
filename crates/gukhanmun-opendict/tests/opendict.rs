@@ -18,6 +18,7 @@ use std::fs;
 use std::io::Write;
 
 use assert_cmd::Command;
+use gukhanmun_core::HanjaDictionary;
 use gukhanmun_opendict::extract::{CategoryWriters, ExtractStats, extract_json_reader_to_files};
 use tempfile::tempdir;
 use zip::ZipWriter;
@@ -127,6 +128,43 @@ fn cli_extracts_from_zip_archives() {
             .unwrap()
             .contains("古語\t고어")
     );
+}
+
+#[test]
+fn bundled_dictionaries_are_partitioned_by_category() {
+    let general = gukhanmun_opendict::general();
+    let north_korean = gukhanmun_opendict::north_korean();
+    let dialect = gukhanmun_opendict::dialect();
+    let archaic = gukhanmun_opendict::archaic();
+
+    assert_eq!(general.entry_count(), 350_383);
+    assert_eq!(north_korean.entry_count(), 34_093);
+    assert_eq!(dialect.entry_count(), 5_715);
+    assert_eq!(archaic.entry_count(), 16);
+
+    assert_eq!(general.lookup("歷史").unwrap().unwrap().reading(), "역사");
+    assert_eq!(general.lookup("來日").unwrap().unwrap().reading(), "내일");
+    assert_eq!(general.lookup("勞動").unwrap().unwrap().reading(), "노동");
+
+    assert_eq!(
+        north_korean.lookup("歷史").unwrap().unwrap().reading(),
+        "력사"
+    );
+    assert_eq!(
+        north_korean.lookup("來日").unwrap().unwrap().reading(),
+        "래일"
+    );
+    assert_eq!(
+        north_korean.lookup("勞動").unwrap().unwrap().reading(),
+        "로동"
+    );
+    assert_eq!(north_korean.max_word_chars(), Some(17));
+
+    assert_eq!(
+        dialect.lookup("一家방답").unwrap().unwrap().reading(),
+        "일가방답"
+    );
+    assert_eq!(archaic.lookup("禮數").unwrap().unwrap().reading(), "례수");
 }
 
 fn synthetic_json() -> &'static str {
