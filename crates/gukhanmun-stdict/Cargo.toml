@@ -6,7 +6,7 @@ authors.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-description = "Bundled Standard Korean Language Dictionary for gukhanmun."
+description = "Bundled Standard Korean Language Dictionary for Gukhanmun."
 
 [[bin]]
 name = "gukhanmun-stdict-extract"

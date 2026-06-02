@@ -70,4 +70,4 @@ build time using this same tool.
 License
 -------
 
-GPL-3.0-only. See `LICENSE` at the repository root.
+GPL-3.0-only. See *LICENSE* at the repository root.

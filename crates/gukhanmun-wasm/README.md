@@ -50,4 +50,4 @@ binary further.
 License
 -------
 
-GPL-3.0-only. See `LICENSE` at the repository root.
+GPL-3.0-only. See *LICENSE* at the repository root.
