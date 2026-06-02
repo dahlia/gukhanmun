@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "gen:ko-kr": "cargo build --release -p gukhanmun-cli && node scripts/generate-ko-kr.mts",
-    "prebuild": "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/napi run build && pnpm gen:ko-kr",
+    "prebuild": "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/opendict-fst --filter @gukhanmun/opendict-cdb --filter @gukhanmun/napi run build && pnpm gen:ko-kr",
     "predev": "pnpm gen:ko-kr",
     "build": "rspress build",
     "dev": "rspress dev",
@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@gukhanmun/napi": "workspace:*",
+    "@gukhanmun/opendict-cdb": "workspace:*",
+    "@gukhanmun/opendict-fst": "workspace:*",
     "@gukhanmun/stdict-cdb": "workspace:*",
     "@gukhanmun/stdict-fst": "workspace:*",
     "@gukhanmun/types": "workspace:*",

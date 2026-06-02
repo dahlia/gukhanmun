@@ -1,0 +1,16 @@
+{
+  "name": "@gukhanmun/opendict-fst",
+  "version": "0.2.0",
+  "exports": "./index.ts",
+  "license": "GPL-3.0-only",
+  "publish": {
+    "include": [
+      "README.md",
+      "index.ts",
+      "general.fst",
+      "north-korean.fst",
+      "dialect.fst",
+      "archaic.fst"
+    ]
+  }
+}

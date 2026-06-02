@@ -45,3 +45,5 @@ You can find the JavaScript API references from the below pages:
  -  [@gukhanmun/wasm](js/modules/_gukhanmun_wasm)
  -  [@gukhanmun/stdict-cdb](js/modules/_gukhanmun_stdict-cdb)
  -  [@gukhanmun/stdict-fst](js/modules/_gukhanmun_stdict-fst)
+ -  [@gukhanmun/opendict-cdb](js/modules/_gukhanmun_opendict-cdb)
+ -  [@gukhanmun/opendict-fst](js/modules/_gukhanmun_opendict-fst)

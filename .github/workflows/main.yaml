@@ -795,6 +795,8 @@ jobs:
         mise run wasm-build
         mise run stdict-fst-data
         mise run stdict-cdb-data
+        mise run opendict-fst-data
+        mise run opendict-cdb-data
     - name: Sync JS manifest versions
       shell: bash
       env:

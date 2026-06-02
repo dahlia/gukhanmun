@@ -92,6 +92,8 @@ export default defineConfig({
         path.join(path.dirname(__dirname), "packages", "wasm", "index.ts"),
         path.join(path.dirname(__dirname), "packages", "stdict-cdb", "index.ts"),
         path.join(path.dirname(__dirname), "packages", "stdict-fst", "index.ts"),
+        path.join(path.dirname(__dirname), "packages", "opendict-cdb", "index.ts"),
+        path.join(path.dirname(__dirname), "packages", "opendict-fst", "index.ts"),
       ],
       outDir: "en/api/js",
     }),

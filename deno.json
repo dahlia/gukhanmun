@@ -3,7 +3,9 @@
     "packages/types",
     "packages/wasm",
     "packages/stdict-fst",
-    "packages/stdict-cdb"
+    "packages/stdict-cdb",
+    "packages/opendict-fst",
+    "packages/opendict-cdb"
   ],
   "nodeModulesDir": "none",
   "lint": {
@@ -17,6 +19,8 @@
       "packages/wasm/",
       "packages/stdict-fst/",
       "packages/stdict-cdb/",
+      "packages/opendict-fst/",
+      "packages/opendict-cdb/",
       "tests/js/"
     ]
   },
@@ -29,6 +33,8 @@
       "packages/wasm/",
       "packages/stdict-fst/",
       "packages/stdict-cdb/",
+      "packages/opendict-fst/",
+      "packages/opendict-cdb/",
       "tests/js/"
     ],
     "exclude": [

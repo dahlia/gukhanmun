@@ -23,5 +23,15 @@
     "type": "custom-link",
     "label": "@gukhanmun/stdict-fst",
     "link": "../../api/js/modules/_gukhanmun_stdict-fst"
+  },
+  {
+    "type": "custom-link",
+    "label": "@gukhanmun/opendict-cdb",
+    "link": "../../api/js/modules/_gukhanmun_opendict-cdb"
+  },
+  {
+    "type": "custom-link",
+    "label": "@gukhanmun/opendict-fst",
+    "link": "../../api/js/modules/_gukhanmun_opendict-fst"
   }
 ]
