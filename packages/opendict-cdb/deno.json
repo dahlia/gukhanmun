@@ -1,0 +1,18 @@
+{
+  "name": "@gukhanmun/opendict-cdb",
+  "version": "0.2.0",
+  "exports": "./index.ts",
+  "license": "GPL-3.0-or-later",
+  "publish": {
+    "include": [
+      "ATTRIBUTION.md",
+      "LICENSE",
+      "README.md",
+      "index.ts",
+      "general.cdb",
+      "north-korean.cdb",
+      "dialect.cdb",
+      "archaic.cdb"
+    ]
+  }
+}

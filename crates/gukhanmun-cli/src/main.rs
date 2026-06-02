@@ -98,20 +98,21 @@ struct IoArgs {
 #[command(next_help_heading = "Language and dictionaries")]
 struct LanguageArgs {
     /// Language variant preset.  ko-kr (default) enables the bundled Standard
-    /// Korean Dictionary (標準國語大辭典) and the initial sound law (頭音法則).  ko-kp disables
-    /// both, targeting North Korean orthography.
+    /// Korean Dictionary (標準國語大辭典) and the initial sound law (頭音法則).  ko-kp enables
+    /// the bundled Open Korean Dictionary 북한어 category and disables the
+    /// initial sound law, targeting North Korean orthography.
     #[arg(short, long, value_enum, default_value_t = Preset::KoKr)]
     preset: Preset,
 
     /// Path to a user-supplied dictionary file (.gukfst or .gukcdb).  May be
-    /// repeated; later dictionaries take priority over earlier ones and over the
-    /// bundled Standard Korean Dictionary (標準國語大辭典).
+    /// repeated; later dictionaries take priority over earlier ones and over
+    /// every bundled dictionary.
     #[arg(short = 'd', long = "dictionary", value_name = "PATH")]
     dictionaries: Vec<PathBuf>,
 
-    /// Disable the bundled Standard Korean Dictionary (標準國語大辭典).
+    /// Disable every bundled dictionary selected by the preset.
     #[arg(short = 'S', long)]
-    no_stdict: bool,
+    no_bundled_dictionaries: bool,
 }
 
 #[derive(Debug, Args)]
@@ -552,8 +553,8 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
     if cli.conversion.no_collapse_parens {
         builder = builder.collapse_redundant_parens(false);
     }
-    if cli.language.no_stdict {
-        builder = builder.no_bundled_stdict();
+    if cli.language.no_bundled_dictionaries {
+        builder = builder.no_bundled_dictionaries();
     }
 
     for path in cli.language.dictionaries.iter().rev() {

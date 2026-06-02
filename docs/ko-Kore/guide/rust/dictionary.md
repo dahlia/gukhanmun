@@ -8,25 +8,43 @@ description: |-
 ====
 
 Gukhanmun은 하나 以上의 `HanjaDictionary` 具顯에서 漢字 讀音을 찾습니다.
-`gukhanmun` 크레이트는 FST와 CDB 백엔드, 그리고 內藏 《標準國語大辭典》과 함께
-配布됩니다.
+`gukhanmun` 크레이트는 FST와 CDB 백엔드, 內藏 《標準國語大辭典》, 그리고
+`ko-kp` 프리셋에서 쓰는 《우리말샘》 北韓語 辭典과 함께 配布됩니다.
 
 
 內藏 辭典 使用
 --------------
 
-`stdict` 피처가 켜져 있으면(基本) 內藏 辭典이 自動으로 包含됩니다.  이를 끄려면:
+프리셋이 고른 內藏 辭典은 自動으로 包含됩니다.  모든 內藏 辭典을 끄고 使用者
+定義 辭典이나 fallback에만 依存하려면:
 
 ~~~~ rust
 let converter = Builder::with_preset(Preset::KoKr)
-    .no_bundled_stdict()
+    .no_bundled_dictionaries()
     .build()?;
 ~~~~
 
-`no_bundled_stdict`를 呼出한 뒤 다시 明示的으로 켜려면:
+個別 內藏 辭典만 끄려면 `no_bundled_stdict()`나 `no_bundled_opendict()`를
+使用합니다.  `no_bundled_stdict()`를 呼出한 뒤 다시 明示的으로 켜려면:
 
 ~~~~ rust
 builder.bundled_stdict();
+~~~~
+
+北韓語 表記를 基本값으로 쓰려면 `ko-kp` 프리셋을 使用합니다.  이 프리셋은
+頭音法則을 끄고 《우리말샘》 北韓語 辭典을 內藏 辭典으로 包含합니다:
+
+~~~~ rust
+let converter = Builder::with_preset(Preset::KoKp).build()?;
+assert_eq!(converter.convert_text_to_string("歷史와 來日")?, "력사와 래일");
+~~~~
+
+`ko-kp`의 正書法 옵션은 維持하되 《우리말샘》 北韓語 辭典만 끄려면:
+
+~~~~ rust
+let converter = Builder::with_preset(Preset::KoKp)
+    .no_bundled_opendict()
+    .build()?;
 ~~~~
 
 
@@ -87,12 +105,12 @@ let dict = CdbDictionary::from_bytes(Arc::from(bytes.as_slice()))?;
 一致를 가진 첫 辭典이 採擇됩니다:
 
 ~~~~ rust
-use gukhanmun::{ChainDictionary, FstDictionary, CdbDictionary};
+use gukhanmun::{ChainDictionary, FstDictionary, CdbDictionary, HanjaDictionary};
 
 let domain_dict = FstDictionary::open("legal.gukfst")?;
 let names_dict = CdbDictionary::open("names.gukcdb")?;
-let chain = ChainDictionary::new(vec![
-    Box::new(domain_dict),
+let chain = ChainDictionary::from_iter([
+    Box::new(domain_dict) as Box<dyn HanjaDictionary>,
     Box::new(names_dict),
 ]);
 
@@ -104,6 +122,27 @@ let converter = Builder::with_preset(Preset::KoKr)
 
 代案으로, `push_dictionary`를 여러 番 呼出합니다; 辭典은 push된 順序대로, 內藏
 辭典보다 먼저 探索됩니다.
+
+
+《우리말샘》 分類 結合
+----------------------
+
+`opendict` 피처가 켜져 있으면 《우리말샘》의 一般語, 北韓語, 方言, 옛말
+分類를 Rust에서 直接 불러올 수 있습니다.  `ko-kp` 프리셋은 北韓語 分類를
+自動으로 包含하지만, 方言과 옛말은 使用者가 明示的으로 選擇해야 합니다:
+
+~~~~ rust
+use gukhanmun::{Builder, ChainDictionary, HanjaDictionary, Preset};
+
+let chain = ChainDictionary::from_iter([
+    Box::new(gukhanmun::opendict::dialect()) as Box<dyn HanjaDictionary>,
+    Box::new(gukhanmun::opendict::archaic()),
+]);
+
+let converter = Builder::with_preset(Preset::KoKr)
+    .push_boxed_dictionary(Box::new(chain))
+    .build()?;
+~~~~
 
 
 使用者 定義 辭典 構築

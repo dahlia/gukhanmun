@@ -5,7 +5,7 @@
 [![npm][npm badge]][npm]
 [![License: GPL-3.0-only][GPL badge]][GPL]
 
-Standard Korean Language Dictionary (표준국어대사전, 標準國語大辭典) compiled
+*Standard Korean Language Dictionary* (標準國語大辭典) compiled
 into a Gukhanmun CDB binary and distributed as an npm package. Use this with
 `@gukhanmun/wasm` or `@gukhanmun/napi` when `ko-KR` readings are needed.
 

@@ -1,0 +1,61 @@
+{
+  "name": "@gukhanmun/opendict-fst",
+  "version": "0.2.0",
+  "description": "Open Korean Dictionary categories bundled as FST binaries for @gukhanmun/wasm and @gukhanmun/napi.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./general.fst": "./dist/general.fst",
+    "./north-korean.fst": "./dist/north-korean.fst",
+    "./dialect.fst": "./dist/dialect.fst",
+    "./archaic.fst": "./dist/archaic.fst"
+  },
+  "files": [
+    "ATTRIBUTION.md",
+    "LICENSE",
+    "dist"
+  ],
+  "scripts": {
+    "prebuild": "mise run -C ../.. opendict-fst-data",
+    "build": "tsdown && node -e \"const fs=require('node:fs');fs.mkdirSync('dist',{recursive:true});for(const f of ['general.fst','north-korean.fst','dialect.fst','archaic.fst'])fs.copyFileSync(f,'dist/'+f)\""
+  },
+  "homepage": "https://github.com/dahlia/gukhanmun",
+  "bugs": "https://github.com/dahlia/gukhanmun/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/gukhanmun.git",
+    "directory": "packages/opendict-fst"
+  },
+  "license": "GPL-3.0-or-later AND LicenseRef-CC-BY-SA-2.0-KR",
+  "author": {
+    "name": "Hong Minhe (洪 民憙)",
+    "email": "hong@minhee.org",
+    "url": "https://hongminhee.org/"
+  },
+  "funding": "https://github.com/sponsors/dahlia",
+  "engines": {
+    "node": ">=20",
+    "bun": ">=1.0",
+    "deno": ">=2.0"
+  },
+  "sideEffects": false,
+  "keywords": [
+    "korean",
+    "hanja",
+    "hangul",
+    "typography",
+    "dictionary",
+    "opendict",
+    "fst"
+  ],
+  "peerDependencies": {
+    "@gukhanmun/types": "*"
+  },
+  "devDependencies": {
+    "@gukhanmun/types": "workspace:*"
+  }
+}

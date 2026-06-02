@@ -18,6 +18,8 @@
 
 use std::cell::Cell;
 
+#[cfg(any(feature = "opendict", feature = "stdict"))]
+use gukhanmun::HanjaDictionary;
 use gukhanmun::{
     Builder, ContextWindow, DirectiveAction, InputToken, MapDictionary, NumeralStrategy,
     PlainScopeData, Preset, RenderMode, RenderedToken, write_plain_text,
@@ -145,7 +147,7 @@ fn user_dictionary_overrides_fallback() {
     let mut user = MapDictionary::new();
     user.insert("外字", "외자");
     let converter = Builder::new()
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .push_dictionary(user)
         .build()
         .expect("builder");
@@ -154,19 +156,86 @@ fn user_dictionary_overrides_fallback() {
 }
 
 #[test]
-fn ko_kp_skips_initial_sound_law_and_bundled() {
+#[cfg(feature = "opendict")]
+fn ko_kp_skips_initial_sound_law_and_uses_north_korean_opendict() {
     let converter = Builder::with_preset(Preset::KoKp)
         .build()
         .expect("ko-kp builder");
-    // 來日 → 래일 in KP (no initial sound law) using single-char fallback.
+    let output = converter
+        .convert_text_to_string("歷史 來日 勞動")
+        .expect("convert");
+    assert_eq!(output, "력사 래일 로동");
+}
+
+#[test]
+#[cfg(not(feature = "opendict"))]
+fn ko_kp_requires_opendict_for_bundled_north_korean_dictionary() {
+    let error = match Builder::with_preset(Preset::KoKp).build() {
+        Ok(_) => panic!("ko-kp builder without opendict should fail"),
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("`opendict` feature is disabled"));
+}
+
+#[cfg(feature = "opendict")]
+#[test]
+fn ko_kp_dictionary_chain_includes_north_korean_opendict_by_default() {
+    let converter = Builder::with_preset(Preset::KoKp)
+        .build()
+        .expect("ko-kp builder");
+    assert!(
+        converter
+            .dictionary()
+            .entries()
+            .unwrap()
+            .any(|record| { record.hanja == "歷史" && record.reading == "력사" })
+    );
+
+    let converter = Builder::with_preset(Preset::KoKp)
+        .no_bundled_dictionaries()
+        .build()
+        .expect("ko-kp builder");
+    assert!(converter.dictionary().entries().unwrap().next().is_none());
+}
+
+#[cfg(feature = "opendict")]
+#[test]
+fn no_bundled_opendict_disables_ko_kp_bundled_dictionary() {
+    let converter = Builder::with_preset(Preset::KoKp)
+        .no_bundled_opendict()
+        .build()
+        .expect("ko-kp builder");
+    assert!(converter.dictionary().entries().unwrap().next().is_none());
+
     let output = converter.convert_text_to_string("來日").expect("convert");
     assert_eq!(output, "래일");
+}
+
+#[cfg(all(feature = "opendict", feature = "stdict"))]
+#[test]
+fn no_bundled_opendict_leaves_stdict_enabled() {
+    let converter = Builder::with_preset(Preset::KoKp)
+        .bundled_stdict()
+        .no_bundled_opendict()
+        .build()
+        .expect("ko-kp builder");
+    assert!(
+        converter
+            .dictionary()
+            .entries()
+            .unwrap()
+            .any(|record| { record.hanja == "歷史" && record.reading == "역사" })
+    );
+    assert_eq!(
+        converter.convert_text_to_string("歷史").expect("convert"),
+        "역사"
+    );
 }
 
 #[test]
 fn ko_kr_initial_sound_law_applies_in_fallback() {
     let converter = Builder::with_preset(Preset::KoKr)
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .build()
         .expect("ko-kr builder");
     let output = converter.convert_text_to_string("來日").expect("convert");
@@ -178,7 +247,7 @@ fn rendering_override_emits_hanja_first() {
     let mut user = MapDictionary::new();
     user.insert("學校", "학교");
     let converter = Builder::new()
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .push_dictionary(user)
         .rendering(RenderMode::HanjaHangulParens)
         .build()

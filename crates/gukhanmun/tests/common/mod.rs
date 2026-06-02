@@ -522,7 +522,7 @@ pub fn run_fixture(fixture: &Fixture) -> RunResult {
     };
     let use_bundled = sidecar.and_then(|s| s.use_bundled_stdict).unwrap_or(false);
     if !use_bundled {
-        builder = builder.no_bundled_stdict();
+        builder = builder.no_bundled_dictionaries();
     } else {
         builder = builder.bundled_stdict();
     }

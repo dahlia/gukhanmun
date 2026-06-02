@@ -33,6 +33,45 @@ const g = await load({ dictionaries: [await stdictCdb()] });
 Both `stdictFst()` and `stdictCdb()` return a `Promise<FileDictionarySource>`.
 
 
+Open Korean Dictionary packages
+-------------------------------
+
+`@gukhanmun/opendict-fst` and `@gukhanmun/opendict-cdb` ship the Open Korean
+Dictionary (우리말샘) as separate general (一般語), North Korean (北韓語),
+dialect (方言), and archaic (옛말) category dictionaries.  JavaScript presets
+do not auto-load these packages, so pass the categories you want explicitly:
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/wasm";
+import {
+  opendictDialectFst,
+  opendictNorthKoreanFst,
+} from "@gukhanmun/opendict-fst";
+
+const g = await load({
+  preset: "ko-kp",
+  dictionaries: [
+    await opendictNorthKoreanFst(),
+    await opendictDialectFst(),
+  ],
+});
+~~~~
+
+Use the CDB package when you want the same categories in CDB format:
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/napi";
+import { opendictNorthKoreanCdb } from "@gukhanmun/opendict-cdb";
+
+const g = await load({
+  preset: "ko-kp",
+  dictionaries: [await opendictNorthKoreanCdb()],
+});
+~~~~
+
+
 Custom dictionaries
 -------------------
 

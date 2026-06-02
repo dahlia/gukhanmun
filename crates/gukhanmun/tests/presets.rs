@@ -32,10 +32,11 @@ fn ko_kr_preset_defaults_match_design_table() {
     assert_eq!(options.first_occurrence_window, ContextWindow::Off);
     assert_eq!(options.recovery, Recovery::Strict);
     assert!(Preset::KoKr.includes_bundled_stdict());
+    assert!(!Preset::KoKr.includes_bundled_opendict_north_korean());
 }
 
 #[test]
-fn ko_kp_preset_disables_initial_sound_law_and_bundled() {
+fn ko_kp_preset_disables_initial_sound_law_and_includes_north_korean_opendict() {
     let options = Preset::KoKp.options();
     assert_eq!(options.engine.segmentation, SegmentationStrategy::Lattice);
     assert!(!options.engine.initial_sound_law);
@@ -47,6 +48,7 @@ fn ko_kp_preset_disables_initial_sound_law_and_bundled() {
     assert_eq!(options.first_occurrence_window, ContextWindow::Off);
     assert_eq!(options.recovery, Recovery::Strict);
     assert!(!Preset::KoKp.includes_bundled_stdict());
+    assert!(Preset::KoKp.includes_bundled_opendict_north_korean());
 }
 
 #[test]

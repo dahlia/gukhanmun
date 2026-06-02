@@ -19,9 +19,12 @@
 use std::collections::btree_map::Entry as BTreeEntry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io::{Cursor, Read, Seek, Write};
+use std::io::{BufReader, Cursor, Read, Seek, Write};
 use std::path::Path;
 
+use gukhanmun_dict_extract::{
+    OriginalLanguageInfo, foreign_hanja_piece, is_hanja, keys_from_originals, normalize_word,
+};
 use serde::Deserialize;
 use zip::ZipArchive;
 
@@ -162,7 +165,7 @@ impl Extractor {
     }
 
     fn read_json(&mut self, reader: impl Read) -> Result<()> {
-        let dump = serde_json::from_reader::<_, Dump>(reader)?;
+        let dump = serde_json::from_reader::<_, Dump>(BufReader::new(reader))?;
         tracing::debug!(
             items_ingested = dump.channel.item.len(),
             "processed JSON dump"
@@ -374,12 +377,6 @@ struct SenseInfo {
     definition_original: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct OriginalLanguageInfo {
-    original_language: Option<String>,
-    language_type: Option<String>,
-}
-
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum EntryPriority {
     Redirect,
@@ -456,165 +453,6 @@ fn is_redirect_definition(definition: &str) -> bool {
     definition.trim_start().starts_with('→')
 }
 
-fn keys_from_originals(originals: &[OriginalLanguageInfo]) -> Option<Vec<String>> {
-    let mut keys = Vec::new();
-    let mut current = vec![PartialKey::default()];
-
-    for original in originals {
-        let language_type = original.language_type.as_deref().unwrap_or("");
-        if language_type.contains("병기") {
-            push_keys(&mut keys, &mut current);
-            continue;
-        }
-
-        let pieces = original_language_pieces(original)?;
-        let mut expanded = Vec::with_capacity(current.len() * pieces.alternatives.len());
-        for prefix in &current {
-            for piece in &pieces.alternatives {
-                let mut key = prefix.key.clone();
-                key.push_str(piece);
-                expanded.push(PartialKey {
-                    has_hanja: prefix.has_hanja || piece.chars().any(is_hanja),
-                    key,
-                });
-            }
-        }
-        current = expanded;
-        if pieces.boundary_after {
-            push_keys(&mut keys, &mut current);
-        }
-    }
-
-    push_keys(&mut keys, &mut current);
-    if keys.is_empty() { None } else { Some(keys) }
-}
-
-#[derive(Clone, Debug, Default)]
-struct PartialKey {
-    key: String,
-    has_hanja: bool,
-}
-
-#[derive(Clone, Debug)]
-struct OriginalPieces {
-    alternatives: Vec<String>,
-    boundary_after: bool,
-}
-
-fn original_language_pieces(original: &OriginalLanguageInfo) -> Option<OriginalPieces> {
-    let language_type = original.language_type.as_deref().unwrap_or("");
-    let original_language = original.original_language.as_deref()?;
-
-    match language_type {
-        "한자" | "고유어" => native_original_pieces(original_language),
-        _ => {
-            if language_type.contains("병기") {
-                Some(OriginalPieces {
-                    alternatives: vec![String::new()],
-                    boundary_after: true,
-                })
-            } else {
-                foreign_hanja_piece(original_language).map(|piece| OriginalPieces {
-                    alternatives: vec![piece],
-                    boundary_after: false,
-                })
-            }
-        }
-    }
-}
-
-fn native_original_pieces(input: &str) -> Option<OriginalPieces> {
-    let normalized = normalize_original_language(input)?;
-    let boundary_after = normalized.ends_with('/');
-    let normalized = normalized.trim_end_matches('/');
-    Some(OriginalPieces {
-        alternatives: split_inline_alternatives(normalized)?,
-        boundary_after,
-    })
-}
-
-fn push_keys(keys: &mut Vec<String>, current: &mut Vec<PartialKey>) {
-    for key in current.drain(..) {
-        if key.has_hanja && !key.key.is_empty() {
-            keys.push(key.key);
-        }
-    }
-    current.push(PartialKey::default());
-}
-
-fn normalize_original_language(input: &str) -> Option<String> {
-    let mut output = String::new();
-    let mut rest = input;
-
-    while let Some(start) = rest.find("<equ>") {
-        output.push_str(&rest[..start]);
-        let after_start = &rest[start + "<equ>".len()..];
-        let end = after_start.find("</equ>")?;
-        output.push_str(decode_entity(after_start[..end].trim())?.encode_utf8(&mut [0; 4]));
-        rest = &after_start[end + "</equ>".len()..];
-    }
-
-    output.push_str(rest);
-    output.retain(|ch| ch != '▽');
-    if output.contains('<') || output.contains('&') {
-        return None;
-    }
-    Some(output)
-}
-
-fn split_inline_alternatives(input: &str) -> Option<Vec<String>> {
-    let alternatives = input
-        .split('/')
-        .map(str::trim)
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    if alternatives.iter().any(String::is_empty) {
-        None
-    } else {
-        Some(alternatives)
-    }
-}
-
-fn foreign_hanja_piece(input: &str) -> Option<String> {
-    let normalized = normalize_original_language(input)?;
-    if !normalized.is_empty() && normalized.chars().all(is_hanja) {
-        return Some(normalized);
-    }
-
-    let mut output = String::new();
-    let mut rest = normalized.as_str();
-    while let Some(open) = rest.find('[') {
-        let after_open = &rest[open + '['.len_utf8()..];
-        let close = after_open.find(']')?;
-        let candidate = &after_open[..close];
-        if candidate.is_empty() || !candidate.chars().all(is_hanja) {
-            return None;
-        }
-        output.push_str(candidate);
-        rest = &after_open[close + ']'.len_utf8()..];
-    }
-
-    if output.is_empty() {
-        None
-    } else {
-        Some(output)
-    }
-}
-
-fn decode_entity(entity: &str) -> Option<char> {
-    let value = entity
-        .strip_prefix("&#x")
-        .and_then(|value| value.strip_suffix(';'))
-        .and_then(|value| u32::from_str_radix(value, 16).ok())
-        .or_else(|| {
-            entity
-                .strip_prefix("&#")
-                .and_then(|value| value.strip_suffix(';'))
-                .and_then(|value| value.parse().ok())
-        })?;
-    char::from_u32(value)
-}
-
 /// Returns whether a head word denotes a suffix or bound noun, whose hanja keep
 /// their original (non-word-initial) sound. Suffixes are written with a leading
 /// hyphen (`-년`); bound nouns carry the `의존 명사` part of speech. Prefixes
@@ -640,33 +478,4 @@ fn differs_only_in_first_syllable(a: &str, b: &str) -> bool {
         (Some(first_a), Some(first_b)) if first_a != first_b => a.eq(b),
         _ => false,
     }
-}
-
-fn normalize_word(word: &str) -> String {
-    let without_number = word.trim_end_matches(|ch: char| ch.is_ascii_digit());
-    without_number
-        .chars()
-        .filter(|ch| !matches!(ch, '-' | '^'))
-        .collect()
-}
-
-fn is_hanja(ch: char) -> bool {
-    matches!(
-        ch,
-        '\u{2F00}'..='\u{2FFF}'
-            | '\u{3007}'
-            | '\u{3400}'..='\u{4DBF}'
-            | '\u{4E00}'..='\u{9FFF}'
-            | '\u{F900}'..='\u{FAFF}'
-            | '\u{20000}'..='\u{2A6DF}'
-            | '\u{2A700}'..='\u{2B73F}'
-            | '\u{2B740}'..='\u{2B81F}'
-            | '\u{2B820}'..='\u{2CEAF}'
-            | '\u{2CEB0}'..='\u{2EBEF}'
-            | '\u{2EBF0}'..='\u{2EE5F}'
-            | '\u{2F800}'..='\u{2FA1F}'
-            | '\u{30000}'..='\u{3134F}'
-            | '\u{31350}'..='\u{323AF}'
-            | '\u{323B0}'..='\u{3347F}'
-    )
 }

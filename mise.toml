@@ -144,9 +144,12 @@ run = [
   "deno check packages/wasm/index.ts",
   "deno check packages/stdict-fst/index.ts",
   "deno check packages/stdict-cdb/index.ts",
+  "deno check packages/opendict-fst/index.ts",
+  "deno check packages/opendict-cdb/index.ts",
   "deno check tests/js/wasm.test.ts",
   "deno check tests/js/napi.test.ts",
   "deno check tests/js/stdict-loader.test.ts",
+  "deno check tests/js/opendict-loader.test.ts",
 ]
 
 [tasks.js-lint]
@@ -160,6 +163,8 @@ run = [
   "deno doc --lint ./packages/wasm/index.ts",
   "deno doc --lint ./packages/stdict-fst/index.ts",
   "deno doc --lint ./packages/stdict-cdb/index.ts",
+  "deno doc --lint ./packages/opendict-fst/index.ts",
+  "deno doc --lint ./packages/opendict-cdb/index.ts",
 ]
 
 [tasks.js-fmt]
@@ -219,9 +224,48 @@ let manifest_dir = $"(pwd)/crates/gukhanmun-stdict"
 cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb --rules $"($manifest_dir)/data/rules.tsv" $"($manifest_dir)/data/stdict.tsv"
 """
 
+[tasks.opendict-fst-data]
+description = "Build gukhanmun-opendict (release) and copy FST binaries to packages/opendict-fst/"
+shell = "nu -c"
+depends = ["rust-init"]
+run = """
+rm -rf target/release/build/gukhanmun-opendict-*
+cargo build -p gukhanmun-opendict --release
+let out = (
+  glob "target/release/build/**/out/general.gukfst"
+  | where { |p| $p | str contains "gukhanmun-opendict" }
+)
+if ($out | is-empty) {
+  error make { msg: "opendict FST outputs not found after release build" }
+}
+let out = ($out | first | path dirname)
+cp $"($out)/general.gukfst" packages/opendict-fst/general.fst
+cp $"($out)/north-korean.gukfst" packages/opendict-fst/north-korean.fst
+cp $"($out)/dialect.gukfst" packages/opendict-fst/dialect.fst
+cp $"($out)/archaic.gukfst" packages/opendict-fst/archaic.fst
+"""
+
+[tasks.opendict-cdb-data]
+description = "Build gukhanmun-mkdict (release) and generate CDB binaries to packages/opendict-cdb/"
+shell = "nu -c"
+depends = ["rust-init"]
+run = """
+let manifest_dir = $"(pwd)/crates/gukhanmun-opendict"
+for category in [general north-korean dialect archaic] {
+  cargo run --release -p gukhanmun-mkdict -- --format cdb --output $"packages/opendict-cdb/($category).cdb" $"($manifest_dir)/data/($category).tsv"
+}
+"""
+
 [tasks.js-build]
 description = "Build npm packages with tsdown (TypeScript wrappers)"
-depends = ["wasm-build", "stdict-fst-data", "stdict-cdb-data", "js-install"]
+depends = [
+  "wasm-build",
+  "stdict-fst-data",
+  "stdict-cdb-data",
+  "opendict-fst-data",
+  "opendict-cdb-data",
+  "js-install",
+]
 run = "pnpm -r run build"
 
 [tasks.js-test]
@@ -230,6 +274,8 @@ depends = [
   "wasm-build",
   "stdict-fst-data",
   "stdict-cdb-data",
+  "opendict-fst-data",
+  "opendict-cdb-data",
   "napi-build",
   "js-install",
 ]
@@ -238,9 +284,9 @@ depends = [
 # napi native addon needs Deno's --allow-ffi/--allow-env/--allow-sys on top of
 # --allow-read.
 run = [
-  "node --test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts",
-  "deno test --allow-read --allow-env --allow-ffi --allow-sys tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts",
-  "bun test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts",
+  "node --test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts",
+  "deno test --allow-read --allow-env --allow-ffi --allow-sys tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts",
+  "bun test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts",
 ]
 
 [tasks.js-sync-version]
@@ -261,11 +307,14 @@ for pkg in [
   packages/napi-aarch64-apple-darwin packages/napi-x86_64-apple-darwin
   packages/napi-aarch64-pc-windows-msvc packages/napi-x86_64-pc-windows-msvc
   packages/napi-aarch64-unknown-linux-gnu packages/napi-x86_64-unknown-linux-gnu
-  packages/stdict-fst packages/stdict-cdb
+  packages/stdict-fst packages/stdict-cdb packages/opendict-fst packages/opendict-cdb
 ] {
   update_json $"($pkg)/package.json"
 }
-for pkg in [packages/types packages/wasm packages/stdict-fst packages/stdict-cdb] {
+for pkg in [
+  packages/types packages/wasm packages/stdict-fst packages/stdict-cdb
+  packages/opendict-fst packages/opendict-cdb
+] {
   update_json $"($pkg)/deno.json"
 }
 """
@@ -329,15 +378,29 @@ run = "pnpm --filter @gukhanmun/docs run gen:ko-kr"
 
 [tasks.docs-dev]
 description = "Start the Rspress documentation dev server"
-depends = ["wasm-build", "stdict-fst-data", "stdict-cdb-data", "js-install"]
+depends = [
+  "wasm-build",
+  "stdict-fst-data",
+  "stdict-cdb-data",
+  "opendict-fst-data",
+  "opendict-cdb-data",
+  "js-install",
+]
 run = [
-  "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/napi run build",
+  "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/opendict-fst --filter @gukhanmun/opendict-cdb --filter @gukhanmun/napi run build",
   "pnpm --filter @gukhanmun/docs run dev",
 ]
 
 [tasks.docs-build]
 description = "Build the Rspress documentation site for production"
-depends = ["wasm-build", "stdict-fst-data", "stdict-cdb-data", "js-install"]
+depends = [
+  "wasm-build",
+  "stdict-fst-data",
+  "stdict-cdb-data",
+  "opendict-fst-data",
+  "opendict-cdb-data",
+  "js-install",
+]
 run = "pnpm --filter @gukhanmun/docs run build"
 
 [tasks.docs-fonts]

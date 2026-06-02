@@ -43,7 +43,7 @@
 //! let mut user = MapDictionary::new();
 //! user.insert("外字", "외자");
 //! let converter = Builder::new()
-//!     .no_bundled_stdict()
+//!     .no_bundled_dictionaries()
 //!     .push_dictionary(user)
 //!     .build()?;
 //! assert_eq!(converter.convert_text_to_string("外字")?, "외자");
@@ -56,10 +56,15 @@
 //! use gukhanmun::{Builder, Preset};
 //!
 //! let converter = Builder::with_preset(Preset::KoKp).build()?;
-//! // Without the initial sound law, `來日` falls back to `래일`.
+//! // The preset includes the bundled Open Korean Dictionary 북한어 category.
 //! assert_eq!(converter.convert_text_to_string("來日")?, "래일");
 //! # Ok::<(), gukhanmun::Error>(())
 //! ```
+//!
+//! Use [`Builder::no_bundled_dictionaries`] to disable every bundled
+//! dictionary selected by a preset.  Use [`Builder::no_bundled_stdict`] or
+//! [`Builder::no_bundled_opendict`] when only one bundled dictionary family
+//! should be disabled.
 //!
 //! # HTML fragment conversion (`feature = "html"`)
 //!
@@ -130,4 +135,11 @@ pub mod cdb {
 #[cfg(feature = "stdict")]
 pub mod stdict {
     pub use gukhanmun_stdict::*;
+}
+
+/// Bundled Open Korean Dictionary (우리말샘) data (re-export of
+/// [`gukhanmun_opendict`]).
+#[cfg(feature = "opendict")]
+pub mod opendict {
+    pub use gukhanmun_opendict::*;
 }

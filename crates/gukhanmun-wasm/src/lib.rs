@@ -137,7 +137,7 @@ impl WasmGukhanmun {
         };
 
         let preset = parse_preset(opts.preset.as_deref().unwrap_or("ko-kr"))?;
-        let mut builder = Builder::with_preset(preset).no_bundled_stdict();
+        let mut builder = Builder::with_preset(preset).no_bundled_dictionaries();
 
         if let Some(r) = &opts.rendering {
             let mode = parse_render_mode(r, opts.original_gloss.as_deref())?;

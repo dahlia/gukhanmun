@@ -49,3 +49,5 @@ JavaScript API 參照는 아래 페이지에서 찾을 수 있습니다:
  -  [@gukhanmun/wasm](../../en/api/js/modules/_gukhanmun_wasm.md)
  -  [@gukhanmun/stdict-cdb](../../en/api/js/modules/_gukhanmun_stdict-cdb.md)
  -  [@gukhanmun/stdict-fst](../../en/api/js/modules/_gukhanmun_stdict-fst.md)
+ -  [@gukhanmun/opendict-cdb](../../en/api/js/modules/_gukhanmun_opendict-cdb.md)
+ -  [@gukhanmun/opendict-fst](../../en/api/js/modules/_gukhanmun_opendict-fst.md)

@@ -804,6 +804,7 @@ dependencies = [
  "gukhanmun-fst",
  "gukhanmun-html",
  "gukhanmun-markdown",
+ "gukhanmun-opendict",
  "gukhanmun-stdict",
  "libtest-mimic",
  "serde",
@@ -855,6 +856,13 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-test",
+]
+
+[[package]]
+name = "gukhanmun-dict-extract"
+version = "0.2.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -936,6 +944,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "gukhanmun-opendict"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "assert_cmd",
+ "clap",
+ "gukhanmun-core",
+ "gukhanmun-dict-extract",
+ "gukhanmun-fst",
+ "gukhanmun-mkdict",
+ "predicates",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tracing",
+ "tracing-subscriber",
+ "zip",
+]
+
+[[package]]
 name = "gukhanmun-stdict"
 version = "0.2.0"
 dependencies = [
@@ -943,6 +972,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "gukhanmun-core",
+ "gukhanmun-dict-extract",
  "gukhanmun-fst",
  "gukhanmun-mkdict",
  "predicates",

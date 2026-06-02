@@ -9,12 +9,13 @@ repository.workspace = true
 description = "Umbrella library: hanja-to-hangul conversion engine with format adapters and dictionaries."
 
 [features]
-default = ["html", "markdown", "stdict", "fst", "cdb"]
+default = ["html", "markdown", "stdict", "opendict", "fst", "cdb"]
 html = ["dep:gukhanmun-html"]
 markdown = ["dep:gukhanmun-markdown"]
 fst = ["dep:gukhanmun-fst"]
 cdb = ["dep:gukhanmun-cdb"]
 stdict = ["dep:gukhanmun-stdict", "fst"]
+opendict = ["dep:gukhanmun-opendict", "fst"]
 
 [dependencies]
 gukhanmun-core.workspace = true
@@ -22,6 +23,7 @@ gukhanmun-html = { workspace = true, optional = true }
 gukhanmun-markdown = { workspace = true, optional = true }
 gukhanmun-fst = { workspace = true, optional = true }
 gukhanmun-cdb = { workspace = true, optional = true }
+gukhanmun-opendict = { workspace = true, optional = true }
 gukhanmun-stdict = { workspace = true, optional = true }
 thiserror = { version = "2.0.18", default-features = false }
 

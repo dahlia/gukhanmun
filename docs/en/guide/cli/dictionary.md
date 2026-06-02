@@ -7,22 +7,31 @@ description: |-
 Dictionaries
 ============
 
-Gukhanmun uses dictionaries to look up the hangul readings of hanja.  By
-default it ships with the bundled Standard Korean Dictionary
-(標準國語大辭典).
+Gukhanmun uses dictionaries to look up the hangul readings of hanja.  The
+`ko-kr` preset uses the bundled Standard Korean Dictionary (標準國語大辭典),
+and the `ko-kp` preset uses the bundled Open Korean Dictionary (우리말샘)
+North Korean category.
 
 
-Bundled Standard Korean Dictionary
-----------------------------------
+Bundled dictionaries
+--------------------
 
-The bundled dictionary is loaded automatically.  No extra flags are needed for
-most Korean text.
+The bundled dictionary selected by the preset is loaded automatically.  No
+extra flags are needed for most Korean text.
 
-To disable it—for example when you want to rely entirely on a custom
-dictionary—pass `--no-stdict`:
+To disable every bundled dictionary, for example when you want to rely entirely
+on a custom dictionary, pass `--no-bundled-dictionaries`:
 
 ~~~~ sh
-gukhanmun --no-stdict -d my-dict.gukfst input.txt
+gukhanmun --no-bundled-dictionaries -d my-dict.gukfst input.txt
+~~~~
+
+Use the `ko-kp` preset for North Korean orthography.  It disables the initial
+sound law and uses the bundled Open Korean Dictionary (우리말샘) North Korean
+(北韓語) dictionary:
+
+~~~~ sh
+gukhanmun --preset ko-kp input.txt
 ~~~~
 
 

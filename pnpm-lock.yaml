@@ -20,6 +20,12 @@ importers:
       '@gukhanmun/napi':
         specifier: workspace:*
         version: link:../packages/napi
+      '@gukhanmun/opendict-cdb':
+        specifier: workspace:*
+        version: link:../packages/opendict-cdb
+      '@gukhanmun/opendict-fst':
+        specifier: workspace:*
+        version: link:../packages/opendict-fst
       '@gukhanmun/stdict-cdb':
         specifier: workspace:*
         version: link:../packages/stdict-cdb
@@ -114,6 +120,18 @@ importers:
   packages/napi-x86_64-pc-windows-msvc: {}
 
   packages/napi-x86_64-unknown-linux-gnu: {}
+
+  packages/opendict-cdb:
+    devDependencies:
+      '@gukhanmun/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/opendict-fst:
+    devDependencies:
+      '@gukhanmun/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/stdict-cdb:
     devDependencies:
