@@ -39,9 +39,12 @@ pub enum Preset {
     /// North Korean convention (조선말 / 朝鮮말).
     ///
     /// Defaults: bundled Open Korean Dictionary North Korean vocabulary
-    /// enabled, initial sound law off, no homophone disambiguation (the
+    /// requested, initial sound law off, no homophone disambiguation (the
     /// orthographic convention writes Sino-Korean words in hangul without
     /// parenthesized hanja).
+    ///
+    /// Building this preset requires the `opendict` feature unless the caller
+    /// disables bundled dictionaries.
     KoKp,
 }
 
@@ -85,7 +88,7 @@ impl Preset {
     }
 
     /// Returns whether the bundled Open Korean Dictionary North Korean
-    /// vocabulary should be included by default for this preset.
+    /// vocabulary should be requested by default for this preset.
     pub fn includes_bundled_opendict_north_korean(self) -> bool {
         matches!(self, Preset::KoKp)
     }

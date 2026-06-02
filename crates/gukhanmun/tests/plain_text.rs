@@ -18,9 +18,11 @@
 
 use std::cell::Cell;
 
+#[cfg(any(feature = "opendict", feature = "stdict"))]
+use gukhanmun::HanjaDictionary;
 use gukhanmun::{
-    Builder, ContextWindow, DirectiveAction, HanjaDictionary, InputToken, MapDictionary,
-    NumeralStrategy, PlainScopeData, Preset, RenderMode, RenderedToken, write_plain_text,
+    Builder, ContextWindow, DirectiveAction, InputToken, MapDictionary, NumeralStrategy,
+    PlainScopeData, Preset, RenderMode, RenderedToken, write_plain_text,
 };
 
 #[cfg(feature = "stdict")]
@@ -154,6 +156,7 @@ fn user_dictionary_overrides_fallback() {
 }
 
 #[test]
+#[cfg(feature = "opendict")]
 fn ko_kp_skips_initial_sound_law_and_uses_north_korean_opendict() {
     let converter = Builder::with_preset(Preset::KoKp)
         .build()
@@ -162,6 +165,16 @@ fn ko_kp_skips_initial_sound_law_and_uses_north_korean_opendict() {
         .convert_text_to_string("歷史 來日 勞動")
         .expect("convert");
     assert_eq!(output, "력사 래일 로동");
+}
+
+#[test]
+#[cfg(not(feature = "opendict"))]
+fn ko_kp_requires_opendict_for_bundled_north_korean_dictionary() {
+    let error = match Builder::with_preset(Preset::KoKp).build() {
+        Ok(_) => panic!("ko-kp builder without opendict should fail"),
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("`opendict` feature is disabled"));
 }
 
 #[cfg(feature = "opendict")]
