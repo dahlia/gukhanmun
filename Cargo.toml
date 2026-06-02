@@ -4,6 +4,7 @@ members = [
     "crates/gukhanmun-cli",
     "crates/gukhanmun-cdb",
     "crates/gukhanmun-core",
+    "crates/gukhanmun-dict-extract",
     "crates/gukhanmun-fst",
     "crates/gukhanmun-html",
     "crates/gukhanmun-markdown",
@@ -39,6 +40,7 @@ repository = "https://github.com/dahlia/gukhanmun"
 gukhanmun = { version = "0.2.0", path = "crates/gukhanmun", default-features = false }
 gukhanmun-cdb = { version = "0.2.0", path = "crates/gukhanmun-cdb" }
 gukhanmun-core = { version = "0.2.0", path = "crates/gukhanmun-core" }
+gukhanmun-dict-extract = { version = "0.2.0", path = "crates/gukhanmun-dict-extract" }
 gukhanmun-fst = { version = "0.2.0", path = "crates/gukhanmun-fst" }
 gukhanmun-html = { version = "0.2.0", path = "crates/gukhanmun-html" }
 gukhanmun-markdown = { version = "0.2.0", path = "crates/gukhanmun-markdown" }

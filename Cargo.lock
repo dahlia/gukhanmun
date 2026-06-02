@@ -858,6 +858,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gukhanmun-dict-extract"
+version = "0.2.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "gukhanmun-fst"
 version = "0.2.0"
 dependencies = [
@@ -943,6 +950,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "gukhanmun-core",
+ "gukhanmun-dict-extract",
  "gukhanmun-fst",
  "gukhanmun-mkdict",
  "predicates",

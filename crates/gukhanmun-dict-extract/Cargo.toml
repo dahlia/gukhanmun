@@ -1,0 +1,12 @@
+[package]
+name = "gukhanmun-dict-extract"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Shared dictionary dump extraction helpers for gukhanmun."
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
