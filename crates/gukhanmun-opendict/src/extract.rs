@@ -344,6 +344,7 @@ impl Extractor {
             entries_written = entries.len(),
             "wrote dictionary TSV"
         );
+        writer.flush()?;
         Ok(())
     }
 }

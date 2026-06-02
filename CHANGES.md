@@ -99,6 +99,8 @@ To be released.
     Sino-Korean reading of those characters.  [[#5], [#6]]
  -  Hardened Open Korean Dictionary ZIP extraction so non-file archive members
     matching JSON shard names are ignored.  [[#5], [#6]]
+ -  Flushes Open Korean Dictionary TSV writers before reporting extraction
+    success.  [[#5], [#6]]
 
 ### gukhanmun-stdict
 
