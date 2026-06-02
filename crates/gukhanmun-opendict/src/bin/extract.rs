@@ -16,6 +16,7 @@
 
 use std::fs;
 use std::io;
+use std::io::BufWriter;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -53,24 +54,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_writer(io::stderr)
         .init();
 
-    let mut general = Vec::new();
-    let mut north_korean = Vec::new();
-    let mut dialect = Vec::new();
-    let mut archaic = Vec::new();
+    let general = BufWriter::new(fs::File::create(&cli.general_output)?);
+    let north_korean = BufWriter::new(fs::File::create(&cli.north_korean_output)?);
+    let dialect = BufWriter::new(fs::File::create(&cli.dialect_output)?);
+    let archaic = BufWriter::new(fs::File::create(&cli.archaic_output)?);
     let stats = extract_path_to_files(
         &cli.input,
         CategoryWriters {
-            general: &mut general,
-            north_korean: &mut north_korean,
-            dialect: &mut dialect,
-            archaic: &mut archaic,
+            general,
+            north_korean,
+            dialect,
+            archaic,
         },
     )?;
-
-    fs::write(cli.general_output, general)?;
-    fs::write(cli.north_korean_output, north_korean)?;
-    fs::write(cli.dialect_output, dialect)?;
-    fs::write(cli.archaic_output, archaic)?;
     tracing::info!(
         general_entries = stats.general.entries_written,
         north_korean_entries = stats.north_korean.entries_written,

@@ -202,7 +202,7 @@ fn normalize_original_language(input: &str) -> Option<String> {
         output.push_str(&rest[..start]);
         let after_start = &rest[start + "<equ>".len()..];
         let end = after_start.find("</equ>")?;
-        output.push_str(decode_entity(after_start[..end].trim())?.encode_utf8(&mut [0; 4]));
+        output.push(decode_entity(after_start[..end].trim())?);
         rest = &after_start[end + "</equ>".len()..];
     }
 

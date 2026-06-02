@@ -19,7 +19,7 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry as BTreeEntry;
 use std::fs;
-use std::io::{BufReader, Cursor, Read, Seek, Write};
+use std::io::{BufReader, Read, Seek, Write};
 use std::path::Path;
 
 use gukhanmun_dict_extract::{OriginalLanguageInfo, keys_from_originals, normalize_word};
@@ -188,12 +188,12 @@ impl Extractor {
                 .map(|entry| entry.map(|entry| entry.path()))
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             paths.sort();
-            for path in paths {
-                if path
+            for file_path in paths {
+                if file_path
                     .extension()
                     .is_some_and(|extension| extension == "json")
                 {
-                    self.read_json(BufReader::new(fs::File::open(path)?))?;
+                    self.read_json(BufReader::new(fs::File::open(file_path)?))?;
                 }
             }
         } else if path.extension().is_some_and(|extension| extension == "zip") {
@@ -218,11 +218,12 @@ impl Extractor {
             .collect::<Vec<_>>();
         names.sort();
 
+        let mut bytes = Vec::new();
         for name in names {
             let mut file = archive.by_name(&name)?;
-            let mut bytes = Vec::new();
+            bytes.clear();
             file.read_to_end(&mut bytes)?;
-            self.read_json(Cursor::new(bytes))?;
+            self.read_json(&bytes[..])?;
         }
 
         Ok(())
