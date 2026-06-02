@@ -374,7 +374,7 @@ fn segmentation_option_selects_eager_longest_match() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args([
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--dictionary",
             dictionary.to_str().unwrap(),
             "--rendering",
@@ -400,7 +400,7 @@ fn short_segmentation_option_selects_eager_longest_match() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args([
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--dictionary",
             dictionary.to_str().unwrap(),
             "--rendering",
@@ -418,7 +418,11 @@ fn short_segmentation_option_selects_eager_longest_match() {
 fn numeral_option_selects_positional_arabic_conversion() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--no-stdict", "--numerals", "positional-arabic"])
+        .args([
+            "--no-bundled-dictionaries",
+            "--numerals",
+            "positional-arabic",
+        ])
         .write_stdin("二〇一六年\n")
         .assert()
         .success()
@@ -429,7 +433,7 @@ fn numeral_option_selects_positional_arabic_conversion() {
 fn numeral_option_selects_smart_conversion() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--no-stdict", "--numerals", "smart"])
+        .args(["--no-bundled-dictionaries", "--numerals", "smart"])
         .write_stdin("十一月 一千二百三十四\n")
         .assert()
         .success()
@@ -437,10 +441,10 @@ fn numeral_option_selects_smart_conversion() {
 }
 
 #[test]
-fn no_stdict_uses_fallback_only_conversion() {
+fn no_bundled_dictionaries_uses_fallback_only_conversion() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .arg("--no-stdict")
+        .arg("--no-bundled-dictionaries")
         .write_stdin("北京\n")
         .assert()
         .success()
@@ -448,14 +452,25 @@ fn no_stdict_uses_fallback_only_conversion() {
 }
 
 #[test]
-fn ko_kp_preset_disables_bundled_stdict_and_initial_sound_law() {
+fn ko_kp_preset_uses_north_korean_opendict_and_disables_initial_sound_law() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args(["--preset", "ko-kp"])
-        .write_stdin("北京 來日\n")
+        .write_stdin("歷史 來日 勞動\n")
         .assert()
         .success()
-        .stdout("북경 래일\n");
+        .stdout("력사 래일 로동\n");
+}
+
+#[test]
+fn no_stdict_flag_is_no_longer_accepted() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .arg("--no-stdict")
+        .write_stdin("漢字\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unexpected argument"));
 }
 
 #[test]
@@ -469,7 +484,7 @@ fn html_stdin_writes_complete_block_before_eof() {
         [
             "--format",
             "text/html",
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--disambiguation",
             "off",
         ],
@@ -698,7 +713,7 @@ fn first_occurrence_per_document_clears_repeated_required_hanja() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args([
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--dictionary",
             dictionary.to_str().unwrap(),
             "--disambiguation",
@@ -726,7 +741,7 @@ fn first_occurrence_per_section_resets_at_html_headings() {
         .args([
             "--format",
             "text/html",
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--dictionary",
             dictionary.to_str().unwrap(),
             "--disambiguation",
@@ -744,7 +759,7 @@ fn first_occurrence_per_section_resets_at_html_headings() {
 fn directive_literal_requires_hanja() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--no-stdict", "--require-hanja", "漢字"])
+        .args(["--no-bundled-dictionaries", "--require-hanja", "漢字"])
         .write_stdin("漢字 天地\n")
         .assert()
         .success()
@@ -756,7 +771,7 @@ fn directive_glob_requires_hangul_in_original_mode() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args([
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--rendering",
             "original",
             "--require-hangul-glob",
@@ -773,7 +788,7 @@ fn skip_directive_collapses_hangul_primary_renderer() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args([
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--rendering",
             "hangul-hanja-parens",
             "--skip-annotation",
@@ -790,7 +805,7 @@ fn skip_directive_glob_collapses_hanja_primary_renderer() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args([
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--rendering",
             "hanja-hangul-parens",
             "--skip-annotation-glob",
@@ -815,7 +830,7 @@ fn directives_file_applies_literal_and_glob_rules() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args([
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--disambiguation",
             "off",
             "--directives",
@@ -846,7 +861,7 @@ fn multiple_directives_files_compose_with_inline_directives() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args([
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--disambiguation",
             "off",
             "--directives",
@@ -896,7 +911,11 @@ fn stdin_streaming_preserves_dictionary_matches_across_chunk_boundaries() {
 
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .args(["--no-stdict", "--dictionary", dictionary.to_str().unwrap()])
+        .args([
+            "--no-bundled-dictionaries",
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+        ])
         .write_stdin(input)
         .assert()
         .success()
@@ -978,7 +997,7 @@ fn later_user_dictionary_has_higher_priority_than_earlier_dictionary() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .args([
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--dictionary",
             first.to_str().unwrap(),
             "--dictionary",
@@ -1019,7 +1038,7 @@ fn default_strict_recovery_rejects_malformed_html() {
         .args([
             "--format",
             "text/html",
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--disambiguation",
             "off",
         ])
@@ -1036,7 +1055,7 @@ fn recovery_lenient_preserves_malformed_html_and_continues() {
         .args([
             "--format",
             "text/html",
-            "--no-stdict",
+            "--no-bundled-dictionaries",
             "--disambiguation",
             "off",
             "--recovery",

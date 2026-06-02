@@ -16,17 +16,18 @@
 
 //! High-level [`Builder`] / [`Converter`] facade.
 
+#[cfg(feature = "html")]
+use gukhanmun_core::recover_input_tokens;
 use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter,
     HanjaDictionary, HomophoneDetection, HomophoneMarker, InputToken, NumeralStrategy, OutputToken,
     PlainScopeData, Recovery, RedundantParenCollapser, RenderOptions, RenderedToken, ScopeData,
     SegmentationStrategy, UserDirectives, apply_user_directives, apply_user_directives_iter,
     collapse_redundant_parens, filter_first_occurrences, mark_homophones_with_detection,
-    process_tokens_iter_with_options, read_plain_text, recover_input_tokens, render_tokens_iter,
-    write_plain_text,
+    process_tokens_iter_with_options, read_plain_text, render_tokens_iter, write_plain_text,
 };
 
-#[cfg(not(feature = "stdict"))]
+#[cfg(any(not(feature = "opendict"), not(feature = "stdict")))]
 use crate::error::Error;
 use crate::error::Result;
 use crate::options::{ConversionOptions, Preset};
@@ -96,6 +97,7 @@ type BoxedDictionary<'a> = Box<dyn HanjaDictionary + 'a>;
 pub struct Builder<'a> {
     options: ConversionOptions,
     bundled_stdict: bool,
+    bundled_opendict_north_korean: bool,
     dictionaries: Vec<BoxedDictionary<'a>>,
     directives: UserDirectives<'a>,
     #[cfg(feature = "html")]
@@ -119,6 +121,7 @@ impl<'a> Builder<'a> {
         Self {
             options: preset.options(),
             bundled_stdict: preset.includes_bundled_stdict(),
+            bundled_opendict_north_korean: preset.includes_bundled_opendict_north_korean(),
             dictionaries: Vec::new(),
             directives: UserDirectives::new(),
             #[cfg(feature = "html")]
@@ -195,10 +198,21 @@ impl<'a> Builder<'a> {
         self
     }
 
-    /// Disables inclusion of the bundled *Standard Korean Language Dictionary*.
+    /// Disables inclusion of all bundled dictionaries.
     ///
     /// Useful when constructing a converter that should consult only
     /// user-supplied dictionaries.
+    pub fn no_bundled_dictionaries(mut self) -> Self {
+        self.bundled_stdict = false;
+        self.bundled_opendict_north_korean = false;
+        self
+    }
+
+    /// Disables inclusion of the bundled *Standard Korean Language Dictionary*.
+    ///
+    /// This leaves other bundled dictionaries selected by the preset enabled.
+    /// Use [`Builder::no_bundled_dictionaries`] to disable every bundled
+    /// dictionary.
     pub fn no_bundled_stdict(mut self) -> Self {
         self.bundled_stdict = false;
         self
@@ -217,8 +231,8 @@ impl<'a> Builder<'a> {
     /// Appends a user-supplied dictionary to the lookup chain.
     ///
     /// Earlier `push_dictionary` calls take priority over later ones, and
-    /// every user dictionary takes priority over the bundled
-    /// *Standard Korean Language Dictionary* when both are active.
+    /// every user dictionary takes priority over the bundled dictionaries when
+    /// both are active.
     pub fn push_dictionary<D>(mut self, dictionary: D) -> Self
     where
         D: HanjaDictionary + 'a,
@@ -276,26 +290,29 @@ impl<'a> Builder<'a> {
 
     /// Finalizes the configuration into a [`Converter`].
     ///
-    /// Returns [`crate::Error::Config`] if the configuration requests the bundled
-    /// dictionary but the crate was compiled without the `stdict` feature.
+    /// Returns [`crate::Error::Config`] if the configuration requests a bundled
+    /// dictionary whose feature was disabled at compile time.
     pub fn build(self) -> Result<Converter<'a>> {
         let Self {
             options,
             bundled_stdict,
+            bundled_opendict_north_korean,
             dictionaries,
             directives,
             #[cfg(feature = "html")]
             html_reader_options,
         } = self;
 
-        #[cfg(feature = "stdict")]
-        let dictionaries = {
-            let mut dictionaries = dictionaries;
-            if bundled_stdict {
-                dictionaries.push(Box::new(gukhanmun_stdict::ko_kr()));
+        #[cfg(not(feature = "opendict"))]
+        {
+            if bundled_opendict_north_korean {
+                return Err(Error::Config(
+                    "bundled Open Korean Dictionary North Korean vocabulary requested but the \
+                     `opendict` feature is disabled"
+                        .into(),
+                ));
             }
-            dictionaries
-        };
+        }
         #[cfg(not(feature = "stdict"))]
         {
             if bundled_stdict {
@@ -306,6 +323,22 @@ impl<'a> Builder<'a> {
                 ));
             }
         }
+
+        #[cfg(any(feature = "opendict", feature = "stdict"))]
+        let dictionaries = {
+            let mut dictionaries = dictionaries;
+            #[cfg(feature = "opendict")]
+            if bundled_opendict_north_korean {
+                dictionaries.push(Box::new(gukhanmun_opendict::north_korean()));
+            }
+            #[cfg(feature = "stdict")]
+            if bundled_stdict {
+                dictionaries.push(Box::new(gukhanmun_stdict::ko_kr()));
+            }
+            dictionaries
+        };
+        #[cfg(not(any(feature = "opendict", feature = "stdict")))]
+        let dictionaries = dictionaries;
 
         let chain = ChainDictionary::from_iter(dictionaries);
         Ok(Converter {

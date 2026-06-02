@@ -804,6 +804,7 @@ dependencies = [
  "gukhanmun-fst",
  "gukhanmun-html",
  "gukhanmun-markdown",
+ "gukhanmun-opendict",
  "gukhanmun-stdict",
  "libtest-mimic",
  "serde",

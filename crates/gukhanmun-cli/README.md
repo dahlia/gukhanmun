@@ -54,14 +54,14 @@ gukhanmun --help
 Options
 -------
 
-| Flag                | Description                                                                                                |
-| ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `--preset`          | `ko-kr` (default) or `ko-kp`                                                                               |
-| `--format`/`-f`     | `text/plain`, `text/html`, or `text/markdown`; inferred from extension if omitted                          |
-| `--rendering`       | `hangul-only`, `hangul-hanja-parens`, `hanja-hangul-parens`, `ruby-on-hangul`, `ruby-on-hanja`, `original` |
-| `--dictionary`/`-d` | Additional *.gukfst* or *.gukcdb* dictionary file (repeatable)                                             |
-| `--no-stdict`       | Disable the bundled Standard Dictionary                                                                    |
-| `--output`/`-o`     | Output file path; defaults to standard output                                                              |
+| Flag                        | Description                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `--preset`                  | `ko-kr` (default) or `ko-kp`                                                                               |
+| `--format`/`-f`             | `text/plain`, `text/html`, or `text/markdown`; inferred from extension if omitted                          |
+| `--rendering`               | `hangul-only`, `hangul-hanja-parens`, `hanja-hangul-parens`, `ruby-on-hangul`, `ruby-on-hanja`, `original` |
+| `--dictionary`/`-d`         | Additional *.gukfst* or *.gukcdb* dictionary file (repeatable)                                             |
+| `--no-bundled-dictionaries` | Disable every bundled dictionary selected by the preset                                                    |
+| `--output`/`-o`             | Output file path; defaults to standard output                                                              |
 
 
 License
