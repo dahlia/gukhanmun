@@ -198,6 +198,40 @@ fn ko_kp_dictionary_chain_includes_north_korean_opendict_by_default() {
     assert!(converter.dictionary().entries().unwrap().next().is_none());
 }
 
+#[cfg(feature = "opendict")]
+#[test]
+fn no_bundled_opendict_disables_ko_kp_bundled_dictionary() {
+    let converter = Builder::with_preset(Preset::KoKp)
+        .no_bundled_opendict()
+        .build()
+        .expect("ko-kp builder");
+    assert!(converter.dictionary().entries().unwrap().next().is_none());
+
+    let output = converter.convert_text_to_string("來日").expect("convert");
+    assert_eq!(output, "래일");
+}
+
+#[cfg(all(feature = "opendict", feature = "stdict"))]
+#[test]
+fn no_bundled_opendict_leaves_stdict_enabled() {
+    let converter = Builder::with_preset(Preset::KoKp)
+        .bundled_stdict()
+        .no_bundled_opendict()
+        .build()
+        .expect("ko-kp builder");
+    assert!(
+        converter
+            .dictionary()
+            .entries()
+            .unwrap()
+            .any(|record| { record.hanja == "歷史" && record.reading == "역사" })
+    );
+    assert_eq!(
+        converter.convert_text_to_string("歷史").expect("convert"),
+        "역사"
+    );
+}
+
 #[test]
 fn ko_kr_initial_sound_law_applies_in_fallback() {
     let converter = Builder::with_preset(Preset::KoKr)

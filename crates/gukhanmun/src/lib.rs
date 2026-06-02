@@ -61,6 +61,11 @@
 //! # Ok::<(), gukhanmun::Error>(())
 //! ```
 //!
+//! Use [`Builder::no_bundled_dictionaries`] to disable every bundled
+//! dictionary selected by a preset.  Use [`Builder::no_bundled_stdict`] or
+//! [`Builder::no_bundled_opendict`] when only one bundled dictionary family
+//! should be disabled.
+//!
 //! # HTML fragment conversion (`feature = "html"`)
 //!
 //! ```

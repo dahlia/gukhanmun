@@ -218,6 +218,16 @@ impl<'a> Builder<'a> {
         self
     }
 
+    /// Disables inclusion of bundled Open Korean Dictionary data.
+    ///
+    /// This leaves other bundled dictionaries selected by the preset enabled.
+    /// Use [`Builder::no_bundled_dictionaries`] to disable every bundled
+    /// dictionary.
+    pub fn no_bundled_opendict(mut self) -> Self {
+        self.bundled_opendict_north_korean = false;
+        self
+    }
+
     /// Forces inclusion of the bundled *Standard Korean Language Dictionary*.
     ///
     /// Requires the `stdict` feature. Returns the builder unchanged; the
