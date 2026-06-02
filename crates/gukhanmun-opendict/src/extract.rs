@@ -196,7 +196,7 @@ impl Extractor {
                         .extension()
                         .is_some_and(|extension| extension == "json")
                 {
-                    self.read_json(BufReader::new(fs::File::open(file_path)?))?;
+                    self.read_json(fs::File::open(file_path)?)?;
                 }
             }
         } else if path.extension().is_some_and(|extension| extension == "zip") {
@@ -204,7 +204,7 @@ impl Extractor {
             self.read_zip(fs::File::open(path)?)?;
         } else {
             tracing::info!(path = %path.display(), input_type = "json", "extracting Open Korean Dictionary");
-            self.read_json(BufReader::new(fs::File::open(path)?))?;
+            self.read_json(fs::File::open(path)?)?;
         }
         Ok(())
     }
@@ -223,14 +223,14 @@ impl Extractor {
 
         for name in names {
             let file = archive.by_name(&name)?;
-            self.read_json(BufReader::new(file))?;
+            self.read_json(file)?;
         }
 
         Ok(())
     }
 
     fn read_json(&mut self, reader: impl Read) -> Result<()> {
-        let dump = serde_json::from_reader::<_, Dump>(reader)?;
+        let dump = serde_json::from_reader::<_, Dump>(BufReader::new(reader))?;
         tracing::debug!(
             items_ingested = dump.channel.item.len(),
             "processed JSON dump"
@@ -281,7 +281,7 @@ impl Extractor {
             // 引き -> 引, are weaker than the engine's bundled Sino-Korean
             // readings for the same character. Keep multi-character foreign
             // place names and similar entries, such as 北京 -> 베이징.
-            keys.retain(|key| key.chars().count() != 1);
+            keys.retain(|key| key.chars().nth(1).is_some());
             if keys.is_empty() {
                 self.increment_skipped(Some(category));
                 return;

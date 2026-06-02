@@ -54,13 +54,18 @@ pub fn keys_from_originals(originals: &[OriginalLanguageInfo]) -> Option<Vec<Str
         }
 
         let pieces = original_language_pieces(original)?;
+        let alternatives_with_hanja = pieces
+            .alternatives
+            .iter()
+            .map(|piece| (piece.as_str(), piece.chars().any(is_hanja)))
+            .collect::<Vec<_>>();
         let mut expanded = Vec::with_capacity(current.len() * pieces.alternatives.len());
         for prefix in &current {
-            for piece in &pieces.alternatives {
+            for &(piece, piece_has_hanja) in &alternatives_with_hanja {
                 let mut key = prefix.key.clone();
                 key.push_str(piece);
                 expanded.push(PartialKey {
-                    has_hanja: prefix.has_hanja || piece.chars().any(is_hanja),
+                    has_hanja: prefix.has_hanja || piece_has_hanja,
                     key,
                 });
             }
