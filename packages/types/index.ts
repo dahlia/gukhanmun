@@ -452,10 +452,12 @@ export interface GukhanmunOptions {
    * earlier entries take precedence.  When omitted (or empty), only the
    * fallback Unihan character map is used (no stdict).
    *
-   * Unlike the `"ko-kr"` Rust preset, JavaScript presets do **not**
-   * automatically include a bundled dictionary.  To use the *Standard Korean
-   * Language Dictionary*, add `@gukhanmun/stdict-fst` or
-   * `@gukhanmun/stdict-cdb` explicitly.
+   * Unlike the Rust and CLI presets, JavaScript presets do **not**
+   * automatically include bundled dictionary data.  To use the *Standard
+   * Korean Language Dictionary*, add `@gukhanmun/stdict-fst` or
+   * `@gukhanmun/stdict-cdb` explicitly.  To use Open Korean Dictionary
+   * categories, add `@gukhanmun/opendict-fst` or
+   * `@gukhanmun/opendict-cdb` explicitly.
    *
    * @see {@link DictionarySource}
    */

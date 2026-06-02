@@ -34,6 +34,45 @@ const g = await load({ dictionaries: [await stdictCdb()] });
 返還합니다.
 
 
+우리말샘 package
+----------------
+
+`@gukhanmun/opendict-fst`와 `@gukhanmun/opendict-cdb`는 *우리말샘*을
+一般語, 北韓語, 方言, 옛말 分類別 辭典으로 나누어 提供합니다. JavaScript
+preset은 이 package들을 自動 load하지 않으므로, 必要한 分類를 明示的으로
+넘겨야 합니다:
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/wasm";
+import {
+  opendictDialectFst,
+  opendictNorthKoreanFst,
+} from "@gukhanmun/opendict-fst";
+
+const g = await load({
+  preset: "ko-kp",
+  dictionaries: [
+    await opendictNorthKoreanFst(),
+    await opendictDialectFst(),
+  ],
+});
+~~~~
+
+같은 分類를 CDB 形式으로 쓰려면 CDB package를 使用합니다:
+
+~~~~ ts twoslash
+// @noErrors: 2451
+import { load } from "@gukhanmun/napi";
+import { opendictNorthKoreanCdb } from "@gukhanmun/opendict-cdb";
+
+const g = await load({
+  preset: "ko-kp",
+  dictionaries: [await opendictNorthKoreanCdb()],
+});
+~~~~
+
+
 使用者 定義 辭典
 ----------------
 

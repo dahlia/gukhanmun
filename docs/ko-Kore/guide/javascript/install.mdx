@@ -11,9 +11,9 @@ import { PackageManagerTabs } from '@rspress/core/theme';
 
 Gukhanmun은 같은 API를 共有하는 두 個의 JavaScript 具顯을 提供합니다:
 
-| 패키지            | 環境                                       | 備考                          |
-| ----------------- | ------------------------------------------ | ----------------------------- |
-| `@gukhanmun/wasm` | 브라우저, Node.js 20+, Deno 2.0+, Bun 1.0+ | 넓은 互換性을 爲해 勸奬        |
+| 패키지            | 環境                                       | 備考                            |
+| ----------------- | ------------------------------------------ | ------------------------------- |
+| `@gukhanmun/wasm` | 브라우저, Node.js 20+, Deno 2.0+, Bun 1.0+ | 넓은 互換性을 爲해 勸奬         |
 | `@gukhanmun/napi` | Node.js 20+, Deno 2.0+, Bun 1.0+           | 서버에서 더 빠름; 네이티브 코드 |
 
 大部分의 프로젝트에서는 `@gukhanmun/wasm`을 使用합니다.  處理量이 重要한 서버
@@ -23,9 +23,9 @@ Gukhanmun은 같은 API를 共有하는 두 個의 JavaScript 具顯을 提供�
 WebAssembly
 -----------
 
-大部分의 環境에서 WebAssembly 具顯이 最善의 選擇입니다.  브라우저·Node.js·Deno·Bun
-에서 動作하며 네이티브 코드를 必要로 하지 않습니다.  選好하는 패키지 管理者로
-設置합니다:
+大部分의 環境에서 WebAssembly 具顯이 最善의 選擇입니다.
+브라우저·Node.js·Deno·Bun 에서 動作하며 네이티브 코드를 必要로 하지 않습니다.
+選好하는 패키지 管理者로 設置합니다:
 
 <PackageManagerTabs
   command={{
@@ -44,7 +44,6 @@ Node-API
 네이티브 애드온과 함께 Node.js·Deno·Bun을 쓰려면:
 
 <PackageManagerTabs command="add @gukhanmun/napi" />
-
 
 
 標準國語大辭典
@@ -72,8 +71,35 @@ JavaScript 패키지는 《標準國語大辭典》을 內藏하지 않습니다
   }}
 />
 
-두 패키지는 같은 辭典을 담고 있습니다; 두 形式은 찾기 特性에서 差異가 납니다.  大部分의
-用例에서는 FST 패키지를 選好합니다.
+두 패키지는 같은 辭典을 담고 있습니다; 두 形式은 찾기 特性에서 差異가 납니다.
+大部分의 用例에서는 FST 패키지를 選好합니다.
+
+
+우리말샘
+--------
+
+우리말샘 package는 辭典 形式別로 나뉘고, 一般語, 北韓語, 方言, 옛말 分類別
+loader를 提供합니다:
+
+<PackageManagerTabs
+  command={{
+    npm: "npm add @gukhanmun/opendict-fst",
+    yarn: "yarn add @gukhanmun/opendict-fst",
+    pnpm: "pnpm add @gukhanmun/opendict-fst",
+    bun: "bun add @gukhanmun/opendict-fst",
+    deno: "deno add jsr:@gukhanmun/opendict-fst",
+  }}
+/>
+
+<PackageManagerTabs
+  command={{
+    npm: "npm add @gukhanmun/opendict-cdb",
+    yarn: "yarn add @gukhanmun/opendict-cdb",
+    pnpm: "pnpm add @gukhanmun/opendict-cdb",
+    bun: "bun add @gukhanmun/opendict-cdb",
+    deno: "deno add jsr:@gukhanmun/opendict-cdb",
+  }}
+/>
 
 
 NAPI 플랫폼 바이너리

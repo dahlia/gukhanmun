@@ -46,7 +46,6 @@ For Node.js, Deno, or Bun with the native addon:
 <PackageManagerTabs command="add @gukhanmun/napi" />
 
 
-
 Standard Korean Dictionary
 --------------------------
 
@@ -75,6 +74,34 @@ it separately:
 
 Both packages contain the same dictionary; the formats differ in their
 lookup characteristics.  For most use cases, prefer the FST package.
+
+
+Open Korean Dictionary
+----------------------
+
+The Open Korean Dictionary (우리말샘) packages are split by dictionary format
+and expose separate general (一般語), North Korean (北韓語), dialect (方言),
+and archaic (옛말) category loaders:
+
+<PackageManagerTabs
+  command={{
+    npm: "npm add @gukhanmun/opendict-fst",
+    yarn: "yarn add @gukhanmun/opendict-fst",
+    pnpm: "pnpm add @gukhanmun/opendict-fst",
+    bun: "bun add @gukhanmun/opendict-fst",
+    deno: "deno add jsr:@gukhanmun/opendict-fst",
+  }}
+/>
+
+<PackageManagerTabs
+  command={{
+    npm: "npm add @gukhanmun/opendict-cdb",
+    yarn: "yarn add @gukhanmun/opendict-cdb",
+    pnpm: "pnpm add @gukhanmun/opendict-cdb",
+    bun: "bun add @gukhanmun/opendict-cdb",
+    deno: "deno add jsr:@gukhanmun/opendict-cdb",
+  }}
+/>
 
 
 NAPI platform binaries

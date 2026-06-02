@@ -39,9 +39,17 @@ To be released.
 
  -  Collapse redundant parenthetical reading annotations by default.  The new
     `Builder::collapse_redundant_parens` opt-out disables it.  [[#3], [#4]]
+ -  Added the `opendict` feature and made the `ko-kp` preset include the
+    bundled Open Korean Dictionary (우리말샘) North Korean (北韓語) category by
+    default.  Added `Builder::no_bundled_dictionaries()` to disable every
+    preset-selected bundled dictionary while keeping
+    `Builder::no_bundled_stdict()` scoped to the Standard Korean Language
+    Dictionary.  [[#5], [#6]]
 
 [#3]: https://github.com/dahlia/gukhanmun/issues/3
 [#4]: https://github.com/dahlia/gukhanmun/pull/4
+[#5]: https://github.com/dahlia/gukhanmun/issues/5
+[#6]: https://github.com/dahlia/gukhanmun/pull/6
 
 ### gukhanmun-core
 
@@ -59,14 +67,34 @@ To be released.
     a breaking change (it gained a `from_source_gloss` flag here).  Construct it
     from `Annotation::default()` and set the fields you need.  [[#3], [#4]]
 
+### gukhanmun-dict-extract
+
+ -  Added a shared extraction helper crate for dictionary dump key
+    normalization, original-language parsing, and mixed-script key generation.
+    `gukhanmun-stdict` and `gukhanmun-opendict` now use the same core
+    extraction rules.  [[#5], [#6]]
+
 ### gukhanmun-cli
 
  -  Collapse redundant parenthetical reading annotations by default across the
     plain-text, HTML, and Markdown pipelines.  The new `--no-collapse-parens`
     flag disables it.  [[#3], [#4]]
+ -  The `ko-kp` preset now includes the bundled Open Korean Dictionary North
+    Korean (北韓語) category by default.  Replaced `--no-stdict` with
+    `--no-bundled-dictionaries`, which disables every preset-selected bundled
+    dictionary.  [[#5], [#6]]
+
+### gukhanmun-opendict
+
+ -  Added a bundled Open Korean Dictionary (우리말샘) crate generated from the
+    2026-05-03 JSON dump.  The crate exposes separate `general()`,
+    `north_korean()`, `dialect()`, and `archaic()` FST dictionaries so callers
+    can compose the categories explicitly with `ChainDictionary`.  [[#5], [#6]]
 
 ### gukhanmun-stdict
 
+ -  Reused the shared dictionary extraction helper and buffered direct JSON
+    shard reads for large dump extraction.  [[#5], [#6]]
  -  Fixed “數字” converting to “수자” instead of the orthographically
     prescribed “숫자.”  The six *Standard Korean Orthography §30* (한글 맞춤法
     第30項) saisiot (사이시옷) compounds (곳간, 셋방, 숫자, 찻간, 툇간, 횟수)
@@ -84,11 +112,37 @@ To be released.
 
  -  Collapse redundant parenthetical reading annotations by default; added the
     `collapseRedundantParens` option to disable it.  [[#3], [#4]]
+ -  Documented that JavaScript presets still do not auto-load bundled
+    dictionary data; use the new opendict packages explicitly when desired.
+    [[#5], [#6]]
 
 ### @gukhanmun/wasm
 
  -  Collapse redundant parenthetical reading annotations by default; added the
     `collapseRedundantParens` option to disable it.  [[#3], [#4]]
+ -  Documented that JavaScript presets still do not auto-load bundled
+    dictionary data; use the new opendict packages explicitly when desired.
+    [[#5], [#6]]
+
+### @gukhanmun/opendict-cdb
+
+ -  Added a package containing Open Korean Dictionary general (一般語), North
+    Korean (北韓語), dialect (方言), and archaic (옛말) categories as CDB
+    binaries, with category-specific byte loaders and `FileDictionarySource`
+    helpers.  [[#5], [#6]]
+
+### @gukhanmun/opendict-fst
+
+ -  Added a package containing Open Korean Dictionary general (一般語), North
+    Korean (北韓語), dialect (方言), and archaic (옛말) categories as FST
+    binaries, with category-specific byte loaders and `FileDictionarySource`
+    helpers.  [[#5], [#6]]
+
+### @gukhanmun/types
+
+ -  Updated the JavaScript dictionary option documentation to mention the
+    opendict packages and clarify that JavaScript presets do not auto-load
+    bundled dictionary data.  [[#5], [#6]]
 
 
 Version 0.1.2
