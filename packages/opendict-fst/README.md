@@ -3,7 +3,7 @@
 
 [![JSR][JSR badge]][JSR]
 [![npm][npm badge]][npm]
-[![License: GPL-3.0-only][GPL badge]][GPL]
+[![License: GPL-3.0-only AND CC BY-SA 2.0 KR][license badge]][GPL]
 
 Open Korean Dictionary (우리말샘) categories bundled as FST binaries for
 `@gukhanmun/wasm` and `@gukhanmun/napi`.
@@ -12,7 +12,7 @@ Open Korean Dictionary (우리말샘) categories bundled as FST binaries for
 [JSR]: https://jsr.io/@gukhanmun/opendict-fst
 [npm badge]: https://img.shields.io/npm/v/%40gukhanmun%2Fopendict-fst?logo=npm
 [npm]: https://www.npmjs.com/package/@gukhanmun/opendict-fst
-[GPL badge]: https://img.shields.io/npm/l/%40gukhanmun%2Fopendict-fst
+[license badge]: https://img.shields.io/npm/l/%40gukhanmun%2Fopendict-fst
 [GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 
 
@@ -38,8 +38,8 @@ Data attribution
 ----------------
 
 The bundled dictionary data is extracted from the National Institute of Korean
-Language's Open Korean Dictionary (우리말샘) JSON dump dated 2026-05-03. The
-dictionary data is licensed under CC BY-SA 2.0 KR.
+Language's Open Korean Dictionary (우리말샘) JSON dump dated 2026-05-03. See
+*ATTRIBUTION.md* for source and license details.
 
 
 License
