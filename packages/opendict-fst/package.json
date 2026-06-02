@@ -18,6 +18,7 @@
     "dist"
   ],
   "scripts": {
+    "prebuild": "mise run -C ../.. opendict-fst-data",
     "build": "tsdown && node -e \"const fs=require('node:fs');fs.mkdirSync('dist',{recursive:true});for(const f of ['general.fst','north-korean.fst','dialect.fst','archaic.fst'])fs.copyFileSync(f,'dist/'+f)\""
   },
   "homepage": "https://github.com/dahlia/gukhanmun",

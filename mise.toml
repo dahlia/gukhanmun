@@ -229,6 +229,7 @@ description = "Build gukhanmun-opendict (release) and copy FST binaries to packa
 shell = "nu -c"
 depends = ["rust-init"]
 run = """
+rm -rf target/release/build/gukhanmun-opendict-*
 cargo build -p gukhanmun-opendict --release
 let out = (
   glob "target/release/build/**/out/general.gukfst"

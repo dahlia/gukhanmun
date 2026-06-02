@@ -18,6 +18,7 @@
     "dist"
   ],
   "scripts": {
+    "prebuild": "mise run -C ../.. opendict-cdb-data",
     "build": "tsdown && node -e \"const fs=require('node:fs');fs.mkdirSync('dist',{recursive:true});for(const f of ['general.cdb','north-korean.cdb','dialect.cdb','archaic.cdb'])fs.copyFileSync(f,'dist/'+f)\""
   },
   "homepage": "https://github.com/dahlia/gukhanmun",
