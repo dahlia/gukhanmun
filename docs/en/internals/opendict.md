@@ -28,9 +28,9 @@ Snapshot
 
 | Category     | Source label | TSV file           | Entries | SHA-256                                                            |
 | ------------ | ------------ | ------------------ | ------: | ------------------------------------------------------------------ |
-| General      | 일반어       | *general.tsv*      | 350,383 | `db42f9c3ee160abf2ebb46da7df2f761e1392d19f29af32fbcfdf190c401020e` |
+| General      | 일반어       | *general.tsv*      | 350,328 | `4637f209faf03b918b18c3db67afdc1082dc8f4bc10d92aae044e4e9cb89294a` |
 | North Korean | 북한어       | *north-korean.tsv* |  34,093 | `cdc67c66b3c5febf870a406188e9621dd3a72654b5e878de1e9fb25b40db6256` |
-| Dialect      | 방언         | *dialect.tsv*      |   5,715 | `a77ec3981ff0804ac97a59de8b44c262bd964f9031c706ba501126e793f92652` |
+| Dialect      | 방언         | *dialect.tsv*      |   5,714 | `24547f29e78e2b3bc9a1709294e0030940b46c862e503f2f337c2f5609a801a8` |
 | Archaic      | 옛말         | *archaic.tsv*      |      16 | `0f77342de48317faf10a997b156955bf73cad442e36d150a91ed19265fea0bdc` |
 
 
