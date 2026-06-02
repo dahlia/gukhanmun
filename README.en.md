@@ -45,8 +45,9 @@ Features
     longest match. 行事場所 segments as 行事 + 場所, not 行事場 + 所.
  -  Pluggable dictionaries: in-memory map, mmap-friendly FST files, or CDB
     files, composable via `ChainDictionary`.
- -  The bundled South Korean Standard Dictionary (標準國語大辭典) ships as a
-    compiled FST, so there is nothing extra to download.
+ -  The bundled *Standard Korean Language Dictionary* (標準國語大辭典) and
+    *Open Korean Dictionary* (우리말샘) ship as compiled FST/CDB, so there is
+    nothing extra to download.
  -  Format adapters for plain text, HTML fragments, and Markdown. The engine is
     format-neutral; adapters handle parsing and serialization.
  -  Five rendering modes: hangul-only, hangul(hanja) parentheses,

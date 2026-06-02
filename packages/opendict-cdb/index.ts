@@ -37,27 +37,45 @@ import type { FileDictionarySource } from "@gukhanmun/types";
 
 export type { FileDictionarySource } from "@gukhanmun/types";
 
-/** URL of the bundled Open Korean Dictionary 일반어 CDB binary. */
+/**
+ * URL of the bundled Open Korean Dictionary 一般語 CDB binary.
+ *
+ * The bundled artifact is stored gzip-compressed (hence the `.cdb.gz`
+ * extension) to stay within registry per-file size limits;
+ * {@link opendictCdbBytes} inflates it transparently.
+ */
 export const opendictGeneralCdbUrl: URL = new URL(
-  "./general.cdb",
+  "./general.cdb.gz",
   import.meta.url,
 );
 
-/** URL of the bundled Open Korean Dictionary 북한어 CDB binary. */
+/**
+ * URL of the bundled Open Korean Dictionary 北韓語 CDB binary.
+ *
+ * Stored gzip-compressed; {@link opendictCdbBytes} inflates it transparently.
+ */
 export const opendictNorthKoreanCdbUrl: URL = new URL(
-  "./north-korean.cdb",
+  "./north-korean.cdb.gz",
   import.meta.url,
 );
 
-/** URL of the bundled Open Korean Dictionary 방언 CDB binary. */
+/**
+ * URL of the bundled Open Korean Dictionary 方言 CDB binary.
+ *
+ * Stored gzip-compressed; {@link opendictCdbBytes} inflates it transparently.
+ */
 export const opendictDialectCdbUrl: URL = new URL(
-  "./dialect.cdb",
+  "./dialect.cdb.gz",
   import.meta.url,
 );
 
-/** URL of the bundled Open Korean Dictionary 옛말 CDB binary. */
+/**
+ * URL of the bundled Open Korean Dictionary 옛말 CDB binary.
+ *
+ * Stored gzip-compressed; {@link opendictCdbBytes} inflates it transparently.
+ */
 export const opendictArchaicCdbUrl: URL = new URL(
-  "./archaic.cdb",
+  "./archaic.cdb.gz",
   import.meta.url,
 );
 
@@ -83,19 +101,11 @@ function canReadLocalFile(): boolean {
     typeof globals.process?.versions?.node === "string";
 }
 
-/**
- * Loads an Open Korean Dictionary CDB binary as raw bytes.
- *
- * A `file:` URL is read from disk with `node:fs/promises` when running in
- * Node.js, Deno, or Bun; in other runtimes (e.g. browsers) and for all
- * other schemes the bytes are retrieved with `fetch`.
- *
- * @param url Location of the CDB binary to read.
- * @returns The CDB binary as a `Uint8Array`.
- */
-export async function opendictCdbBytes(
-  url: URL,
-): Promise<Uint8Array> {
+// Reads the raw bytes at `url` from disk (Node.js, Deno, Bun) or over the
+// network (browsers and non-`file:` schemes), without any decompression.  The
+// returned view is backed by a plain `ArrayBuffer` so it satisfies the web
+// stream APIs used to inflate gzip members.
+async function readBytes(url: URL): Promise<Uint8Array<ArrayBuffer>> {
   if (url.protocol === "file:" && canReadLocalFile()) {
     const specifier: string = "node:fs/promises";
     const fs = (await import(
@@ -109,6 +119,47 @@ export async function opendictCdbBytes(
     throw new Error(`Failed to fetch opendict CDB: HTTP ${response.status}`);
   }
   return new Uint8Array(await response.arrayBuffer());
+}
+
+// Returns whether `bytes` begins with the gzip magic number (0x1f 0x8b).
+function isGzip(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+// Inflates a single gzip member back into its original bytes using the
+// standard `DecompressionStream`, which is available in Node.js, Deno, Bun,
+// and browsers.  Consumption starts before the write is awaited so the reader
+// relieves backpressure instead of the writer deadlocking against it.
+async function gunzip(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
+  const decompressor = new DecompressionStream("gzip");
+  const inflated = new Response(decompressor.readable).arrayBuffer();
+  const writer = decompressor.writable.getWriter();
+  await writer.write(bytes);
+  await writer.close();
+  return new Uint8Array(await inflated);
+}
+
+/**
+ * Loads an Open Korean Dictionary CDB binary as raw bytes.
+ *
+ * A `file:` URL is read from disk with `node:fs/promises` when running in
+ * Node.js, Deno, or Bun; in other runtimes (e.g. browsers) and for all
+ * other schemes the bytes are retrieved with `fetch`.
+ *
+ * The bundled binaries are stored gzip-compressed to stay within registry
+ * per-file size limits. Bytes that begin with the gzip magic number are
+ * therefore inflated transparently, so the returned value is always the raw
+ * CDB ready to hand to `load`; bytes that are not gzip-compressed are returned
+ * unchanged.
+ *
+ * @param url Location of the CDB binary to read.
+ * @returns The CDB binary as a `Uint8Array`.
+ */
+export async function opendictCdbBytes(
+  url: URL,
+): Promise<Uint8Array> {
+  const bytes = await readBytes(url);
+  return isGzip(bytes) ? await gunzip(bytes) : bytes;
 }
 
 /**

@@ -9,6 +9,7 @@ packages/stdict-fst/stdict.fst
 packages/stdict-cdb/stdict.cdb
 packages/opendict-fst/*.fst
 packages/opendict-cdb/*.cdb
+packages/opendict-cdb/*.cdb.gz
 packages/napi/gukhanmun_napi.node
 packages/napi-*/gukhanmun_napi.node
 

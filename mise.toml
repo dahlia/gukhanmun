@@ -253,6 +253,10 @@ run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-opendict"
 for category in [general north-korean dialect archaic] {
   cargo run --release -p gukhanmun-mkdict -- --format cdb --output $"packages/opendict-cdb/($category).cdb" $"($manifest_dir)/data/($category).tsv"
+  # Store gzip-compressed so every binary stays under the JSR 20 MiB per-file
+  # limit; the byte loaders inflate transparently.  -n keeps the output
+  # reproducible by omitting the name and timestamp.
+  gzip -9 -n -f $"packages/opendict-cdb/($category).cdb"
 }
 """
 

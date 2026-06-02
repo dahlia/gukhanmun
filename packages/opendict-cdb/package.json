@@ -9,10 +9,10 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./general.cdb": "./dist/general.cdb",
-    "./north-korean.cdb": "./dist/north-korean.cdb",
-    "./dialect.cdb": "./dist/dialect.cdb",
-    "./archaic.cdb": "./dist/archaic.cdb"
+    "./general.cdb.gz": "./dist/general.cdb.gz",
+    "./north-korean.cdb.gz": "./dist/north-korean.cdb.gz",
+    "./dialect.cdb.gz": "./dist/dialect.cdb.gz",
+    "./archaic.cdb.gz": "./dist/archaic.cdb.gz"
   },
   "files": [
     "ATTRIBUTION.md",
@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "prebuild": "mise run -C ../.. opendict-cdb-data",
-    "build": "tsdown && node -e \"const fs=require('node:fs');fs.mkdirSync('dist',{recursive:true});for(const f of ['general.cdb','north-korean.cdb','dialect.cdb','archaic.cdb'])fs.copyFileSync(f,'dist/'+f)\""
+    "build": "tsdown && node -e \"const fs=require('node:fs');fs.mkdirSync('dist',{recursive:true});for(const f of ['general.cdb.gz','north-korean.cdb.gz','dialect.cdb.gz','archaic.cdb.gz'])fs.copyFileSync(f,'dist/'+f)\""
   },
   "homepage": "https://github.com/dahlia/gukhanmun",
   "bugs": "https://github.com/dahlia/gukhanmun/issues",

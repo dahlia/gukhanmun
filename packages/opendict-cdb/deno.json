@@ -9,10 +9,10 @@
       "LICENSE",
       "README.md",
       "index.ts",
-      "general.cdb",
-      "north-korean.cdb",
-      "dialect.cdb",
-      "archaic.cdb"
+      "general.cdb.gz",
+      "north-korean.cdb.gz",
+      "dialect.cdb.gz",
+      "archaic.cdb.gz"
     ]
   }
 }

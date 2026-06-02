@@ -128,7 +128,9 @@ To be released.
  -  Added a package containing Open Korean Dictionary general (一般語), North
     Korean (北韓語), dialect (方言), and archaic (옛말) categories as CDB
     binaries, with category-specific byte loaders and `FileDictionarySource`
-    helpers.  [[#5], [#6]]
+    helpers.  The binaries ship gzip-compressed (as _\*.cdb.gz_) to stay within
+    the JSR per-file size limit, and the byte loaders inflate them
+    transparently.  [[#5], [#6]]
 
 ### @gukhanmun/opendict-fst
 

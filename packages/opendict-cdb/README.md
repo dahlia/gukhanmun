@@ -72,6 +72,12 @@ To get the package URL of a CDB binary, use the `*Url` constants:
 The `*Bytes()` helpers read the binary from disk using `node:fs/promises` if loaded from
 a `file:` URL (default for npm installations), and fall back to `fetch` for other protocols.
 
+The bundled binaries ship gzip-compressed (the `*Url` constants point at
+*\*.cdb.gz* files) to stay within the JSR per-file size limit. The `*Bytes()`
+helpers inflate them transparently, so their return value is always the raw
+CDB; only reach past them to the `*Url` constants if you intend to handle the
+gzip yourself.
+
 
 Relation to `@gukhanmun/opendict-fst`
 -------------------------------------
