@@ -20,6 +20,7 @@ use std::io::Write;
 use assert_cmd::Command;
 use gukhanmun_core::HanjaDictionary;
 use gukhanmun_opendict::extract::{CategoryWriters, ExtractStats, extract_json_reader_to_files};
+use predicates::str::contains;
 use tempfile::tempdir;
 use zip::ZipWriter;
 use zip::write::FileOptions;
@@ -177,7 +178,7 @@ fn cli_extracts_from_zip_archives() {
         ])
         .assert()
         .success()
-        .stderr(predicates::str::contains("extraction complete"));
+        .stderr(contains("extraction complete"));
 
     assert!(
         fs::read_to_string(general_path)
@@ -331,6 +332,16 @@ fn synthetic_json() -> &'static str {
           ]
         },
         "senseinfo": { "type": "일반어" }
+      },
+      {
+        "wordinfo": {
+          "word": "전문어",
+          "word_unit": "어휘",
+          "original_language_info": [
+            { "original_language": "專門語", "language_type": "한자" }
+          ]
+        },
+        "senseinfo": { "type": "전문어" }
       },
       {
         "wordinfo": {

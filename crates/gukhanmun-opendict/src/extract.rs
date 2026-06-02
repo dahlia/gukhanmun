@@ -86,10 +86,14 @@ impl Category {
     }
 }
 
-/// Statistics describing one extraction run.
+/// Statistics describing one supported Open Korean Dictionary category in one
+/// extraction run.
+///
+/// Items whose `senseinfo.type` does not map to a supported [`Category`] are
+/// ignored before per-category statistics are updated.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ExtractStats {
-    /// Number of JSON `item` records read from the dump.
+    /// Number of JSON `item` records read for this category.
     pub items_seen: usize,
     /// Number of canonical TSV dictionary rows written after de-duplication.
     pub entries_written: usize,
@@ -101,7 +105,10 @@ pub struct ExtractStats {
     pub skipped_items: usize,
 }
 
-/// Statistics for every Open Korean Dictionary category.
+/// Statistics for every supported Open Korean Dictionary category.
+///
+/// The extractor intentionally does not expose a global item counter; items
+/// from unsupported `senseinfo.type` labels are outside these category totals.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct CategoryStats {
     /// General vocabulary statistics.
@@ -246,17 +253,16 @@ impl Extractor {
             .and_then(|senseinfo| senseinfo.lexical_type.as_deref())
             .and_then(Category::from_label);
         let Some(category) = category else {
-            self.increment_skipped(None);
             return;
         };
         self.stats.get_mut(category).items_seen += 1;
 
         let Some(wordinfo) = item.wordinfo else {
-            self.increment_skipped(Some(category));
+            self.increment_skipped(category);
             return;
         };
         if wordinfo.word_unit.as_deref().map(str::trim) != Some("어휘") {
-            self.increment_skipped(Some(category));
+            self.increment_skipped(category);
             return;
         }
         let Some(mut reading) = wordinfo
@@ -266,12 +272,12 @@ impl Extractor {
             .map(normalize_word)
             .filter(|reading| !reading.is_empty())
         else {
-            self.increment_skipped(Some(category));
+            self.increment_skipped(category);
             return;
         };
         let originals = wordinfo.original_language_info.as_deref().unwrap_or(&[]);
         let Some(mut keys) = keys_from_originals(originals) else {
-            self.increment_skipped(Some(category));
+            self.increment_skipped(category);
             return;
         };
         if has_foreign_hanja_spelling(originals) {
@@ -281,7 +287,7 @@ impl Extractor {
             // place names and similar entries, such as 北京 -> 베이징.
             keys.retain(|key| key.chars().nth(1).is_some());
             if keys.is_empty() {
-                self.increment_skipped(Some(category));
+                self.increment_skipped(category);
                 return;
             }
         }
@@ -305,10 +311,8 @@ impl Extractor {
         }
     }
 
-    fn increment_skipped(&mut self, category: Option<Category>) {
-        if let Some(category) = category {
-            self.stats.get_mut(category).skipped_items += 1;
-        }
+    fn increment_skipped(&mut self, category: Category) {
+        self.stats.get_mut(category).skipped_items += 1;
     }
 
     fn write_files<G, N, D, A>(
