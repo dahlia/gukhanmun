@@ -35,12 +35,6 @@ Version 0.2.0
 
 To be released.
 
- -  Aligned the OpenDict crate and package code license metadata with the
-    GPL-3.0-or-later source headers.  [[#5], [#6]]
-
-[#5]: https://github.com/dahlia/gukhanmun/issues/5
-[#6]: https://github.com/dahlia/gukhanmun/pull/6
-
 ### gukhanmun
 
  -  Collapse redundant parenthetical reading annotations by default.  The new
@@ -48,12 +42,14 @@ To be released.
  -  Added the `opendict` feature and made the `ko-kp` preset include the
     bundled Open Korean Dictionary (우리말샘) North Korean (北韓語) category by
     default.  Added `Builder::no_bundled_dictionaries()` to disable every
-    preset-selected bundled dictionary while keeping
-    `Builder::no_bundled_stdict()` scoped to the Standard Korean Language
-    Dictionary.  [[#5], [#6]]
+    preset-selected bundled dictionary, plus `Builder::no_bundled_stdict()` and
+    `Builder::no_bundled_opendict()` for disabling only one bundled dictionary
+    family.  [[#5], [#6]]
 
 [#3]: https://github.com/dahlia/gukhanmun/issues/3
 [#4]: https://github.com/dahlia/gukhanmun/pull/4
+[#5]: https://github.com/dahlia/gukhanmun/issues/5
+[#6]: https://github.com/dahlia/gukhanmun/pull/6
 
 ### gukhanmun-core
 
@@ -84,9 +80,8 @@ To be released.
     plain-text, HTML, and Markdown pipelines.  The new `--no-collapse-parens`
     flag disables it.  [[#3], [#4]]
  -  The `ko-kp` preset now includes the bundled Open Korean Dictionary North
-    Korean (北韓語) category by default.  Replaced `--no-stdict` with
-    `--no-bundled-dictionaries`, which disables every preset-selected bundled
-    dictionary.  [[#5], [#6]]
+    Korean (北韓語) category by default.  Added `--no-bundled-dictionaries`,
+    which disables every preset-selected bundled dictionary.  [[#5], [#6]]
 
 ### gukhanmun-opendict
 
@@ -94,15 +89,6 @@ To be released.
     2026-05-03 JSON dump.  The crate exposes separate `general()`,
     `north_korean()`, `dialect()`, and `archaic()` FST dictionaries so callers
     can compose the categories explicitly with `ChainDictionary`.  [[#5], [#6]]
- -  Regenerated the bundled Open Korean Dictionary data so single-hanja
-    foreign-spelling headwords (such as “引” → “히끼”) no longer shadow the
-    Sino-Korean reading of those characters.  [[#5], [#6]]
- -  Hardened Open Korean Dictionary ZIP extraction so non-file archive members
-    matching JSON shard names are ignored.  [[#5], [#6]]
- -  Flushed Open Korean Dictionary TSV writers before reporting extraction
-    success.  [[#5], [#6]]
- -  Accepted uppercase Open Korean Dictionary JSON and ZIP file extensions
-    during extraction.  [[#5], [#6]]
 
 ### gukhanmun-stdict
 
@@ -143,8 +129,6 @@ To be released.
     Korean (北韓語), dialect (方言), and archaic (옛말) categories as CDB
     binaries, with category-specific byte loaders and `FileDictionarySource`
     helpers.  [[#5], [#6]]
- -  Avoids importing `node:fs/promises` in browser `file:` URL contexts; those
-    loads now use `fetch` like other browser URLs.  [[#5], [#6]]
 
 ### @gukhanmun/opendict-fst
 
@@ -152,8 +136,6 @@ To be released.
     Korean (北韓語), dialect (方言), and archaic (옛말) categories as FST
     binaries, with category-specific byte loaders and `FileDictionarySource`
     helpers.  [[#5], [#6]]
- -  Avoids importing `node:fs/promises` in browser `file:` URL contexts; those
-    loads now use `fetch` like other browser URLs.  [[#5], [#6]]
 
 ### @gukhanmun/types
 

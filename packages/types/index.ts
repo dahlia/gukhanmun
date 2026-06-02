@@ -35,7 +35,7 @@
  *   disambiguation, and the bundled *Standard Korean Language Dictionary*
  *   (標準國語大辭典).  Corresponds to Rust `Preset::KoKr`.
  * - `"ko-kp"` — North Korean orthography: no initial sound law (래일,
- *   류행, 녀자), no bundled dictionary.  Corresponds to Rust `Preset::KoKp`.
+ *   류행, 녀자), no bundled dictionary data.  Corresponds to Rust `Preset::KoKp`.
  *
  * Both presets default `rendering` to `"hangul-only"` and `segmentation` to
  * `"lattice"`.  Individual options passed to {@link GukhanmunOptions} override
@@ -450,7 +450,7 @@ export interface GukhanmunOptions {
   /**
    * Ordered list of dictionary sources.  Sources are queried in order;
    * earlier entries take precedence.  When omitted (or empty), only the
-   * fallback Unihan character map is used (no stdict).
+   * fallback Unihan character map is used (no bundled dictionaries).
    *
    * JavaScript presets do **not**
    * automatically include bundled dictionary data.  To use the *Standard

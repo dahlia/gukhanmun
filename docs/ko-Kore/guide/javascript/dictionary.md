@@ -11,8 +11,8 @@ description: |-
 順序대로 探索됩니다; 처음 一致한 것이 採擇됩니다.
 
 
-標準國語大辭典 패키지
----------------------
+《標準國語大辭典》 패키지
+-------------------------
 
 `@gukhanmun/stdict-fst`와 `@gukhanmun/stdict-cdb`는 둘 다 內藏
 《標準國語大辭典》을 各各 다른 바이너리 形式으로 提供합니다.
@@ -34,12 +34,12 @@ const g = await load({ dictionaries: [await stdictCdb()] });
 返還합니다.
 
 
-우리말샘 package
-----------------
+《우리말샘》 패키지
+-------------------
 
-`@gukhanmun/opendict-fst`와 `@gukhanmun/opendict-cdb`는 *우리말샘*을
+`@gukhanmun/opendict-fst`와 `@gukhanmun/opendict-cdb`는 《우리말샘》을
 一般語, 北韓語, 方言, 옛말 分類別 辭典으로 나누어 提供합니다. JavaScript
-preset은 이 package들을 自動 load하지 않으므로, 必要한 分類를 明示的으로
+프리셋은 이 패키지들을 自動으로 불러오지 않으므로, 必要한 分類를 明示的으로
 넘겨야 합니다:
 
 ~~~~ ts twoslash
@@ -59,7 +59,7 @@ const g = await load({
 });
 ~~~~
 
-같은 分類를 CDB 形式으로 쓰려면 CDB package를 使用합니다:
+같은 分類를 CDB 形式으로 쓰려면 CDB 패키지를 使用합니다:
 
 ~~~~ ts twoslash
 // @noErrors: 2451

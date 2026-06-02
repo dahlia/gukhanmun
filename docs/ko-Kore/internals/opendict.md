@@ -1,12 +1,12 @@
 ---
-title: 우리말샘
-description: 우리말샘 分類別 辭典 스냅숏의 出處, 抽出 方針, runtime 使用法.
+title: 《우리말샘》
+description: 《우리말샘》 分類別 辭典 스냅숏의 出處, 抽出 方針, 런타임 使用法.
 ---
 
-우리말샘
-========
+《우리말샘》
+============
 
-`gukhanmun-opendict`는 國立國語院 *우리말샘* JSON 全體 내려받기에서 만든
+`gukhanmun-opendict`는 國立國語院 《우리말샘》 JSON 全體 내려받기에서 만든
 分類別 辭典 스냅숏을 內藏합니다.
 
 原本 덤프는 이 貯藏所에 커밋하지 않습니다. 代身
@@ -71,8 +71,8 @@ Sino-Korean 읽기를 가리지 않도록 건너뜁니다.
 優先順位를 만들 수 있습니다.
 
 
-Runtime 使用
-------------
+런타임 使用
+-----------
 
 Rust crate는 分類別 loader를 提供합니다:
 
@@ -82,7 +82,7 @@ Rust crate는 分類別 loader를 提供합니다:
  -  `gukhanmun_opendict::archaic()`
 
 Rust와 CLI에서 `Preset::KoKp`는 北韓語 辭典을 기본으로 포함합니다.
-JavaScript binding은 어느 preset에서도 辭典 데이터를 自動 load하지
+JavaScript 바인딩은 어느 프리셋에서도 辭典 데이터를 自動으로 불러오지
 않습니다. 必要한 分類를 `@gukhanmun/opendict-fst`나
-`@gukhanmun/opendict-cdb`에서 불러 `load({ dictionaries: [...] })`에
+`@gukhanmun/opendict-cdb`에서 불러와 `load({ dictionaries: [...] })`에
 넘기면 됩니다.

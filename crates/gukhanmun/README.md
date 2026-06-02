@@ -32,8 +32,9 @@ gukhanmun = { version = "0.1", default-features = false, features = ["html"] }
 ~~~~
 
 Available features: `html`, `markdown`, `fst`, `cdb`, `stdict` (implies
-`fst`). The `stdict` feature embeds the South Korean Standard Dictionary and
-adds roughly 3 MB to the binary.
+`fst`), and `opendict` (implies `fst`). The `stdict` feature embeds the South
+Korean Standard Dictionary, and `opendict` embeds Open Korean Dictionary
+(우리말샘) category data.
 
 
 Usage
@@ -56,7 +57,7 @@ use gukhanmun::{Builder, MapDictionary};
 let mut dict = MapDictionary::new();
 dict.insert("外字", "외자");
 let converter = Builder::new()
-    .no_bundled_stdict()
+    .no_bundled_dictionaries()
     .push_dictionary(dict)
     .build()?;
 assert_eq!(converter.convert_text_to_string("外字")?, "외자");
@@ -87,19 +88,23 @@ Presets
 -------
 
 `Preset::KoKr` (the default) loads the bundled Standard Korean Language
-Dictionary and applies the initial sound law. `Preset::KoKp` omits both,
-following North Korean orthographic conventions where Sino-Korean words are
-written without the initial sound law (래일, 류행, 녀자).
+Dictionary and applies the initial sound law. `Preset::KoKp` loads the bundled
+Open Korean Dictionary North Korean category and disables the initial sound
+law, following North Korean orthographic conventions where Sino-Korean words
+are written without the initial sound law (래일, 류행, 녀자). Use
+`Builder::no_bundled_dictionaries()` to disable every bundled dictionary, or
+`Builder::no_bundled_stdict()` / `Builder::no_bundled_opendict()` to disable
+one bundled dictionary family.
 
 
 Relation to the other workspace crates
 --------------------------------------
 
 `gukhanmun` re-exports public items from `gukhanmun-core`, `gukhanmun-html`,
-`gukhanmun-markdown`, `gukhanmun-fst`, `gukhanmun-cdb`, and `gukhanmun-stdict`
-under feature gates. Code that needs only a subset of the pipeline can depend
-on those crates directly. The full workspace is documented in *DESIGN.md* at
-the repository root.
+`gukhanmun-markdown`, `gukhanmun-fst`, `gukhanmun-cdb`, `gukhanmun-stdict`, and
+`gukhanmun-opendict` under feature gates. Code that needs only a subset of the
+pipeline can depend on those crates directly. The full workspace is documented
+in *DESIGN.md* at the repository root.
 
 
 License
