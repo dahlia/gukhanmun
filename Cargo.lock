@@ -943,6 +943,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gukhanmun-opendict"
+version = "0.2.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "gukhanmun-dict-extract",
+ "predicates",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tracing",
+ "tracing-subscriber",
+ "zip",
+]
+
+[[package]]
 name = "gukhanmun-stdict"
 version = "0.2.0"
 dependencies = [
