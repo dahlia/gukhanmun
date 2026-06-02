@@ -2,7 +2,7 @@
   "name": "@gukhanmun/opendict-fst",
   "version": "0.2.0",
   "exports": "./index.ts",
-  "license": "GPL-3.0-only AND LicenseRef-CC-BY-SA-2.0-KR",
+  "license": "GPL-3.0-only",
   "publish": {
     "include": [
       "ATTRIBUTION.md",

@@ -78,6 +78,6 @@ pub fn archaic() -> &'static FstDictionary {
 
 fn decode_static_dictionary(bytes: &'static [u8], category: &'static str) -> FstDictionary {
     FstDictionary::from_static_bytes(bytes).unwrap_or_else(|error| {
-        panic!("embedded Open Korean Dictionary {category} FST is valid: {error}")
+        panic!("embedded Open Korean Dictionary {category} FST is invalid: {error}")
     })
 }
