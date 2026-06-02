@@ -128,7 +128,7 @@ impl Extractor {
                     .extension()
                     .is_some_and(|extension| extension == "json")
                 {
-                    self.read_json(BufReader::new(fs::File::open(path)?))?;
+                    self.read_json(fs::File::open(path)?)?;
                 }
             }
         } else if path.extension().is_some_and(|extension| extension == "zip") {
@@ -136,7 +136,7 @@ impl Extractor {
             self.read_zip(fs::File::open(path)?)?;
         } else {
             tracing::info!(path = %path.display(), input_type = "json", "extracting Standard Korean Language Dictionary");
-            self.read_json(BufReader::new(fs::File::open(path)?))?;
+            self.read_json(fs::File::open(path)?)?;
         }
         Ok(())
     }
@@ -165,7 +165,7 @@ impl Extractor {
     }
 
     fn read_json(&mut self, reader: impl Read) -> Result<()> {
-        let dump = serde_json::from_reader::<_, Dump>(reader)?;
+        let dump = serde_json::from_reader::<_, Dump>(BufReader::new(reader))?;
         tracing::debug!(
             items_ingested = dump.channel.item.len(),
             "processed JSON dump"
