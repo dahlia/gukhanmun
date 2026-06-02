@@ -101,6 +101,8 @@ To be released.
     matching JSON shard names are ignored.  [[#5], [#6]]
  -  Flushed Open Korean Dictionary TSV writers before reporting extraction
     success.  [[#5], [#6]]
+ -  Accepted uppercase Open Korean Dictionary JSON and ZIP file extensions
+    during extraction.  [[#5], [#6]]
 
 ### gukhanmun-stdict
 

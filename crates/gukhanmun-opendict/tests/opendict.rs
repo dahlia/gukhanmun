@@ -114,6 +114,40 @@ fn cli_ignores_json_named_subdirectories() {
 }
 
 #[test]
+fn cli_reads_uppercase_json_extensions_in_directories() {
+    let temp = tempdir().unwrap();
+    let input_dir = temp.path().join("input");
+    let general_path = temp.path().join("general.tsv");
+    let north_korean_path = temp.path().join("north-korean.tsv");
+    let dialect_path = temp.path().join("dialect.tsv");
+    let archaic_path = temp.path().join("archaic.tsv");
+    fs::create_dir(&input_dir).unwrap();
+    fs::write(input_dir.join("part.JSON"), synthetic_json()).unwrap();
+
+    Command::cargo_bin("gukhanmun-opendict-extract")
+        .unwrap()
+        .args([
+            input_dir.to_str().unwrap(),
+            "--general-output",
+            general_path.to_str().unwrap(),
+            "--north-korean-output",
+            north_korean_path.to_str().unwrap(),
+            "--dialect-output",
+            dialect_path.to_str().unwrap(),
+            "--archaic-output",
+            archaic_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        fs::read_to_string(general_path)
+            .unwrap()
+            .contains("歷史\t역사")
+    );
+}
+
+#[test]
 fn cli_extracts_from_zip_archives() {
     let temp = tempdir().unwrap();
     let zip_path = temp.path().join("opendict.zip");
@@ -164,6 +198,44 @@ fn cli_extracts_from_zip_archives() {
         fs::read_to_string(archaic_path)
             .unwrap()
             .contains("古語\t고어")
+    );
+}
+
+#[test]
+fn cli_extracts_from_uppercase_zip_archive_extensions() {
+    let temp = tempdir().unwrap();
+    let zip_path = temp.path().join("opendict.ZIP");
+    let general_path = temp.path().join("general.tsv");
+    let north_korean_path = temp.path().join("north-korean.tsv");
+    let dialect_path = temp.path().join("dialect.tsv");
+    let archaic_path = temp.path().join("archaic.tsv");
+    let zip_file = fs::File::create(&zip_path).unwrap();
+    let mut zip = ZipWriter::new(zip_file);
+    zip.start_file::<_, ()>("part.JSON", FileOptions::default())
+        .unwrap();
+    zip.write_all(synthetic_json().as_bytes()).unwrap();
+    zip.finish().unwrap();
+
+    Command::cargo_bin("gukhanmun-opendict-extract")
+        .unwrap()
+        .args([
+            zip_path.to_str().unwrap(),
+            "--general-output",
+            general_path.to_str().unwrap(),
+            "--north-korean-output",
+            north_korean_path.to_str().unwrap(),
+            "--dialect-output",
+            dialect_path.to_str().unwrap(),
+            "--archaic-output",
+            archaic_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        fs::read_to_string(general_path)
+            .unwrap()
+            .contains("歷史\t역사")
     );
 }
 

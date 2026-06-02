@@ -191,15 +191,11 @@ impl Extractor {
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             paths.sort();
             for file_path in paths {
-                if file_path.is_file()
-                    && file_path
-                        .extension()
-                        .is_some_and(|extension| extension == "json")
-                {
+                if file_path.is_file() && has_extension(&file_path, "json") {
                     self.read_json(fs::File::open(file_path)?)?;
                 }
             }
-        } else if path.extension().is_some_and(|extension| extension == "zip") {
+        } else if has_extension(path, "zip") {
             tracing::info!(path = %path.display(), input_type = "zip", "extracting Open Korean Dictionary");
             self.read_zip(fs::File::open(path)?)?;
         } else {
@@ -216,7 +212,7 @@ impl Extractor {
         let mut archive = ZipArchive::new(reader)?;
         let mut names = archive
             .file_names()
-            .filter(|name| name.ends_with(".json"))
+            .filter(|name| zip_member_has_extension(name, "json"))
             .map(str::to_owned)
             .collect::<Vec<_>>();
         names.sort();
@@ -347,6 +343,19 @@ impl Extractor {
         writer.flush()?;
         Ok(())
     }
+}
+
+fn has_extension(path: &Path, expected: &str) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case(expected))
+}
+
+fn zip_member_has_extension(name: &str, expected: &str) -> bool {
+    Path::new(name)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case(expected))
 }
 
 fn has_foreign_hanja_spelling(originals: &[OriginalLanguageInfo]) -> bool {
