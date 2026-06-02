@@ -8,7 +8,7 @@ This package contains Gukhanmun package code and bundled Open Korean Dictionary
 Code license
 ------------
 
-The Gukhanmun package code is licensed under GPL-3.0-only. See the Gukhanmun
+The Gukhanmun package code is licensed under GPL-3.0-or-later. See the Gukhanmun
 repository root *LICENSE* file for the full license text.
 
 

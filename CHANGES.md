@@ -35,6 +35,12 @@ Version 0.2.0
 
 To be released.
 
+ -  Aligned the OpenDict crate and package code license metadata with the
+    GPL-3.0-or-later source headers.  [[#5], [#6]]
+
+[#5]: https://github.com/dahlia/gukhanmun/issues/5
+[#6]: https://github.com/dahlia/gukhanmun/pull/6
+
 ### gukhanmun
 
  -  Collapse redundant parenthetical reading annotations by default.  The new
@@ -48,8 +54,6 @@ To be released.
 
 [#3]: https://github.com/dahlia/gukhanmun/issues/3
 [#4]: https://github.com/dahlia/gukhanmun/pull/4
-[#5]: https://github.com/dahlia/gukhanmun/issues/5
-[#6]: https://github.com/dahlia/gukhanmun/pull/6
 
 ### gukhanmun-core
 

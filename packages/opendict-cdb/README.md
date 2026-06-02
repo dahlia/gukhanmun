@@ -3,7 +3,7 @@
 
 [![JSR][JSR badge]][JSR]
 [![npm][npm badge]][npm]
-[![License: GPL-3.0-only AND CC BY-SA 2.0 KR][license badge]][GPL]
+[![License: GPL-3.0-or-later AND CC BY-SA 2.0 KR][license badge]][GPL]
 
 Open Korean Dictionary (우리말샘) categories bundled as CDB binaries for
 `@gukhanmun/wasm` and `@gukhanmun/napi`.
@@ -45,4 +45,4 @@ Language's Open Korean Dictionary (우리말샘) JSON dump dated 2026-05-03. See
 License
 -------
 
-Package code is GPL-3.0-only. Bundled dictionary data is CC BY-SA 2.0 KR.
+Package code is GPL-3.0-or-later. Bundled dictionary data is CC BY-SA 2.0 KR.

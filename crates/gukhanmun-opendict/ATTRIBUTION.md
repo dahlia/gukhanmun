@@ -8,7 +8,7 @@ This crate contains Gukhanmun code and bundled Open Korean Dictionary
 Code license
 ------------
 
-The Gukhanmun code in this crate is licensed under GPL-3.0-only. See the
+The Gukhanmun code in this crate is licensed under GPL-3.0-or-later. See the
 repository root *LICENSE* file for the full license text.
 
 

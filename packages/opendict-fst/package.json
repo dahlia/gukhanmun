@@ -30,7 +30,7 @@
     "url": "git+https://github.com/dahlia/gukhanmun.git",
     "directory": "packages/opendict-fst"
   },
-  "license": "GPL-3.0-only AND LicenseRef-CC-BY-SA-2.0-KR",
+  "license": "GPL-3.0-or-later AND LicenseRef-CC-BY-SA-2.0-KR",
   "author": {
     "name": "Hong Minhe (洪 民憙)",
     "email": "hong@minhee.org",
