@@ -223,7 +223,9 @@ impl Extractor {
 
         for name in names {
             let file = archive.by_name(&name)?;
-            self.read_json(file)?;
+            if file.is_file() {
+                self.read_json(file)?;
+            }
         }
 
         Ok(())
