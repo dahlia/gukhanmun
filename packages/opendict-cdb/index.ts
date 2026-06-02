@@ -86,9 +86,9 @@ function canReadLocalFile(): boolean {
 /**
  * Loads an Open Korean Dictionary CDB binary as raw bytes.
  *
- * The access strategy is chosen from the URL scheme, not from the host
- * runtime. A `file:` URL is read from disk with `node:fs/promises` in
- * Node.js, Deno, and Bun; any other scheme is retrieved with `fetch`.
+ * A `file:` URL is read from disk with `node:fs/promises` when running in
+ * Node.js, Deno, or Bun; in other runtimes (e.g. browsers) and for all
+ * other schemes the bytes are retrieved with `fetch`.
  *
  * @param url Location of the CDB binary to read.
  * @returns The CDB binary as a `Uint8Array`.
