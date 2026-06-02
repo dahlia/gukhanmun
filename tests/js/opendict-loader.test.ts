@@ -42,7 +42,7 @@ import {
 /** The byte loaders under test, paired with their bundled-binary URL. */
 const loaders: readonly (readonly [
   string,
-  (url?: URL) => Promise<Uint8Array<ArrayBuffer>>,
+  (url?: URL) => Promise<Uint8Array>,
   URL,
 ])[] = [
   ["opendict-general-fst", opendictGeneralFstBytes, opendictGeneralFstUrl],

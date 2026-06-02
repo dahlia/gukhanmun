@@ -85,7 +85,7 @@ interface NodeFsPromises {
  */
 export async function opendictCdbBytes(
   url: URL,
-): Promise<Uint8Array<ArrayBuffer>> {
+): Promise<Uint8Array> {
   if (url.protocol === "file:") {
     const specifier: string = "node:fs/promises";
     const fs = (await import(
@@ -110,7 +110,7 @@ export async function opendictCdbBytes(
  */
 export function opendictGeneralCdbBytes(
   url: URL = opendictGeneralCdbUrl,
-): Promise<Uint8Array<ArrayBuffer>> {
+): Promise<Uint8Array> {
   return opendictCdbBytes(url);
 }
 
@@ -123,7 +123,7 @@ export function opendictGeneralCdbBytes(
  */
 export function opendictNorthKoreanCdbBytes(
   url: URL = opendictNorthKoreanCdbUrl,
-): Promise<Uint8Array<ArrayBuffer>> {
+): Promise<Uint8Array> {
   return opendictCdbBytes(url);
 }
 
@@ -136,7 +136,7 @@ export function opendictNorthKoreanCdbBytes(
  */
 export function opendictDialectCdbBytes(
   url: URL = opendictDialectCdbUrl,
-): Promise<Uint8Array<ArrayBuffer>> {
+): Promise<Uint8Array> {
   return opendictCdbBytes(url);
 }
 
@@ -149,7 +149,7 @@ export function opendictDialectCdbBytes(
  */
 export function opendictArchaicCdbBytes(
   url: URL = opendictArchaicCdbUrl,
-): Promise<Uint8Array<ArrayBuffer>> {
+): Promise<Uint8Array> {
   return opendictCdbBytes(url);
 }
 
