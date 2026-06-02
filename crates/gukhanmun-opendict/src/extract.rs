@@ -218,12 +218,9 @@ impl Extractor {
             .collect::<Vec<_>>();
         names.sort();
 
-        let mut bytes = Vec::new();
         for name in names {
-            let mut file = archive.by_name(&name)?;
-            bytes.clear();
-            file.read_to_end(&mut bytes)?;
-            self.read_json(&bytes[..])?;
+            let file = archive.by_name(&name)?;
+            self.read_json(BufReader::new(file))?;
         }
 
         Ok(())
@@ -261,7 +258,7 @@ impl Extractor {
             self.increment_skipped(Some(category));
             return;
         }
-        let Some(reading) = wordinfo
+        let Some(mut reading) = wordinfo
             .word
             .as_deref()
             .map(str::trim)
@@ -278,10 +275,16 @@ impl Extractor {
         };
 
         let entries = self.entries.entry(category).or_default();
-        for key in keys {
+        let key_count = keys.len();
+        for (index, key) in keys.into_iter().enumerate() {
             match entries.entry(key) {
                 BTreeEntry::Vacant(entry) => {
-                    entry.insert(reading.clone());
+                    let value = if index + 1 == key_count {
+                        std::mem::take(&mut reading)
+                    } else {
+                        reading.clone()
+                    };
+                    entry.insert(value);
                 }
                 BTreeEntry::Occupied(_) => {
                     self.stats.get_mut(category).duplicate_keys += 1;
