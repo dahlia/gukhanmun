@@ -22,7 +22,9 @@ use std::fs;
 use std::io::{BufReader, Read, Seek, Write};
 use std::path::Path;
 
-use gukhanmun_dict_extract::{OriginalLanguageInfo, keys_from_originals, normalize_word};
+use gukhanmun_dict_extract::{
+    OriginalLanguageInfo, foreign_hanja_piece, keys_from_originals, normalize_word,
+};
 use serde::Deserialize;
 use zip::ZipArchive;
 
@@ -189,9 +191,10 @@ impl Extractor {
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             paths.sort();
             for file_path in paths {
-                if file_path
-                    .extension()
-                    .is_some_and(|extension| extension == "json")
+                if file_path.is_file()
+                    && file_path
+                        .extension()
+                        .is_some_and(|extension| extension == "json")
                 {
                     self.read_json(BufReader::new(fs::File::open(file_path)?))?;
                 }
@@ -269,10 +272,21 @@ impl Extractor {
             return;
         };
         let originals = wordinfo.original_language_info.as_deref().unwrap_or(&[]);
-        let Some(keys) = keys_from_originals(originals) else {
+        let Some(mut keys) = keys_from_originals(originals) else {
             self.increment_skipped(Some(category));
             return;
         };
+        if has_foreign_hanja_spelling(originals) {
+            // Single hanja borrowed for foreign readings, such as Japanese
+            // 引き -> 引, are weaker than the engine's bundled Sino-Korean
+            // readings for the same character. Keep multi-character foreign
+            // place names and similar entries, such as 北京 -> 베이징.
+            keys.retain(|key| key.chars().count() != 1);
+            if keys.is_empty() {
+                self.increment_skipped(Some(category));
+                return;
+            }
+        }
 
         let entries = self.entries.entry(category).or_default();
         let key_count = keys.len();
@@ -330,6 +344,18 @@ impl Extractor {
         );
         Ok(())
     }
+}
+
+fn has_foreign_hanja_spelling(originals: &[OriginalLanguageInfo]) -> bool {
+    originals.iter().any(|original| {
+        let language_type = original.language_type.as_deref().unwrap_or("");
+        !matches!(language_type, "한자" | "고유어")
+            && !language_type.contains("병기")
+            && original
+                .original_language
+                .as_deref()
+                .is_some_and(|original_language| foreign_hanja_piece(original_language).is_some())
+    })
 }
 
 #[derive(Debug, Deserialize)]

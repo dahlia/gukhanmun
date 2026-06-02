@@ -44,20 +44,22 @@ fn extracts_category_tsvs_from_synthetic_json() {
     assert_eq!(
         stats.general,
         ExtractStats {
-            items_seen: 6,
+            items_seen: 7,
             entries_written: 4,
             duplicate_keys: 1,
-            skipped_items: 1,
+            skipped_items: 2,
         }
     );
+    let general = String::from_utf8(general).unwrap();
     assert_eq!(
-        String::from_utf8(general).unwrap(),
+        general,
         "hanja\thangul\trequire_hanja\trequire_hangul\n\
          勞動\t노동\tfalse\tfalse\n\
          北京\t베이징\tfalse\tfalse\n\
          歷史\t역사\tfalse\tfalse\n\
          색깔論\t색깔론\tfalse\tfalse\n"
     );
+    assert!(!general.contains("引\t히끼"));
     assert_eq!(
         String::from_utf8(north_korean).unwrap(),
         "hanja\thangul\trequire_hanja\trequire_hangul\n\
@@ -73,6 +75,41 @@ fn extracts_category_tsvs_from_synthetic_json() {
         String::from_utf8(archaic).unwrap(),
         "hanja\thangul\trequire_hanja\trequire_hangul\n\
          古語\t고어\tfalse\tfalse\n"
+    );
+}
+
+#[test]
+fn cli_ignores_json_named_subdirectories() {
+    let temp = tempdir().unwrap();
+    let input_dir = temp.path().join("input");
+    let general_path = temp.path().join("general.tsv");
+    let north_korean_path = temp.path().join("north-korean.tsv");
+    let dialect_path = temp.path().join("dialect.tsv");
+    let archaic_path = temp.path().join("archaic.tsv");
+    fs::create_dir(&input_dir).unwrap();
+    fs::write(input_dir.join("part.json"), synthetic_json()).unwrap();
+    fs::create_dir(input_dir.join("nested.json")).unwrap();
+
+    Command::cargo_bin("gukhanmun-opendict-extract")
+        .unwrap()
+        .args([
+            input_dir.to_str().unwrap(),
+            "--general-output",
+            general_path.to_str().unwrap(),
+            "--north-korean-output",
+            north_korean_path.to_str().unwrap(),
+            "--dialect-output",
+            dialect_path.to_str().unwrap(),
+            "--archaic-output",
+            archaic_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        fs::read_to_string(general_path)
+            .unwrap()
+            .contains("歷史\t역사")
     );
 }
 
@@ -137,9 +174,9 @@ fn bundled_dictionaries_are_partitioned_by_category() {
     let dialect = gukhanmun_opendict::dialect();
     let archaic = gukhanmun_opendict::archaic();
 
-    assert_eq!(general.entry_count(), 350_383);
+    assert_eq!(general.entry_count(), 350_328);
     assert_eq!(north_korean.entry_count(), 34_093);
-    assert_eq!(dialect.entry_count(), 5_715);
+    assert_eq!(dialect.entry_count(), 5_714);
     assert_eq!(archaic.entry_count(), 16);
 
     assert_eq!(general.lookup("歷史").unwrap().unwrap().reading(), "역사");
@@ -209,6 +246,16 @@ fn synthetic_json() -> &'static str {
           "original_language_info": [
             { "original_language": "색깔", "language_type": "고유어" },
             { "original_language": "論", "language_type": "한자" }
+          ]
+        },
+        "senseinfo": { "type": "일반어" }
+      },
+      {
+        "wordinfo": {
+          "word": "히끼",
+          "word_unit": "어휘",
+          "original_language_info": [
+            { "original_language": "hiki[引]", "language_type": "안밝힘" }
           ]
         },
         "senseinfo": { "type": "일반어" }

@@ -12583,7 +12583,7 @@ Shimizu[清水]	시미즈	false	false
 也音洞	야음동	false	false
 乫串	갈곶	false	false
 乫串里	갈곶리	false	false
-乳	찌찌	false	false
+乳	유	false	false
 乳井	유정	false	false
 乳兄弟	유형제	false	false
 乳光	유광	false	false
@@ -18306,7 +18306,6 @@ Shimizu[清水]	시미즈	false	false
 仗義하다	장의하다	false	false
 仗衛	장위	false	false
 仗馬	장마	false	false
-付	보탄쓰케	false	false
 付上	부상	false	false
 付上하다	부상하다	false	false
 付下	츠케사게	false	false
@@ -22836,7 +22835,6 @@ Shimizu[清水]	시미즈	false	false
 例飭	예칙	false	false
 例수롭다	예수롭다	false	false
 例컨대	예컨대	false	false
-侍	사무라이	false	false
 侍丁	시정	false	false
 侍丁者	시정자	false	false
 侍上	시상	false	false
@@ -28407,7 +28405,7 @@ Shimizu[清水]	시미즈	false	false
 債金	채금	false	false
 債錢	채전	false	false
 債鬼	채귀	false	false
-傷	기스	false	false
+傷	상	false	false
 傷中	상중	false	false
 傷人害物	상인해물	false	false
 傷人害物之心	상인해물지심	false	false
@@ -37541,7 +37539,6 @@ Shimizu[清水]	시미즈	false	false
 冀望	기망	false	false
 冀望하다	기망하다	false	false
 冀願	기원	false	false
-円	엔	false	false
 円低	엔저	false	false
 円融	엔유	false	false
 円貨	엔화	false	false
@@ -40975,7 +40972,6 @@ Shimizu[清水]	시미즈	false	false
 凹面鏡	요면경	false	false
 凹頭	요두	false	false
 凹頭形	요두형	false	false
-出	하미다시	false	false
 出世	출세	false	false
 出世主義	출세주의	false	false
 出世主義的	출세주의적	false	false
@@ -41942,7 +41938,7 @@ Shimizu[清水]	시미즈	false	false
 刃創	인창	false	false
 刃器	인기	false	false
 刃物臺	인물대	false	false
-分	펀	false	false
+分	분	false	false
 分上制	분상제	false	false
 分下	분하	false	false
 分下錢	분하전	false	false
@@ -47604,7 +47600,7 @@ Shimizu[清水]	시미즈	false	false
 劊子手	회자수	false	false
 劊手	회수	false	false
 劌目鉥心	귀목술심	false	false
-劍	겐보로	false	false
+劍	검	false	false
 劍仙	검선	false	false
 劍俠	검협	false	false
 劍僧傳	검승전	false	false
@@ -50415,7 +50411,7 @@ Shimizu[清水]	시미즈	false	false
 勿驚스럽다	물경스럽다	false	false
 匃施	개시	false	false
 匃施하다	개시하다	false	false
-包	파오	false	false
+包	포	false	false
 包世臣	포세신	false	false
 包主	포주	false	false
 包作	포작	false	false
@@ -55080,7 +55076,7 @@ Shimizu[清水]	시미즈	false	false
 卯酒	묘주	false	false
 卯飮	묘음	false	false
 卯飮하다	묘음하다	false	false
-印	시루시	false	false
+印	인	false	false
 印上加書	인상가서	false	false
 印上加書하다	인상가서하다	false	false
 印交代	인교대	false	false
@@ -59751,7 +59747,6 @@ Shimizu[清水]	시미즈	false	false
 另記	영기	false	false
 另記하다	영기하다	false	false
 叨冒	도모	false	false
-叩	다대기	false	false
 叩地叫天	고지규천	false	false
 叩扉	고비	false	false
 叩扉하다	고비하다	false	false
@@ -63962,7 +63957,6 @@ Shimizu[清水]	시미즈	false	false
 吸飮	흡음	false	false
 吸飮하다	흡음하다	false	false
 吸판	흡판	false	false
-吹	후까시	false	false
 吹乳	취유	false	false
 吹入	취입	false	false
 吹入口	취입구	false	false
@@ -71019,7 +71013,7 @@ Shimizu[清水]	시미즈	false	false
 圉人	어인	false	false
 圊廁	청측	false	false
 圊血	청혈	false	false
-國	구니	false	false
+國	국	false	false
 國中	국중	false	false
 國主	국주	false	false
 國主漢從體	국주한종체	false	false
@@ -73706,7 +73700,6 @@ Shimizu[清水]	시미즈	false	false
 址臺	지대	false	false
 址臺石	지대석	false	false
 址臺돌	지댓돌	false	false
-坂	사카	false	false
 坂出	사카이데	false	false
 坂出市	사카이데시	false	false
 坂町	사카정	false	false
@@ -76091,7 +76084,6 @@ Shimizu[清水]	시미즈	false	false
 塘洞	당동	false	false
 塘洞里	당동리	false	false
 塘馬	당마	false	false
-塙	하나와	false	false
 塙町	하나와정	false	false
 塞內	새내	false	false
 塞北	새북	false	false
@@ -96414,7 +96406,6 @@ Shimizu[清水]	시미즈	false	false
 寡默沈容	과묵침용	false	false
 寡默하다	과묵하다	false	false
 寡默히	과묵히	false	false
-寢	네카시	false	false
 寢不安	침불안	false	false
 寢不安席	침불안석	false	false
 寢不安席하다	침불안석하다	false	false
@@ -109822,7 +109813,7 @@ Shimizu[清水]	시미즈	false	false
 度量衡學	도량형학	false	false
 度量되다	도량되다	false	false
 度量하다	탁량하다	false	false
-座	스와리	false	false
+座	좌	false	false
 座上	좌상	false	false
 座上格	좌상격	false	false
 座下	좌하	false	false
@@ -112126,7 +112117,7 @@ Shimizu[清水]	시미즈	false	false
 弔鐘	조종	false	false
 弔防護工	조방호공	false	false
 弔電	조전	false	false
-引	히끼	false	false
+引	인	false	false
 引上	인상	false	false
 引上價	인상가	false	false
 引上分	인상분	false	false
@@ -112747,7 +112738,7 @@ Shimizu[清水]	시미즈	false	false
 弱하디弱하다	약하디약하다	false	false
 弱한酸	약한산	false	false
 弱흐름	약흐름	false	false
-張	가리바리	false	false
+張	장	false	false
 張三李四	장삼이사	false	false
 張世傑	장세걸	false	false
 張之洞	장지동	false	false
@@ -122791,7 +122782,7 @@ Shimizu[清水]	시미즈	false	false
 愞怯	나겁	false	false
 愞怯하다	나겁하다	false	false
 愞怯히	나겁히	false	false
-感	간지	false	false
+感	감	false	false
 感之德之	감지덕지	false	false
 感之德之하다	감지덕지하다	false	false
 感作	감작	false	false
@@ -127545,7 +127536,7 @@ Shimizu[清水]	시미즈	false	false
 手싸움	수싸움	false	false
 手읽기	수읽기	false	false
 手지니	수지니	false	false
-才	사이	false	false
+才	재	false	false
 才不足	재부족	false	false
 才不足하다	재부족하다	false	false
 才五介	재오개	false	false
@@ -131635,7 +131626,6 @@ Shimizu[清水]	시미즈	false	false
 捧詔官	봉조관	false	false
 捧贈帛官	봉증백관	false	false
 捧遲晩	봉지만	false	false
-捨	스테미싱	false	false
 捨受	사수	false	false
 捨命	사명	false	false
 捨命하다	사명하다	false	false
@@ -131783,7 +131773,6 @@ Shimizu[清水]	시미즈	false	false
 捺章	날장	false	false
 捺章하다	날장하다	false	false
 捺絃引	날현인	false	false
-捻	히네리	false	false
 捻出	염출	false	false
 捻出하다	염출하다	false	false
 捻匪	염비	false	false
@@ -135368,7 +135357,6 @@ Shimizu[清水]	시미즈	false	false
 撦裂하다	차열하다	false	false
 撦餻	차고	false	false
 撩跤	요교	false	false
-撫	나데	false	false
 撫夷堡	무이보	false	false
 撫字	무자	false	false
 撫字하다	무자하다	false	false
@@ -139665,7 +139653,7 @@ Shimizu[清水]	시미즈	false	false
 敢鬪	감투	false	false
 敢鬪하다	감투하다	false	false
 敢히	감히	false	false
-散	지라시	false	false
+散	산	false	false
 散之四方	산지사방	false	false
 散之四方하다	산지사방하다	false	false
 散之四處	산지사처	false	false
@@ -149848,7 +149836,6 @@ Shimizu[清水]	시미즈	false	false
 曩昔	낭석	false	false
 曩時	낭시	false	false
 曩者	낭자	false	false
-曬	사라시	false	false
 曬乾	쇄건	false	false
 曬乾하다	쇄건하다	false	false
 曬書	쇄서	false	false
@@ -155774,7 +155761,6 @@ Shimizu[清水]	시미즈	false	false
 杆錐層	간추층	false	false
 杈	차	false	false
 杈枒	차아	false	false
-杉	스기	false	false
 杉兒	삼아	false	false
 杉戶	스기토	false	false
 杉戶町	스기토정	false	false
@@ -156728,7 +156714,7 @@ Shimizu[清水]	시미즈	false	false
 杜鵑이	두견이	false	false
 杜龍	두룡	false	false
 杜龍里	두룡리	false	false
-杞	치	false	false
+杞	기	false	false
 杞人之憂	기인지우	false	false
 杞人憂天	기인우천	false	false
 杞北	기북	false	false
@@ -156828,7 +156814,7 @@ Shimizu[清水]	시미즈	false	false
 杯葉	배엽	false	false
 杯酒	배주	false	false
 杯酒釋兵權	배주석병권	false	false
-東	히가시카가와	false	false
+東	동	false	false
 東一	동일	false	false
 東一洞	동일동	false	false
 東丁里	동정리	false	false
@@ -158283,7 +158269,6 @@ Shimizu[清水]	시미즈	false	false
 析空觀	석공관	false	false
 枓工	두공	false	false
 枓栱	두공	false	false
-枕	마쿠라	false	false
 枕上	침상	false	false
 枕上一夢	침상일몽	false	false
 枕中記	침중기	false	false
@@ -158688,7 +158673,6 @@ Shimizu[清水]	시미즈	false	false
 枝里	지리	false	false
 枝隆	지륭	false	false
 枝頭	지두	false	false
-枠	와꾸	false	false
 枠張	와쿠바리	false	false
 枯傷	고상	false	false
 枯傷하다	고상하다	false	false
@@ -162483,7 +162467,7 @@ Shimizu[清水]	시미즈	false	false
 楓香脂	풍향지	false	false
 楓나무	풍나무	false	false
 楓혹	풍혹	false	false
-楔	구사비	false	false
+楔	설	false	false
 楔前部	설전부	false	false
 楔子	설자	false	false
 楔底	설저	false	false
@@ -163329,7 +163313,7 @@ Shimizu[清水]	시미즈	false	false
 榧子강정	비자강정	false	false
 榧子나무	비자나무	false	false
 榨菜	자차이	false	false
-榮	룽	false	false
+榮	영	false	false
 榮任	영임	false	false
 榮位	영위	false	false
 榮光	영광	false	false
@@ -166134,7 +166118,6 @@ Shimizu[清水]	시미즈	false	false
 櫷木半닫이	귀목반닫이	false	false
 櫷木나무	귀목나무	false	false
 櫷木뒤주	귀목뒤주	false	false
-櫻	사쿠라	false	false
 櫻區	사쿠라구	false	false
 櫻實	앵실	false	false
 櫻島섬	사쿠라지마섬	false	false
@@ -179248,7 +179231,7 @@ Shimizu[清水]	시미즈	false	false
 派하다	파하다	false	false
 洿池	오지	false	false
 洿濘	오녕	false	false
-流	나가리	false	false
+流	류	false	false
 流三千里	유삼천리	false	false
 流下	유하	false	false
 流下式	유하식	false	false
@@ -179870,7 +179853,6 @@ Shimizu[清水]	시미즈	false	false
 浪遊하다	낭유하다	false	false
 浪鷗圖	낭구도	false	false
 浬	리	false	false
-浮	가리우키	false	false
 浮上	부상	false	false
 浮上刻	부상각	false	false
 浮上彫	부상조	false	false
@@ -183656,7 +183638,7 @@ Shimizu[清水]	시미즈	false	false
 渙發하다	환발하다	false	false
 渚岸	저안	false	false
 渚崖	저애	false	false
-減	헤리	false	false
+減	감	false	false
 減七和音	감칠화음	false	false
 減三和音	감삼화음	false	false
 減下	감하	false	false
@@ -189561,7 +189543,7 @@ Shimizu[清水]	시미즈	false	false
 炒黑	초흑	false	false
 炒黑하다	초흑하다	false	false
 炒하다	초하다	false	false
-炕	캉	false	false
+炕	강	false	false
 炕暴	항포	false	false
 炕暴하다	항포하다	false	false
 炕洞	갱동	false	false
@@ -192567,7 +192549,6 @@ Shimizu[清水]	시미즈	false	false
 然諾하다	연낙하다	false	false
 然이나	연이나	false	false
 然하다	연하다	false	false
-焼	몬자야키	false	false
 煅淬	단쉬	false	false
 煆燒	하소	false	false
 煆燒하다	하소하다	false	false
@@ -194018,7 +193999,6 @@ Shimizu[清水]	시미즈	false	false
 燐靑銅	인청동	false	false
 燐鹽	인염	false	false
 燐鹽球	인염구	false	false
-燒	야키	false	false
 燒乾法	소건법	false	false
 燒亡	소망	false	false
 燒亡되다	소망되다	false	false
@@ -195382,7 +195362,7 @@ Shimizu[清水]	시미즈	false	false
 版박이말	판박이말	false	false
 版짜기	판짜기	false	false
 牋	전	false	false
-牌	파이	false	false
+牌	패	false	false
 牌不進	패부진	false	false
 牌不進하다	패부진하다	false	false
 牌九	패구	false	false
@@ -198948,7 +198928,7 @@ Shimizu[清水]	시미즈	false	false
 率까	솔까	false	false
 率까말	솔까말	false	false
 玈弓	노궁	false	false
-玉	다마	false	false
+玉	옥	false	false
 玉下	옥하	false	false
 玉下里	옥하리	false	false
 玉中玉	옥중옥	false	false
@@ -201131,7 +201111,7 @@ Shimizu[清水]	시미즈	false	false
 琬琰	완염	false	false
 琮沈橋	종침교	false	false
 琱麗	조려	false	false
-琴	고토	false	false
+琴	금	false	false
 琴公里	금공리	false	false
 琴南	금남	false	false
 琴南里	금남리	false	false
@@ -204718,7 +204698,7 @@ Shimizu[清水]	시미즈	false	false
 男종	남종	false	false
 男청	남청	false	false
 甸服	전복	false	false
-町	초	false	false
+町	정	false	false
 町人	초닌	false	false
 町內會	초나이카이	false	false
 町奉行	마치부교	false	false
@@ -206072,7 +206052,6 @@ Shimizu[清水]	시미즈	false	false
 疇生하다	주생하다	false	false
 疇輩	주배	false	false
 疈辜	벽고	false	false
-疊	다다미	false	false
 疊出	첩출	false	false
 疊出하다	첩출하다	false	false
 疊勝舞	첩승무	false	false
@@ -210631,7 +210610,6 @@ Shimizu[清水]	시미즈	false	false
 皴法線	준법선	false	false
 皴皺	준추	false	false
 皴脚	준각	false	false
-皺	시와	false	false
 皺皮狀	추피상	false	false
 皺眉	추미	false	false
 皺眉筋	추미근	false	false
@@ -211562,7 +211540,6 @@ Shimizu[清水]	시미즈	false	false
 盤龍蔘	반룡삼	false	false
 盤龍里	반룡리	false	false
 盤龍鏡	반룡경	false	false
-盥	다라이	false	false
 盥手	관수	false	false
 盥手하다	관수하다	false	false
 盥櫛	관즐	false	false
@@ -217670,7 +217647,6 @@ Shimizu[清水]	시미즈	false	false
 磠砂	노사	false	false
 磣痛	참통	false	false
 磧礫	적력	false	false
-磨	미가키	false	false
 磨光	마광	false	false
 磨光里	마광리	false	false
 磨光하다	마광하다	false	false
@@ -225142,7 +225118,7 @@ Shimizu[清水]	시미즈	false	false
 竭歡하다	갈환하다	false	false
 竭盡	갈진	false	false
 竭盡하다	갈진하다	false	false
-端	하시미싱	false	false
+端	단	false	false
 端人	단인	false	false
 端倪	단예	false	false
 端倪하다	단예하다	false	false
@@ -227296,7 +227272,6 @@ Shimizu[清水]	시미즈	false	false
 箭頭匠	전두장	false	false
 箭魚	전어	false	false
 箭잎	전잎	false	false
-箱	하코	false	false
 箱子	상자	false	false
 箱子匠	상자장	false	false
 箱子形	상자형	false	false
@@ -227968,7 +227943,7 @@ Shimizu[清水]	시미즈	false	false
 簧葉匠	황엽장	false	false
 簨	순	false	false
 簨簴	순거	false	false
-簪	칸자시	false	false
+簪	잠	false	false
 簪剃	잠체	false	false
 簪剃하다	잠체하다	false	false
 簪笏	잠홀	false	false
@@ -227989,7 +227964,7 @@ Shimizu[清水]	시미즈	false	false
 簪裊	잠뇨	false	false
 簪裾	잠거	false	false
 簪頭	잠두	false	false
-簫	샤오	false	false
+簫	소	false	false
 簫史	소사	false	false
 簫雲從	소운종	false	false
 簫韶	소소	false	false
@@ -228474,7 +228449,6 @@ Shimizu[清水]	시미즈	false	false
 粉틀	분틀	false	false
 粉파리매	분파리매	false	false
 粉흙	분흙	false	false
-粒	쓰부	false	false
 粒劑	입제	false	false
 粒團	입단	false	false
 粒團化	입단화	false	false
@@ -230508,7 +230482,6 @@ Shimizu[清水]	시미즈	false	false
 納骨場	납골장	false	false
 納骨葬	납골장	false	false
 納骨하다	납골하다	false	false
-紐	히모	false	false
 紐帶	유대	false	false
 紐帶感	유대감	false	false
 紐帶하다	유대하다	false	false
@@ -231625,7 +231598,7 @@ Shimizu[清水]	시미즈	false	false
 紫겟科	자겟과	false	false
 紫물뱀	자물뱀	false	false
 紫붉돔	자붉돔	false	false
-紬	츠무기	false	false
+紬	주	false	false
 紬亢羅	주항라	false	false
 紬屬	주속	false	false
 紬布	주포	false	false
@@ -234038,7 +234011,7 @@ Shimizu[清水]	시미즈	false	false
 絹鹿	견록	false	false
 絹麻	견마	false	false
 絺綌	치격	false	false
-絽	로	false	false
+絽	여	false	false
 綃	초	false	false
 綃紗	초사	false	false
 綃緞	초단	false	false
@@ -235694,7 +235667,7 @@ Shimizu[清水]	시미즈	false	false
 緡	민	false	false
 緡錢	민전	false	false
 緡錢令	민전령	false	false
-緣	헤리	false	false
+緣	연	false	false
 緣上回	연상회	false	false
 緣以結不解	연이결불해	false	false
 緣修	연수	false	false
@@ -236304,7 +236277,7 @@ Shimizu[清水]	시미즈	false	false
 縫製하다	봉제하다	false	false
 縫針	봉침	false	false
 縫飛	봉비	false	false
-縮	지지미	false	false
+縮	축	false	false
 縮分	축분	false	false
 縮刷	축쇄	false	false
 縮刷版	축쇄판	false	false
@@ -236421,7 +236394,7 @@ Shimizu[清水]	시미즈	false	false
 縮내다	축내다	false	false
 縮지다	축지다	false	false
 縮하다	축하다	false	false
-縱	다테	false	false
+縱	종	false	false
 縱任	종임	false	false
 縱任하다	종임하다	false	false
 縱倍率	종배율	false	false
@@ -237299,7 +237272,6 @@ Shimizu[清水]	시미즈	false	false
 繡치마	수치마	false	false
 繡틀	수틀	false	false
 繡틀臺	수틀대	false	false
-繩	겐나와	false	false
 繩伎	승기	false	false
 繩墨	승묵	false	false
 繩尺	승척	false	false
@@ -237797,7 +237769,7 @@ Shimizu[清水]	시미즈	false	false
 纍纍	누누	false	false
 纍纍衆冢	누누중총	false	false
 纍纍이	누누이	false	false
-纏	마쓰리	false	false
+纏	전	false	false
 纏喉風	전후풍	false	false
 纏帶	전대	false	false
 纏帶褓	전대보	false	false
@@ -243479,7 +243451,6 @@ Shimizu[清水]	시미즈	false	false
 肥馬	비마	false	false
 肥馬輕裘	비마경구	false	false
 肥鮮	비선	false	false
-肩	가다	false	false
 肩上	견상	false	false
 肩下	견하	false	false
 肩井	견정	false	false
@@ -244600,7 +244571,7 @@ Shimizu[清水]	시미즈	false	false
 胸髓	흉수	false	false
 胸高	흉고	false	false
 胸鰓	흉새	false	false
-能	노	false	false
+能	능	false	false
 能不能	능불능	false	false
 能事	능사	false	false
 能仁	능인	false	false
@@ -244872,7 +244843,6 @@ Shimizu[清水]	시미즈	false	false
 脆軟하다	취연하다	false	false
 脆銀石	취은석	false	false
 脆銀鑛	취은광	false	false
-脇	와키	false	false
 脇侍	협시	false	false
 脇侍하다	협시하다	false	false
 脇士	협사	false	false
@@ -245992,7 +245962,6 @@ Shimizu[清水]	시미즈	false	false
 腎靜脈	신정맥	false	false
 腎面	신면	false	false
 腎髓質	신수질	false	false
-腐	쿠사리	false	false
 腐井	부정	false	false
 腐儒	부유	false	false
 腐刑	부형	false	false
@@ -246104,7 +246073,6 @@ Shimizu[清水]	시미즈	false	false
 腔腸	강장	false	false
 腔腸動物	강장동물	false	false
 腔血	강혈	false	false
-腕	우데	false	false
 腕力	완력	false	false
 腕力器	완력기	false	false
 腕力家	완력가	false	false
@@ -246789,7 +246757,6 @@ Shimizu[清水]	시미즈	false	false
 膝關節筋	슬관절근	false	false
 膝靜脈	슬정맥	false	false
 膝骨	슬골	false	false
-膠	니카와	false	false
 膠付	교부	false	false
 膠付하다	교부하다	false	false
 膠分	교분	false	false
@@ -249624,7 +249591,7 @@ Shimizu[清水]	시미즈	false	false
 臶疊	천첩	false	false
 臶疊되다	천첩되다	false	false
 臶疊하다	천첩하다	false	false
-臺	다이	false	false
+臺	대	false	false
 臺上	대상	false	false
 臺上聽令	대상청령	false	false
 臺下	대하	false	false
@@ -256129,7 +256096,6 @@ Shimizu[清水]	시미즈	false	false
 萼筒	악통	false	false
 萼筩	악통	false	false
 萼裂片	악열편	false	false
-落	오토시미싱	false	false
 落丁	낙정	false	false
 落下	낙하	false	false
 落下傘	낙하산	false	false
@@ -257530,7 +257496,7 @@ Shimizu[清水]	시미즈	false	false
 蓊然하다	옹연하다	false	false
 蓊鬱	옹울	false	false
 蓊鬱하다	옹울하다	false	false
-蓋	후타	false	false
+蓋	개	false	false
 蓋世	개세	false	false
 蓋世之才	개세지재	false	false
 蓋世之風	개세지풍	false	false
@@ -259574,7 +259540,7 @@ Shimizu[清水]	시미즈	false	false
 藥풀이	약풀이	false	false
 藥하다	약하다	false	false
 藥행주	약행주	false	false
-藩	한	false	false
+藩	번	false	false
 藩任	번임	false	false
 藩司	번사	false	false
 藩國	번국	false	false
@@ -263841,7 +263807,6 @@ Shimizu[清水]	시미즈	false	false
 衲子	납자	false	false
 衲衣	납의	false	false
 衲袈裟	납가사	false	false
-衵	아코메	false	false
 衵服	일복	false	false
 衷心	충심	false	false
 衷情	충정	false	false
@@ -265471,7 +265436,6 @@ Shimizu[清水]	시미즈	false	false
 製빵酵母	제빵효모	false	false
 製빵類	제빵류	false	false
 製하다	제하다	false	false
-裾	스소	false	false
 裾回	스소마와리	false	false
 裾礁	거초	false	false
 裾縫	스소누이	false	false
@@ -266090,7 +266054,6 @@ Shimizu[清水]	시미즈	false	false
 襦衣	유의	false	false
 襦衣契	유의계	false	false
 襦袢	쥬반	false	false
-襪	시토즈	false	false
 襪袎	말요	false	false
 襪裙	말군	false	false
 襪鞋	말혜	false	false
@@ -266148,7 +266111,6 @@ Shimizu[清水]	시미즈	false	false
 襲하다	습하다	false	false
 襴	난	false	false
 襴衫	난삼	false	false
-襷	다스키	false	false
 西	서	false	false
 西三	서삼	false	false
 西三里	서삼리	false	false
@@ -276721,7 +276683,6 @@ Shimizu[清水]	시미즈	false	false
 豕牢	시뢰	false	false
 豕突	시돌	false	false
 豕突하다	시돌하다	false	false
-豚	돈가스	false	false
 豚丹毒	돈단독	false	false
 豚價	돈가	false	false
 豚兒	돈아	false	false
@@ -282705,7 +282666,6 @@ Shimizu[清水]	시미즈	false	false
 跗坐	부좌	false	false
 跗節	부절	false	false
 跗蹠	부척	false	false
-跛	진파	false	false
 跛倚	피의	false	false
 跛倚하다	피의하다	false	false
 跛立	피립	false	false
@@ -283038,7 +282998,6 @@ Shimizu[清水]	시미즈	false	false
 踰限하다	유한하다	false	false
 踳駮	준박	false	false
 踳駮하다	준박하다	false	false
-踵	가카토	false	false
 踵接	종접	false	false
 踵接하다	종접하다	false	false
 踵揷木	종삽목	false	false
@@ -287253,7 +287212,6 @@ Shimizu[清水]	시미즈	false	false
 近點	근점	false	false
 近點年	근점년	false	false
 近點月	근점월	false	false
-返	가에리	false	false
 返俗謠	반속요	false	false
 返信	반신	false	false
 返信料	반신료	false	false
@@ -288218,7 +288176,6 @@ Shimizu[清水]	시미즈	false	false
 退집	툇집	false	false
 退판	퇴판	false	false
 退하다	퇴하다	false	false
-送	오쿠리	false	false
 送亭川	송정천	false	false
 送人	송인	false	false
 送付	송부	false	false
@@ -297378,7 +297335,7 @@ Shimizu[清水]	시미즈	false	false
 配點	배점	false	false
 配點되다	배점되다	false	false
 配點하다	배점하다	false	false
-酒	사케	false	false
+酒	주	false	false
 酒不雙杯	주불쌍배	false	false
 酒中	주중	false	false
 酒中米	주중미	false	false
@@ -301710,7 +301667,7 @@ Shimizu[清水]	시미즈	false	false
 釵釘	차정	false	false
 釵釧金	차천금	false	false
 鈇鑕	부질	false	false
-鈍	나마시	false	false
+鈍	둔	false	false
 鈍兵	둔병	false	false
 鈍兵하다	둔병하다	false	false
 鈍凸頭	둔철두	false	false
@@ -302764,7 +302721,6 @@ Shimizu[清水]	시미즈	false	false
 銹米	수미	false	false
 銹菌	수균	false	false
 銹菌類	수균류	false	false
-鋏	얏토코	false	false
 鋏刀	협도	false	false
 鋏狀	협상	false	false
 鋏脚	협각	false	false
@@ -302826,7 +302782,7 @@ Shimizu[清水]	시미즈	false	false
 鋪馬文字	포마문자	false	false
 鋪馬箚子色	포마차자색	false	false
 鋪馬起發法	포마기발법	false	false
-鋸	노코기리	false	false
+鋸	거	false	false
 鋸刀	거도	false	false
 鋸匠	거장	false	false
 鋸吻가시치	거물가시치	false	false
@@ -303926,7 +303882,6 @@ Shimizu[清水]	시미즈	false	false
 鏇坏穵足	선배알족	false	false
 鏇機	선기	false	false
 鏐石	규석	false	false
-鏑	가부라	false	false
 鏑矢	적시	false	false
 鏑銜	적함	false	false
 鏖戰	오전	false	false
@@ -303943,7 +303898,6 @@ Shimizu[清水]	시미즈	false	false
 鏜鈀	당파	false	false
 鏜鈀槍	당파창	false	false
 鏜鏜	당당	false	false
-鏝	고데	false	false
 鏝機	고데기	false	false
 鏝하다	고데하다	false	false
 鏡	경	false	false
@@ -304015,7 +303969,6 @@ Shimizu[清水]	시미즈	false	false
 鏤金璫	누금당	false	false
 鏤金하다	누금하다	false	false
 鏤骨銘心	누골명심	false	false
-鏨	다가네	false	false
 鏳子	증자	false	false
 鏵頭草	화두초	false	false
 鏹續不絕	강속부절	false	false
@@ -304557,7 +304510,6 @@ Shimizu[清水]	시미즈	false	false
 鐸鈴	탁령	false	false
 鐺口	당구	false	false
 鐺墨	당묵	false	false
-鑄	이코미	false	false
 鑄像	주상	false	false
 鑄入	주입	false	false
 鑄入하다	주입하다	false	false
@@ -304840,7 +304792,6 @@ Shimizu[清水]	시미즈	false	false
 鑛켜	광켜	false	false
 鑞牌	납패	false	false
 鑞紙	납지	false	false
-鑢	야스리	false	false
 鑢紙	여지	false	false
 鑪盤博士	노반박사	false	false
 鑰匙	약시	false	false
@@ -304868,7 +304819,6 @@ Shimizu[清水]	시미즈	false	false
 鑾刀	난도	false	false
 鑾坡	난파	false	false
 鑾輿	난여	false	false
-鑿	노미	false	false
 鑿井	착정	false	false
 鑿井機	착정기	false	false
 鑿井하다	착정하다	false	false
@@ -307968,7 +307918,6 @@ Shimizu[清水]	시미즈	false	false
 闃寂히	격적히	false	false
 闃然	격연	false	false
 闃然하다	격연하다	false	false
-闇	야매	false	false
 闇冥	암명	false	false
 闇孱	암잔	false	false
 闇孱하다	암잔하다	false	false
@@ -312174,7 +312123,6 @@ Shimizu[清水]	시미즈	false	false
 險하다	험하다	false	false
 險하디險하다	험하디험하다	false	false
 險히	험히	false	false
-隱	가쿠시	false	false
 隱丁	은정	false	false
 隱下里	은하리	false	false
 隱事	은사	false	false
@@ -321918,7 +321866,6 @@ Shimizu[清水]	시미즈	false	false
 顓門的	전문적	false	false
 顓門하다	전문하다	false	false
 顓頊	전욱	false	false
-顔	가오	false	false
 顔之推	안지추	false	false
 顔位	안위	false	false
 顔元	안원	false	false
@@ -324100,7 +324047,6 @@ Shimizu[清水]	시미즈	false	false
 飽食暖衣	포식난의	false	false
 飽食暖衣하다	포식난의하다	false	false
 飽食하다	포식하다	false	false
-飾	가자리	false	false
 飾僞	식위	false	false
 飾僞하다	식위하다	false	false
 飾喜	식희	false	false
@@ -324668,7 +324614,7 @@ Shimizu[清水]	시미즈	false	false
 餞送	전송	false	false
 餞送하다	전송하다	false	false
 餞飮	전음	false	false
-餠	모찌	false	false
+餠	병	false	false
 餠匙	병시	false	false
 餠工	병공	false	false
 餠店洞	병점동	false	false
@@ -330097,7 +330043,6 @@ Shimizu[清水]	시미즈	false	false
 鰷魚	조어	false	false
 鰸魚	구어	false	false
 鰹節	가쓰오부시	false	false
-鰻	우나기	false	false
 鰻鱺	만리	false	false
 鰻鱺魚	만리어	false	false
 鰼魚	습어	false	false

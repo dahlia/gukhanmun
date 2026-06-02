@@ -90,6 +90,9 @@ To be released.
     2026-05-03 JSON dump.  The crate exposes separate `general()`,
     `north_korean()`, `dialect()`, and `archaic()` FST dictionaries so callers
     can compose the categories explicitly with `ChainDictionary`.  [[#5], [#6]]
+ -  Regenerated the bundled Open Korean Dictionary data so single-hanja
+    foreign-spelling headwords (such as “引” → “히끼”) no longer shadow the
+    Sino-Korean reading of those characters.  [[#5], [#6]]
 
 ### gukhanmun-stdict
 
