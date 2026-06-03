@@ -274,15 +274,14 @@ run = "pnpm -r run build"
 
 [tasks.js-test]
 description = "Run JavaScript integration tests on Node.js, Deno, and Bun"
-depends = [
-  "wasm-build",
-  "stdict-fst-data",
-  "stdict-cdb-data",
-  "opendict-fst-data",
-  "opendict-cdb-data",
-  "napi-build",
-  "js-install",
-]
+# Depend on js-build so the package binaries are regenerated before the tests
+# start, never concurrently with them.  js-build's pnpm `prebuild` hooks re-run
+# the *-data tasks (which rewrite packages/*/ binaries in place); on Windows a
+# concurrent reader holding a binary open makes that rewrite fail with a
+# sharing violation.  Ordering js-test after js-build removes that race.
+# js-build already pulls in wasm-build, the *-data tasks, and js-install, so
+# only napi-build needs to be listed alongside it here.
+depends = ["js-build", "napi-build"]
 # Both bindings run on all three runtimes.  The wasm binding loads its module
 # and dictionary files via fetch(file://) (Deno/Bun) or node:fs (Node); the
 # napi native addon needs Deno's --allow-ffi/--allow-env/--allow-sys on top of
