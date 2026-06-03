@@ -104,6 +104,51 @@
     "ko-Kore": "《우리말샘》 옛말",
     "ko-KR": "《우리말샘》 옛말"
   },
+  "pgGroupInputRendering": {
+    "en": "Input & rendering",
+    "ko-Kore": "入力 및 렌더링",
+    "ko-KR": "입력 및 렌더링"
+  },
+  "pgGroupProcessing": {
+    "en": "Conversion",
+    "ko-Kore": "變換",
+    "ko-KR": "변환"
+  },
+  "pgGroupHomophone": {
+    "en": "Homophones",
+    "ko-Kore": "同音異義",
+    "ko-KR": "동음이의"
+  },
+  "pgDictionaries": {
+    "en": "Dictionaries",
+    "ko-Kore": "辭典",
+    "ko-KR": "사전"
+  },
+  "pgOpendictGroup": {
+    "en": "Open Korean Dictionary (우리말샘)",
+    "ko-Kore": "《우리말샘》",
+    "ko-KR": "《우리말샘》"
+  },
+  "pgOpendictCatGeneral": {
+    "en": "General",
+    "ko-Kore": "一般語",
+    "ko-KR": "일반어"
+  },
+  "pgOpendictCatNorthKorean": {
+    "en": "North Korean",
+    "ko-Kore": "北韓語",
+    "ko-KR": "북한어"
+  },
+  "pgOpendictCatDialect": {
+    "en": "Dialect",
+    "ko-Kore": "方言",
+    "ko-KR": "방언"
+  },
+  "pgOpendictCatArchaic": {
+    "en": "Archaic",
+    "ko-Kore": "옛말",
+    "ko-KR": "옛말"
+  },
   "pgDirectives": { "en": "Directives", "ko-Kore": "指示", "ko-KR": "지시" },
   "pgDirectivesHtml": {
     "en": "Directives and HTML preservation",

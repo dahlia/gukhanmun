@@ -19,11 +19,11 @@
 }
 
 .playground-panel-label {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.6875rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--rp-c-text-2, #777);
+  letter-spacing: 0.08em;
+  color: var(--rp-c-text-3, #999);
   flex-shrink: 0;
 }
 
@@ -32,35 +32,37 @@
 .playground-presets {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
   flex-wrap: wrap;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.875rem;
 }
 
 .playground-presets-label {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--rp-c-text-2, #555);
-  margin-right: 0.25rem;
+  color: var(--rp-c-text-2, #666);
+  margin-right: 0.125rem;
 }
 
 .playground-preset {
-  padding: 0.3rem 0.85rem;
-  font-size: 0.875rem;
-  border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 6px;
-  background: var(--rp-c-bg-soft, #f5f5f5);
-  color: var(--rp-c-text-1, inherit);
+  padding: 0.3125rem 0.875rem;
+  font-size: 0.8125rem;
+  border: 1px solid var(--rp-c-divider, #e2e2e2);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--rp-c-text-2, #555);
   cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 
 .playground-preset:hover {
   border-color: var(--rp-c-brand, #2b2b2b);
+  color: var(--rp-c-text-1, inherit);
 }
 
 .playground-preset:focus-visible {
   outline: 2px solid var(--rp-c-brand, #2b2b2b);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 .playground-preset--active {
@@ -70,19 +72,107 @@
   font-weight: 600;
 }
 
-/* ── Options toolbar ───────────────────────────────────────────── */
+/* ── Options panel ─────────────────────────────────────────────── */
 
 .playground-options {
   display: flex;
-  gap: 0.75rem 1.25rem;
+  flex-direction: column;
+  margin-bottom: 0.625rem;
+  border: 1px solid var(--rp-c-divider, #e2e2e2);
+  border-radius: 10px;
+  background: var(--rp-c-bg-soft, #f8f8f8);
+  overflow: hidden;
+}
+
+.playground-options-group {
+  padding: 0.75rem 1.25rem;
+}
+
+.playground-options-group + .playground-options-group {
+  border-top: 1px solid var(--rp-c-divider, #e2e2e2);
+}
+
+.playground-options-group-label {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--rp-c-text-3, #aaa);
+  margin-bottom: 0.625rem;
+}
+
+.playground-options-group-controls {
+  display: flex;
+  gap: 0.625rem 1.25rem;
   align-items: center;
   flex-wrap: wrap;
-  padding: 1rem 1.25rem;
-  margin-bottom: 0.75rem;
-  border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 8px;
+}
+
+/* ── Dictionaries panel ────────────────────────────────────────── */
+
+.playground-dicts {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 0.625rem;
+  border: 1px solid var(--rp-c-divider, #e2e2e2);
+  border-radius: 10px;
   background: var(--rp-c-bg-soft, #f8f8f8);
 }
+
+.playground-dicts-label {
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--rp-c-text-3, #aaa);
+  padding-top: 0.1875rem;
+  min-width: 5.5rem;
+}
+
+.playground-dicts-body {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+}
+
+.playground-dicts-opendict {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem 0.875rem;
+  flex-wrap: wrap;
+}
+
+.playground-dicts-opendict-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--rp-c-text-2, #666);
+  white-space: nowrap;
+}
+
+.playground-dicts-opendict::before {
+  content: "";
+  display: block;
+  width: 1px;
+  height: 1.25rem;
+  background: var(--rp-c-divider, #e2e2e2);
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.playground-dicts-opendict-toggles {
+  display: flex;
+  gap: 0.5rem 0.875rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ── Common controls ───────────────────────────────────────────── */
 
 .playground-control {
   display: flex;
@@ -96,17 +186,23 @@
 
 .playground-control-label {
   white-space: nowrap;
+  color: var(--rp-c-text-2, #666);
 }
 
 .playground-control select {
   padding: 0.25rem 1.75rem 0.25rem 0.5rem;
   border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 4px;
-  background: var(--rp-c-bg-soft, #f5f5f5);
+  border-radius: 6px;
+  background: var(--rp-c-bg, #fff);
   color: var(--rp-c-text-1, inherit);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   appearance: auto;
   cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.playground-control select:hover {
+  border-color: var(--rp-c-brand-lighter, #888);
 }
 
 .playground-control select:focus {
@@ -115,15 +211,20 @@
 }
 
 .playground-control--checkbox {
-  gap: 0.5rem;
+  gap: 0.4375rem;
   cursor: pointer;
 }
 
 .playground-control--checkbox input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
+  width: 0.9375rem;
+  height: 0.9375rem;
   cursor: pointer;
   accent-color: var(--rp-c-brand, #2b2b2b);
+  flex-shrink: 0;
+}
+
+.playground-control--checkbox span {
+  font-size: 0.8125rem;
 }
 
 .playground-control--text {
@@ -136,45 +237,63 @@
   width: 100%;
   padding: 0.3rem 0.5rem;
   border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--rp-c-bg, #fff);
   color: var(--rp-c-text-1, inherit);
   font-size: 0.875rem;
   box-sizing: border-box;
+  transition: border-color 0.15s;
 }
 
 .playground-control--text input:focus {
   outline: 2px solid var(--rp-c-brand, #2b2b2b);
   outline-offset: 1px;
+  border-color: transparent;
 }
 
 /* ── Advanced (directives, HTML preservation) ──────────────────── */
 
 .playground-advanced {
-  margin-bottom: 0.75rem;
-  border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 8px;
+  margin-bottom: 0.625rem;
+  border: 1px solid var(--rp-c-divider, #e2e2e2);
+  border-radius: 10px;
   background: var(--rp-c-bg-soft, #f8f8f8);
 }
 
 .playground-advanced > summary {
   padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--rp-c-text-2, #555);
+  color: var(--rp-c-text-2, #666);
   cursor: pointer;
   user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.playground-advanced > summary::before {
+  content: "▸";
+  font-size: 0.6875rem;
+  color: var(--rp-c-text-3, #aaa);
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+.playground-advanced[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 .playground-advanced[open] > summary {
-  border-bottom: 1px solid var(--rp-c-divider, #ddd);
+  border-bottom: 1px solid var(--rp-c-divider, #e2e2e2);
 }
 
 .playground-advanced-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.75rem 1rem;
-  padding: 1rem 1.25rem;
+  padding: 0.875rem 1.25rem;
 }
 
 /* ── Input textarea ────────────────────────────────────────────── */
@@ -187,13 +306,14 @@
     ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace;
   font-size: 0.875rem;
   line-height: 1.6;
-  border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 6px;
-  background: var(--rp-c-bg-soft, #f8f8f8);
+  border: 1px solid var(--rp-c-divider, #e2e2e2);
+  border-radius: 8px;
+  background: var(--rp-c-bg, #fff);
   color: var(--rp-c-text-1, inherit);
   resize: none;
   min-height: 0;
   box-sizing: border-box;
+  transition: border-color 0.15s;
 }
 
 .playground-textarea:focus {
@@ -207,8 +327,8 @@
 .playground-output {
   flex: 1;
   padding: 0.75rem;
-  border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 6px;
+  border: 1px solid var(--rp-c-divider, #e2e2e2);
+  border-radius: 8px;
   background: var(--rp-c-bg, #fff);
   overflow-y: auto;
   min-height: 0;
@@ -270,34 +390,36 @@
 .playground-examples-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
   margin-bottom: 0.5rem;
 }
 
 .playground-tabs {
   display: flex;
-  gap: 0.375rem;
+  gap: 0.25rem;
   flex-wrap: wrap;
 }
 
 .playground-tab {
-  padding: 0.25rem 0.75rem;
+  padding: 0.25rem 0.6875rem;
   font-size: 0.8125rem;
-  border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 6px;
-  background: var(--rp-c-bg-soft, #f5f5f5);
-  color: var(--rp-c-text-1, inherit);
+  border: 1px solid var(--rp-c-divider, #e2e2e2);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--rp-c-text-2, #666);
   cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 
 .playground-tab:hover {
   border-color: var(--rp-c-brand, #2b2b2b);
+  color: var(--rp-c-text-1, inherit);
 }
 
 .playground-tab:focus-visible {
   outline: 2px solid var(--rp-c-brand, #2b2b2b);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 .playground-tab--active {
@@ -311,11 +433,12 @@
   margin-left: auto;
   padding: 0.25rem 0.75rem;
   font-size: 0.8125rem;
-  border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 6px;
-  background: var(--rp-c-bg-soft, #f5f5f5);
+  border: 1px solid var(--rp-c-divider, #e2e2e2);
+  border-radius: 20px;
+  background: transparent;
   color: var(--rp-c-text-2, #555);
   cursor: pointer;
+  transition: border-color 0.15s;
 }
 
 .playground-copy:hover {
@@ -323,8 +446,8 @@
 }
 
 .playground-code {
-  border: 1px solid var(--rp-c-divider, #ddd);
-  border-radius: 6px;
+  border: 1px solid var(--rp-c-divider, #e2e2e2);
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -393,9 +516,9 @@
 }
 
 .playground-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--rp-c-brand-lighter, #ddd);
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid var(--rp-c-divider, #e2e2e2);
   border-top-color: var(--rp-c-brand, #2b2b2b);
   border-radius: 50%;
   animation: playground-spin 0.75s linear infinite;
@@ -406,7 +529,7 @@
 .playground-error {
   padding: 1rem 1.25rem;
   border: 1px solid #f5c6c6;
-  border-radius: 6px;
+  border-radius: 8px;
   background: #fff5f5;
   color: #c0392b;
 }
@@ -437,5 +560,18 @@
   .playground-textarea,
   .playground-output {
     min-height: 280px;
+  }
+
+  .playground-dicts {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .playground-dicts-label {
+    min-width: unset;
+  }
+
+  .playground-dicts-opendict::before {
+    display: none;
   }
 }

@@ -17,7 +17,7 @@
 import "./Playground.css";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useI18n } from "@rspress/core/runtime";
 import type {
   ContextWindow,
@@ -293,6 +293,7 @@ function TextField(
 
 export function Playground() {
   const t = useI18n<typeof import("i18n")>();
+  const opendictGroupId = useId();
 
   const [status, setStatus] = useState<Status>("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -683,97 +684,131 @@ export function Playground() {
           </div>
 
           <div className="playground-options">
-            <Field
-              label={t("pgInputFormat")}
-              value={format}
-              options={[["text", t("pgFormatText")], ["markdown", t("pgFormatMarkdown")], [
-                "html",
-                t("pgFormatHtml"),
-              ]]}
-              onChange={handleFormatChange}
-            />
-            <Field
-              label={t("pgRendering")}
-              value={rendering}
-              options={RENDERING_OPTIONS}
-              onChange={setRendering}
-            />
-            {rendering === "original" && (
-              <Field
-                label={t("pgOriginalGloss")}
-                value={originalGloss}
-                options={ORIGINAL_GLOSS_OPTIONS}
-                onChange={setOriginalGloss}
+            <div className="playground-options-group">
+              <span className="playground-options-group-label">{t("pgGroupInputRendering")}</span>
+              <div className="playground-options-group-controls">
+                <Field
+                  label={t("pgInputFormat")}
+                  value={format}
+                  options={[["text", t("pgFormatText")], ["markdown", t("pgFormatMarkdown")], [
+                    "html",
+                    t("pgFormatHtml"),
+                  ]]}
+                  onChange={handleFormatChange}
+                />
+                <Field
+                  label={t("pgRendering")}
+                  value={rendering}
+                  options={RENDERING_OPTIONS}
+                  onChange={setRendering}
+                />
+                {rendering === "original" && (
+                  <Field
+                    label={t("pgOriginalGloss")}
+                    value={originalGloss}
+                    options={ORIGINAL_GLOSS_OPTIONS}
+                    onChange={setOriginalGloss}
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="playground-options-group">
+              <span className="playground-options-group-label">{t("pgGroupProcessing")}</span>
+              <div className="playground-options-group-controls">
+                <Field
+                  label={t("pgSegmentation")}
+                  value={segmentation}
+                  options={SEGMENTATION_OPTIONS}
+                  onChange={setSegmentation}
+                />
+                <Field
+                  label={t("pgNumerals")}
+                  value={numerals}
+                  options={NUMERAL_OPTIONS}
+                  onChange={setNumerals}
+                />
+                <Toggle
+                  label={t("pgInitialSoundLaw")}
+                  checked={initialSoundLaw}
+                  onChange={setInitialSoundLaw}
+                />
+                {format === "html" && (
+                  <Field
+                    label={t("pgHtmlRecovery")}
+                    value={recovery}
+                    options={RECOVERY_OPTIONS}
+                    onChange={setRecovery}
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="playground-options-group">
+              <span className="playground-options-group-label">{t("pgGroupHomophone")}</span>
+              <div className="playground-options-group-controls">
+                <Field
+                  label={t("pgHomophoneWindow")}
+                  value={homophoneWindow}
+                  options={WINDOW_OPTIONS}
+                  onChange={setHomophoneWindow}
+                />
+                <Field
+                  label={t("pgHomophoneDetection")}
+                  value={homophoneDetection}
+                  options={DETECTION_OPTIONS}
+                  onChange={setHomophoneDetection}
+                />
+                <Field
+                  label={t("pgFirstOccurrenceWindow")}
+                  value={firstOccurrenceWindow}
+                  options={WINDOW_OPTIONS}
+                  onChange={setFirstOccurrenceWindow}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="playground-dicts">
+            <span className="playground-dicts-label">{t("pgDictionaries")}</span>
+            <div className="playground-dicts-body">
+              <Toggle
+                label={t("pgStdict")}
+                checked={enabledDicts["stdict"]}
+                onChange={(v) => toggleDict("stdict", v)}
               />
-            )}
-            <Field
-              label={t("pgSegmentation")}
-              value={segmentation}
-              options={SEGMENTATION_OPTIONS}
-              onChange={setSegmentation}
-            />
-            <Field
-              label={t("pgNumerals")}
-              value={numerals}
-              options={NUMERAL_OPTIONS}
-              onChange={setNumerals}
-            />
-            <Field
-              label={t("pgHomophoneWindow")}
-              value={homophoneWindow}
-              options={WINDOW_OPTIONS}
-              onChange={setHomophoneWindow}
-            />
-            <Field
-              label={t("pgHomophoneDetection")}
-              value={homophoneDetection}
-              options={DETECTION_OPTIONS}
-              onChange={setHomophoneDetection}
-            />
-            <Field
-              label={t("pgFirstOccurrenceWindow")}
-              value={firstOccurrenceWindow}
-              options={WINDOW_OPTIONS}
-              onChange={setFirstOccurrenceWindow}
-            />
-            {format === "html" && (
-              <Field
-                label={t("pgHtmlRecovery")}
-                value={recovery}
-                options={RECOVERY_OPTIONS}
-                onChange={setRecovery}
-              />
-            )}
-            <Toggle
-              label={t("pgInitialSoundLaw")}
-              checked={initialSoundLaw}
-              onChange={setInitialSoundLaw}
-            />
-            <Toggle
-              label={t("pgStdict")}
-              checked={enabledDicts["stdict"]}
-              onChange={(v) => toggleDict("stdict", v)}
-            />
-            <Toggle
-              label={t("pgOpendictGeneral")}
-              checked={enabledDicts["opendict-general"]}
-              onChange={(v) => toggleDict("opendict-general", v)}
-            />
-            <Toggle
-              label={t("pgOpendictNorthKorean")}
-              checked={enabledDicts["opendict-north-korean"]}
-              onChange={(v) => toggleDict("opendict-north-korean", v)}
-            />
-            <Toggle
-              label={t("pgOpendictDialect")}
-              checked={enabledDicts["opendict-dialect"]}
-              onChange={(v) => toggleDict("opendict-dialect", v)}
-            />
-            <Toggle
-              label={t("pgOpendictArchaic")}
-              checked={enabledDicts["opendict-archaic"]}
-              onChange={(v) => toggleDict("opendict-archaic", v)}
-            />
+              <div
+                className="playground-dicts-opendict"
+                role="group"
+                aria-labelledby={opendictGroupId}
+              >
+                <span id={opendictGroupId} className="playground-dicts-opendict-label">
+                  {t("pgOpendictGroup")}
+                </span>
+                <div className="playground-dicts-opendict-toggles">
+                  <Toggle
+                    label={t("pgOpendictCatGeneral")}
+                    checked={enabledDicts["opendict-general"]}
+                    onChange={(v) => toggleDict("opendict-general", v)}
+                  />
+                  <Toggle
+                    label={t("pgOpendictCatNorthKorean")}
+                    checked={enabledDicts["opendict-north-korean"]}
+                    onChange={(v) => toggleDict("opendict-north-korean", v)}
+                  />
+                  <Toggle
+                    label={t("pgOpendictCatDialect")}
+                    checked={enabledDicts["opendict-dialect"]}
+                    onChange={(v) => toggleDict("opendict-dialect", v)}
+                  />
+                  <Toggle
+                    label={t("pgOpendictCatArchaic")}
+                    checked={enabledDicts["opendict-archaic"]}
+                    onChange={(v) => toggleDict("opendict-archaic", v)}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           <details className="playground-advanced">
