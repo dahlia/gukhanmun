@@ -95,15 +95,105 @@ const DEFAULTS: Record<FormatKey, string> = {
   html: DEFAULT_HTML,
 };
 
-// Preset-specific defaults, mirroring the engine's own resolution.  Switching
-// preset resets the two dependent toggles so the UI reflects what the preset
-// would do; the user can still override afterwards.
-const PRESET_DEFAULTS: Record<
-  Preset,
-  { initialSoundLaw: boolean; homophoneWindow: ContextWindow }
-> = {
-  "ko-kr": { initialSoundLaw: true, homophoneWindow: "per-block" },
-  "ko-kp": { initialSoundLaw: false, homophoneWindow: "off" },
+// Identifiers for every built-in dictionary the playground can toggle: the
+// Standard Korean Language Dictionary plus the four Open Korean Dictionary
+// (우리말샘) categories.
+type DictId =
+  | "stdict"
+  | "opendict-general"
+  | "opendict-north-korean"
+  | "opendict-dialect"
+  | "opendict-archaic";
+
+// Array order = lookup priority (earlier wins).  The Open Korean Dictionary
+// entries are listed before stdict so North Korean orthography can outrank the
+// South Korean reading when both are enabled, matching the opendict crate's
+// documented intent that `north_korean()` be prioritized above the South
+// Korean dictionary.
+const DICT_ORDER: DictId[] = [
+  "opendict-north-korean",
+  "opendict-general",
+  "opendict-dialect",
+  "opendict-archaic",
+  "stdict",
+];
+
+// Lazy byte loaders, one per dictionary.  Each dynamically imports the matching
+// FST package so a category's binary is only downloaded once the user enables
+// it; `ensureDictBytes` memoizes the result per id.
+const DICT_LOADERS: Record<DictId, () => Promise<Uint8Array>> = {
+  "stdict": async () => (await import("@gukhanmun/stdict-fst")).stdictFstBytes(),
+  "opendict-general": async () =>
+    (await import("@gukhanmun/opendict-fst")).opendictGeneralFstBytes(),
+  "opendict-north-korean": async () =>
+    (await import("@gukhanmun/opendict-fst")).opendictNorthKoreanFstBytes(),
+  "opendict-dialect": async () =>
+    (await import("@gukhanmun/opendict-fst")).opendictDialectFstBytes(),
+  "opendict-archaic": async () =>
+    (await import("@gukhanmun/opendict-fst")).opendictArchaicFstBytes(),
+};
+
+// The complete setting set each preset stands for.  A preset is not stored as
+// state; it is a *derived indicator* (see `matchesPreset`/`activePreset`): the
+// button lights up exactly when the live configuration equals one of these
+// sets, however the user reached it, and clears the moment any one governed
+// setting diverges.  Clicking a preset writes every field below at once.
+//
+// Unlike the JS/TS bindings (where a preset never auto-selects a bundled
+// dictionary), the playground applies each preset's bundled set exclusively:
+// ko-kr enables only stdict, ko-kp only the 북한어 category.
+//
+// originalGloss is intentionally not part of a preset: it only applies under
+// the "original" rendering mode, which neither preset uses.  Input format and
+// the free-text directives are content, not preset settings, so they are
+// excluded too.
+type PresetConfig = {
+  rendering: RenderMode;
+  segmentation: Segmentation;
+  numerals: NumeralStrategy;
+  initialSoundLaw: boolean;
+  homophoneWindow: ContextWindow;
+  homophoneDetection: HomophoneDetection;
+  firstOccurrenceWindow: ContextWindow;
+  recovery: Recovery;
+  dicts: Record<DictId, boolean>;
+};
+
+const PRESET_CONFIGS: Record<Preset, PresetConfig> = {
+  "ko-kr": {
+    rendering: "hangul-only",
+    segmentation: "lattice",
+    numerals: "hangul-phonetic",
+    initialSoundLaw: true,
+    homophoneWindow: "per-block",
+    homophoneDetection: "context-local",
+    firstOccurrenceWindow: "off",
+    recovery: "strict",
+    dicts: {
+      "stdict": true,
+      "opendict-general": false,
+      "opendict-north-korean": false,
+      "opendict-dialect": false,
+      "opendict-archaic": false,
+    },
+  },
+  "ko-kp": {
+    rendering: "hangul-only",
+    segmentation: "lattice",
+    numerals: "hangul-phonetic",
+    initialSoundLaw: false,
+    homophoneWindow: "off",
+    homophoneDetection: "context-local",
+    firstOccurrenceWindow: "off",
+    recovery: "strict",
+    dicts: {
+      "stdict": false,
+      "opendict-general": false,
+      "opendict-north-korean": true,
+      "opendict-dialect": false,
+      "opendict-archaic": false,
+    },
+  },
 };
 
 // Split a whitespace/comma-separated list of hanja forms into an array.
@@ -203,8 +293,13 @@ export function Playground() {
   const [output, setOutput] = useState("");
 
   // Engine options (baked into the Gukhanmun instance at load() time).
-  const [useDictionary, setUseDictionary] = useState(true);
-  const [preset, setPreset] = useState<Preset>("ko-kr");
+  const [enabledDicts, setEnabledDicts] = useState<Record<DictId, boolean>>({
+    "stdict": true,
+    "opendict-general": false,
+    "opendict-north-korean": false,
+    "opendict-dialect": false,
+    "opendict-archaic": false,
+  });
   const [rendering, setRendering] = useState<RenderMode>("hangul-only");
   const [originalGloss, setOriginalGloss] = useState<OriginalGloss>("parens");
   const [segmentation, setSegmentation] = useState<Segmentation>("lattice");
@@ -266,7 +361,17 @@ export function Playground() {
   ];
 
   const gRef = useRef<Gukhanmun | null>(null);
-  const dictRef = useRef<Uint8Array | null>(null);
+  // Per-dictionary byte cache; populated lazily the first time a dictionary is
+  // enabled (or eagerly for the default-on stdict during the mount effect).
+  const dictBytesRef = useRef<Map<DictId, Uint8Array>>(new Map());
+
+  async function ensureDictBytes(id: DictId): Promise<Uint8Array> {
+    const cached = dictBytesRef.current.get(id);
+    if (cached) return cached;
+    const bytes = await DICT_LOADERS[id]();
+    dictBytesRef.current.set(id, bytes);
+    return bytes;
+  }
 
   // Refs so async callbacks always see the latest value without extra deps.
   const inputRef = useRef(input);
@@ -278,14 +383,18 @@ export function Playground() {
     formatRef.current = format;
   }, [format]);
 
-  function buildOptions(): GukhanmunOptions {
+  function buildOptions(
+    dictionaries: { data: Uint8Array; format: "fst" }[],
+  ): GukhanmunOptions {
     const rh = parseList(requireHanja);
     const rg = parseList(requireHangul);
     const sa = parseList(skipAnnotation);
     const pc = parseList(preserveClasses);
     const pa = parseList(preserveAttributes);
     return {
-      preset,
+      // No `preset`: every preset-governed field is set explicitly below, so
+      // the preset is purely a UI indicator (the fields a preset would seed are
+      // all overridden here anyway).
       rendering,
       originalGloss,
       segmentation,
@@ -295,9 +404,7 @@ export function Playground() {
       homophoneDetection,
       firstOccurrenceWindow,
       recovery,
-      dictionaries: useDictionary && dictRef.current
-        ? [{ data: dictRef.current, format: "fst" }]
-        : [],
+      dictionaries,
       ...(rh.length || rg.length || sa.length
         ? {
           directives: {
@@ -324,20 +431,18 @@ export function Playground() {
 
     void (async () => {
       try {
-        const [wasmMod, stdictMod] = await Promise.all([
+        // Prime the cached WASM module while the default-on stdict bytes
+        // download, so first paint has its dictionary ready.  Other dictionary
+        // categories load lazily when the user enables them.
+        const [{ load }] = await Promise.all([
           import("@gukhanmun/wasm"),
-          import("@gukhanmun/stdict-fst"),
+          ensureDictBytes("stdict"),
         ]);
         if (cancelled) return;
 
-        // Prime the cached WASM module while the dictionary bytes download.
-        const [, bytes] = await Promise.all([
-          wasmMod.load({}),
-          stdictMod.stdictFstBytes(),
-        ]);
+        await load({});
         if (cancelled) return;
 
-        dictRef.current = bytes;
         setStatus("ready");
       } catch (e) {
         if (!cancelled) {
@@ -359,8 +464,19 @@ export function Playground() {
 
     void (async () => {
       try {
+        // Resolve the bytes for every enabled dictionary (lazy-loading on first
+        // use) in priority order before building the converter.
+        const enabled = DICT_ORDER.filter((id) => enabledDicts[id]);
+        const dictionaries = await Promise.all(
+          enabled.map(async (id) => ({
+            data: await ensureDictBytes(id),
+            format: "fst" as const,
+          })),
+        );
+        if (cancelled) return;
+
         const { load } = await import("@gukhanmun/wasm");
-        const g = await load(buildOptions());
+        const g = await load(buildOptions(dictionaries));
         if (cancelled) return;
         gRef.current = g;
         setOutput(g.convert(inputRef.current, formatRef.current as Format));
@@ -376,8 +492,7 @@ export function Playground() {
     // buildOptions reads all of these; rebuild when any changes.
   }, [
     status,
-    useDictionary,
-    preset,
+    enabledDicts,
     rendering,
     originalGloss,
     segmentation,
@@ -416,10 +531,41 @@ export function Playground() {
     setInput(DEFAULTS[newFormat]);
   }
 
-  function handlePresetChange(newPreset: Preset) {
-    setPreset(newPreset);
-    setInitialSoundLaw(PRESET_DEFAULTS[newPreset].initialSoundLaw);
-    setHomophoneWindow(PRESET_DEFAULTS[newPreset].homophoneWindow);
+  // True when the live configuration matches a preset's complete setting set.
+  function matchesPreset(cfg: PresetConfig): boolean {
+    return rendering === cfg.rendering &&
+      segmentation === cfg.segmentation &&
+      numerals === cfg.numerals &&
+      initialSoundLaw === cfg.initialSoundLaw &&
+      homophoneWindow === cfg.homophoneWindow &&
+      homophoneDetection === cfg.homophoneDetection &&
+      firstOccurrenceWindow === cfg.firstOccurrenceWindow &&
+      recovery === cfg.recovery &&
+      DICT_ORDER.every((id) => enabledDicts[id] === cfg.dicts[id]);
+  }
+
+  // The preset currently in effect, or null when the settings match none.  This
+  // is derived from the live settings every render, so the highlight tracks
+  // both preset clicks and manual edits.
+  const activePreset: Preset | null =
+    (Object.keys(PRESET_CONFIGS) as Preset[]).find((p) => matchesPreset(PRESET_CONFIGS[p])) ?? null;
+
+  // Apply every field of a preset's setting set at once.
+  function applyPreset(p: Preset) {
+    const cfg = PRESET_CONFIGS[p];
+    setRendering(cfg.rendering);
+    setSegmentation(cfg.segmentation);
+    setNumerals(cfg.numerals);
+    setInitialSoundLaw(cfg.initialSoundLaw);
+    setHomophoneWindow(cfg.homophoneWindow);
+    setHomophoneDetection(cfg.homophoneDetection);
+    setFirstOccurrenceWindow(cfg.firstOccurrenceWindow);
+    setRecovery(cfg.recovery);
+    setEnabledDicts({ ...cfg.dicts });
+  }
+
+  function toggleDict(id: DictId, on: boolean) {
+    setEnabledDicts((prev) => ({ ...prev, [id]: on }));
   }
 
   return (
@@ -440,6 +586,22 @@ export function Playground() {
 
       {status === "ready" && (
         <>
+          <div className="playground-presets">
+            <span className="playground-presets-label">{t("pgPreset")}</span>
+            {PRESET_OPTIONS.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={"playground-preset" +
+                  (activePreset === value ? " playground-preset--active" : "")}
+                aria-pressed={activePreset === value}
+                onClick={() => applyPreset(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className="playground-options">
             <Field
               label={t("pgInputFormat")}
@@ -449,12 +611,6 @@ export function Playground() {
                 t("pgFormatHtml"),
               ]]}
               onChange={handleFormatChange}
-            />
-            <Field
-              label={t("pgPreset")}
-              value={preset}
-              options={PRESET_OPTIONS}
-              onChange={handlePresetChange}
             />
             <Field
               label={t("pgRendering")}
@@ -515,8 +671,28 @@ export function Playground() {
             />
             <Toggle
               label={t("pgStdict")}
-              checked={useDictionary}
-              onChange={setUseDictionary}
+              checked={enabledDicts["stdict"]}
+              onChange={(v) => toggleDict("stdict", v)}
+            />
+            <Toggle
+              label={t("pgOpendictGeneral")}
+              checked={enabledDicts["opendict-general"]}
+              onChange={(v) => toggleDict("opendict-general", v)}
+            />
+            <Toggle
+              label={t("pgOpendictNorthKorean")}
+              checked={enabledDicts["opendict-north-korean"]}
+              onChange={(v) => toggleDict("opendict-north-korean", v)}
+            />
+            <Toggle
+              label={t("pgOpendictDialect")}
+              checked={enabledDicts["opendict-dialect"]}
+              onChange={(v) => toggleDict("opendict-dialect", v)}
+            />
+            <Toggle
+              label={t("pgOpendictArchaic")}
+              checked={enabledDicts["opendict-archaic"]}
+              onChange={(v) => toggleDict("opendict-archaic", v)}
             />
           </div>
 

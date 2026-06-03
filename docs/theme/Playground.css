@@ -27,6 +27,49 @@
   flex-shrink: 0;
 }
 
+/* ── Preset buttons ────────────────────────────────────────────── */
+
+.playground-presets {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.playground-presets-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--rp-c-text-2, #555);
+  margin-right: 0.25rem;
+}
+
+.playground-preset {
+  padding: 0.3rem 0.85rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 6px;
+  background: var(--rp-c-bg-soft, #f5f5f5);
+  color: var(--rp-c-text-1, inherit);
+  cursor: pointer;
+}
+
+.playground-preset:hover {
+  border-color: var(--rp-c-brand, #2b2b2b);
+}
+
+.playground-preset:focus-visible {
+  outline: 2px solid var(--rp-c-brand, #2b2b2b);
+  outline-offset: 1px;
+}
+
+.playground-preset--active {
+  background: var(--rp-c-brand, #2b2b2b);
+  border-color: var(--rp-c-brand, #2b2b2b);
+  color: var(--rp-c-bg, #fff);
+  font-weight: 600;
+}
+
 /* ── Options toolbar ───────────────────────────────────────────── */
 
 .playground-options {

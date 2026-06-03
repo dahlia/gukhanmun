@@ -84,6 +84,26 @@
     "ko-Kore": "《標準國語大辭典》",
     "ko-KR": "《표준국어대사전》"
   },
+  "pgOpendictGeneral": {
+    "en": "Open Korean Dictionary (우리말샘 一般語)",
+    "ko-Kore": "《우리말샘》 一般語",
+    "ko-KR": "《우리말샘》 일반어"
+  },
+  "pgOpendictNorthKorean": {
+    "en": "Open Korean Dictionary (우리말샘 北韓語)",
+    "ko-Kore": "《우리말샘》 北韓語",
+    "ko-KR": "《우리말샘》 북한어"
+  },
+  "pgOpendictDialect": {
+    "en": "Open Korean Dictionary (우리말샘 方言)",
+    "ko-Kore": "《우리말샘》 方言",
+    "ko-KR": "《우리말샘》 방언"
+  },
+  "pgOpendictArchaic": {
+    "en": "Open Korean Dictionary (우리말샘 옛말)",
+    "ko-Kore": "《우리말샘》 옛말",
+    "ko-KR": "《우리말샘》 옛말"
+  },
   "pgDirectives": { "en": "Directives", "ko-Kore": "指示", "ko-KR": "지시" },
   "pgDirectivesHtml": {
     "en": "Directives and HTML preservation",
