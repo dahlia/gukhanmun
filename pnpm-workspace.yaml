@@ -1,3 +1,12 @@
 packages:
-- docs
-- "packages/*"
+  - docs
+  - "packages/*"
+minimumReleaseAgeExclude:
+  - '@shikijs/core@4.2.0'
+  - '@shikijs/engine-javascript@4.2.0'
+  - '@shikijs/engine-oniguruma@4.2.0'
+  - '@shikijs/langs@4.2.0'
+  - '@shikijs/primitive@4.2.0'
+  - '@shikijs/themes@4.2.0'
+  - '@shikijs/types@4.2.0'
+  - shiki@4.2.0

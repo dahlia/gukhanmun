@@ -261,6 +261,106 @@
   color: var(--rp-c-text-2, #666);
 }
 
+/* ── Generated examples (CLI / Rust / JavaScript) ──────────────── */
+
+.playground-examples {
+  margin-top: 1rem;
+}
+
+.playground-examples-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.playground-tabs {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.playground-tab {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 6px;
+  background: var(--rp-c-bg-soft, #f5f5f5);
+  color: var(--rp-c-text-1, inherit);
+  cursor: pointer;
+}
+
+.playground-tab:hover {
+  border-color: var(--rp-c-brand, #2b2b2b);
+}
+
+.playground-tab:focus-visible {
+  outline: 2px solid var(--rp-c-brand, #2b2b2b);
+  outline-offset: 1px;
+}
+
+.playground-tab--active {
+  background: var(--rp-c-brand, #2b2b2b);
+  border-color: var(--rp-c-brand, #2b2b2b);
+  color: var(--rp-c-bg, #fff);
+  font-weight: 600;
+}
+
+.playground-copy {
+  margin-left: auto;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 6px;
+  background: var(--rp-c-bg-soft, #f5f5f5);
+  color: var(--rp-c-text-2, #555);
+  cursor: pointer;
+}
+
+.playground-copy:hover {
+  border-color: var(--rp-c-brand, #2b2b2b);
+}
+
+.playground-code {
+  border: 1px solid var(--rp-c-divider, #ddd);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Covers both Shiki's emitted <pre class="shiki"> and the plain fallback. */
+.playground-code pre {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  font-family:
+    ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* The fallback block (shown before the first highlight) has no theme colours. */
+.playground-code > pre:not(.shiki) {
+  background: var(--rp-c-bg-soft, #f8f8f8);
+  color: var(--rp-c-text-1, inherit);
+}
+
+.playground-code pre code {
+  font: inherit;
+  color: inherit;
+  background: none;
+  padding: 0;
+}
+
+/* Class-based dark mode: prefer Shiki's dark-theme CSS variables. */
+.dark .playground-code .shiki,
+.dark .playground-code .shiki span {
+  background-color: var(--shiki-dark-bg) !important;
+  color: var(--shiki-dark) !important;
+}
+
 /* ── Conversion error (inline, beneath output) ─────────────────── */
 
 .playground-convert-error {

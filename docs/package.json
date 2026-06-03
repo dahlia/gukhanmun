@@ -33,6 +33,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "rspress-plugin-katex": "^1.0.1",
-    "rspress-plugin-mermaid": "^1.0.1"
+    "rspress-plugin-mermaid": "^1.0.1",
+    "shiki": "^4.2.0"
   }
 }

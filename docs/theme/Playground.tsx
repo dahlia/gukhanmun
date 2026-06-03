@@ -32,9 +32,37 @@ import type {
   RenderMode,
   Segmentation,
 } from "@gukhanmun/wasm";
+import type { Highlighter } from "shiki";
+import { DICT_ORDER, type DictId, generateExamples } from "./codegen";
+
+type CodeTab = "cli" | "rust" | "js";
 
 type FormatKey = "text" | "markdown" | "html";
 type Status = "loading" | "ready" | "error";
+
+// Shiki language id for each example tab.
+const CODE_LANG: Record<CodeTab, string> = {
+  cli: "bash",
+  rust: "rust",
+  js: "javascript",
+};
+
+// Lazily-created Shiki highlighter, shared across renders and component
+// instances.  Loaded on first use so the sizeable grammar/theme data stays out
+// of the initial bundle; only the three languages and two themes we render are
+// requested.
+let highlighterPromise: Promise<Highlighter> | null = null;
+function getHighlighter(): Promise<Highlighter> {
+  if (!highlighterPromise) {
+    highlighterPromise = import("shiki").then((shiki) =>
+      shiki.createHighlighter({
+        themes: ["github-light", "github-dark"],
+        langs: ["bash", "rust", "javascript"],
+      })
+    );
+  }
+  return highlighterPromise;
+}
 
 const DEFAULT_TEXT = "悠久한 歷史와 傳統에 빛나는 우리 大韓國民은 3·1運動으로 建立된 " +
   "大韓民國臨時政府의 法統과 不義에 抗拒한 4·19民主理念을 계승하고, " +
@@ -95,28 +123,9 @@ const DEFAULTS: Record<FormatKey, string> = {
   html: DEFAULT_HTML,
 };
 
-// Identifiers for every built-in dictionary the playground can toggle: the
-// Standard Korean Language Dictionary plus the four Open Korean Dictionary
-// (우리말샘) categories.
-type DictId =
-  | "stdict"
-  | "opendict-general"
-  | "opendict-north-korean"
-  | "opendict-dialect"
-  | "opendict-archaic";
-
-// Array order = lookup priority (earlier wins).  The Open Korean Dictionary
-// entries are listed before stdict so North Korean orthography can outrank the
-// South Korean reading when both are enabled, matching the opendict crate's
-// documented intent that `north_korean()` be prioritized above the South
-// Korean dictionary.
-const DICT_ORDER: DictId[] = [
-  "opendict-north-korean",
-  "opendict-general",
-  "opendict-dialect",
-  "opendict-archaic",
-  "stdict",
-];
+// `DictId` and `DICT_ORDER` are defined in ./codegen and shared with the
+// example generators so the runtime dictionary set and the generated code stay
+// in lockstep.
 
 // Lazy byte loaders, one per dictionary.  Each dynamically imports the matching
 // FST package so a category's binary is only downloaded once the user enables
@@ -316,6 +325,13 @@ export function Playground() {
   const [skipAnnotation, setSkipAnnotation] = useState("");
   const [preserveClasses, setPreserveClasses] = useState("");
   const [preserveAttributes, setPreserveAttributes] = useState("");
+
+  // Which generated-example tab is shown below the editor.
+  const [codeTab, setCodeTab] = useState<CodeTab>("cli");
+  const [copied, setCopied] = useState(false);
+  // Shiki-highlighted HTML for the active tab; null until the first highlight
+  // finishes (or when highlighting fails), in which case a plain block shows.
+  const [highlightedCode, setHighlightedCode] = useState<string | null>(null);
 
   // Option labels are localized via the i18n table, so they follow the active
   // documentation language.  The option *values* are the engine's stable keys.
@@ -568,6 +584,70 @@ export function Playground() {
     setEnabledDicts((prev) => ({ ...prev, [id]: on }));
   }
 
+  // Example code for the current configuration, regenerated every render so the
+  // snippets track the live options, dictionaries, directives, and input.
+  const examples = generateExamples({
+    activePreset,
+    format,
+    input,
+    rendering,
+    originalGloss,
+    segmentation,
+    numerals,
+    initialSoundLaw,
+    homophoneWindow,
+    homophoneDetection,
+    firstOccurrenceWindow,
+    recovery,
+    dicts: enabledDicts,
+    requireHanja: parseList(requireHanja),
+    requireHangul: parseList(requireHangul),
+    skipAnnotation: parseList(skipAnnotation),
+    preserveClasses: parseList(preserveClasses),
+    preserveAttributes: parseList(preserveAttributes),
+  });
+
+  function copyExample() {
+    void navigator.clipboard?.writeText(examples[codeTab]).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  // Syntax-highlight the active snippet with Shiki.  The previous highlight is
+  // kept on screen until the new one is ready (no flash to plain text), and a
+  // short debounce avoids re-highlighting on every keystroke.
+  const code = examples[codeTab];
+  useEffect(() => {
+    if (status !== "ready") return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void getHighlighter()
+        .then((hl) => {
+          if (cancelled) return;
+          setHighlightedCode(
+            hl.codeToHtml(code, {
+              lang: CODE_LANG[codeTab],
+              themes: { light: "github-light", dark: "github-dark" },
+            }),
+          );
+        })
+        .catch(() => {
+          if (!cancelled) setHighlightedCode(null);
+        });
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [code, codeTab, status]);
+
+  const CODE_TABS: [CodeTab, string][] = [
+    ["cli", "CLI"],
+    ["rust", "Rust"],
+    ["js", "JavaScript"],
+  ];
+
   return (
     <div className="playground">
       {status === "loading" && (
@@ -764,6 +844,44 @@ export function Playground() {
                 )}
               {errorMsg && <p className="playground-convert-error" role="alert">{errorMsg}</p>}
             </div>
+          </div>
+
+          <div className="playground-examples">
+            <div className="playground-examples-header">
+              <span className="playground-panel-label">{t("pgExamples")}</span>
+              <div className="playground-tabs" role="tablist">
+                {CODE_TABS.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={codeTab === value}
+                    className={"playground-tab" +
+                      (codeTab === value ? " playground-tab--active" : "")}
+                    onClick={() => setCodeTab(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="playground-copy" onClick={copyExample}>
+                {copied ? t("pgCopied") : t("pgCopy")}
+              </button>
+            </div>
+            {highlightedCode
+              ? (
+                <div
+                  className="playground-code"
+                  // Shiki escapes the code text, so the only HTML here is its
+                  // own generated token markup.
+                  dangerouslySetInnerHTML={{ __html: highlightedCode }}
+                />
+              )
+              : (
+                <div className="playground-code">
+                  <pre><code>{examples[codeTab]}</code></pre>
+                </div>
+              )}
           </div>
         </>
       )}
