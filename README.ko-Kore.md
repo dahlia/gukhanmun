@@ -143,11 +143,6 @@ deno add npm:@gukhanmun/napi jsr:@gukhanmun/stdict-fst
 使用 例
 -------
 
-### 命令줄
-
-基本으로 `ko-kr` 프리셋이 活性化되어 있어, 內藏 《標準國語大辭典》을 로드하고
-頭音法則을 適用한다.
-
 ~~~~ sh
 echo "漢字 北京 標識" | gukhanmun
 # → 한자 베이징 표지
@@ -155,106 +150,22 @@ echo "漢字 北京 標識" | gukhanmun
 echo "漢字" | gukhanmun --rendering hangul-hanja-parens
 # → 한자(漢字)
 
-echo "來日 北京" | gukhanmun --preset ko-kp
-# → 래일 북경
-
-# HTML·Markdown 形式은 --format (-f) 옵션으로 指定한다.
-# 入力 파일 擴張字에서 自動으로 推測하기도 한다
-# (.html/.htm → text/html, .md/.markdown → text/markdown):
 echo "<p>漢字</p>" | gukhanmun --format text/html
 # → <p>한자</p>
-
-echo "# 漢字" | gukhanmun --format text/markdown
-# → # 한자
-
-gukhanmun input.html -o output.html   # 擴張字로 形式 推測
-gukhanmun notes.md -o notes.md        # 擴張字로 形式 推測
-
-gukhanmun --help
 ~~~~
-
-### 純粹 텍스트 (Rust)
 
 ~~~~ rust
 use gukhanmun_core::{MapDictionary, RenderMode, convert_plain_text};
 
 let mut dict = MapDictionary::new();
 dict.insert("漢字", "한자");
-dict.insert("北京", "베이징");
 
-let output = convert_plain_text("漢字 北京", &dict, RenderMode::HangulOnly);
-assert_eq!(output, "한자 베이징");
+let output = convert_plain_text("漢字", &dict, RenderMode::HangulOnly);
+assert_eq!(output, "한자");
 ~~~~
 
-### HTML 단편 (Rust)
-
-~~~~ rust
-use gukhanmun_core::{MapDictionary, RenderMode};
-use gukhanmun_html::convert_html_fragment;
-
-let mut dict = MapDictionary::new();
-dict.insert("漢字", "한자");
-
-let output = convert_html_fragment(
-    "<p class=\"intro\">漢字</p>",
-    &dict,
-    RenderMode::HangulOnly,
-);
-assert_eq!(output, "<p class=\"intro\">한자</p>");
-// 保存 對象 태그는 그대로 通過한다:
-// <code>漢字</code>, <pre>, <script>, <style>, <textarea>, <kbd>
-~~~~
-
-### Markdown (Rust)
-
-~~~~ rust
-use gukhanmun_core::{MapDictionary, RenderMode};
-use gukhanmun_markdown::{MarkdownVariant, convert_markdown};
-
-let mut dict = MapDictionary::new();
-dict.insert("漢字", "한자");
-dict.insert("北京", "베이징");
-
-let output = convert_markdown(
-    "# 漢字\n\n- 北京 and **漢字**\n",
-    &dict,
-    RenderMode::HangulOnly,
-    MarkdownVariant::CommonMark,
-).unwrap();
-// → "# 한자\n\n- 베이징 and **한자**\n" (意味 等價)
-~~~~
-
-
-렌더링 모드
------------
-
-렌더러는 엔진·미들웨어와 분리되어 있다. 모드는 變換 呼出마다 選擇한다.
-
-| 모드                      | Rust 열거형 變種                | `漢字`에 對한 出力                                   |
-| ------------------------- | ------------------------------- | ---------------------------------------------------- |
-| 한글 專用                 | `RenderMode::HangulOnly`        | 한자                                                 |
-| 한글(漢字) 括弧           | `RenderMode::HangulHanjaParens` | 한자(漢字)                                           |
-| 漢字(한글) 括弧           | `RenderMode::HanjaHangulParens` | 漢字(한자)                                           |
-| 루비 마크업               | `RenderMode::Ruby`              | `<ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>` |
-| 選擇的 倂記를 곁들인 原文 | `RenderMode::Original`          | 漢字 (`require_hangul` 設定 時에만 倂記)             |
-
-`HangulOnly`는 辭典이 該當 單語를 同音異義語 있음 또는 區別 必要로 標識한
-境遇, 自動으로 漢字를 括弧 안에 添加한다.
-
-
-프리셋
-------
-
-| 옵션          | `ko-kr` (基本) | `ko-kp`   |
-| ------------- | -------------- | --------- |
-| 內藏 辭典     | 標準國語大辭典 | 없음      |
-| 頭音法則      | 適用           | 未適用    |
-| 同音異義 區別 | per-block      | 없음      |
-| 렌더링        | 한글 專用      | 한글 專用 |
-
-`ko-kp` 프리셋은 朝鮮民主主義人民共和國 正書法 慣行을 따른다. 漢字語를 頭音法則
-없이 한글로 적는다(래일, 류행, 녀자). 大韓民國 《標準國語大辭典》의 讀音이
-`ko-KP`에서는 不正確하므로 內藏 辭典을 提供하지 않는다.
+HTML·Markdown 어댑터·렌더링 모드·프리셋·JavaScript API를 包含한 全體 案內는
+<https://gukhanmun.org/> 文書 사이트를 參照한다.
 
 
 크레이트 構成

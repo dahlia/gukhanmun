@@ -147,11 +147,6 @@ deno add npm:@gukhanmun/napi jsr:@gukhanmun/stdict-fst
 Quick start
 -----------
 
-### Command line
-
-The `ko-kr` preset is active by default. It loads the bundled Standard Korean
-Language Dictionary and applies the initial sound law.
-
 ~~~~ sh
 echo "漢字 北京 標識" | gukhanmun
 # → 한자 베이징 표지
@@ -159,108 +154,22 @@ echo "漢字 北京 標識" | gukhanmun
 echo "漢字" | gukhanmun --rendering hangul-hanja-parens
 # → 한자(漢字)
 
-echo "來日 北京" | gukhanmun --preset ko-kp
-# → 래일 북경
-
-# HTML and Markdown formats are supported via --format (-f).
-# The format is also inferred automatically from the input file extension
-# (.html/.htm → text/html, .md/.markdown → text/markdown):
 echo "<p>漢字</p>" | gukhanmun --format text/html
 # → <p>한자</p>
-
-echo "# 漢字" | gukhanmun --format text/markdown
-# → # 한자
-
-gukhanmun input.html -o output.html   # format inferred from extension
-gukhanmun notes.md -o notes.md        # format inferred from extension
-
-gukhanmun --help
 ~~~~
-
-### Plain text (Rust)
 
 ~~~~ rust
 use gukhanmun_core::{MapDictionary, RenderMode, convert_plain_text};
 
 let mut dict = MapDictionary::new();
 dict.insert("漢字", "한자");
-dict.insert("北京", "베이징");
 
-let output = convert_plain_text("漢字 北京", &dict, RenderMode::HangulOnly);
-assert_eq!(output, "한자 베이징");
+let output = convert_plain_text("漢字", &dict, RenderMode::HangulOnly);
+assert_eq!(output, "한자");
 ~~~~
 
-### HTML fragment (Rust)
-
-~~~~ rust
-use gukhanmun_core::{MapDictionary, RenderMode};
-use gukhanmun_html::convert_html_fragment;
-
-let mut dict = MapDictionary::new();
-dict.insert("漢字", "한자");
-
-let output = convert_html_fragment(
-    "<p class=\"intro\">漢字</p>",
-    &dict,
-    RenderMode::HangulOnly,
-);
-assert_eq!(output, "<p class=\"intro\">한자</p>");
-// Preserved tags pass through unchanged:
-// <code>漢字</code>, <pre>, <script>, <style>, <textarea>, <kbd>
-~~~~
-
-### Markdown (Rust)
-
-~~~~ rust
-use gukhanmun_core::{MapDictionary, RenderMode};
-use gukhanmun_markdown::{MarkdownVariant, convert_markdown};
-
-let mut dict = MapDictionary::new();
-dict.insert("漢字", "한자");
-dict.insert("北京", "베이징");
-
-let output = convert_markdown(
-    "# 漢字\n\n- 北京 and **漢字**\n",
-    &dict,
-    RenderMode::HangulOnly,
-    MarkdownVariant::CommonMark,
-).unwrap();
-// → "# 한자\n\n- 베이징 and **한자**\n" (semantically equivalent)
-~~~~
-
-
-Rendering modes
----------------
-
-The renderer is decoupled from the engine and middlewares. The mode is chosen
-per conversion call.
-
-| Mode                                          | Rust enum variant               | Output for 漢字                                      |
-| --------------------------------------------- | ------------------------------- | ---------------------------------------------------- |
-| Hangul only                                   | `RenderMode::HangulOnly`        | 한자                                                 |
-| Hangul with hanja in parentheses              | `RenderMode::HangulHanjaParens` | 한자(漢字)                                           |
-| Hanja with hangul in parentheses              | `RenderMode::HanjaHangulParens` | 漢字(한자)                                           |
-| Ruby markup                                   | `RenderMode::Ruby`              | `<ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>` |
-| Original mixed script with selective glossing | `RenderMode::Original`          | 漢字 (glossed only when `require_hangul` is set)     |
-
-`HangulOnly` adds hanja in parentheses automatically when the dictionary flags
-the word as having a homophone or as requiring disambiguation.
-
-
-Presets
--------
-
-| Option                   | `ko-kr` (default)                   | `ko-kp`     |
-| ------------------------ | ----------------------------------- | ----------- |
-| Bundled dictionary       | Standard Korean Language Dictionary | none        |
-| Initial sound law        | enabled                             | disabled    |
-| Homophone disambiguation | per-block                           | off         |
-| Rendering                | hangul-only                         | hangul-only |
-
-`ko-kp` follows North Korean orthographic conventions: Sino-Korean words are
-written in hangul without the initial sound law (래일, 류행, 녀자). No bundled
-dictionary is included because the South Korean Standard Dictionary's readings
-are incorrect for `ko-KP`.
+For the full guide, including HTML/Markdown adapters, rendering modes, presets,
+and the JavaScript API, visit <https://gukhanmun.org/>.
 
 
 Crates
