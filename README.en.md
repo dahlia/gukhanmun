@@ -20,8 +20,8 @@ characters interleaved with hangul) into hangul-only text. It is the successor
 to [Seonbi], narrowed to the hanja-to-hangul conversion pipeline and extended
 along several axes: streaming I/O, pluggable dictionaries, lattice-based
 segmentation, and a wider range of output formats. The library is implemented
-in Rust and exposed as a Rust library, a command-line tool, and (planned)
-WebAssembly and Node-API bindings.
+in Rust and exposed as a Rust library, a command-line tool, a WebAssembly
+package, and a native Node-API addon.
 
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
 [crates.io]: https://crates.io/crates/gukhanmun
@@ -59,6 +59,9 @@ Features
     fallback readings. Dictionary entries encode the correct reading already.
  -  The core crate (`gukhanmun-core`) is `no_std` + `alloc`, suitable for
     embedded targets.
+ -  JavaScript and TypeScript bindings ship in two flavours: a WebAssembly
+    package that runs in browsers, Deno, Node.js, Bun, and edge runtimes,
+    and a native Node-API addon for higher server-side throughput.
 
 
 Installation

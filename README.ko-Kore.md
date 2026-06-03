@@ -18,8 +18,8 @@ Gukhanmun
 Gukhanmun은 國漢文混用體로 쓰인 韓國語 텍스트를 한글 專用 텍스트로 變換하는
 Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變換 파이프라인에
 集中하면서 스트리밍 入出力·結合 可能한 辭典·라티스 基盤 分割·多樣한 出力
-形式 等의 軸으로 擴張되었습니다. Rust 라이브러리·命令줄 道具 形態로 提供되며,
-WebAssembly·Node-API 바인딩은 計劃 中입니다.
+形式 等의 軸으로 擴張되었습니다. Rust 라이브러리·命令줄 道具·WebAssembly
+패키지·네이티브 Node-API 애드온 形態로 提供됩니다.
 
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
 [crates.io]: https://crates.io/crates/gukhanmun
@@ -55,6 +55,9 @@ WebAssembly·Node-API 바인딩은 計劃 中입니다.
     正確한 讀音을 들고 있다고 假定합니다.
  -  핵심 크레이트(`gukhanmun-core`)는 `no_std` + `alloc`으로, 임베디드
     環境에서도 使用할 수 있습니다.
+ -  JavaScript·TypeScript 바인딩을 두 가지 形態로 提供합니다: 브라우저·
+    Deno·Node.js·Bun·에지 런타임에서 動作하는 WebAssembly 패키지와 서버
+    사이드 高性能用 네이티브 Node-API 애드온.
 
 
 設置
