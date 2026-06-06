@@ -39,8 +39,9 @@ use core::marker::PhantomData;
 
 use fallback::{
     FallbackPart, FallbackState, apply_initial_sound_law_to_first_syllable,
-    fallback_reading_for_run, khangul_all_readings, phoneticize_fallback_run_with_state,
-    phoneticize_hanja_char, reading_matches_with_initial_sound_law, should_apply_yeol_yul,
+    fallback_reading_for_run, is_hanja_numeral, khangul_all_readings,
+    phoneticize_fallback_run_with_state, phoneticize_hanja_char,
+    reading_matches_with_initial_sound_law, should_apply_yeol_yul,
 };
 use generated::unihan_readings::KHANGUL_READINGS;
 use segment::{Segment, segment_text};
@@ -1539,8 +1540,36 @@ fn process_trivial_fallback_run<S>(
                             hanja: part_hanja,
                             reading: part_reading,
                         } => {
-                            hanja.push_str(&part_hanja);
-                            reading.push_str(&part_reading);
+                            if part_hanja.chars().any(is_hanja_numeral) {
+                                if !hanja.is_empty() {
+                                    output.push(OutputToken::Annotated(Annotation {
+                                        hanja: core::mem::take(&mut hanja),
+                                        reading: core::mem::take(&mut reading),
+                                        homophone: false,
+                                        require_hanja: false,
+                                        require_hangul: false,
+                                        first_in_context: true,
+                                        skip_annotation: false,
+                                        from_dictionary: has_dictionary,
+                                        from_source_gloss: false,
+                                    }));
+                                    has_dictionary = false;
+                                }
+                                output.push(OutputToken::Annotated(Annotation {
+                                    hanja: part_hanja,
+                                    reading: part_reading,
+                                    homophone: false,
+                                    require_hanja: false,
+                                    require_hangul: false,
+                                    first_in_context: true,
+                                    skip_annotation: false,
+                                    from_dictionary: false,
+                                    from_source_gloss: false,
+                                }));
+                            } else {
+                                hanja.push_str(&part_hanja);
+                                reading.push_str(&part_reading);
+                            }
                         }
                         FallbackPart::ReadingText(t) | FallbackPart::Text(t) => {
                             if !hanja.is_empty() {

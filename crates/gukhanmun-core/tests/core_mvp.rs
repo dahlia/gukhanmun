@@ -1791,6 +1791,18 @@ fn streaming_engine_merges_trivial_dictionary_across_chunks() {
 }
 
 #[test]
+fn trivial_dictionary_preserves_fallback_numeral_boundary() {
+    let mut dict = MapDictionary::new();
+    dict.insert("共", "공");
+    dict.insert("和", "화");
+    dict.insert("國", "국");
+
+    let output = convert_plain_text("第六共和國", &dict, RenderMode::HangulHanjaParens);
+
+    assert_eq!(output, "제육(第六)공화국(共和國)");
+}
+
+#[test]
 fn renderer_removes_annotations_from_the_stream() {
     let rendered = render_tokens(
         vec![OutputToken::<PlainScopeData>::Annotated(annotated! {
