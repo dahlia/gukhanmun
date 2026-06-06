@@ -115,7 +115,7 @@ gukhanmun-markdown = "0.1"
 gukhanmun-fst  = "0.1"
 gukhanmun-cdb  = "0.1"
 
-# 選擇的 內藏 標準國語大辭典:
+# 選擇的 內藏 《標準國語大辭典》:
 gukhanmun-stdict = "0.1"
 ~~~~
 
