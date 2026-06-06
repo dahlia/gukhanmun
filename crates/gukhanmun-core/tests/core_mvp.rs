@@ -1633,6 +1633,160 @@ fn lattice_mixes_dictionary_segments_with_fallback_text() {
 }
 
 #[test]
+fn trivial_single_char_dictionary_merges_with_fallback() {
+    let mut dict = MapDictionary::new();
+    dict.insert("洪", "홍");
+    dict.insert("民", "민");
+
+    let output = convert_plain_text("洪民憙 部長", &dict, RenderMode::HangulHanjaParens);
+
+    assert_eq!(output, "홍민희(洪民憙) 부장(部長)");
+}
+
+#[test]
+fn pure_trivial_dictionary_run_merges_into_one_annotation() {
+    let mut dict = MapDictionary::new();
+    dict.insert("洪", "홍");
+    dict.insert("民", "민");
+
+    let output = convert_plain_text("洪民", &dict, RenderMode::HangulHanjaParens);
+
+    assert_eq!(output, "홍민(洪民)");
+}
+
+#[test]
+fn trivial_dictionary_does_not_merge_across_dictionary_boundary() {
+    let mut dict = MapDictionary::new();
+    dict.insert("學校", "학교");
+    dict.insert("民", "민");
+    dict.insert("大學", "대학");
+    dict.insert("洪", "홍");
+
+    let output = convert_plain_text("學校民大學", &dict, RenderMode::HangulHanjaParens);
+
+    assert_eq!(output, "학교(學校)민(民)대학(大學)");
+}
+
+#[test]
+fn trivial_dictionary_respects_initial_sound_law() {
+    let mut dict = MapDictionary::new();
+    dict.insert("力", "력");
+
+    let output = convert_plain_text("力", &dict, RenderMode::HangulOnly);
+
+    assert_eq!(output, "역");
+}
+
+#[test]
+fn trivial_dictionary_no_unihan_reading_stays_dictionary() {
+    let mut dict = MapDictionary::new();
+    dict.insert("洪", "홍");
+    dict.insert("民", "민");
+
+    let tokens = process_tokens(read_plain_text("洪 民"), &dict);
+
+    let annotations: Vec<_> = tokens
+        .iter()
+        .filter_map(|t| match t {
+            OutputToken::Annotated(a) => Some(a),
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(annotations.len(), 2);
+
+    for a in &annotations {
+        assert!(
+            a.from_dictionary,
+            "trivial-dictionary annotations should carry from_dictionary"
+        );
+    }
+}
+
+#[test]
+fn trivial_dictionary_from_dictionary_is_true_on_merged_annotation() {
+    let mut dict = MapDictionary::new();
+    dict.insert("洪", "홍");
+    dict.insert("民", "민");
+
+    let tokens = process_tokens(read_plain_text("洪民憙"), &dict);
+
+    let annotations: Vec<_> = tokens
+        .iter()
+        .filter_map(|t| match t {
+            OutputToken::Annotated(a) => Some(a),
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(annotations.len(), 1);
+    assert!(
+        annotations[0].from_dictionary,
+        "merged trivial+fallback annotation should carry from_dictionary: true"
+    );
+    assert_eq!(annotations[0].hanja, "洪民憙");
+    assert_eq!(annotations[0].reading, "홍민희");
+}
+
+#[test]
+fn trivial_dictionary_homophone_marking_works_with_merged_annotation() {
+    let mut dict = MapDictionary::new();
+    dict.insert("天", "천");
+    dict.insert("地", "지");
+    dict.insert("天池", "천지");
+
+    let tokens = process_tokens(read_plain_text("天地"), &dict);
+
+    let marked = mark_homophones_with_detection(
+        tokens,
+        &dict,
+        ContextWindow::PerDocument,
+        HomophoneDetection::DictionaryWide,
+    );
+
+    let annotations: Vec<_> = marked
+        .iter()
+        .filter_map(|t| match t {
+            OutputToken::Annotated(a) => Some(a),
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(annotations.len(), 1);
+    assert!(
+        annotations[0].homophone,
+        "merged trivial annotation '天地→천지' should be flagged as homophone because '天池→천지' exists in dictionary"
+    );
+}
+
+#[test]
+fn streaming_engine_merges_trivial_dictionary_across_chunks() {
+    let mut dict = MapDictionary::new();
+    dict.insert("洪", "홍");
+    dict.insert("民", "민");
+
+    let tokens = read_plain_text("洪民憙");
+
+    let one_shot = process_tokens(tokens.clone(), &dict);
+
+    for split in 1..4 {
+        let mut engine = Engine::<PlainScopeData, _>::new(&dict);
+        let mut streaming = Vec::new();
+        for chunk in tokens.as_slice().chunks(split) {
+            for token in chunk.iter().cloned() {
+                streaming.extend(engine.push_token(token));
+            }
+        }
+        streaming.extend(engine.finish());
+
+        assert_eq!(
+            streaming, one_shot,
+            "chunk size {split} must match one-shot"
+        );
+    }
+}
+
+#[test]
 fn renderer_removes_annotations_from_the_stream() {
     let rendered = render_tokens(
         vec![OutputToken::<PlainScopeData>::Annotated(annotated! {

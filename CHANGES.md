@@ -53,6 +53,15 @@ To be released.
 
 ### gukhanmun-core
 
+ -  Fixed a bug where proper names and unknown multi-character hanja words
+    were split into individual character annotations when the bundled
+    dictionary contained single-character entries for some (but not all) of
+    the characters.  The segmenter now emits a `TrivialDictionary` segment
+    variant for single-character dictionary matches that carry no special
+    rendering marks, and the engine merges consecutive `TrivialDictionary`
+    and `Fallback` segments into a single annotation without losing
+    `from_dictionary` provenance so homophone marking still works.  [[#7], [#8]]
+
  -  Added `RedundantParenCollapser`, a streaming middleware that collapses an
     explicit parenthetical reading annotation into the hanja word it duplicates.
     `庫間(곳간)` and `곳간(庫間)` now render with both scripts in every mode
@@ -63,9 +72,13 @@ To be released.
     Unihan reading data to also carry every kHangul reading per character
     (`KHANGUL_ALL_READINGS`), which the collapser uses to validate alternative
     readings.  [[#3], [#4]]
+
  -  Marked `Annotation` `#[non_exhaustive]` so its policy flags can grow without
     a breaking change (it gained a `from_source_gloss` flag here).  Construct it
     from `Annotation::default()` and set the fields you need.  [[#3], [#4]]
+
+[#7]: https://github.com/dahlia/gukhanmun/issues/7
+[#8]: https://github.com/dahlia/gukhanmun/pull/8
 
 ### gukhanmun-dict-extract
 

@@ -1,0 +1,9 @@
+description = """
+Proper name (洪民憙) whose single-character entries (洪, 民) are present in
+the bundled dictionary while the third character (憙) is not.  The converter
+must merge the run into one annotation instead of emitting per-character
+annotations.  The word 部長 is a standard dictionary compound and must
+remain a separate annotation.
+"""
+rendering = "hangul-hanja-parens"
+use_bundled_stdict = true
