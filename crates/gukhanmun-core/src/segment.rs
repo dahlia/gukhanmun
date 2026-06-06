@@ -54,7 +54,11 @@ pub(crate) fn is_trivial_single_char_match(
     suffix_reading: Option<&str>,
     mark: MatchMark,
 ) -> bool {
-    if source.chars().count() != 1 {
+    let mut source_chars = source.chars();
+    let Some(ch) = source_chars.next() else {
+        return false;
+    };
+    if source_chars.next().is_some() {
         return false;
     }
     if mark != MatchMark::default() {
@@ -63,7 +67,6 @@ pub(crate) fn is_trivial_single_char_match(
     if suffix_reading.is_some() {
         return false;
     }
-    let ch = source.chars().next().unwrap();
     if is_hanja_numeral(ch) {
         return false;
     }
@@ -73,10 +76,11 @@ pub(crate) fn is_trivial_single_char_match(
     if reading == unihan {
         return true;
     }
-    let Some(dict_char) = reading.chars().next() else {
+    let mut reading_chars = reading.chars();
+    let Some(dict_char) = reading_chars.next() else {
         return false;
     };
-    if reading.chars().count() != 1 {
+    if reading_chars.next().is_some() {
         return false;
     }
     reading_matches_with_initial_sound_law(unihan, dict_char)

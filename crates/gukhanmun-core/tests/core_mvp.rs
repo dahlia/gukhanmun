@@ -1765,7 +1765,11 @@ fn streaming_engine_merges_trivial_dictionary_across_chunks() {
     dict.insert("洪", "홍");
     dict.insert("民", "민");
 
-    let tokens = read_plain_text("洪民憙");
+    let input = "洪民憙";
+    let tokens: Vec<InputToken<PlainScopeData>> = input
+        .chars()
+        .map(|ch| InputToken::Text(ch.to_string()))
+        .collect();
 
     let one_shot = process_tokens(tokens.clone(), &dict);
 
