@@ -39,8 +39,9 @@ use core::marker::PhantomData;
 
 use fallback::{
     FallbackPart, FallbackState, apply_initial_sound_law_to_first_syllable,
-    fallback_reading_for_run, khangul_all_readings, phoneticize_fallback_run_with_state,
-    phoneticize_hanja_char, reading_matches_with_initial_sound_law, should_apply_yeol_yul,
+    fallback_reading_for_run, is_hanja_numeral, khangul_all_readings,
+    phoneticize_fallback_run_with_state, phoneticize_hanja_char,
+    reading_matches_with_initial_sound_law, should_apply_yeol_yul,
 };
 use generated::unihan_readings::KHANGUL_READINGS;
 use segment::{Segment, segment_text};
@@ -1320,7 +1321,12 @@ where
         let probe = &self.pending_text[probe_start..];
         segment_text(probe, self.dictionary, self.options.segmentation)
             .iter()
-            .all(|segment| matches!(segment, Segment::Fallback { .. }))
+            .all(|segment| {
+                matches!(
+                    segment,
+                    Segment::Fallback { .. } | Segment::TrivialDictionary { .. }
+                )
+            })
     }
 
     fn flush_non_hanja_safe_into(&mut self, output: &mut Vec<OutputToken<S>>) {
@@ -1433,11 +1439,17 @@ fn trailing_fallback_run_start(segments: &[Segment], split_byte: usize) -> Optio
         if byte_end != split_byte {
             continue;
         }
-        if !matches!(segment, Segment::Fallback { .. }) {
+        if !matches!(
+            segment,
+            Segment::Fallback { .. } | Segment::TrivialDictionary { .. }
+        ) {
             return None;
         }
         if let Some(next) = segments.get(index + 1)
-            && !matches!(next, Segment::Fallback { .. })
+            && !matches!(
+                next,
+                Segment::Fallback { .. } | Segment::TrivialDictionary { .. }
+            )
         {
             return None;
         }
@@ -1445,7 +1457,12 @@ fn trailing_fallback_run_start(segments: &[Segment], split_byte: usize) -> Optio
         let mut run_start = byte_start;
         for previous in segments[..index].iter().rev() {
             let (previous_start, previous_end) = segment_bounds(previous);
-            if previous_end != run_start || !matches!(previous, Segment::Fallback { .. }) {
+            if previous_end != run_start
+                || !matches!(
+                    previous,
+                    Segment::Fallback { .. } | Segment::TrivialDictionary { .. }
+                )
+            {
                 break;
             }
             run_start = previous_start;
@@ -1467,6 +1484,152 @@ fn process_text_with_state<S, D>(
 {
     let segments = segment_text(text, dictionary, options.segmentation);
     process_segments_with_state(text, &segments, dictionary, options, fallback_state, output);
+}
+
+fn process_trivial_fallback_run<S>(
+    run_segments: &[Segment],
+    text: &str,
+    options: EngineOptions,
+    state: &mut FallbackState,
+    output: &mut Vec<OutputToken<S>>,
+) {
+    let run_start = segment_bounds(&run_segments[0]).0;
+    let run_end = segment_bounds(&run_segments[run_segments.len() - 1]).1;
+    let capacity = run_end.saturating_sub(run_start);
+    let mut hanja = String::with_capacity(capacity);
+    let mut reading = String::with_capacity(capacity);
+    let mut has_dictionary = false;
+    let mut last_trivial_source: Option<char> = None;
+    let mut last_trivial_reading: Option<String> = None;
+
+    let mut seg_index = 0;
+    while seg_index < run_segments.len() {
+        match &run_segments[seg_index] {
+            Segment::TrivialDictionary {
+                byte_start,
+                byte_end,
+                reading: dict_reading,
+                suffix_reading,
+                ..
+            } => {
+                let source = &text[*byte_start..*byte_end];
+                let effective = dictionary_effective_reading(
+                    source,
+                    dict_reading,
+                    suffix_reading.as_deref(),
+                    options,
+                    state.starts_word,
+                    state.previous_reading,
+                );
+                if !hanja.is_empty()
+                    && last_trivial_reading.as_deref() == Some(&effective)
+                    && last_trivial_source != source.chars().next()
+                {
+                    output.push(OutputToken::Annotated(Annotation {
+                        hanja: core::mem::take(&mut hanja),
+                        reading: core::mem::take(&mut reading),
+                        homophone: false,
+                        require_hanja: false,
+                        require_hangul: false,
+                        first_in_context: true,
+                        skip_annotation: false,
+                        from_dictionary: has_dictionary,
+                        from_source_gloss: false,
+                    }));
+                }
+                hanja.push_str(source);
+                reading.push_str(&effective);
+                update_fallback_state_for_reading(&effective, state);
+                has_dictionary = true;
+                last_trivial_source = source.chars().next();
+                last_trivial_reading = Some(effective);
+                seg_index += 1;
+            }
+            Segment::Fallback { byte_start: _, .. } => {
+                last_trivial_source = None;
+                last_trivial_reading = None;
+                let fb_start = seg_index;
+                while seg_index < run_segments.len()
+                    && matches!(&run_segments[seg_index], Segment::Fallback { .. })
+                {
+                    seg_index += 1;
+                }
+                let fb_text = &text[segment_bounds(&run_segments[fb_start]).0
+                    ..segment_bounds(&run_segments[seg_index - 1]).1];
+                for part in phoneticize_fallback_run_with_state(fb_text, options, state) {
+                    match part {
+                        FallbackPart::Annotation {
+                            hanja: part_hanja,
+                            reading: part_reading,
+                        } => {
+                            if part_hanja.chars().any(is_hanja_numeral) {
+                                if !hanja.is_empty() {
+                                    output.push(OutputToken::Annotated(Annotation {
+                                        hanja: core::mem::take(&mut hanja),
+                                        reading: core::mem::take(&mut reading),
+                                        homophone: false,
+                                        require_hanja: false,
+                                        require_hangul: false,
+                                        first_in_context: true,
+                                        skip_annotation: false,
+                                        from_dictionary: has_dictionary,
+                                        from_source_gloss: false,
+                                    }));
+                                    has_dictionary = false;
+                                }
+                                output.push(OutputToken::Annotated(Annotation {
+                                    hanja: part_hanja,
+                                    reading: part_reading,
+                                    homophone: false,
+                                    require_hanja: false,
+                                    require_hangul: false,
+                                    first_in_context: true,
+                                    skip_annotation: false,
+                                    from_dictionary: false,
+                                    from_source_gloss: false,
+                                }));
+                            } else {
+                                hanja.push_str(&part_hanja);
+                                reading.push_str(&part_reading);
+                            }
+                        }
+                        FallbackPart::ReadingText(t) | FallbackPart::Text(t) => {
+                            if !hanja.is_empty() {
+                                output.push(OutputToken::Annotated(Annotation {
+                                    hanja: core::mem::take(&mut hanja),
+                                    reading: core::mem::take(&mut reading),
+                                    homophone: false,
+                                    require_hanja: false,
+                                    require_hangul: false,
+                                    first_in_context: true,
+                                    skip_annotation: false,
+                                    from_dictionary: has_dictionary,
+                                    from_source_gloss: false,
+                                }));
+                                has_dictionary = false;
+                            }
+                            push_text(output, &t);
+                        }
+                    }
+                }
+            }
+            _ => unreachable!("run must contain only TrivialDictionary | Fallback"),
+        }
+    }
+
+    if !hanja.is_empty() {
+        output.push(OutputToken::Annotated(Annotation {
+            hanja,
+            reading,
+            homophone: false,
+            require_hanja: false,
+            require_hangul: false,
+            first_in_context: true,
+            skip_annotation: false,
+            from_dictionary: has_dictionary,
+            from_source_gloss: false,
+        }));
+    }
 }
 
 fn process_segments_with_state<S, D>(
@@ -1517,21 +1680,48 @@ fn process_segments_with_state<S, D>(
                 }
                 index += 1;
             }
-            Segment::Fallback {
+            Segment::TrivialDictionary {
+                byte_start,
+                byte_end,
+                ..
+            }
+            | Segment::Fallback {
                 byte_start,
                 byte_end,
             } => {
-                let mut fallback_end = *byte_end;
-                while let Some(Segment::Fallback { byte_end, .. }) = segments.get(index + 1) {
-                    fallback_end = *byte_end;
+                let run_start = index;
+                let mut merged_end = *byte_end;
+                while let Some(
+                    Segment::TrivialDictionary {
+                        byte_end: next_end, ..
+                    }
+                    | Segment::Fallback {
+                        byte_end: next_end, ..
+                    },
+                ) = segments.get(index + 1)
+                {
+                    merged_end = *next_end;
                     index += 1;
                 }
-                process_fallback_text(
-                    &text[*byte_start..fallback_end],
-                    options,
-                    fallback_state,
-                    output,
-                );
+                let has_dictionary = segments[run_start..=index]
+                    .iter()
+                    .any(|s| matches!(s, Segment::TrivialDictionary { .. }));
+                if has_dictionary {
+                    process_trivial_fallback_run(
+                        &segments[run_start..=index],
+                        text,
+                        options,
+                        fallback_state,
+                        output,
+                    );
+                } else {
+                    process_fallback_text(
+                        &text[*byte_start..merged_end],
+                        options,
+                        fallback_state,
+                        output,
+                    );
+                }
                 index += 1;
             }
             Segment::Text {
@@ -1550,6 +1740,11 @@ fn process_segments_with_state<S, D>(
 fn segment_bounds(segment: &Segment) -> (usize, usize) {
     match segment {
         Segment::Dictionary {
+            byte_start,
+            byte_end,
+            ..
+        }
+        | Segment::TrivialDictionary {
             byte_start,
             byte_end,
             ..

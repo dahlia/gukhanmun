@@ -17,11 +17,21 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use crate::fallback::{
+    is_hanja_numeral, phoneticize_hanja_char, reading_matches_with_initial_sound_law,
+};
 use crate::{HanjaDictionary, Match, MatchMark, SegmentationStrategy, is_hanja};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Segment {
     Dictionary {
+        byte_start: usize,
+        byte_end: usize,
+        reading: String,
+        suffix_reading: Option<String>,
+        mark: MatchMark,
+    },
+    TrivialDictionary {
         byte_start: usize,
         byte_end: usize,
         reading: String,
@@ -36,6 +46,71 @@ pub(crate) enum Segment {
         byte_start: usize,
         byte_end: usize,
     },
+}
+
+pub(crate) fn is_trivial_single_char_match(
+    source: &str,
+    reading: &str,
+    suffix_reading: Option<&str>,
+    mark: MatchMark,
+) -> bool {
+    if mark != MatchMark::default() {
+        return false;
+    }
+    if suffix_reading.is_some() {
+        return false;
+    }
+    let mut source_chars = source.chars();
+    let Some(ch) = source_chars.next() else {
+        return false;
+    };
+    if source_chars.next().is_some() {
+        return false;
+    }
+    if is_hanja_numeral(ch) {
+        return false;
+    }
+    let Some(unihan) = phoneticize_hanja_char(ch) else {
+        return false;
+    };
+    if reading == unihan {
+        return true;
+    }
+    let mut reading_chars = reading.chars();
+    let Some(dict_char) = reading_chars.next() else {
+        return false;
+    };
+    if reading_chars.next().is_some() {
+        return false;
+    }
+    reading_matches_with_initial_sound_law(unihan, dict_char)
+}
+
+fn segment_for_dictionary_match(
+    source: &str,
+    byte_start: usize,
+    byte_end: usize,
+    reading: String,
+    suffix_reading: Option<String>,
+    mark: MatchMark,
+) -> Segment {
+    if is_trivial_single_char_match(source, &reading, suffix_reading.as_deref(), mark) {
+        Segment::TrivialDictionary {
+            byte_start,
+            byte_end,
+            reading,
+            suffix_reading,
+            mark,
+        }
+    } else {
+        Segment::Dictionary {
+            byte_start,
+            byte_end,
+            reading,
+            suffix_reading,
+            mark,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -168,17 +243,19 @@ where
                 }
                 let char_len = end_char - start_char;
                 let score = start_score.with_dictionary(char_len);
+                let source = &span[byte_start..byte_end];
                 propose(
                     &mut best[end_char],
                     score,
                     start_char,
-                    Segment::Dictionary {
-                        byte_start: byte_offset + byte_start,
-                        byte_end: byte_offset + byte_end,
-                        reading: matched.reading,
-                        suffix_reading: matched.suffix_reading,
-                        mark: matched.mark,
-                    },
+                    segment_for_dictionary_match(
+                        source,
+                        byte_offset + byte_start,
+                        byte_offset + byte_end,
+                        matched.reading,
+                        matched.suffix_reading,
+                        matched.mark,
+                    ),
                 );
             }
         }
@@ -236,13 +313,15 @@ where
                 longest_match(span, &boundaries, start_char, lookup, dictionary)
         {
             let byte_end = byte_start + matched.byte_len;
-            segments.push(Segment::Dictionary {
-                byte_start: byte_offset + byte_start,
-                byte_end: byte_offset + byte_end,
-                reading: matched.reading,
-                suffix_reading: matched.suffix_reading,
-                mark: matched.mark,
-            });
+            let source = &span[byte_start..byte_end];
+            segments.push(segment_for_dictionary_match(
+                source,
+                byte_offset + byte_start,
+                byte_offset + byte_end,
+                matched.reading,
+                matched.suffix_reading,
+                matched.mark,
+            ));
             start_char = end_char;
             continue;
         }
@@ -436,6 +515,11 @@ mod tests {
         for segment in segments {
             let (byte_start, byte_end) = match segment {
                 Segment::Dictionary {
+                    byte_start,
+                    byte_end,
+                    ..
+                }
+                | Segment::TrivialDictionary {
                     byte_start,
                     byte_end,
                     ..

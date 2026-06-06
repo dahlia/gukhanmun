@@ -129,3 +129,12 @@ fn homophone_marker_flags_shared_reading() {
     );
     assert_snapshot!(common::tokens_to_snapshot_value(&marked));
 }
+
+#[test]
+fn trivial_dictionary_merges_with_fallback() {
+    let mut dict = MapDictionary::new();
+    dict.insert("洪", "홍");
+    dict.insert("民", "민");
+    let tokens = run("洪民憙", &dict, EngineOptions::default());
+    assert_snapshot!(common::tokens_to_snapshot_value(&tokens));
+}
