@@ -22,6 +22,7 @@ Rust API 參照는 Docs.rs에서 찾을 수 있습니다:
  -  [gukhanmun-core]
  -  [gukhanmun-unihan]
  -  [gukhanmun-stdict]
+ -  [gukhanmun-opendict]
  -  [gukhanmun-mkdict]
  -  [gukhanmun-cdb]
  -  [gukhanmun-fst]
@@ -32,6 +33,7 @@ Rust API 參照는 Docs.rs에서 찾을 수 있습니다:
 [gukhanmun-core]: https://docs.rs/gukhanmun-core/
 [gukhanmun-unihan]: https://docs.rs/gukhanmun-unihan/
 [gukhanmun-stdict]: https://docs.rs/gukhanmun-stdict/
+[gukhanmun-opendict]: https://docs.rs/gukhanmun-opendict/
 [gukhanmun-mkdict]: https://docs.rs/gukhanmun-mkdict/
 [gukhanmun-cdb]: https://docs.rs/gukhanmun-cdb/
 [gukhanmun-fst]: https://docs.rs/gukhanmun-fst/

@@ -18,21 +18,23 @@ You can find the Rust API references from Docs.rs:
  -  [gukhanmun-core]
  -  [gukhanmun-unihan]
  -  [gukhanmun-stdict]
+ -  [gukhanmun-opendict]
  -  [gukhanmun-mkdict]
  -  [gukhanmun-cdb]
  -  [gukhanmun-fst]
  -  [gukhanmun-html]
- -  [gukhanmun-markdow]
+ -  [gukhanmun-markdown]
 
 [gukhanmun]: https://docs.rs/gukhanmun/
 [gukhanmun-core]: https://docs.rs/gukhanmun-core/
 [gukhanmun-unihan]: https://docs.rs/gukhanmun-unihan/
 [gukhanmun-stdict]: https://docs.rs/gukhanmun-stdict/
+[gukhanmun-opendict]: https://docs.rs/gukhanmun-opendict/
 [gukhanmun-mkdict]: https://docs.rs/gukhanmun-mkdict/
 [gukhanmun-cdb]: https://docs.rs/gukhanmun-cdb/
 [gukhanmun-fst]: https://docs.rs/gukhanmun-fst/
 [gukhanmun-html]: https://docs.rs/gukhanmun-html/
-[gukhanmun-markdow]: https://docs.rs/gukhanmun-markdown/
+[gukhanmun-markdown]: https://docs.rs/gukhanmun-markdown/
 
 
 JavaScript

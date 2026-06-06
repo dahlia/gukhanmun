@@ -21,6 +21,16 @@
   },
   {
     "type": "custom-link",
+    "label": "gukhanmun-stdict",
+    "link": "https://docs.rs/gukhanmun-stdict/"
+  },
+  {
+    "type": "custom-link",
+    "label": "gukhanmun-opendict",
+    "link": "https://docs.rs/gukhanmun-opendict/"
+  },
+  {
+    "type": "custom-link",
     "label": "gukhanmun-cdb",
     "link": "https://docs.rs/gukhanmun-cdb/"
   },
