@@ -1803,14 +1803,14 @@ fn trivial_dictionary_preserves_fallback_numeral_boundary() {
 }
 
 #[test]
-fn trivial_dictionary_preserves_homophone_boundary() {
+fn trivial_dictionary_homophone_merges_into_fallback_run() {
     let mut dict = MapDictionary::new();
     dict.insert("洪", "홍");
     dict.insert("紅", "홍");
 
     let output = convert_plain_text("洪憙", &dict, RenderMode::HangulHanjaParens);
 
-    assert_eq!(output, "홍(洪)희(憙)");
+    assert_eq!(output, "홍희(洪憙)");
 }
 
 #[test]

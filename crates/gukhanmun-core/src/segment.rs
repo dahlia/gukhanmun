@@ -53,9 +53,11 @@ pub(crate) fn is_trivial_single_char_match(
     reading: &str,
     suffix_reading: Option<&str>,
     mark: MatchMark,
-    has_homophone: bool,
 ) -> bool {
-    if has_homophone {
+    if mark != MatchMark::default() {
+        return false;
+    }
+    if suffix_reading.is_some() {
         return false;
     }
     let mut source_chars = source.chars();
@@ -63,12 +65,6 @@ pub(crate) fn is_trivial_single_char_match(
         return false;
     };
     if source_chars.next().is_some() {
-        return false;
-    }
-    if mark != MatchMark::default() {
-        return false;
-    }
-    if suffix_reading.is_some() {
         return false;
     }
     if is_hanja_numeral(ch) {
@@ -97,15 +93,8 @@ fn segment_for_dictionary_match(
     reading: String,
     suffix_reading: Option<String>,
     mark: MatchMark,
-    has_homophone: bool,
 ) -> Segment {
-    if is_trivial_single_char_match(
-        source,
-        &reading,
-        suffix_reading.as_deref(),
-        mark,
-        has_homophone,
-    ) {
+    if is_trivial_single_char_match(source, &reading, suffix_reading.as_deref(), mark) {
         Segment::TrivialDictionary {
             byte_start,
             byte_end,
@@ -255,7 +244,6 @@ where
                 let char_len = end_char - start_char;
                 let score = start_score.with_dictionary(char_len);
                 let source = &span[byte_start..byte_end];
-                let has_homophone = dictionary.has_homophone(source, &matched.reading);
                 propose(
                     &mut best[end_char],
                     score,
@@ -267,7 +255,6 @@ where
                         matched.reading,
                         matched.suffix_reading,
                         matched.mark,
-                        has_homophone,
                     ),
                 );
             }
@@ -327,7 +314,6 @@ where
         {
             let byte_end = byte_start + matched.byte_len;
             let source = &span[byte_start..byte_end];
-            let has_homophone = dictionary.has_homophone(source, &matched.reading);
             segments.push(segment_for_dictionary_match(
                 source,
                 byte_offset + byte_start,
@@ -335,7 +321,6 @@ where
                 matched.reading,
                 matched.suffix_reading,
                 matched.mark,
-                has_homophone,
             ));
             start_char = end_char;
             continue;
