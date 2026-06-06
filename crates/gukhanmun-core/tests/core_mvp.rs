@@ -1825,6 +1825,17 @@ fn trivial_dictionary_splits_pure_trivial_homophone_run() {
 }
 
 #[test]
+fn trivial_dictionary_merges_homophones_across_fallback_boundary() {
+    let mut dict = MapDictionary::new();
+    dict.insert("洪", "홍");
+    dict.insert("紅", "홍");
+
+    let output = convert_plain_text("洪憙紅", &dict, RenderMode::HangulHanjaParens);
+
+    assert_eq!(output, "홍희홍(洪憙紅)");
+}
+
+#[test]
 fn renderer_removes_annotations_from_the_stream() {
     let rendered = render_tokens(
         vec![OutputToken::<PlainScopeData>::Annotated(annotated! {

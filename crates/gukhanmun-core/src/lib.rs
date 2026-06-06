@@ -1546,6 +1546,8 @@ fn process_trivial_fallback_run<S>(
                 seg_index += 1;
             }
             Segment::Fallback { byte_start: _, .. } => {
+                last_trivial_source = None;
+                last_trivial_reading = None;
                 let fb_start = seg_index;
                 while seg_index < run_segments.len()
                     && matches!(&run_segments[seg_index], Segment::Fallback { .. })
