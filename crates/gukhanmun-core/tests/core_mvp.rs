@@ -1803,6 +1803,17 @@ fn trivial_dictionary_preserves_fallback_numeral_boundary() {
 }
 
 #[test]
+fn trivial_dictionary_preserves_homophone_boundary() {
+    let mut dict = MapDictionary::new();
+    dict.insert("洪", "홍");
+    dict.insert("紅", "홍");
+
+    let output = convert_plain_text("洪憙", &dict, RenderMode::HangulHanjaParens);
+
+    assert_eq!(output, "홍(洪)희(憙)");
+}
+
+#[test]
 fn renderer_removes_annotations_from_the_stream() {
     let rendered = render_tokens(
         vec![OutputToken::<PlainScopeData>::Annotated(annotated! {
