@@ -13,7 +13,7 @@ input containing hanja (漢字) alongside hangul, it produces hangul-only output
 or annotated output in several formats: plain text, Markdown, and HTML
 (including `<ruby>` markup).
 
-The converter is backed by the Standard Korean Dictionary (標準國語大辭典) and
+The converter is backed by the *Standard Korean Dictionary* (標準國語大辭典) and
 supports South Korean (`ko-KR`) and North Korean (`ko-KP`) orthography presets,
 configurable segmentation, numeral handling, homophone disambiguation, and
 per-character annotation directives.

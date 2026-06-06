@@ -40,8 +40,8 @@ To be released.
  -  Collapse redundant parenthetical reading annotations by default.  The new
     `Builder::collapse_redundant_parens` opt-out disables it.  [[#3], [#4]]
  -  Added the `opendict` feature and made the `ko-kp` preset include the
-    bundled Open Korean Dictionary (우리말샘) North Korean (北韓語) category by
-    default.  Added `Builder::no_bundled_dictionaries()` to disable every
+    bundled *Open Korean Dictionary* (우리말샘) North Korean (北韓語) category
+    by default.  Added `Builder::no_bundled_dictionaries()` to disable every
     preset-selected bundled dictionary, plus `Builder::no_bundled_stdict()` and
     `Builder::no_bundled_opendict()` for disabling only one bundled dictionary
     family.  [[#5], [#6]]
@@ -92,13 +92,13 @@ To be released.
  -  Collapse redundant parenthetical reading annotations by default across the
     plain-text, HTML, and Markdown pipelines.  The new `--no-collapse-parens`
     flag disables it.  [[#3], [#4]]
- -  The `ko-kp` preset now includes the bundled Open Korean Dictionary North
+ -  The `ko-kp` preset now includes the bundled *Open Korean Dictionary* North
     Korean (北韓語) category by default.  Added `--no-bundled-dictionaries`,
     which disables every preset-selected bundled dictionary.  [[#5], [#6]]
 
 ### gukhanmun-opendict
 
- -  Added a bundled Open Korean Dictionary (우리말샘) crate generated from the
+ -  Added a bundled *Open Korean Dictionary* (우리말샘) crate generated from the
     2026-05-03 JSON dump.  The crate exposes separate `general()`,
     `north_korean()`, `dialect()`, and `archaic()` FST dictionaries so callers
     can compose the categories explicitly with `ChainDictionary`.  [[#5], [#6]]
@@ -138,7 +138,7 @@ To be released.
 
 ### @gukhanmun/opendict-cdb
 
- -  Added a package containing Open Korean Dictionary general (一般語), North
+ -  Added a package containing *Open Korean Dictionary* general (一般語), North
     Korean (北韓語), dialect (方言), and archaic (옛말) categories as CDB
     binaries, with category-specific byte loaders and `FileDictionarySource`
     helpers.  The binaries ship gzip-compressed (as _\*.cdb.gz_) to stay within
@@ -147,7 +147,7 @@ To be released.
 
 ### @gukhanmun/opendict-fst
 
- -  Added a package containing Open Korean Dictionary general (一般語), North
+ -  Added a package containing *Open Korean Dictionary* general (一般語), North
     Korean (北韓語), dialect (方言), and archaic (옛말) categories as FST
     binaries, with category-specific byte loaders and `FileDictionarySource`
     helpers.  [[#5], [#6]]

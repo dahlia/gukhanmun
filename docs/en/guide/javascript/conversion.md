@@ -185,8 +185,8 @@ const g = await load({ homophoneDetection: "dictionary-wide" });
 
 `"context-local"` keeps hangul-only output clean: a word is glossed only when
 the surrounding text genuinely makes it ambiguous.  `"dictionary-wide"` is
-broader, but with a large reference dictionary such as the Standard Korean
-Dictionary nearly every common reading has some homophone, so it glosses most
+broader, but with a large reference dictionary such as the *Standard Korean
+Dictionary* nearly every common reading has some homophone, so it glosses most
 Sino-Korean words.  To always gloss a specific word regardless of context, use
 a `requireHanja` directive instead (see [*User directives*](./directives.md)).
 
@@ -198,7 +198,7 @@ Homophone disambiguation operates on words the dictionary recognizes as units.
 A hanja sequence with no dictionary entry of its own is not treated as a single
 word, and its fallback (non-dictionary) characters are never glossed; any
 recognized single-character entries inside it (such as `紫`) are still handled
-on their own.  For example, with the Standard Korean Dictionary loaded, `自由`
+on their own.  For example, with the *Standard Korean Dictionary* loaded, `自由`
 and `子游` are both entries read `자유`, so `自由와 子游` renders as
 `자유(自由)와 자유(子游)`; but `紫楡` has no entry of its own, so under the
 default context-local strategy `自由와 紫楡` renders as `자유와 자유` with no

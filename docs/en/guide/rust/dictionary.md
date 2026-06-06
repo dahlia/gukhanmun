@@ -9,7 +9,7 @@ Dictionaries
 
 Gukhanmun looks up hanja readings from one or more `HanjaDictionary`
 implementations.  The `gukhanmun` crate ships with FST and CDB backends and
-the bundled Standard Korean Dictionary, plus the Open Korean Dictionary
+the bundled *Standard Korean Dictionary*, plus the *Open Korean Dictionary*
 (우리말샘) North Korean dictionary used by the `ko-kp` preset.
 
 
@@ -27,7 +27,7 @@ let converter = Builder::with_preset(Preset::KoKr)
 ~~~~
 
 Use `no_bundled_stdict()` or `no_bundled_opendict()` to disable only one
-bundled dictionary family.  To re-enable the Standard Korean Dictionary
+bundled dictionary family.  To re-enable the *Standard Korean Dictionary*
 explicitly after calling `no_bundled_stdict()`:
 
 ~~~~ rust
@@ -35,7 +35,7 @@ builder.bundled_stdict();
 ~~~~
 
 Use the `ko-kp` preset for North Korean orthography.  It disables the initial
-sound law and includes the bundled Open Korean Dictionary (우리말샘) North
+sound law and includes the bundled *Open Korean Dictionary* (우리말샘) North
 Korean (北韓語) dictionary:
 
 ~~~~ rust
@@ -43,8 +43,8 @@ let converter = Builder::with_preset(Preset::KoKp).build()?;
 assert_eq!(converter.convert_text_to_string("歷史와 來日")?, "력사와 래일");
 ~~~~
 
-To keep the `ko-kp` orthographic options but disable its bundled Open Korean
-Dictionary data:
+To keep the `ko-kp` orthographic options but disable its bundled *Open Korean
+Dictionary* data:
 
 ~~~~ rust
 let converter = Builder::with_preset(Preset::KoKp)
@@ -133,8 +133,8 @@ in the order they were pushed, before the bundled dictionary.
 Composing Open Korean Dictionary categories
 -------------------------------------------
 
-When the `opendict` feature is enabled, Rust callers can load the Open Korean
-Dictionary general, North Korean, dialect, and archaic categories directly.
+When the `opendict` feature is enabled, Rust callers can load the *Open Korean
+Dictionary* general, North Korean, dialect, and archaic categories directly.
 The `ko-kp` preset includes the North Korean category automatically, but
 dialect and archaic data are opt-in:
 

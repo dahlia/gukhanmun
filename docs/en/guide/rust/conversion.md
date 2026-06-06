@@ -160,10 +160,10 @@ builder.homophone_detection(HomophoneDetection::DictionaryWide);
 
 `ContextLocal` keeps hangul-only output clean: a word is glossed only when the
 surrounding text genuinely makes it ambiguous.  `DictionaryWide` is broader, but
-with a large reference dictionary such as the bundled Standard Korean Dictionary
-nearly every common reading has some homophone, so it glosses most Sino-Korean
-words.  To always gloss a specific word regardless of context, use a
-`DirectiveAction::RequireHanja` directive instead (see
+with a large reference dictionary such as the bundled *Standard Korean
+Dictionary* nearly every common reading has some homophone, so it glosses most
+Sino-Korean words.  To always gloss a specific word regardless of context, use
+a `DirectiveAction::RequireHanja` directive instead (see
 [*User directives*](./directives.md)).
 
 

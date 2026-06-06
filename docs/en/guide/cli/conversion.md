@@ -152,8 +152,8 @@ gukhanmun --homophone-detection dictionary-wide input.txt
 ~~~~
 
 `context-local` keeps hangul-only output clean.  `dictionary-wide` is broader,
-but with the bundled Standard Korean Dictionary nearly every common reading has
-some homophone, so it glosses most Sino-Korean words.  To always gloss a
+but with the bundled *Standard Korean Dictionary* nearly every common reading
+has some homophone, so it glosses most Sino-Korean words.  To always gloss a
 specific word regardless of context, use the `--require-hanja` flag instead
 (see [*User directives*](./directives.md)).
 

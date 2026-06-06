@@ -27,13 +27,13 @@ Feature flags
 All features are enabled by default.  Disable the ones you do not need to
 reduce compile time and binary size:
 
-| Feature    | What it adds                               | Default |
-| ---------- | ------------------------------------------ | ------- |
-| `html`     | HTML fragment conversion                   | yes     |
-| `markdown` | Markdown conversion                        | yes     |
-| `fst`      | FST dictionary backend (*.gukfst* files)   | yes     |
-| `cdb`      | CDB dictionary backend (*.gukcdb* files)   | yes     |
-| `stdict`   | Bundled Standard Korean Dictionary (~3 MB) | yes     |
+| Feature    | What it adds                                 | Default |
+| ---------- | -------------------------------------------- | ------- |
+| `html`     | HTML fragment conversion                     | yes     |
+| `markdown` | Markdown conversion                          | yes     |
+| `fst`      | FST dictionary backend (*.gukfst* files)     | yes     |
+| `cdb`      | CDB dictionary backend (*.gukcdb* files)     | yes     |
+| `stdict`   | Bundled *Standard Korean Dictionary* (~3 MB) | yes     |
 
 To build without the bundled dictionary (useful when you supply your own):
 

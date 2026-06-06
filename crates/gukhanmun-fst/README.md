@@ -56,7 +56,7 @@ let dict = FstDictionary::from_static_bytes(BYTES)?;
 
 `from_static_bytes` holds a reference to the slice directly, so the FST map
 and reading table share the same backing memory without any heap allocation.
-This is how `gukhanmun-stdict` embeds the Standard Korean Dictionary.
+This is how `gukhanmun-stdict` embeds the *Standard Korean Dictionary*.
 
 
 Building dictionary files

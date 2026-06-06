@@ -224,8 +224,8 @@ On the input `行事場所`, eager segmentation produces `行事場` + `所`, wh
 leaves `所` to the character-by-character fallback even though the segmentation
 `行事` + `場所` would have covered both segments with the dictionary.
 
-The span is not limited to hanja-only text. Some entries in the Standard Korean
-Language Dictionary mix native Korean and hanja, such as `汽車길` for
+The span is not limited to hanja-only text. Some entries in the *Standard Korean
+Language Dictionary* mix native Korean and hanja, such as `汽車길` for
 `기찻길`, `祭祀날` for `제삿날`, `洗手대야` for `세숫대야`, `火김` for
 `홧김`, and `色깔論` for `색깔론`. A dictionary edge may therefore consume a
 mixed-script prefix from the current text cursor. Fallback edges, however, are
@@ -1132,7 +1132,7 @@ Glossary
 | 한자어         | 漢字語         | Sino-Korean word                                  |
 | 국한문혼용     | 國漢文混用     | mixed-script Korean writing                       |
 | 두음법칙       | 頭音法則       | initial sound law                                 |
-| 표준국어대사전 | 標準國語大辭典 | Standard Korean Language Dictionary               |
+| 표준국어대사전 | 標準國語大辭典 | *Standard Korean Language Dictionary*             |
 | 한글           | 한글           | hangul, the native Korean alphabet                |
 | 한글전용       | 한글專用       | hangul-only writing                               |
 | 동음이의       | 同音異義       | homophony, distinct words sharing a reading       |

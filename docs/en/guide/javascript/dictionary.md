@@ -15,7 +15,7 @@ Standard Korean Dictionary packages
 -----------------------------------
 
 `@gukhanmun/stdict-fst` and `@gukhanmun/stdict-cdb` both ship the bundled
-Standard Korean Dictionary (標準國語大辭典) in different binary formats.
+*Standard Korean Dictionary* (標準國語大辭典) in different binary formats.
 
 ~~~~ ts twoslash
 // @noErrors: 2451
@@ -36,8 +36,8 @@ Both `stdictFst()` and `stdictCdb()` return a `Promise<FileDictionarySource>`.
 Open Korean Dictionary packages
 -------------------------------
 
-`@gukhanmun/opendict-fst` and `@gukhanmun/opendict-cdb` ship the Open Korean
-Dictionary (우리말샘) as separate general (一般語), North Korean (北韓語),
+`@gukhanmun/opendict-fst` and `@gukhanmun/opendict-cdb` ship the *Open Korean
+Dictionary* (우리말샘) as separate general (一般語), North Korean (北韓語),
 dialect (方言), and archaic (옛말) category dictionaries.  JavaScript presets
 do not auto-load these packages, so pass the categories you want explicitly:
 

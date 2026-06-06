@@ -8,7 +8,6 @@ Umbrella library for hanja-to-hangul conversion. This crate wires together the
 engine, format adapters, and dictionary backends from the workspace into a
 single `Builder`/`Converter` facade.
 
-
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
 [crates.io]: https://crates.io/crates/gukhanmun
 [GPL badge]: https://img.shields.io/crates/l/gukhanmun
@@ -33,8 +32,8 @@ gukhanmun = { version = "0.1", default-features = false, features = ["html"] }
 
 Available features: `html`, `markdown`, `fst`, `cdb`, `stdict` (implies
 `fst`), and `opendict` (implies `fst`). The `stdict` feature embeds the South
-Korean Standard Dictionary, and `opendict` embeds Open Korean Dictionary
-(우리말샘) category data.
+Korean *Standard Korean Dictionary*, and `opendict` embeds *Open Korean
+Dictionary* (우리말샘) category data.
 
 
 Usage
@@ -87,9 +86,9 @@ assert!(output.contains("학교"));
 Presets
 -------
 
-`Preset::KoKr` (the default) loads the bundled Standard Korean Language
-Dictionary and applies the initial sound law. `Preset::KoKp` loads the bundled
-Open Korean Dictionary North Korean category and disables the initial sound
+`Preset::KoKr` (the default) loads the bundled *Standard Korean Language
+Dictionary* and applies the initial sound law. `Preset::KoKp` loads the bundled
+*Open Korean Dictionary* North Korean category and disables the initial sound
 law, following North Korean orthographic conventions where Sino-Korean words
 are written without the initial sound law (래일, 류행, 녀자). Use
 `Builder::no_bundled_dictionaries()` to disable every bundled dictionary, or

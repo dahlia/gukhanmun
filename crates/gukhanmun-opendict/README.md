@@ -4,9 +4,9 @@ gukhanmun-opendict
 [![crates.io][crates.io badge]][crates.io]
 [![License: GPL-3.0-or-later][GPL badge]][GPL]
 
-Bundled Open Korean Dictionary (우리말샘) data for Gukhanmun, compiled into FST
-binaries and embedded in the crate at build time. No external file or network
-access is required at runtime.
+Bundled *Open Korean Dictionary* (우리말샘) data for Gukhanmun, compiled into
+FST binaries and embedded in the crate at build time. No external file or
+network access is required at runtime.
 
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun-opendict?logo=rust
 [crates.io]: https://crates.io/crates/gukhanmun-opendict
@@ -34,9 +34,9 @@ let dict_nk = north_korean();
 // dict: &'static FstDictionary — decoded once, shared for the process lifetime
 ~~~~
 
-Each category loader function decodes the embedded FST bytes on the first call and
-caches the result in a `OnceLock`. Subsequent calls return the same reference
-with no additional work.
+Each category loader function decodes the embedded FST bytes on the first call
+and caches the result in a `OnceLock`. Subsequent calls return the same
+reference with no additional work.
 
 The categories are kept separate so callers can compose exactly the categories
 they want using `ChainDictionary`.
@@ -45,8 +45,8 @@ they want using `ChainDictionary`.
 Regeneration
 ------------
 
-To extract and regenerate the canonical TSVs from the official Open Korean
-Dictionary JSON download, run the extraction binary:
+To extract and regenerate the canonical TSVs from the official *Open Korean
+Dictionary* JSON download, run the extraction binary:
 
 ~~~~ sh
 cargo run --release -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- \
