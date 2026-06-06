@@ -1825,6 +1825,34 @@ fn trivial_dictionary_splits_pure_trivial_homophone_run() {
 }
 
 #[test]
+fn merged_annotation_does_not_override_homophone_from_engine() {
+    let mut dict = MapDictionary::new();
+    dict.insert("洪", "홍");
+    dict.insert("紅", "홍");
+
+    let tokens = process_tokens(read_plain_text("洪憙"), &dict);
+
+    let annotations: Vec<_> = tokens
+        .iter()
+        .filter_map(|t| match t {
+            OutputToken::Annotated(a) => Some(a),
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(annotations.len(), 1);
+    assert_eq!(annotations[0].hanja, "洪憙");
+    assert!(
+        !annotations[0].homophone,
+        "engine does not set homophone; homophone marking is middleware-only"
+    );
+    assert!(
+        annotations[0].from_dictionary,
+        "merged annotation carries from_dictionary for middleware to use"
+    );
+}
+
+#[test]
 fn trivial_dictionary_merges_homophones_across_fallback_boundary() {
     let mut dict = MapDictionary::new();
     dict.insert("洪", "홍");
