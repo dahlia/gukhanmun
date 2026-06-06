@@ -1499,6 +1499,8 @@ fn process_trivial_fallback_run<S>(
     let mut hanja = String::with_capacity(capacity);
     let mut reading = String::with_capacity(capacity);
     let mut has_dictionary = false;
+    let mut last_trivial_source: Option<char> = None;
+    let mut last_trivial_reading: Option<String> = None;
 
     let mut seg_index = 0;
     while seg_index < run_segments.len() {
@@ -1519,10 +1521,28 @@ fn process_trivial_fallback_run<S>(
                     state.starts_word,
                     state.previous_reading,
                 );
+                if !hanja.is_empty()
+                    && last_trivial_reading.as_deref() == Some(&effective)
+                    && last_trivial_source != source.chars().next()
+                {
+                    output.push(OutputToken::Annotated(Annotation {
+                        hanja: core::mem::take(&mut hanja),
+                        reading: core::mem::take(&mut reading),
+                        homophone: false,
+                        require_hanja: false,
+                        require_hangul: false,
+                        first_in_context: true,
+                        skip_annotation: false,
+                        from_dictionary: has_dictionary,
+                        from_source_gloss: false,
+                    }));
+                }
                 hanja.push_str(source);
                 reading.push_str(&effective);
                 update_fallback_state_for_reading(&effective, state);
                 has_dictionary = true;
+                last_trivial_source = source.chars().next();
+                last_trivial_reading = Some(effective);
                 seg_index += 1;
             }
             Segment::Fallback { byte_start: _, .. } => {
