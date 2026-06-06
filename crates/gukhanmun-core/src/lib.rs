@@ -1492,8 +1492,11 @@ fn process_trivial_fallback_run<S>(
     state: &mut FallbackState,
     output: &mut Vec<OutputToken<S>>,
 ) {
-    let mut hanja = String::new();
-    let mut reading = String::new();
+    let run_start = segment_bounds(&run_segments[0]).0;
+    let run_end = segment_bounds(&run_segments[run_segments.len() - 1]).1;
+    let capacity = run_end.saturating_sub(run_start);
+    let mut hanja = String::with_capacity(capacity);
+    let mut reading = String::with_capacity(capacity);
     let mut has_dictionary = false;
 
     let mut seg_index = 0;

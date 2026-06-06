@@ -90,15 +90,15 @@ fn segment_for_dictionary_match(
     source: &str,
     byte_start: usize,
     byte_end: usize,
-    reading: &str,
+    reading: String,
     suffix_reading: Option<String>,
     mark: MatchMark,
 ) -> Segment {
-    if is_trivial_single_char_match(source, reading, suffix_reading.as_deref(), mark) {
+    if is_trivial_single_char_match(source, &reading, suffix_reading.as_deref(), mark) {
         Segment::TrivialDictionary {
             byte_start,
             byte_end,
-            reading: reading.into(),
+            reading,
             suffix_reading,
             mark,
         }
@@ -106,7 +106,7 @@ fn segment_for_dictionary_match(
         Segment::Dictionary {
             byte_start,
             byte_end,
-            reading: reading.into(),
+            reading,
             suffix_reading,
             mark,
         }
@@ -252,7 +252,7 @@ where
                         source,
                         byte_offset + byte_start,
                         byte_offset + byte_end,
-                        &matched.reading,
+                        matched.reading,
                         matched.suffix_reading,
                         matched.mark,
                     ),
@@ -318,7 +318,7 @@ where
                 source,
                 byte_offset + byte_start,
                 byte_offset + byte_end,
-                &matched.reading,
+                matched.reading,
                 matched.suffix_reading,
                 matched.mark,
             ));
