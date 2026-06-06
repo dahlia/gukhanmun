@@ -119,7 +119,11 @@ Follow these prose conventions:
  -  No spaces around slashes (write “input/output”, not “input / output”).
  -  Use italics for file paths and file names (*CONTRIBUTING.md*,
     *src/main.rs*), and for document, section, and book titles (*DESIGN.md*,
-    “Rendering modes”).
+    *Rendering modes*).
+ -  Wrap dictionary names in italics for English prose
+    (e.g., *Standard Korean Dictionary*, *Open Korean Dictionary*) and in
+    double angle brackets (《…》) for Korean prose
+    (e.g., 《標準國語大辭典》, 《우리말샘》).
  -  Wrap inline code in backticks (`mise run check`, `--flag`).
  -  Use the official spelling of proper nouns exactly.  If unsure, verify on
     the official website (e.g., Node.js, not NodeJS or Node).
