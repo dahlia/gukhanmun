@@ -92,15 +92,10 @@ jobs:
     name: publish crates
     runs-on: ubuntu-latest
     needs:
+    - artifact-context
     - package-crates
     - build-release-binaries
-    if: >-
-      github.event_name == 'push' &&
-      (
-        github.ref == 'refs/heads/main' ||
-        endsWith(github.ref_name, '-maintenance') ||
-        github.ref_type == 'tag'
-      )
+    if: needs.artifact-context.outputs.should-publish == 'true'
     permissions:
       contents: read
       id-token: write
@@ -132,46 +127,10 @@ jobs:
         jq --version
         cargo metadata --no-deps --format-version 1 |
           jq '{workspace_root, target_directory, packages: [.packages[] | {name, version, manifest_path}]}'
-    - name: Verify signed release tag
-      if: github.ref_type == 'tag'
+    - name: Prepare dev publish version
       shell: bash
       env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        set -euo pipefail
-        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
-          set -x
-        fi
-
-        if [[ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" != "tag" ]]; then
-          echo "::error::Release tag $GITHUB_REF_NAME must be an annotated signed tag"
-          exit 1
-        fi
-
-        tag_object="$(
-          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" \
-            --jq '.object'
-        )"
-        tag_type="$(jq -r '.type' <<< "$tag_object")"
-        tag_sha="$(jq -r '.sha' <<< "$tag_object")"
-        if [[ "$tag_type" != "tag" ]]; then
-          echo "::error::Release tag $GITHUB_REF_NAME must be an annotated signed tag"
-          exit 1
-        fi
-
-        verification="$(
-          gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_sha" \
-            --jq '.verification'
-        )"
-        verified="$(jq -r '.verified' <<< "$verification")"
-        reason="$(jq -r '.reason' <<< "$verification")"
-        if [[ "$verified" != "true" ]]; then
-          echo "::error::Release tag $GITHUB_REF_NAME signature is not verified: $reason"
-          exit 1
-        fi
-    - name: Prepare publish version
-      id: version
-      shell: bash
+        PUBLISH_VERSION: ${{ needs.artifact-context.outputs.version }}
       run: |
         set -euo pipefail
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
@@ -179,34 +138,8 @@ jobs:
         fi
 
         base_version="$(dasel -i toml -o yaml 'workspace.package.version' < Cargo.toml)"
-        should_publish=true
-
-        if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-          if [[ ! "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Release tags must use x.y.z without a v prefix: $GITHUB_REF_NAME"
-            exit 1
-          fi
-
-          if [[ "$GITHUB_REF_NAME" != "$base_version" ]]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match workspace.package.version $base_version"
-            exit 1
-          fi
-
-          publish_version="$base_version"
-        elif [[ "$GITHUB_REF_NAME" == "main" || "$GITHUB_REF_NAME" =~ ^.+\..+-maintenance$ ]]; then
-          publish_version="${base_version}-dev.${GITHUB_RUN_NUMBER}+${GITHUB_SHA}"
-        else
-          should_publish=false
-          publish_version="$base_version"
-        fi
-
-        {
-          echo "should-publish=$should_publish"
-          echo "publish-version=$publish_version"
-          echo "release-version=$base_version"
-        } >> "$GITHUB_OUTPUT"
-
-        if [[ "$should_publish" != "true" || "$publish_version" == "$base_version" ]]; then
+        publish_version="$PUBLISH_VERSION"
+        if [[ "$publish_version" == "$base_version" ]]; then
           exit 0
         fi
 
@@ -236,10 +169,8 @@ jobs:
           git show --stat --oneline --no-renames HEAD
         fi
     - uses: rust-lang/crates-io-auth-action@v1
-      if: steps.version.outputs.should-publish == 'true'
       id: auth
     - name: Publish workspace
-      if: steps.version.outputs.should-publish == 'true'
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
       shell: bash
@@ -287,6 +218,7 @@ jobs:
       )
     outputs:
       version: ${{ steps.version.outputs.version }}
+      should-publish: ${{ steps.version.outputs.should-publish }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -362,6 +294,7 @@ jobs:
         fi
 
         workspace_version="$(dasel -i toml -o yaml 'workspace.package.version' < Cargo.toml)"
+        should_publish=true
         if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
           if [[ ! "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Release tags must use x.y.z without a v prefix: $GITHUB_REF_NAME"
@@ -374,16 +307,24 @@ jobs:
           fi
 
           artifact_version="$workspace_version"
+        elif [[ "$GITHUB_REF_NAME" == "main" || "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+-maintenance$ ]]; then
+          short_sha="$(git rev-parse --short "$GITHUB_SHA")"
+          artifact_version="${workspace_version}-dev.${GITHUB_RUN_NUMBER}+${short_sha}"
         else
-          artifact_version="${workspace_version}-dev.${GITHUB_RUN_NUMBER}+${GITHUB_SHA}"
+          should_publish=false
+          artifact_version="$workspace_version"
         fi
 
-        echo "version=$artifact_version" >> "$GITHUB_OUTPUT"
+        {
+          echo "version=$artifact_version"
+          echo "should-publish=$should_publish"
+        } >> "$GITHUB_OUTPUT"
 
   package-crates:
     name: package crates
     runs-on: ubuntu-latest
     needs: artifact-context
+    if: needs.artifact-context.outputs.should-publish == 'true'
     steps:
     - uses: actions/checkout@v6
     - uses: actions/cache@v5
@@ -459,7 +400,6 @@ jobs:
   build-napi:
     name: build napi addon (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    needs: []
     strategy:
       fail-fast: false
       matrix:
@@ -526,6 +466,7 @@ jobs:
     name: build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     needs: artifact-context
+    if: needs.artifact-context.outputs.should-publish == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -642,6 +583,13 @@ jobs:
             exit 1
           fi
         done
+    - name: Configure Windows CRT static linking
+      if: endsWith(matrix.target, '-pc-windows-msvc')
+      shell: bash
+      run: |
+        set -euo pipefail
+        printf 'RUSTFLAGS=%s-C target-feature=+crt-static\n' \
+          "${RUSTFLAGS:+$RUSTFLAGS }" >> "$GITHUB_ENV"
     - name: Build release binaries
       shell: bash
       run: |
@@ -658,10 +606,6 @@ jobs:
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
           set -x
           args+=(-vv)
-        fi
-
-        if [[ "${{ matrix.target }}" == *-pc-windows-msvc ]]; then
-          export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C target-feature=+crt-static"
         fi
 
         cargo "${args[@]}"
@@ -749,13 +693,7 @@ jobs:
     needs:
     - artifact-context
     - build-napi
-    if: >-
-      github.event_name == 'push' &&
-      (
-        github.ref == 'refs/heads/main' ||
-        endsWith(github.ref_name, '-maintenance') ||
-        github.ref_type == 'tag'
-      )
+    if: needs.artifact-context.outputs.should-publish == 'true'
     permissions:
       contents: read
       id-token: write

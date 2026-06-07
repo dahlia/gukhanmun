@@ -1,6 +1,7 @@
 [tools]
 "github:crate-ci/cargo-release" = "1.1.2"
 "github:mitsuhiko/insta" = "1.47.2"
+"github:rhysd/actionlint" = "1.7.12"
 dasel = "3.11"
 node = "26"
 "github:pnpm/pnpm" = "11"
@@ -8,6 +9,7 @@ deno = "2"
 bun = "1"
 "aqua:nushell/nushell" = "0.113.0"
 "pipx:fonttools" = { version = "4.63.0", extras = "woff" }
+"github:koalaman/shellcheck" = "0.11.0"
 
 [tools.rust]
 version = "1.95.0"
@@ -36,6 +38,7 @@ linux-arm64 = "hongdown-*-aarch64-unknown-linux-musl.tar.bz2"
 [tasks.check]
 description = "Run fast checks suitable for pre-commit"
 depends = [
+  "actionlint",
   "fmt-check",
   "typecheck",
   "clippy",
@@ -44,6 +47,10 @@ depends = [
   "js-doc",
   "js-fmt-check",
 ]
+
+[tasks.actionlint]
+description = "Lint GitHub Actions workflows"
+run = "actionlint"
 
 [tasks.ci]
 description = "Run the full CI verification gate"
