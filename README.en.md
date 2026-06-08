@@ -99,7 +99,7 @@ Windows (x86\_64) are attached to each release on GitHub:
 <https://github.com/dahlia/gukhanmun/releases>
 
 Download the archive for your platform, extract it, and place the `gukhanmun`
-binary somewhere on your `PATH`.
+and `gukhanmun-mkdict` executables somewhere on your `PATH`.
 
 [mise]: https://mise.jdx.dev/
 

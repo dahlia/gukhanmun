@@ -94,8 +94,8 @@ Linux(x86\_64, aarch64), macOS(x86\_64, aarch64), Windows(x86\_64)用으로 미�
 
 <https://github.com/dahlia/gukhanmun/releases>
 
-自身의 플랫폼에 맞는 아카이브를 내려받아 풀고, `gukhanmun` 바이너리를 `PATH`
-上의 어딘가에 둡니다.
+自身의 플랫폼에 맞는 아카이브를 내려받아 풀고, `gukhanmun` 및 `gukhanmun-mkdict`
+實行 파일을 `PATH` 上의 어딘가에 둡니다.
 
 [mise]: https://mise.jdx.dev/
 
