@@ -13,13 +13,6 @@ description: |-
 cargo add gukhanmun
 ~~~~
 
-또는 依存性을 손으로 적습니다:
-
-~~~~ toml
-[dependencies]
-gukhanmun = "0.1"
-~~~~
-
 
 피처 플래그
 -----------
@@ -33,18 +26,17 @@ gukhanmun = "0.1"
 | `markdown` | Markdown 變換                    | 예   |
 | `fst`      | FST 辭典 백엔드(*.gukfst* 파일)  | 예   |
 | `cdb`      | CDB 辭典 백엔드(*.gukcdb* 파일)  | 예   |
-| `stdict`   | 內藏 《標準國語大辭典》(약 3 MB) | 예   |
+| `stdict`   | 內藏 《標準國語大辭典》(約 3 MB) | 예   |
+| `opendict` | 內藏 《우리말샘》(約 8 MB)       | 예   |
 
 內藏 辭典 없이 빌드하려면(自身의 辭典을 提供할 때 有用):
 
-~~~~ toml
-[dependencies]
-gukhanmun = { version = "0.1", default-features = false, features = ["fst"] }
+~~~~ sh
+cargo add gukhanmun --no-default-features -F fst
 ~~~~
 
 純粹 텍스트 專用의 最小 바이너리를 빌드하려면:
 
-~~~~ toml
-[dependencies]
-gukhanmun = { version = "0.1", default-features = false, features = ["stdict"] }
+~~~~ sh
+cargo add gukhanmun --no-default-features -F stdict
 ~~~~

@@ -107,20 +107,16 @@ binary somewhere on your `PATH`.
 
 Add to *Cargo.toml*:
 
-~~~~ toml
-[dependencies]
-gukhanmun-core = "0.1"
+~~~~ sh
+cargo add gukhanmun-core
+~~~~
 
-# Optional format adapters:
-gukhanmun-html     = "0.1"
-gukhanmun-markdown = "0.1"
+Optionally add format adapters and dictionary backends:
 
-# Optional dictionary backends:
-gukhanmun-fst  = "0.1"
-gukhanmun-cdb  = "0.1"
-
-# Optional bundled Standard Korean Language Dictionary:
-gukhanmun-stdict = "0.1"
+~~~~ sh
+cargo add gukhanmun-html gukhanmun-markdown
+cargo add gukhanmun-stdict gukhanmun-opendict
+cargo add gukhanmun-fst gukhanmun-cdb
 ~~~~
 
 ### JavaScript/TypeScript library

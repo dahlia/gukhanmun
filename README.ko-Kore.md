@@ -103,20 +103,16 @@ Linux(x86\_64, aarch64), macOS(x86\_64, aarch64), Windows(x86\_64)用으로 미�
 
 *Cargo.toml*에 追加합니다:
 
-~~~~ toml
-[dependencies]
-gukhanmun-core = "0.1"
+~~~~ sh
+cargo add gukhanmun-core
+~~~~
 
-# 選擇的 形式 어댑터:
-gukhanmun-html     = "0.1"
-gukhanmun-markdown = "0.1"
+必要에 따라 形式 어댑터와 辭典 백엔드를 追加합니다:
 
-# 選擇的 辭典 백엔드:
-gukhanmun-fst  = "0.1"
-gukhanmun-cdb  = "0.1"
-
-# 選擇的 內藏 《標準國語大辭典》:
-gukhanmun-stdict = "0.1"
+~~~~ sh
+cargo add gukhanmun-html gukhanmun-markdown
+cargo add gukhanmun-stdict gukhanmun-opendict
+cargo add gukhanmun-fst gukhanmun-cdb
 ~~~~
 
 ### JavaScript/TypeScript 라이브러리
