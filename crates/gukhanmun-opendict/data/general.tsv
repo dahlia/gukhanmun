@@ -162653,9 +162653,9 @@ Shimizu[清水]	시미즈	false	false
 業種	업종	false	false
 業種別	업종별	false	false
 業種子	업종자	false	false
-業積主義	업적주의	false	false
 業緣	업연	false	false
 業績	업적	false	false
+業績主義	업적주의	false	false
 業績別	업적별	false	false
 業績給制	업적급제	false	false
 業繫	업계	false	false
@@ -167139,6 +167139,7 @@ Shimizu[清水]	시미즈	false	false
 歔欷	허희	false	false
 歔欷歎息	허희탄식	false	false
 歔欷流涕	허희유체	false	false
+歔欷流涕하다	허희유체하다	false	false
 歔欷自歎	허희자탄	false	false
 歔欷長歎	허희장탄	false	false
 歔欷하다	허희하다	false	false
@@ -196060,6 +196061,7 @@ Shimizu[清水]	시미즈	false	false
 物流業界	물류업계	false	false
 物流業者	물류업자	false	false
 物流業體	물류업체	false	false
+物流網	물류망	false	false
 物流職	물류직	false	false
 物流費	물류비	false	false
 物流費用	물류비용	false	false
@@ -196172,7 +196174,6 @@ Shimizu[清水]	시미즈	false	false
 物量化	물량화	false	false
 物量場	물량장	false	false
 物音	물음	false	false
-物類網	물류망	false	false
 物騷	물소	false	false
 物騷하다	물소하다	false	false
 物體	물체	false	false
@@ -270454,6 +270455,7 @@ Shimizu[清水]	시미즈	false	false
 設備되다	설비되다	false	false
 設備하다	설비하다	false	false
 設問	설문	false	false
+設問用紙	설문용지	false	false
 設問紙	설문지	false	false
 設問紙法	설문지법	false	false
 設問하다	설문하다	false	false
@@ -272699,7 +272701,6 @@ Shimizu[清水]	시미즈	false	false
 說伏하다	설복하다	false	false
 說吐	설토	false	false
 說吐하다	설토하다	false	false
-說問用紙	설문용지	false	false
 說客	설객	false	false
 說弊救弊	설폐구폐	false	false
 說弊救弊하다	설폐구폐하다	false	false
@@ -347888,6 +347889,7 @@ Shimizu[清水]	시미즈	false	false
 줄薔薇	줄장미	false	false
 줄行列	줄행렬	false	false
 줄行廊	줄행랑	false	false
+줄行廊치다	줄행랑치다	false	false
 줄訴訟	줄소송	false	false
 줄負傷	줄부상	false	false
 줄車	줄차	false	false

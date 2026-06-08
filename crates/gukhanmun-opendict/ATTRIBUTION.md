@@ -20,7 +20,7 @@ The bundled dictionary data is derived from the *Open Korean Dictionary*
 
  -  Source: National Institute of Korean Language, *Open Korean Dictionary*
     (우리말샘), <https://opendict.korean.go.kr/>
- -  Snapshot: *전체 내려받기\_우리말샘\_json\_20260503.zip*
+ -  Snapshot: *전체 내려받기\_우리말샘\_json\_20260603.zip*
  -  Data license: Creative Commons Attribution-ShareAlike 2.0 Korea
     (CC BY-SA 2.0 KR), <https://creativecommons.org/licenses/by-sa/2.0/kr/>
 

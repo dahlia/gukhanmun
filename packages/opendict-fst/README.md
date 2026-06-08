@@ -50,8 +50,8 @@ and 옛말 categories, so you can select and load only the categories you need:
  -  `opendictDialectFst()`
  -  `opendictArchaicFst()`
 
-Each function returns a `DictionarySource` record (a `{ format: "fst", bytes: Uint8Array }`
-object).
+Each function returns a `DictionarySource` record (a
+`{ format: "fst", bytes: Uint8Array }` object).
 
 ### Raw bytes and URLs
 
@@ -69,8 +69,9 @@ To get the package URL of an FST binary, use the `*Url` constants:
  -  `opendictDialectFstUrl`
  -  `opendictArchaicFstUrl`
 
-The `*Bytes()` helpers read the binary from disk using `node:fs/promises` if loaded from
-a `file:` URL (default for npm installations), and fall back to `fetch` for other protocols.
+The `*Bytes()` helpers read the binary from disk using `node:fs/promises` if
+loaded from a `file:` URL (default for npm installations), and fall back to
+`fetch` for other protocols.
 
 
 Relation to `@gukhanmun/opendict-cdb`
@@ -87,7 +88,7 @@ Data attribution
 ----------------
 
 The bundled dictionary data is derived from the National Institute of Korean
-Language's *Open Korean Dictionary* (우리말샘) JSON dump dated 2026-05-03. See
+Language's *Open Korean Dictionary* (우리말샘) JSON dump dated 2026-06-03. See
 *ATTRIBUTION.md* for source and license details.
 
 

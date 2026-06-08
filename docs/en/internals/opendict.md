@@ -21,14 +21,14 @@ Snapshot
 
 | Field          | Value                                                              |
 | -------------- | ------------------------------------------------------------------ |
-| Source archive | *전체 내려받기\_우리말샘\_json\_20260503.zip*                      |
-| Dump date      | 2026-05-03                                                         |
-| SHA-256        | `846547ca6d80e6f8858af287aababb570ec54d591d40ea68b76266c25a0742ae` |
+| Source archive | *전체 내려받기\_우리말샘\_json\_20260603.zip*                      |
+| Dump date      | 2026-06-03                                                         |
+| SHA-256        | `345cfae71f3710cc483975a9af04773985aaaa4ba7ca4855a4bb93f390f63e8e` |
 | Data license   | CC BY-SA 2.0 KR                                                    |
 
 | Category     | Source label | TSV file           | Entries | SHA-256                                                            |
 | ------------ | ------------ | ------------------ | ------: | ------------------------------------------------------------------ |
-| General      | 일반어       | *general.tsv*      | 350,328 | `4637f209faf03b918b18c3db67afdc1082dc8f4bc10d92aae044e4e9cb89294a` |
+| General      | 일반어       | *general.tsv*      | 350,330 | `03a744cc783797e09b0e094bf2649718792edcf7e3254a4010994814ad9a16d9` |
 | North Korean | 북한어       | *north-korean.tsv* |  34,093 | `cdc67c66b3c5febf870a406188e9621dd3a72654b5e878de1e9fb25b40db6256` |
 | Dialect      | 방언         | *dialect.tsv*      |   5,714 | `24547f29e78e2b3bc9a1709294e0030940b46c862e503f2f337c2f5609a801a8` |
 | Archaic      | 옛말         | *archaic.tsv*      |      16 | `0f77342de48317faf10a997b156955bf73cad442e36d150a91ed19265fea0bdc` |
@@ -42,7 +42,7 @@ then run:
 
 ~~~~ sh
 cargo run --release -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- \
-  ~/Downloads/전체\ 내려받기_우리말샘_json_20260503 \
+  ~/Downloads/전체\ 내려받기_우리말샘_json_20260603 \
   --general-output crates/gukhanmun-opendict/data/general.tsv \
   --north-korean-output crates/gukhanmun-opendict/data/north-korean.tsv \
   --dialect-output crates/gukhanmun-opendict/data/dialect.tsv \

@@ -76,10 +76,10 @@ fn build_category(
             validate: true,
             max_key_bytes: gukhanmun_mkdict::DEFAULT_MAX_KEY_BYTES,
             metadata: BTreeMap::from([
-                ("source".to_owned(), "opendict-json-20260503".to_owned()),
+                ("source".to_owned(), "opendict-json-20260603".to_owned()),
                 ("license".to_owned(), "CC-BY-SA-2.0-KR".to_owned()),
                 ("category".to_owned(), category.to_owned()),
-                ("build_date".to_owned(), "2026-05-03T00:00:00Z".to_owned()),
+                ("build_date".to_owned(), "2026-06-03T00:00:00Z".to_owned()),
             ]),
             rules: Vec::new(),
             allow_unmatched_rules: false,

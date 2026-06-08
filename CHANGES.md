@@ -99,7 +99,7 @@ To be released.
 ### gukhanmun-opendict
 
  -  Added a bundled *Open Korean Dictionary* (우리말샘) crate generated from the
-    2026-05-03 JSON dump.  The crate exposes separate `general()`,
+    2026-06-03 JSON dump.  The crate exposes separate `general()`,
     `north_korean()`, `dialect()`, and `archaic()` FST dictionaries so callers
     can compose the categories explicitly with `ChainDictionary`.  [[#5], [#6]]
 
@@ -116,6 +116,8 @@ To be released.
     words (such as “元” → “위안” or “円” → “엔”) no longer shadow the
     Sino-Korean reading of those characters; the engine recovers their original
     sound from the bundled unihan readings instead.
+ -  Regenerated the bundled *Standard Korean Language Dictionary* data from
+    the 2026-06-06 JSON dump (260,690 entries, was 260,688).
 
 [#1]: https://github.com/dahlia/gukhanmun/issues/1
 [#2]: https://github.com/dahlia/gukhanmun/pull/2
@@ -151,6 +153,16 @@ To be released.
     Korean (北韓語), dialect (方言), and archaic (옛말) categories as FST
     binaries, with category-specific byte loaders and `FileDictionarySource`
     helpers.  [[#5], [#6]]
+
+### @gukhanmun/stdict-fst
+
+ -  Regenerated the bundled FST binary from the 2026-06-06 *Standard Korean
+    Language Dictionary* JSON dump.
+
+### @gukhanmun/stdict-cdb
+
+ -  Regenerated the bundled CDB binary from the 2026-06-06 *Standard Korean
+    Language Dictionary* JSON dump.
 
 ### @gukhanmun/types
 

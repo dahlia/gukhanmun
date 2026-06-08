@@ -20,10 +20,10 @@ Snapshot
 
 | Field          | Value                                                              |
 | -------------- | ------------------------------------------------------------------ |
-| Source archive | *전체 내려받기\_표준국어대사전\_JSON\_20260506.zip*                |
-| Dump date      | 2026-05-06                                                         |
-| SHA-256        | `0da6bef096f892d7ab44e8f52ba3f16ece1e88fc8d823e7bc816f2c2d9689e46` |
-| TSV entries    | 260,688                                                            |
+| Source archive | *전체 내려받기\_표준국어대사전\_JSON\_20260606.zip*                |
+| Dump date      | 2026-06-06                                                         |
+| SHA-256        | `7082b9665ed1e01b563e4b5924fb241e455d945b35507910ac53453d7bb91dee` |
+| TSV entries    | 260,690                                                            |
 
 
 Regeneration
@@ -35,7 +35,7 @@ Place the downloaded zip wherever convenient, then run:
 cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- \
   -o crates/gukhanmun-stdict/data/stdict.tsv \
   --suffix-output crates/gukhanmun-stdict/data/suffix.tsv \
-  ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260506.zip
+  ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260606.zip
 ~~~~
 
 The extractor writes deterministic UTF-8 TSV sorted by dictionary key.  The

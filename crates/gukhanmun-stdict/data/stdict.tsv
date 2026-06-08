@@ -123565,6 +123565,7 @@ hanja	hangul	require_hanja	require_hangul
 歔欷	허희	false	false
 歔欷歎息	허희탄식	false	false
 歔欷流涕	허희유체	false	false
+歔欷流涕하다	허희유체하다	false	false
 歔欷自歎	허희자탄	false	false
 歔欷長歎	허희장탄	false	false
 歔欷하다	허희하다	false	false
@@ -259002,6 +259003,7 @@ hanja	hangul	require_hanja	require_hangul
 줄脈	줄맥	false	false
 줄薔薇	줄장미	false	false
 줄行廊	줄행랑	false	false
+줄行廊치다	줄행랑치다	false	false
 줄車	줄차	false	false
 줄辭說	줄사설	false	false
 줄辭說하다	줄사설하다	false	false

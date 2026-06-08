@@ -50,8 +50,8 @@ and 옛말 categories, so you can select and load only the categories you need:
  -  `opendictDialectCdb()`
  -  `opendictArchaicCdb()`
 
-Each function returns a `DictionarySource` record (a `{ format: "cdb", bytes: Uint8Array }`
-object).
+Each function returns a `DictionarySource` record (a
+`{ format: "cdb", bytes: Uint8Array }` object).
 
 ### Raw bytes and URLs
 
@@ -69,11 +69,12 @@ To get the package URL of a CDB binary, use the `*Url` constants:
  -  `opendictDialectCdbUrl`
  -  `opendictArchaicCdbUrl`
 
-The `*Bytes()` helpers read the binary from disk using `node:fs/promises` if loaded from
-a `file:` URL (default for npm installations), and fall back to `fetch` for other protocols.
+The `*Bytes()` helpers read the binary from disk using `node:fs/promises` if
+loaded from a `file:` URL (default for npm installations), and fall back to
+`fetch` for other protocols.
 
 The bundled binaries ship gzip-compressed (the `*Url` constants point at
-*\*.cdb.gz* files) to stay within the JSR per-file size limit. The `*Bytes()`
+_\*.cdb.gz_ files) to stay within the JSR per-file size limit. The `*Bytes()`
 helpers inflate them transparently, so their return value is always the raw
 CDB; only reach past them to the `*Url` constants if you intend to handle the
 gzip yourself.
@@ -93,7 +94,7 @@ Data attribution
 ----------------
 
 The bundled dictionary data is derived from the National Institute of Korean
-Language's *Open Korean Dictionary* (우리말샘) JSON dump dated 2026-05-03. See
+Language's *Open Korean Dictionary* (우리말샘) JSON dump dated 2026-06-03. See
 *ATTRIBUTION.md* for source and license details.
 
 

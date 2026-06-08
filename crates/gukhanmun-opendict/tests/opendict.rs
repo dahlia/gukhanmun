@@ -247,7 +247,7 @@ fn bundled_dictionaries_are_partitioned_by_category() {
     let dialect = gukhanmun_opendict::dialect();
     let archaic = gukhanmun_opendict::archaic();
 
-    assert_eq!(general.entry_count(), 350_328);
+    assert_eq!(general.entry_count(), 350_330);
     assert_eq!(north_korean.entry_count(), 34_093);
     assert_eq!(dialect.entry_count(), 5_714);
     assert_eq!(archaic.entry_count(), 16);

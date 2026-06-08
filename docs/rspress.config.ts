@@ -121,6 +121,13 @@ export default defineConfig({
           "dist",
           "index.js",
         ),
+        "@gukhanmun/opendict-fst": path.join(
+          path.dirname(__dirname),
+          "packages",
+          "opendict-fst",
+          "dist",
+          "index.js",
+        ),
       },
     },
   },
