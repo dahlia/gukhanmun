@@ -80,6 +80,14 @@ mise use -g aqua:dahlia/gukhanmun
 The `-g` flag installs it globally.  Omit it to activate the tool only in the
 current project directory.
 
+#### Via Windows Package Manager (`winget`)
+
+On Windows, install via `winget`:
+
+~~~~ pwsh
+winget install HongMinhee.Gukhanmun
+~~~~
+
 #### From crates.io
 
 If you have a Rust toolchain installed, install from crates.io:

@@ -25,6 +25,16 @@ current project directory.
 [mise]: https://mise.jdx.dev/
 
 
+Via Windows Package Manager (`winget`)
+--------------------------------------
+
+On Windows, install via `winget`:
+
+~~~~ powershell
+winget install HongMinhee.Gukhanmun
+~~~~
+
+
 From crates.io
 --------------
 

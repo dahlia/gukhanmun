@@ -25,6 +25,16 @@ mise use -g aqua:dahlia/gukhanmun
 [mise]: https://mise.jdx.dev/
 
 
+Windows Package Manager(`winget`)를 通해서
+------------------------------------------
+
+Windows에서는 `winget`으로 設置할 수 있습니다:
+
+~~~~ powershell
+winget install HongMinhee.Gukhanmun
+~~~~
+
+
 crates.io에서
 -------------
 

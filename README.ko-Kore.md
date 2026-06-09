@@ -76,6 +76,14 @@ mise use -g aqua:dahlia/gukhanmun
 `-g` 플래그는 全域으로 設置합니다.  이를 省略하면 現在 프로젝트 디렉터리에서만
 道具가 活性化됩니다.
 
+#### Windows Package Manager(`winget`)를 通해서
+
+Windows에서는 `winget`으로 設置할 수 있습니다:
+
+~~~~ pwsh
+winget install HongMinhee.Gukhanmun
+~~~~
+
 #### crates.io에서
 
 Rust 툴체인이 設置되어 있다면, crates.io에서 設置합니다:
