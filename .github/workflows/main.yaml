@@ -690,6 +690,7 @@ jobs:
   publish-js:
     name: publish JS packages
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     needs:
     - artifact-context
     - build-napi
@@ -812,7 +813,35 @@ jobs:
           --access public
     - name: Publish to JSR
       shell: bash
-      run: deno publish --allow-dirty
+      timeout-minutes: 45
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
+
+        max_attempts=30
+        timeout_seconds=60
+        retry_sleep_seconds=10
+
+        for attempt in $(seq 1 "$max_attempts"); do
+          echo "Publishing to JSR (attempt ${attempt}/${max_attempts})..."
+          if timeout --kill-after=15s "${timeout_seconds}s" \
+            deno publish --allow-dirty; then
+            exit 0
+          fi
+
+          status=$?
+          if [[ "$attempt" -eq "$max_attempts" ]]; then
+            echo "deno publish failed after ${max_attempts} attempts; last exit status: ${status}" >&2
+            exit "$status"
+          fi
+
+          if [[ "$status" -eq 124 ]]; then
+            echo "deno publish timed out after ${timeout_seconds}s; retrying in ${retry_sleep_seconds}s..." >&2
+          else
+            echo "deno publish failed with exit status ${status}; retrying in ${retry_sleep_seconds}s..." >&2
+          fi
+          sleep "$retry_sleep_seconds"
+        done
 
   build-docs:
     name: build docs
