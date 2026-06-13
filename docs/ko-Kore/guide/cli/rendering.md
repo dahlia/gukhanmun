@@ -44,7 +44,7 @@ echo "漢字" | gukhanmun --rendering hanja-hangul-parens
 ### `ruby-on-hangul`
 
 한글 讀音을 `<ruby>` 要素로 감싸고 漢字를 그 註釋으로 답니다.  HTML이나 Markdown
-出力(`-f text/html` 또는 `-f text/markdown`)이 必要합니다; 純粹 텍스트에서는
+出力(`-f text/html` 또는 `-f text/markdown`)이 必要합니다; 平文 텍스트에서는
 括弧로 退化합니다.
 
 ~~~~ sh

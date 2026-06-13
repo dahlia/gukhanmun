@@ -35,7 +35,7 @@ cargo add gukhanmun
 cargo add gukhanmun --no-default-features -F fst
 ~~~~
 
-純粹 텍스트 專用의 最小 바이너리를 빌드하려면:
+平文 텍스트 專用의 最小 바이너리를 빌드하려면:
 
 ~~~~ sh
 cargo add gukhanmun --no-default-features -F stdict

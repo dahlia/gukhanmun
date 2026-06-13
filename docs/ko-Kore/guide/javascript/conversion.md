@@ -232,7 +232,7 @@ const g = await load({ firstOccurrenceWindow: "per-document" });
 ---------
 
 `recovery`는 HTML 파서가 解釋할 수 없는 마크업을 만났을 때 무슨 일이 일어날지
-制御합니다.  純粹 텍스트나 Markdown 入力에는 影響이 없습니다.
+制御합니다.  平文 텍스트나 Markdown 入力에는 影響이 없습니다.
 
 ~~~~ ts twoslash
 // @noErrors: 2451

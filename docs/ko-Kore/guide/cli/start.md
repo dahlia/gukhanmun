@@ -53,14 +53,14 @@ Gukhanmun은 파일 擴張子로부터 形式을 推論합니다:
 
 | 擴張子             | 形式        |
 | ------------------ | ----------- |
-| *.txt*, *(없음)*   | 純粹 텍스트 |
+| *.txt*, *(없음)*   | 平文 텍스트 |
 | *.html*, *.htm*    | HTML        |
 | *.md*, *.markdown* | Markdown    |
 
 感知된 形式은 `-f`로 덮어쓸 수 있습니다:
 
 ~~~~ sh
-gukhanmun -f text/plain input.html      # 純粹 텍스트로 다룸
+gukhanmun -f text/plain input.html      # 平文 텍스트로 다룸
 gukhanmun -f text/html  snippet.txt     # HTML로 다룸
 gukhanmun -f text/markdown article.txt  # Markdown으로 다룸
 ~~~~

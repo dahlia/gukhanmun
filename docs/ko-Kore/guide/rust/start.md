@@ -53,7 +53,7 @@ let converter = Builder::with_preset(Preset::KoKr)
 `Converter`는 支援하는 各 形式마다 變換 메서드를 가집니다:
 
 ~~~~ rust
-// 純粹 텍스트
+// 平文 텍스트
 let text = converter.convert_text_to_string("漢字를 한글로")?;
 
 // HTML 斷片 (`html` 피처 必要)

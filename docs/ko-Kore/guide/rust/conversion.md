@@ -208,5 +208,5 @@ builder.recovery(Recovery::Strict);   // 基本: 誤謬 時 中斷
 builder.recovery(Recovery::Lenient);  // 問題가 되는 斷片을 건너뜀
 ~~~~
 
-HTML 變換에서 該當합니다; 純粹 텍스트와 Markdown은 復舊 可能한 誤謬를 내지
+HTML 變換에서 該當합니다; 平文 텍스트와 Markdown은 復舊 可能한 誤謬를 내지
 않습니다.

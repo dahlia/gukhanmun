@@ -51,7 +51,7 @@ console.log(parts.join(""));  // <p>한자</p>
 import type { Gukhanmun } from "@gukhanmun/types";
 const g: Gukhanmun = {} as unknown as Gukhanmun;
 // ---cut-before---
-g.stream();                              // 純粹 텍스트 (基本)
+g.stream();                              // 平文 텍스트 (基本)
 g.stream("html");                        // HTML
 g.stream("markdown");                    // CommonMark
 g.stream({ format: "markdown", gfm: true });  // GFM

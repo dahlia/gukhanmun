@@ -45,14 +45,14 @@ const g = await load({
 `convert()` 메서드
 ------------------
 
-`g.convert(source)`는 基本的으로 純粹 텍스트를 變換합니다.  HTML이나 Markdown을
+`g.convert(source)`는 基本的으로 平文 텍스트를 變換합니다.  HTML이나 Markdown을
 爲해서는 두 番째 引數로 形式 文字列이나 客體를 넘깁니다:
 
 ~~~~ ts twoslash
 import type { Gukhanmun } from "@gukhanmun/types";
 const g: Gukhanmun = {} as unknown as Gukhanmun;
 // ---cut-before---
-g.convert("漢字를 한글로");             // 純粹 텍스트 (基本)
+g.convert("漢字를 한글로");             // 平文 텍스트 (基本)
 g.convert("<p>漢字</p>", "html");       // HTML 斷片
 g.convert("# 漢字", "markdown");        // CommonMark
 g.convert("# 漢字", { format: "markdown", gfm: true });  // GFM

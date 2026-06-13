@@ -149,7 +149,7 @@ let converter = Builder::with_preset(Preset::KoKr)
 ---------------------
 
 위에서 불러온 *.gukfst*와 *.gukcdb* 파일은 컴파일된 産出物이며,
-`gukhanmun-mkdict` 道具로 純粹 텍스트 表에서 빌드됩니다.  辭典 出處를 作成하고
+`gukhanmun-mkdict` 道具로 平文 텍스트 表에서 빌드됩니다.  辭典 出處를 作成하고
 컴파일하는 方法은 CLI 案內書의
 〈[使用者 定義 辭典 構築](../cli/dictionary.md#使用者-定義-辭典-構築)〉을
 參照하십시오.

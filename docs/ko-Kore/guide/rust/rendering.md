@@ -26,7 +26,7 @@ builder.rendering(RenderMode::Original);            // 漢字 維持, 必要한 
 ~~~~
 
 `RubyOnHangul`과 `RubyOnHanja`는 `<ruby>` 마크업을 만듭니다; HTML이나 Markdown
-出力에서 가장 有用합니다.  純粹 텍스트 모드에서는 括弧로 退化합니다.  註釋은
+出力에서 가장 有用합니다.  平文 텍스트 모드에서는 括弧로 退化합니다.  註釋은
 `<rp>`(ruby parenthesis) 要素로 감싸지므로, `<ruby>`를 支援하지 않는 브라우저도
 讀音을 基底 텍스트에 섞지 않고 括弧로 묶인 倂記(`한자(漢字)`)로 렌더링합니다.
 

@@ -40,20 +40,20 @@ Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變
 ----
 
  -  래티스 分割로 最適 分割을 찾습니다. 貪慾的 最長 一致와 달리, 行事場所를
-    行事場 + 所가 아니라 行事 + 場所로 正確하게 분립니다.
+    行事場 + 所가 아니라 行事 + 場所로 正確하게 分離됩니다.
  -  結合 可能한 辭典: 메모리 內 맵·mmap 親和的 FST 파일·CDB 파일을 쓸 수
     있으며, `ChainDictionary`로 合成할 수 있습니다.
  -  《標準國語大辭典》과 《우리말샘》이 컴파일된 FST·CDB 形態로 內藏되어 있어
     別途의 다운로드가 必要 없습니다.
- -  純粹 텍스트·HTML 단편·Markdown 形式 어댑터를 提供합니다. 엔진은 形式
-    中立的이며, 解析과 直列化는 어댑터가 담당합니다.
+ -  平文 텍스트·HTML 조각·Markdown 形式 어댑터를 提供합니다. 엔진은 形式
+    中立的이며, 解析과 直列化는 어댑터가 擔當합니다.
  -  다섯 가지 렌더링 모드: 한글 專用·한글(漢字) 括弧·漢字(한글) 括弧·루비
     마크업·選擇的 倂記를 곁들인 國漢文 原文.
  -  스트리밍 優先 設計: 엔진은 單一 漢字 變換 候補 範圍 內에서만 버퍼링하며,
     文書 全體를 메모리에 올리지 않습니다.
- -  大韓民國 正書法을 爲한 頭音法則을 폴백 讀音에 適用합니다. 辭典 項目은 이미
+ -  韓國 正書法을 爲한 頭音法則을 폴백 讀音에 適用합니다. 辭典 項目은 이미
     正確한 讀音을 들고 있다고 假定합니다.
- -  핵심 크레이트(`gukhanmun-core`)는 `no_std` + `alloc`으로, 임베디드
+ -  核心 크레이트(`gukhanmun-core`)는 `no_std` + `alloc`으로, 임베디드
     環境에서도 使用할 수 있습니다.
  -  JavaScript·TypeScript 바인딩을 두 가지 形態로 提供합니다: 브라우저·
     Deno·Node.js·Bun·에지 런타임에서 動作하는 WebAssembly 패키지와 서버
@@ -93,7 +93,7 @@ cargo install gukhanmun-cli gukhanmun-mkdict
 ~~~~
 
 이 命令은 바이너리를 컴파일하여 *~/.cargo/bin/* 디렉터리에 둡니다.
-그 디렉터리가 `PATH`에 있는지 確認하십시오.
+該當 디렉터리가 `PATH`에 있는지 確認하십시오.
 
 #### 미리 빌드된 바이너리
 
@@ -125,7 +125,7 @@ cargo add gukhanmun-fst gukhanmun-cdb
 
 ### JavaScript/TypeScript 라이브러리
 
-大部分의 JavaScript 環境의 境遇 WebAssembly 패키지를 設置하면 됩니다:
+大部分의 JavaScript 環境의 境遇, WebAssembly 패키지를 設置하면 됩니다:
 
 ~~~~ sh
 npm  add       @gukhanmun/wasm @gukhanmun/stdict-fst
@@ -135,7 +135,7 @@ bun  add       @gukhanmun/wasm @gukhanmun/stdict-fst
 deno add --jsr @gukhanmun/wasm @gukhanmun/stdict-fst
 ~~~~
 
-또는, 더 나은 서버 사이드 性能을 爲해 네이티브 依存關係를 개의치 않는다면,
+또는, 더 나은 서버 사이드 性能을 爲해 네이티브 依存關係를 介意치 않는다면,
 Node-API 패키지를 設置할 수도 있습니다:
 
 ~~~~ sh
