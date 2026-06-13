@@ -17,8 +17,8 @@ Gukhanmun
 
 Gukhanmun은 國漢文混用體로 쓰인 韓國語 텍스트를 한글 專用 텍스트로 變換하는
 Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變換 파이프라인에
-集中하면서 스트리밍 入出力·結合 可能한 辭典·라티스 基盤 分割·多樣한 出力
-形式 等의 軸으로 擴張되었습니다. Rust 라이브러리·命令줄 道具·WebAssembly
+集中하면서 스트리밍 入出力·結合 可能한 辭典·래티스(lattice) 基盤 分割·多樣한
+出力 形式 等의 軸으로 擴張되었습니다. Rust 라이브러리·命令줄 道具·WebAssembly
 패키지·네이티브 Node-API 애드온 形態로 提供됩니다.
 
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
@@ -39,7 +39,7 @@ Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變
 機能
 ----
 
- -  라티스 分割로 最適 分割을 찾습니다. 貪慾的 最長 一致와 달리, 行事場所를
+ -  래티스 分割로 最適 分割을 찾습니다. 貪慾的 最長 一致와 달리, 行事場所를
     行事場 + 所가 아니라 行事 + 場所로 正確하게 분립니다.
  -  結合 可能한 辭典: 메모리 內 맵·mmap 親和的 FST 파일·CDB 파일을 쓸 수
     있으며, `ChainDictionary`로 合成할 수 있습니다.
@@ -183,7 +183,7 @@ HTML·Markdown 어댑터·렌더링 모드·프리셋·JavaScript API를 包含�
 
 | 크레이트                                    | 說明                                                                                     |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`gukhanmun-core`][cr-core]                 | 形式 中立的 IR·엔진·辭典 트레이트·라티스 分割機·폴백 音譯機. `no_std` + `alloc`.         |
+| [`gukhanmun-core`][cr-core]                 | 形式 中立的 IR·엔진·辭典 트레이트·래티스 分割機·폴백 音譯機. `no_std` + `alloc`.         |
 | [`gukhanmun-html`][cr-html]                 | HTML 단편 리더·라이터. `lang` 相續과 保存 對象 태그 處理를 포함하는 `HtmlScopeData`.     |
 | [`gukhanmun-markdown`][cr-md]               | `pulldown-cmark` 基盤 Markdown 어댑터. 인라인 HTML은 `lang` 屬性 處理를 위해 再走査된다. |
 | [`gukhanmun-fst`][cr-fst]                   | mmap 親和的 온-디스크 辭典을 爲한 FST 基盤 `HanjaDictionary` 具顯.                       |
@@ -241,7 +241,7 @@ npm/JSR 패키지 構成
 ---------
 
 [*DESIGN.md*](./DESIGN.ko-Kore.md)에서 全體 構造를 살펴볼 수 있습니다:
-中間 表現·라티스 分割 算法·辭典 트레이트 設計·미들웨어 體系·形式 어댑터 內部
+中間 表現·래티스 分割 算法·辭典 트레이트 設計·미들웨어 體系·形式 어댑터 內部
 構造.
 
 

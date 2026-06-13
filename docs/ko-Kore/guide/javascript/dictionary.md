@@ -23,7 +23,7 @@ import { load } from "@gukhanmun/wasm";
 import { stdictFst } from "@gukhanmun/stdict-fst";
 import { stdictCdb } from "@gukhanmun/stdict-cdb";
 
-// FST: 勸奬; 디스크에서 더 작고, 라티스 分割에 더 適合
+// FST: 勸奬; 디스크에서 더 작고, 래티스(lattice) 分割에 더 適合
 const g = await load({ dictionaries: [await stdictFst()] });
 
 // CDB: O(1) 찾기; 더 單純한 配置
