@@ -5,6 +5,7 @@
   "license": "GPL-3.0-only",
   "publish": {
     "include": [
+      "README.md",
       "index.ts",
       "wasm/web"
     ],
