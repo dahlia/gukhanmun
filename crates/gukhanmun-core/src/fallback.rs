@@ -18,7 +18,7 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 use crate::generated::unihan_readings::{KHANGUL_ALL_READINGS, KHANGUL_READINGS};
-use crate::{EngineOptions, NumeralStrategy};
+use crate::{EngineOptions, NumeralStrategy, is_hanja};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum FallbackPart {
@@ -175,12 +175,19 @@ fn numeral_at(
         }
         NumeralStrategy::PositionalArabic
         | NumeralStrategy::AdditiveArabic
-        | NumeralStrategy::Smart => arabic_numeral_at(chars, index, strategy)
-            .map(|matched| NumeralMatch {
-                next_index: matched.next_index,
-                part: NumeralPart::Text(matched.text),
-            })
-            .or_else(|| hangul_phonetic_numeral_at(chars, index, initial_sound_law)),
+        | NumeralStrategy::Smart => {
+            let arabic = if can_start_arabic_numeral(chars, index) {
+                arabic_numeral_at(chars, index, strategy)
+            } else {
+                None
+            };
+            arabic
+                .map(|matched| NumeralMatch {
+                    next_index: matched.next_index,
+                    part: NumeralPart::Text(matched.text),
+                })
+                .or_else(|| hangul_phonetic_numeral_at(chars, index, initial_sound_law))
+        }
     }
 }
 
@@ -193,7 +200,7 @@ pub(crate) fn arabic_numeral_at(
         NumeralStrategy::HangulPhonetic => return None,
         NumeralStrategy::PositionalArabic => positional_arabic_numeral_at(chars, index),
         NumeralStrategy::AdditiveArabic => additive_arabic_numeral_at(chars, index),
-        NumeralStrategy::Smart => additive_arabic_numeral_at(chars, index)
+        NumeralStrategy::Smart => smart_additive_arabic_numeral_at(chars, index)
             .or_else(|| smart_positional_arabic_numeral_at(chars, index)),
     }?;
 
@@ -221,6 +228,19 @@ pub(crate) fn is_hanja_place_marker(ch: char) -> bool {
     small_place_value(ch).is_some() || large_place_value(ch).is_some()
 }
 
+pub(crate) fn can_start_arabic_numeral(chars: &[char], start_char: usize) -> bool {
+    let Some(&current) = chars.get(start_char) else {
+        return false;
+    };
+    let Some(&previous) = start_char.checked_sub(1).and_then(|index| chars.get(index)) else {
+        return true;
+    };
+    if is_hanja_numeral(previous) || previous == '第' {
+        return false;
+    }
+    !(is_hanja_place_marker(current) && is_hanja(previous))
+}
+
 fn smart_positional_arabic_numeral_at(chars: &[char], index: usize) -> Option<NumeralMatch> {
     let matched = positional_arabic_numeral_at(chars, index)?;
     let digit_count = matched.next_index - index;
@@ -228,6 +248,23 @@ fn smart_positional_arabic_numeral_at(chars: &[char], index: usize) -> Option<Nu
         .get(matched.next_index)
         .is_some_and(|&next| is_numeral_unit(next));
     (digit_count >= 4 || followed_by_unit).then_some(matched)
+}
+
+fn smart_additive_arabic_numeral_at(chars: &[char], index: usize) -> Option<NumeralMatch> {
+    let first = *chars.get(index)?;
+    if digit_value(first).is_some() {
+        return additive_arabic_numeral_at(chars, index);
+    }
+    small_place_value(first)?;
+
+    let matched = additive_arabic_numeral_at(chars, index)?;
+    if matched.next_index > index + 1 {
+        return Some(matched);
+    }
+    let followed_by_non_unit_hanja = chars
+        .get(matched.next_index)
+        .is_some_and(|&next| is_hanja(next) && !is_numeral_unit(next));
+    (!followed_by_non_unit_hanja).then_some(matched)
 }
 
 fn hangul_phonetic_numeral_at(

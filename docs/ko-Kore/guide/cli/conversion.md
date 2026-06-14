@@ -45,17 +45,19 @@ gukhanmun --segmentation eager input.txt
 數詞 處理
 ---------
 
-`--numerals`는 漢字 數詞를 렌더링하는 方式을 制御합니다:
+`--numerals`는 漢字 數詞를 렌더링하는 方式을 制御합니다. CLI는 基本값으로
+`smart`를 使用합니다. `六月` 같은 曆法 單語를 Seonbi式 音價 그대로 두려면
+`--numerals hangul-phonetic`을 넘기면 됩니다.
 
-| 戰略                     | 二〇一六年 | 十一月 | 一千二百三十四 |
-| ------------------------ | ---------- | ------ | -------------- |
-| `hangul-phonetic` (基本) | 이공일륙년 | 십일월 | 일천이백삼십사 |
-| `positional-arabic`      | 2016년     | —      | —              |
-| `additive-arabic`        | —          | 11월   | 1234           |
-| `smart`                  | 2016년     | 11월   | 1234           |
+| 戰略                | 二〇一六年 | 十一月   | 一千二百三十四 |
+| ------------------- | ---------- | -------- | -------------- |
+| `hangul-phonetic`   | 이공일륙년 | 십일월   | 일천이백삼십사 |
+| `positional-arabic` | 2016년     | (不適用) | (不適用)       |
+| `additive-arabic`   | (不適用)   | 11월     | 1234           |
+| `smart` (基本)      | 2016년     | 11월     | 1234           |
 
 ~~~~ sh
-gukhanmun --numerals smart input.txt
+gukhanmun --numerals hangul-phonetic input.txt
 ~~~~
 
 

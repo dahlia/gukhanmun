@@ -46,17 +46,19 @@ gukhanmun --segmentation eager input.txt
 Numeral handling
 ----------------
 
-`--numerals` controls how hanja numerals are rendered:
+`--numerals` controls how hanja numerals are rendered. The CLI defaults to
+`smart`; pass `--numerals hangul-phonetic` to keep Seonbi-style phonetic
+readings for calendar words such as `六月`.
 
-| Strategy                    | 二〇一六年 | 十一月 | 一千二百三十四 |
-| --------------------------- | ---------- | ------ | -------------- |
-| `hangul-phonetic` (default) | 이공일륙년 | 십일월 | 일천이백삼십사 |
-| `positional-arabic`         | 2016년     | —      | —              |
-| `additive-arabic`           | —          | 11월   | 1234           |
-| `smart`                     | 2016년     | 11월   | 1234           |
+| Strategy            | 二〇一六年 | 十一月 | 一千二百三十四 |
+| ------------------- | ---------- | ------ | -------------- |
+| `hangul-phonetic`   | 이공일륙년 | 십일월 | 일천이백삼십사 |
+| `positional-arabic` | 2016년     | (n/a)  | (n/a)          |
+| `additive-arabic`   | (n/a)      | 11월   | 1234           |
+| `smart` (default)   | 2016년     | 11월   | 1234           |
 
 ~~~~ sh
-gukhanmun --numerals smart input.txt
+gukhanmun --numerals hangul-phonetic input.txt
 ~~~~
 
 

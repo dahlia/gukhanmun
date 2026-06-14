@@ -136,6 +136,7 @@ fn help_groups_options_by_pipeline_area() {
     assert!(stdout.find("Conversion:") < stdout.find("Rendering policy:"));
     assert!(stdout.find("Rendering policy:") < stdout.find("User directives:"));
     assert!(stdout.contains("--numerals <NUMERALS>"));
+    assert!(stdout.contains("[default: smart]"));
     assert!(stdout.contains("--recovery <RECOVERY>"));
     assert!(stdout.contains("--directives <PATH>"));
 }
@@ -463,6 +464,16 @@ fn numeral_option_selects_smart_with_bundled_calendar_entries() {
 }
 
 #[test]
+fn numeral_option_defaults_to_smart_with_bundled_calendar_entries() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .write_stdin("二〇二六年 六月 二〇日 十月\n")
+        .assert()
+        .success()
+        .stdout("2026년 6월 20일 10월\n");
+}
+
+#[test]
 fn numeral_option_smart_overrides_user_calendar_entries_without_unit_entries() {
     let temp = tempdir().unwrap();
     let dictionary = build_dictionary_fixture(
@@ -513,10 +524,10 @@ fn no_bundled_dictionaries_uses_fallback_only_conversion() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .arg("--no-bundled-dictionaries")
-        .write_stdin("北京\n")
+        .write_stdin("北京 百濟 千里 十長生\n")
         .assert()
         .success()
-        .stdout("북경\n");
+        .stdout("북경 백제 천리 십장생\n");
 }
 
 #[test]

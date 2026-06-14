@@ -48,8 +48,8 @@ additive notation depending on context:
 | Variant            | 二〇一六年 | 十一月 | 一千二百三十四 |
 | ------------------ | ---------- | ------ | -------------- |
 | `HangulPhonetic`   | 이공일륙년 | 십일월 | 일천이백삼십사 |
-| `PositionalArabic` | 2016년     | —      | —              |
-| `AdditiveArabic`   | —          | 11월   | 1234           |
+| `PositionalArabic` | 2016년     | (n/a)  | (n/a)          |
+| `AdditiveArabic`   | (n/a)      | 11월   | 1234           |
 | `Smart`            | 2016년     | 11월   | 1234           |
 
 ~~~~ rust
@@ -62,7 +62,8 @@ builder.numerals(NumeralStrategy::Smart);            // picks best per context
 ~~~~
 
 `Smart` chooses positional notation for year-like four-digit sequences and
-additive notation for quantities; use it for general-purpose documents.
+additive notation for clear quantities, but keeps phonetic fallback readings
+for ambiguous word-like sequences such as `百濟` or `十長生`.
 
 
 Initial sound law

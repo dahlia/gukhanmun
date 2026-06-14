@@ -125,11 +125,16 @@ struct ConversionArgs {
     segmentation: Segmentation,
 
     /// Numeral conversion strategy for fallback hanja numerals.
-    /// hangul-phonetic (default) emits hangul annotations; positional-arabic
-    /// normalizes digit-only runs; additive-arabic normalizes place-marker
-    /// numerals; smart chooses Arabic only for common numeric forms.
-    #[arg(long, visible_alias = "numeral-strategy", value_enum)]
-    numerals: Option<Numerals>,
+    /// smart (default) chooses Arabic only for common numeric forms;
+    /// hangul-phonetic emits hangul annotations; positional-arabic normalizes
+    /// digit-only runs; additive-arabic normalizes place-marker numerals.
+    #[arg(
+        long,
+        visible_alias = "numeral-strategy",
+        value_enum,
+        default_value_t = Numerals::Smart
+    )]
+    numerals: Numerals,
 
     /// Reader error recovery policy.  strict (default) stops at recoverable
     /// reader errors.  lenient preserves recoverable bad regions and continues;
@@ -541,9 +546,7 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
         builder = builder.first_occurrence_window(first_occurrence.into());
     }
     builder = builder.segmentation(cli.conversion.segmentation.into());
-    if let Some(numerals) = cli.conversion.numerals {
-        builder = builder.numerals(numerals.into());
-    }
+    builder = builder.numerals(cli.conversion.numerals.into());
     if cli.conversion.initial_sound_law {
         builder = builder.initial_sound_law(true);
     }

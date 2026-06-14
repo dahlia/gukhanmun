@@ -133,11 +133,13 @@ export type Segmentation = "lattice" | "eager";
  *   (`十百千萬億兆京`) using stack-based accumulation and produce Arabic,
  *   respecting the Korean convention that bare `十` means 10 not `一十`.
  *   Corresponds to Rust `NumeralStrategy::AdditiveArabic`.
- * - `"smart"` — Uses `"additive-arabic"` when a unit hanja follows the
- *   numeral (`年月日時分秒號世紀` and others); uses `"positional-arabic"`
- *   for pure-digit runs of four or more characters (year convention);
- *   otherwise falls back to `"hangul-phonetic"`.  Corresponds to Rust
- *   `NumeralStrategy::Smart`.
+ * - `"smart"` — Uses `"additive-arabic"` for additive numerals that
+ *   begin with a digit, and for small-place-marker starts (`十`, `百`,
+ *   `千`) unless the next character is an ambiguous non-unit hanja word
+ *   character; uses `"positional-arabic"` for pure-digit runs of four or
+ *   more characters (year convention) or when a unit hanja follows the
+ *   digit run (`年月日時分秒號世紀` and others); otherwise falls back to
+ *   `"hangul-phonetic"`.  Corresponds to Rust `NumeralStrategy::Smart`.
  */
 export type NumeralStrategy =
   | "hangul-phonetic"

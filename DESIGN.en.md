@@ -306,16 +306,23 @@ exposes a `NumeralStrategy` option with four variants:
 | `smart`             | 2016년                | 11월              | 1234                      |
 
 The `hangul-phonetic` strategy is Seonbi's behavior and the default for both
-the `ko-kr` and `ko-kp` presets. The `positional-arabic` strategy treats a
+the `ko-kr` and `ko-kp` presets. The command-line interface uses `smart` as
+its own default when `--numerals` is omitted, because CLI output is usually a
+final human-facing rendering. The `positional-arabic` strategy treats a
 digit-only sequence (`〇一二三四五六七八九`, plus their variants) as positional
 notation and converts it to Arabic. The `additive-arabic` strategy parses
 sequences that contain place markers (`十百千萬億兆京`) using stack-based
 accumulation and produces Arabic, handling the Korean convention that `一` is
 elidable before `十` (`十一` means 11, not `一十一`). The `smart` strategy
-looks at the surrounding context: if a unit hanja follows (`年月日時分秒號世紀`
-and so on), it uses `additive-arabic`; if not, and the run is pure digits of
-length four or more, it uses `positional-arabic` (matching the year
-convention); otherwise it falls back to `hangul-phonetic`.
+looks at the surrounding context: additive numerals that begin with a digit use
+`additive-arabic`, and runs that begin with a small place marker such as `十`,
+`百`, or `千` use `additive-arabic` only when the next character is not an
+ambiguous non-unit hanja word character. Pure digit runs use
+`positional-arabic` when they have length four or more (matching the year
+convention) or a unit hanja follows (`年月日時分秒號世紀` and so on). Standalone
+large place markers such as `萬` or `京`, and small-place-marker words such as
+`百濟` or `十長生`, fall back to `hangul-phonetic`, which prevents unknown
+words from being split as numbers.
 
 The `hangul-phonetic` strategy runs inside the fallback path on segments that
 the lattice has identified as not matching the dictionary. It emits a fallback

@@ -57,8 +57,11 @@ To be released.
     longer split numeric normalization.  `NumeralStrategy::PositionalArabic`
     now renders dates such as `二〇二六年 六月 二〇日` as
     `2026년 6월 20일`, while `NumeralStrategy::HangulPhonetic`, the default
-    strategy, still keeps lexicalized dictionary readings such as `六月` as
-    `유월`.
+    library preset strategy, still keeps lexicalized dictionary readings such
+    as `六月` as `유월`.  `NumeralStrategy::Smart` also leaves standalone large
+    place markers such as `京` and `萬`, plus ambiguous small-marker words such
+    as `百濟` and `十長生`, as fallback readings instead of splitting them into
+    numeric text.
 
  -  Fixed a bug where proper names and unknown multi-character hanja words
     were split into individual character annotations when the bundled
@@ -99,6 +102,10 @@ To be released.
  -  Collapse redundant parenthetical reading annotations by default across the
     plain-text, HTML, and Markdown pipelines.  The new `--no-collapse-parens`
     flag disables it.  [[#3], [#4]]
+ -  Changed the CLI default for `--numerals` to `smart`, so omitted numeral
+    options render dates such as `二〇二六年 六月 二〇日` as
+    `2026년 6월 20일`.  Pass `--numerals hangul-phonetic` to keep Seonbi-style
+    phonetic calendar readings such as `六月` as `유월`.
  -  The `ko-kp` preset now includes the bundled *Open Korean Dictionary* North
     Korean (北韓語) category by default.  Added `--no-bundled-dictionaries`,
     which disables every preset-selected bundled dictionary.  [[#5], [#6]]

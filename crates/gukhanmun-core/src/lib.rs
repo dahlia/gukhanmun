@@ -708,11 +708,14 @@ pub enum NumeralStrategy {
     /// Choose Arabic normalization for common numeric contexts and otherwise
     /// keep hangul phonetic fallback behavior.
     ///
-    /// Well-formed additive numerals are normalized to Arabic. Pure positional
-    /// digit runs are normalized when they contain at least four digits
-    /// (matching common year notation) or when a unit hanja
-    /// (`年月日時分秒號世紀` and so on) immediately follows. Other numerals
-    /// remain hangul annotations.
+    /// Additive numerals are normalized to Arabic when they begin with a digit.
+    /// Runs that begin with a small place marker such as `十`, `百`, or `千`
+    /// are normalized only when the next character is not an ambiguous
+    /// non-unit hanja word character. Pure positional digit runs are normalized
+    /// when they contain at least four digits (matching common year notation)
+    /// or when a unit hanja (`年月日時分秒號世紀` and so on) immediately follows.
+    /// Standalone large place markers such as `萬` or `京`, and other
+    /// ambiguous numerals, remain hangul annotations.
     Smart,
 }
 

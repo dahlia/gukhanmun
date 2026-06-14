@@ -63,8 +63,8 @@ whether they encode positions or quantities:
 | Value                         | 二〇一六年 | 十一月 | 一千二百三十四 |
 | ----------------------------- | ---------- | ------ | -------------- |
 | `"hangul-phonetic"` (default) | 이공일륙년 | 십일월 | 일천이백삼십사 |
-| `"positional-arabic"`         | 2016년     | —      | —              |
-| `"additive-arabic"`           | —          | 11월   | 1234           |
+| `"positional-arabic"`         | 2016년     | (n/a)  | (n/a)          |
+| `"additive-arabic"`           | (n/a)      | 11월   | 1234           |
 | `"smart"`                     | 2016년     | 11월   | 1234           |
 
 ~~~~ ts twoslash
@@ -78,8 +78,8 @@ const g = await load({ numerals: "smart" });            // picks best per contex
 ~~~~
 
 `"smart"` chooses positional notation for year-like four-digit sequences and
-additive notation for quantities; it is a good default for general-purpose
-documents.
+additive notation for clear quantities, but keeps phonetic fallback readings
+for ambiguous word-like sequences such as `百濟` or `十長生`.
 
 
 Initial sound law

@@ -45,12 +45,12 @@ builder.segmentation(SegmentationStrategy::Eager);
 漢字式 數詞는 文脈에 따라 位置 記數法이나 加算 記數法으로 數를 나타낼 수
 있습니다:
 
-| 變種               | 二〇一六年 | 十一月 | 一千二百三十四 |
-| ------------------ | ---------- | ------ | -------------- |
-| `HangulPhonetic`   | 이공일륙년 | 십일월 | 일천이백삼십사 |
-| `PositionalArabic` | 2016년     | —      | —              |
-| `AdditiveArabic`   | —          | 11월   | 1234           |
-| `Smart`            | 2016년     | 11월   | 1234           |
+| 變種               | 二〇一六年 | 十一月   | 一千二百三十四 |
+| ------------------ | ---------- | -------- | -------------- |
+| `HangulPhonetic`   | 이공일륙년 | 십일월   | 일천이백삼십사 |
+| `PositionalArabic` | 2016년     | (不適用) | (不適用)       |
+| `AdditiveArabic`   | (不適用)   | 11월     | 1234           |
+| `Smart`            | 2016년     | 11월     | 1234           |
 
 ~~~~ rust
 use gukhanmun::NumeralStrategy;
@@ -61,8 +61,9 @@ builder.numerals(NumeralStrategy::AdditiveArabic);   // 11 (加算)
 builder.numerals(NumeralStrategy::Smart);            // 文脈마다 最適을 選擇
 ~~~~
 
-`Smart`는 年度 같은 네 자리 連續에는 位置 記數法을, 數量에는 加算 記數法을
-고릅니다; 汎用 文書에 使用합니다.
+`Smart`는 年度 같은 네 자리 連續에는 位置 記數法을, 분명한 數量에는 加算
+記數法을 고르되 `百濟`나 `十長生`처럼 單語처럼 보이는 애매한 列은 音讀 폴백으로
+둡니다.
 
 
 頭音法則

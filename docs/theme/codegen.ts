@@ -130,6 +130,11 @@ const DEFAULTS = {
   recovery: "strict",
 } as const;
 
+const CLI_DEFAULTS = {
+  ...DEFAULTS,
+  numerals: "smart",
+} as const;
+
 // Whether the input format is HTML (gates recovery and HTML preservation).
 function isHtml(cfg: CodegenConfig): boolean {
   return cfg.format === "html";
@@ -444,13 +449,13 @@ export function generateCli(cfg: CodegenConfig): string {
 
   if (cfg.activePreset === "ko-kp") {
     args.push(`--preset ko-kp`);
-  } else if (cfg.activePreset === null) {
+  }
+  if (cfg.activePreset === null) {
     if (cfg.rendering !== DEFAULTS.rendering) args.push(`--rendering ${cfg.rendering}`);
     if (cfg.rendering === "original" && cfg.originalGloss !== DEFAULTS.originalGloss) {
       args.push(`--original-gloss ${cfg.originalGloss}`);
     }
     if (cfg.segmentation !== DEFAULTS.segmentation) args.push(`--segmentation ${cfg.segmentation}`);
-    if (cfg.numerals !== DEFAULTS.numerals) args.push(`--numerals ${cfg.numerals}`);
     if (cfg.initialSoundLaw !== DEFAULTS.initialSoundLaw) args.push(`--no-initial-sound-law`);
     if (cfg.homophoneWindow !== DEFAULTS.homophoneWindow) {
       args.push(`--disambiguation ${cfg.homophoneWindow}`);
@@ -481,6 +486,7 @@ export function generateCli(cfg: CodegenConfig): string {
       }
     }
   }
+  if (cfg.numerals !== CLI_DEFAULTS.numerals) args.push(`--numerals ${cfg.numerals}`);
 
   for (const h of cfg.requireHanja) args.push(`--require-hanja ${shellQuote(h)}`);
   for (const h of cfg.requireHangul) args.push(`--require-hangul ${shellQuote(h)}`);

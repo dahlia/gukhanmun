@@ -18,9 +18,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::fallback::{
-    ArabicNumeralMatch, FallbackPart, FallbackState, arabic_numeral_at, is_hanja_numeral,
-    is_hanja_place_marker, is_numeral_unit, phoneticize_fallback_run_with_state,
-    phoneticize_hanja_char, reading_matches_with_initial_sound_law,
+    ArabicNumeralMatch, FallbackPart, FallbackState, arabic_numeral_at, can_start_arabic_numeral,
+    is_hanja_numeral, is_numeral_unit, phoneticize_fallback_run_with_state, phoneticize_hanja_char,
+    reading_matches_with_initial_sound_law,
 };
 use crate::{EngineOptions, HanjaDictionary, Match, MatchMark, SegmentationStrategy, is_hanja};
 
@@ -604,19 +604,6 @@ fn dictionary_match_allows_arabic_override(source: &str, numeral_byte_len: usize
     }
     let suffix = &source[numeral_byte_len..];
     !suffix.is_empty() && suffix.chars().all(is_numeral_unit)
-}
-
-fn can_start_arabic_numeral(chars: &[char], start_char: usize) -> bool {
-    let Some(&current) = chars.get(start_char) else {
-        return false;
-    };
-    let Some(&previous) = start_char.checked_sub(1).and_then(|index| chars.get(index)) else {
-        return true;
-    };
-    if is_hanja_numeral(previous) || previous == '第' {
-        return false;
-    }
-    !(is_hanja_place_marker(current) && is_hanja(previous))
 }
 
 fn next_span_end(suffix: &str, byte_offset: usize) -> usize {

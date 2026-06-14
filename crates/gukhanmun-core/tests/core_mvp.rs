@@ -1532,10 +1532,18 @@ fn smart_numerals_choose_arabic_only_for_structured_numbers() {
         ("一千二百三十四", "1234"),
         ("六", "육"),
         ("陸", "육"),
+        ("北京", "북경"),
+        ("京", "경"),
+        ("萬", "만"),
+        ("百濟", "백제"),
+        ("千里", "천리"),
+        ("十長生", "십장생"),
         // Short digit run + unit hanja → Arabic
         ("三時", "3시"),
         ("五日", "5일"),
         ("七年", "7년"),
+        ("十月", "10월"),
+        ("百年", "100년"),
         ("十一日", "11일"),
         // Short digit run without unit → hangul phonetic
         ("三", "삼"),
