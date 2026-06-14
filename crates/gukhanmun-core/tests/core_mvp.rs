@@ -1426,12 +1426,36 @@ fn positional_arabic_numerals_convert_digit_only_runs() {
 }
 
 #[test]
+fn positional_arabic_numerals_override_dictionary_calendar_entries() {
+    let mut dict = MapDictionary::new();
+    // Do not add standalone 年/月/日 entries here.  Calendar dictionary words
+    // must still normalize when the unit suffix is only present inside the
+    // whole dictionary entry.
+    dict.insert("二", "이");
+    dict.insert("六", "육");
+    dict.insert("六月", "유월");
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::PositionalArabic,
+        ..EngineOptions::default()
+    };
+
+    let output = convert_plain_text_with_options(
+        "二〇二六年 六月 二〇日",
+        &dict,
+        RenderMode::HangulOnly,
+        options,
+    );
+
+    assert_eq!(output, "2026년 6월 20일");
+}
+
+#[test]
 fn positional_arabic_does_not_split_additive_numerals() {
     let options = EngineOptions {
         numeral_strategy: NumeralStrategy::PositionalArabic,
         ..EngineOptions::default()
     };
-    let cases = ["二十", "一百二十三"];
+    let cases = ["二十", "一百二十三", "第六"];
 
     for input in cases {
         let output = convert_plain_text_with_options(
@@ -1473,6 +1497,29 @@ fn additive_arabic_numerals_parse_place_markers() {
 }
 
 #[test]
+fn additive_arabic_numerals_override_dictionary_calendar_entries() {
+    let mut dict = MapDictionary::new();
+    // Standalone 月 is intentionally absent; the Arabic edge must be able to
+    // replace the whole calendar entry.
+    dict.insert("十月", "시월");
+    dict.insert("十一月", "십일월");
+    dict.insert("十二月", "십이월");
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::AdditiveArabic,
+        ..EngineOptions::default()
+    };
+
+    let output = convert_plain_text_with_options(
+        "十月 十一月 十二月",
+        &dict,
+        RenderMode::HangulOnly,
+        options,
+    );
+
+    assert_eq!(output, "10월 11월 12월");
+}
+
+#[test]
 fn smart_numerals_choose_arabic_only_for_structured_numbers() {
     let options = EngineOptions {
         numeral_strategy: NumeralStrategy::Smart,
@@ -1508,17 +1555,61 @@ fn smart_numerals_choose_arabic_only_for_structured_numbers() {
 }
 
 #[test]
-fn dictionary_matches_take_precedence_over_numeral_strategies() {
+fn smart_numerals_override_dictionary_calendar_entries() {
     let mut dict = MapDictionary::new();
-    dict.insert("十一月", "동짓달");
+    // These entries model lexicalized calendar readings without separate unit
+    // entries, which used to let the dictionary path beat numeric
+    // normalization.
+    dict.insert("二", "이");
+    dict.insert("六", "육");
+    dict.insert("六月", "유월");
+    dict.insert("十月", "시월");
+    dict.insert("十一月", "십일월");
+    dict.insert("十二月", "십이월");
     let options = EngineOptions {
         numeral_strategy: NumeralStrategy::Smart,
         ..EngineOptions::default()
     };
 
-    let output = convert_plain_text_with_options("十一月", &dict, RenderMode::HangulOnly, options);
+    let output = convert_plain_text_with_options(
+        "二〇二六年 六月 二〇日 十月 十一月 十二月",
+        &dict,
+        RenderMode::HangulOnly,
+        options,
+    );
 
-    assert_eq!(output, "동짓달");
+    assert_eq!(output, "2026년 6월 20일 10월 11월 12월");
+}
+
+#[test]
+fn smart_numerals_do_not_split_non_numeric_dictionary_words() {
+    let mut dict = MapDictionary::new();
+    dict.insert("北", "북");
+    dict.insert("京", "경");
+    dict.insert("北京", "베이징");
+    dict.insert("一分錢", "일푼전");
+    dict.insert("分錢", "분전");
+    let options = EngineOptions {
+        numeral_strategy: NumeralStrategy::Smart,
+        ..EngineOptions::default()
+    };
+
+    let output =
+        convert_plain_text_with_options("北京 一分錢", &dict, RenderMode::HangulOnly, options);
+
+    assert_eq!(output, "베이징 일푼전");
+}
+
+#[test]
+fn hangul_phonetic_numerals_keep_dictionary_calendar_entries() {
+    let mut dict = MapDictionary::new();
+    dict.insert("六月", "유월");
+    dict.insert("十月", "시월");
+    dict.insert("十一月", "십일월");
+
+    let output = convert_plain_text("六月 十月 十一月", &dict, RenderMode::HangulOnly);
+
+    assert_eq!(output, "유월 시월 십일월");
 }
 
 #[test]

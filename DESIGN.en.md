@@ -235,15 +235,19 @@ that is not part of a dictionary match passes through as ordinary text.
 The correct algorithm is dynamic programming over a lattice. For each character
 position `i` in the conversion span, the engine queries the dictionary for
 every match that starts at `i` and considers a single-hanja fallback edge as a
-backup when the current character is hanja. A ranking function compares the
-alternatives; we choose the best segmentation by Viterbi-style backtracking
-from the end of the span.
+backup when the current character is hanja. Arabic numeral strategies also add
+a plain-text numeral edge when a numeral starts at `i`. A ranking function
+compares the alternatives; we choose the best segmentation by Viterbi-style
+backtracking from the end of the span.
 
-The ranking function is deliberately simple. It first maximizes the number of
-characters covered by dictionary matches, so `行事` + `場所` beats `行事場` +
-`所` because the former leaves no fallback. Among paths with the same
-dictionary coverage, it prefers fewer segments, so a whole-word match such as
-`天地` beats the component split `天` + `地`. Remaining ties are kept
+The ranking function is deliberately simple. It first minimizes the number of
+characters left to fallback, so `行事` + `場所` beats `行事場` + `所` because
+the former leaves no fallback. Among paths with the same fallback coverage,
+Arabic numeral edges are preferred over dictionary matches when the configured
+numeral strategy produces them; this is what lets a dictionary calendar entry
+such as `六月` normalize to `6월`. After that, the segmenter maximizes
+dictionary coverage and then prefers fewer segments, so a whole-word match such
+as `天地` beats the component split `天` + `地`. Remaining ties are kept
 deterministic by preserving the first candidate that reached the same score.
 
 The cost of lattice segmentation is bounded by the conversion-span length
@@ -313,12 +317,21 @@ and so on), it uses `additive-arabic`; if not, and the run is pure digits of
 length four or more, it uses `positional-arabic` (matching the year
 convention); otherwise it falls back to `hangul-phonetic`.
 
-Numeral conversion runs inside the fallback path on segments that the lattice
-has identified as not matching the dictionary. The `hangul-phonetic` strategy
-emits a fallback `Annotated` token, preserving the original hanja numeral so
-renderers such as `HangulHanjaParens` can still show the source text. Arabic
-numeral strategies may emit plain text instead, since their output is a numeric
-normalization rather than a hangul reading of the source hanja.
+The `hangul-phonetic` strategy runs inside the fallback path on segments that
+the lattice has identified as not matching the dictionary. It emits a fallback
+`Annotated` token, preserving the original hanja numeral so renderers such as
+`HangulHanjaParens` can still show the source text. Arabic numeral strategies
+participate in segmentation as plain-text numeral edges, so numeric
+normalization can win over dictionary calendar entries such as `六月` and
+`十月`. When such an override is tied to a dictionary match whose suffix is
+only recognized unit hanja, the plain-text edge covers that suffix too and
+renders it with fallback context; `六月` can therefore normalize to `6월` even
+when `月` is not a separate dictionary entry. A numeral edge only starts at the
+beginning of a numeral run, so `positional-arabic` does not split additive
+forms such as `十一月` by converting only the trailing `一`. A longer dictionary
+match that extends beyond the numeral plus recognized unit hanja still protects
+the word, so `smart` does not split ordinary dictionary entries such as `北京`
+or `一分錢`.
 
 
 Dictionaries

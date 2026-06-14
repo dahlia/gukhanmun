@@ -18,9 +18,11 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::fallback::{
-    is_hanja_numeral, phoneticize_hanja_char, reading_matches_with_initial_sound_law,
+    ArabicNumeralMatch, FallbackPart, FallbackState, arabic_numeral_at, is_hanja_numeral,
+    is_hanja_place_marker, is_numeral_unit, phoneticize_fallback_run_with_state,
+    phoneticize_hanja_char, reading_matches_with_initial_sound_law,
 };
-use crate::{HanjaDictionary, Match, MatchMark, SegmentationStrategy, is_hanja};
+use crate::{EngineOptions, HanjaDictionary, Match, MatchMark, SegmentationStrategy, is_hanja};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Segment {
@@ -41,6 +43,11 @@ pub(crate) enum Segment {
     Fallback {
         byte_start: usize,
         byte_end: usize,
+    },
+    NumeralText {
+        byte_start: usize,
+        byte_end: usize,
+        text: String,
     },
     Text {
         byte_start: usize,
@@ -122,20 +129,35 @@ struct BestPath {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct Score {
+    fallback_chars: usize,
+    numeral_chars: usize,
     dictionary_chars: usize,
     segments: usize,
 }
 
 impl Score {
+    fn with_numeral(self, char_len: usize) -> Self {
+        Self {
+            fallback_chars: self.fallback_chars,
+            numeral_chars: self.numeral_chars + char_len,
+            dictionary_chars: self.dictionary_chars,
+            segments: self.segments + 1,
+        }
+    }
+
     fn with_dictionary(self, char_len: usize) -> Self {
         Self {
+            fallback_chars: self.fallback_chars,
+            numeral_chars: self.numeral_chars,
             dictionary_chars: self.dictionary_chars + char_len,
             segments: self.segments + 1,
         }
     }
 
-    fn with_fallback(self) -> Self {
+    fn with_fallback(self, char_len: usize) -> Self {
         Self {
+            fallback_chars: self.fallback_chars + char_len,
+            numeral_chars: self.numeral_chars,
             dictionary_chars: self.dictionary_chars,
             segments: self.segments + 1,
         }
@@ -143,22 +165,28 @@ impl Score {
 
     fn with_text(self) -> Self {
         Self {
+            fallback_chars: self.fallback_chars,
+            numeral_chars: self.numeral_chars,
             dictionary_chars: self.dictionary_chars,
             segments: self.segments + 1,
         }
     }
 
     fn beats(self, other: Self) -> bool {
-        self.dictionary_chars > other.dictionary_chars
-            || (self.dictionary_chars == other.dictionary_chars && self.segments < other.segments)
+        if self.fallback_chars != other.fallback_chars {
+            return self.fallback_chars < other.fallback_chars;
+        }
+        if self.numeral_chars != other.numeral_chars {
+            return self.numeral_chars > other.numeral_chars;
+        }
+        if self.dictionary_chars != other.dictionary_chars {
+            return self.dictionary_chars > other.dictionary_chars;
+        }
+        self.segments < other.segments
     }
 }
 
-pub(crate) fn segment_text<D>(
-    text: &str,
-    dictionary: &D,
-    strategy: SegmentationStrategy,
-) -> Vec<Segment>
+pub(crate) fn segment_text<D>(text: &str, dictionary: &D, options: EngineOptions) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
 {
@@ -174,7 +202,7 @@ where
         let span = &text[cursor..span_end];
         if span.chars().any(is_hanja) {
             segments.extend(segment_span_with_strategy(
-                span, cursor, dictionary, strategy,
+                span, cursor, dictionary, options,
             ));
         } else {
             segments.push(Segment::Text {
@@ -192,22 +220,30 @@ fn segment_span_with_strategy<D>(
     span: &str,
     byte_offset: usize,
     dictionary: &D,
-    strategy: SegmentationStrategy,
+    options: EngineOptions,
 ) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
 {
-    match strategy {
-        SegmentationStrategy::Lattice => segment_span_lattice(span, byte_offset, dictionary),
-        SegmentationStrategy::Eager => segment_span_eager(span, byte_offset, dictionary),
+    match options.segmentation {
+        SegmentationStrategy::Lattice => {
+            segment_span_lattice(span, byte_offset, dictionary, options)
+        }
+        SegmentationStrategy::Eager => segment_span_eager(span, byte_offset, dictionary, options),
     }
 }
 
-fn segment_span_lattice<D>(span: &str, byte_offset: usize, dictionary: &D) -> Vec<Segment>
+fn segment_span_lattice<D>(
+    span: &str,
+    byte_offset: usize,
+    dictionary: &D,
+    options: EngineOptions,
+) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
 {
     let boundaries = char_boundaries(span);
+    let chars = span.chars().collect::<Vec<_>>();
     let char_count = boundaries.len().saturating_sub(1);
     let max_word_chars = dictionary.max_word_chars();
     let mut best = Vec::from_iter((0..=char_count).map(|_| None));
@@ -226,9 +262,40 @@ where
         };
         let byte_start = boundaries[start_char];
         let lookup = lookup_suffix(span, &boundaries, start_char, max_word_chars);
+        let dictionary_matches = if lookup.chars().any(is_hanja) {
+            dictionary.matches_at(lookup).collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
 
-        if lookup.chars().any(is_hanja) {
-            for matched in dictionary.matches_at(lookup) {
+        if can_start_arabic_numeral(&chars, start_char)
+            && let Some(matched) = arabic_numeral_at(&chars, start_char, options.numeral_strategy)
+            && let Some(candidate) = arabic_numeral_segment(
+                span,
+                &boundaries,
+                start_char,
+                byte_start,
+                matched,
+                &dictionary_matches,
+                options,
+            )
+        {
+            let char_len = candidate.end_char - start_char;
+            let score = start_score.with_numeral(char_len);
+            propose(
+                &mut best[candidate.end_char],
+                score,
+                start_char,
+                Segment::NumeralText {
+                    byte_start: byte_offset + byte_start,
+                    byte_end: byte_offset + candidate.byte_end,
+                    text: candidate.text,
+                },
+            );
+        }
+
+        if !dictionary_matches.is_empty() {
+            for matched in dictionary_matches {
                 let Some(byte_end) = byte_start.checked_add(matched.byte_len) else {
                     continue;
                 };
@@ -267,7 +334,7 @@ where
         let end_char = start_char + 1;
         let byte_end = boundaries[end_char];
         if is_hanja(current) {
-            let score = start_score.with_fallback();
+            let score = start_score.with_fallback(1);
             propose(
                 &mut best[end_char],
                 score,
@@ -294,11 +361,17 @@ where
     backtrack(&best)
 }
 
-fn segment_span_eager<D>(span: &str, byte_offset: usize, dictionary: &D) -> Vec<Segment>
+fn segment_span_eager<D>(
+    span: &str,
+    byte_offset: usize,
+    dictionary: &D,
+    options: EngineOptions,
+) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
 {
     let boundaries = char_boundaries(span);
+    let chars = span.chars().collect::<Vec<_>>();
     let char_count = boundaries.len().saturating_sub(1);
     let max_word_chars = dictionary.max_word_chars();
     let mut segments = Vec::new();
@@ -307,6 +380,33 @@ where
     while start_char < char_count {
         let byte_start = boundaries[start_char];
         let lookup = lookup_suffix(span, &boundaries, start_char, max_word_chars);
+
+        if can_start_arabic_numeral(&chars, start_char)
+            && let Some(matched) = arabic_numeral_at(&chars, start_char, options.numeral_strategy)
+        {
+            let dictionary_matches = if lookup.chars().any(is_hanja) {
+                dictionary.matches_at(lookup).collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+            if let Some(candidate) = arabic_numeral_segment(
+                span,
+                &boundaries,
+                start_char,
+                byte_start,
+                matched,
+                &dictionary_matches,
+                options,
+            ) {
+                segments.push(Segment::NumeralText {
+                    byte_start: byte_offset + byte_start,
+                    byte_end: byte_offset + candidate.byte_end,
+                    text: candidate.text,
+                });
+                start_char = candidate.end_char;
+                continue;
+            }
+        }
 
         if lookup.chars().any(is_hanja)
             && let Some((matched, end_char)) =
@@ -349,6 +449,95 @@ where
     segments
 }
 
+struct ArabicSegment {
+    end_char: usize,
+    byte_end: usize,
+    text: String,
+}
+
+fn arabic_numeral_segment(
+    span: &str,
+    boundaries: &[usize],
+    start_char: usize,
+    byte_start: usize,
+    matched: ArabicNumeralMatch,
+    dictionary_matches: &[Match],
+    options: EngineOptions,
+) -> Option<ArabicSegment> {
+    let char_count = boundaries.len().saturating_sub(1);
+    let numeral_end_char = matched.next_index;
+    if numeral_end_char > char_count {
+        return None;
+    }
+
+    let numeral_byte_end = boundaries[numeral_end_char];
+    if has_protected_dictionary_match(span, byte_start, numeral_byte_end, dictionary_matches) {
+        return None;
+    }
+
+    let byte_end =
+        longest_arabic_override_byte_end(span, byte_start, numeral_byte_end, dictionary_matches)
+            .unwrap_or(numeral_byte_end);
+    let end_char = boundaries.binary_search(&byte_end).ok()?;
+    if end_char <= start_char {
+        return None;
+    }
+
+    let mut text = matched.text;
+    if byte_end > numeral_byte_end {
+        let suffix = &span[numeral_byte_end..byte_end];
+        let suffix_text = phoneticize_suffix_after_arabic_numeral(suffix, &text, options)?;
+        text.push_str(&suffix_text);
+    }
+
+    Some(ArabicSegment {
+        end_char,
+        byte_end,
+        text,
+    })
+}
+
+fn longest_arabic_override_byte_end(
+    span: &str,
+    byte_start: usize,
+    numeral_byte_end: usize,
+    matches: &[Match],
+) -> Option<usize> {
+    matches
+        .iter()
+        .filter_map(|matched| {
+            let byte_end = byte_start.checked_add(matched.byte_len)?;
+            if byte_end < numeral_byte_end {
+                return None;
+            }
+            let source = span.get(byte_start..byte_end)?;
+            dictionary_match_allows_arabic_override(source, numeral_byte_end - byte_start)
+                .then_some(byte_end)
+        })
+        .max()
+}
+
+fn phoneticize_suffix_after_arabic_numeral(
+    suffix: &str,
+    numeral_text: &str,
+    options: EngineOptions,
+) -> Option<String> {
+    let mut state = FallbackState {
+        starts_word: false,
+        previous_reading: numeral_text.chars().last(),
+    };
+    let mut output = String::new();
+    for part in phoneticize_fallback_run_with_state(suffix, options, &mut state) {
+        match part {
+            FallbackPart::Annotation { reading, .. } | FallbackPart::ReadingText(reading) => {
+                output.push_str(&reading);
+            }
+            FallbackPart::Text(_) => return None,
+        }
+    }
+    Some(output)
+}
+
 fn longest_match<D>(
     span: &str,
     boundaries: &[usize],
@@ -386,6 +575,48 @@ where
     }
 
     best
+}
+
+fn has_protected_dictionary_match(
+    span: &str,
+    byte_start: usize,
+    numeral_byte_end: usize,
+    matches: &[Match],
+) -> bool {
+    matches.iter().any(|matched| {
+        let Some(byte_end) = byte_start.checked_add(matched.byte_len) else {
+            return false;
+        };
+        if byte_end <= numeral_byte_end {
+            return false;
+        }
+        let source = &span[byte_start..byte_end];
+        !dictionary_match_allows_arabic_override(source, numeral_byte_end - byte_start)
+    })
+}
+
+fn dictionary_match_allows_arabic_override(source: &str, numeral_byte_len: usize) -> bool {
+    if source.len() == numeral_byte_len {
+        return true;
+    }
+    if !source.is_char_boundary(numeral_byte_len) {
+        return false;
+    }
+    let suffix = &source[numeral_byte_len..];
+    !suffix.is_empty() && suffix.chars().all(is_numeral_unit)
+}
+
+fn can_start_arabic_numeral(chars: &[char], start_char: usize) -> bool {
+    let Some(&current) = chars.get(start_char) else {
+        return false;
+    };
+    let Some(&previous) = start_char.checked_sub(1).and_then(|index| chars.get(index)) else {
+        return true;
+    };
+    if is_hanja_numeral(previous) || previous == '第' {
+        return false;
+    }
+    !(is_hanja_place_marker(current) && is_hanja(previous))
 }
 
 fn next_span_end(suffix: &str, byte_offset: usize) -> usize {
@@ -486,7 +717,7 @@ fn backtrack(best: &[Option<BestPath>]) -> Vec<Segment> {
 #[cfg(test)]
 mod tests {
     use super::{Segment, segment_text};
-    use crate::{MapDictionary, SegmentationStrategy};
+    use crate::{EngineOptions, MapDictionary, SegmentationStrategy};
     use alloc::vec::Vec;
     use proptest::prelude::*;
 
@@ -494,14 +725,28 @@ mod tests {
         #[test]
         fn lattice_segments_cover_the_input_without_gaps(input in "[가-힣一-龥]{0,8}") {
             let dict = MapDictionary::new();
-            let segments = segment_text(&input, &dict, SegmentationStrategy::Lattice);
+            let segments = segment_text(
+                &input,
+                &dict,
+                EngineOptions {
+                    segmentation: SegmentationStrategy::Lattice,
+                    ..EngineOptions::default()
+                },
+            );
             assert_segments_cover_input(&input, segments)?;
         }
 
         #[test]
         fn eager_segments_cover_the_input_without_gaps(input in "[가-힣一-龥]{0,8}") {
             let dict = MapDictionary::new();
-            let segments = segment_text(&input, &dict, SegmentationStrategy::Eager);
+            let segments = segment_text(
+                &input,
+                &dict,
+                EngineOptions {
+                    segmentation: SegmentationStrategy::Eager,
+                    ..EngineOptions::default()
+                },
+            );
             assert_segments_cover_input(&input, segments)?;
         }
     }
@@ -527,6 +772,11 @@ mod tests {
                 | Segment::Fallback {
                     byte_start,
                     byte_end,
+                }
+                | Segment::NumeralText {
+                    byte_start,
+                    byte_end,
+                    ..
                 }
                 | Segment::Text {
                     byte_start,

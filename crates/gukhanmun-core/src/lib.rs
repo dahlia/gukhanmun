@@ -676,7 +676,12 @@ pub enum SegmentationStrategy {
     Eager,
 }
 
-/// Strategy for rendering hanja numerals encountered in fallback text.
+/// Strategy for rendering hanja numerals.
+///
+/// The hangul phonetic strategy is fallback-only, so dictionary matches keep
+/// their lexicalized readings. Arabic strategies also participate in
+/// segmentation as plain-text numeral edges, allowing numeric normalization to
+/// take precedence over dictionary calendar entries such as `六月`.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NumeralStrategy {
@@ -1247,11 +1252,7 @@ where
         }
 
         let safe_chars = buffered_chars.saturating_sub(bound).saturating_add(1);
-        let segments = segment_text(
-            &self.pending_text,
-            self.dictionary,
-            self.options.segmentation,
-        );
+        let segments = segment_text(&self.pending_text, self.dictionary, self.options);
         let mut flush_end = 0;
         let mut flush_segments = Vec::new();
         for segment in &segments {
@@ -1319,7 +1320,7 @@ where
             bound.saturating_sub(1),
         );
         let probe = &self.pending_text[probe_start..];
-        segment_text(probe, self.dictionary, self.options.segmentation)
+        segment_text(probe, self.dictionary, self.options)
             .iter()
             .all(|segment| {
                 matches!(
@@ -1346,7 +1347,7 @@ where
         }
         self.pending_unflushable_fallback_run_bytes = None;
         let prefix = self.pending_text[..flush_end].to_string();
-        let segments = segment_text(&prefix, self.dictionary, self.options.segmentation);
+        let segments = segment_text(&prefix, self.dictionary, self.options);
         self.flush_segments_prefix_into(flush_end, &segments, output);
     }
 
@@ -1482,7 +1483,7 @@ fn process_text_with_state<S, D>(
 ) where
     D: HanjaDictionary + ?Sized,
 {
-    let segments = segment_text(text, dictionary, options.segmentation);
+    let segments = segment_text(text, dictionary, options);
     process_segments_with_state(text, &segments, dictionary, options, fallback_state, output);
 }
 
@@ -1724,6 +1725,11 @@ fn process_segments_with_state<S, D>(
                 }
                 index += 1;
             }
+            Segment::NumeralText { text, .. } => {
+                push_text(output, text);
+                update_fallback_state_for_text(text, fallback_state);
+                index += 1;
+            }
             Segment::Text {
                 byte_start,
                 byte_end,
@@ -1752,6 +1758,11 @@ fn segment_bounds(segment: &Segment) -> (usize, usize) {
         | Segment::Fallback {
             byte_start,
             byte_end,
+        }
+        | Segment::NumeralText {
+            byte_start,
+            byte_end,
+            ..
         }
         | Segment::Text {
             byte_start,

@@ -152,6 +152,12 @@ struct NumeralMatch {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ArabicNumeralMatch {
+    pub(crate) next_index: usize,
+    pub(crate) text: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum NumeralPart {
     AnnotationReading(String),
     Text(String),
@@ -167,11 +173,34 @@ fn numeral_at(
         NumeralStrategy::HangulPhonetic => {
             hangul_phonetic_numeral_at(chars, index, initial_sound_law)
         }
-        NumeralStrategy::PositionalArabic => positional_arabic_numeral_at(chars, index)
+        NumeralStrategy::PositionalArabic
+        | NumeralStrategy::AdditiveArabic
+        | NumeralStrategy::Smart => arabic_numeral_at(chars, index, strategy)
+            .map(|matched| NumeralMatch {
+                next_index: matched.next_index,
+                part: NumeralPart::Text(matched.text),
+            })
             .or_else(|| hangul_phonetic_numeral_at(chars, index, initial_sound_law)),
-        NumeralStrategy::AdditiveArabic => additive_arabic_numeral_at(chars, index)
-            .or_else(|| hangul_phonetic_numeral_at(chars, index, initial_sound_law)),
-        NumeralStrategy::Smart => smart_numeral_at(chars, index, initial_sound_law),
+    }
+}
+
+pub(crate) fn arabic_numeral_at(
+    chars: &[char],
+    index: usize,
+    strategy: NumeralStrategy,
+) -> Option<ArabicNumeralMatch> {
+    let matched = match strategy {
+        NumeralStrategy::HangulPhonetic => return None,
+        NumeralStrategy::PositionalArabic => positional_arabic_numeral_at(chars, index),
+        NumeralStrategy::AdditiveArabic => additive_arabic_numeral_at(chars, index),
+        NumeralStrategy::Smart => additive_arabic_numeral_at(chars, index)
+            .or_else(|| smart_positional_arabic_numeral_at(chars, index)),
+    }?;
+
+    let NumeralMatch { next_index, part } = matched;
+    match part {
+        NumeralPart::Text(text) => Some(ArabicNumeralMatch { next_index, text }),
+        NumeralPart::AnnotationReading(_) => None,
     }
 }
 
@@ -181,11 +210,15 @@ fn numeral_at(
 /// Covers the set enumerated in the design document's numeral section
 /// (`年月日時分秒號世紀`). Extend this function—and nowhere else—when the set
 /// needs to grow.
-fn is_numeral_unit(ch: char) -> bool {
+pub(crate) fn is_numeral_unit(ch: char) -> bool {
     matches!(
         ch,
         '年' | '月' | '日' | '時' | '分' | '秒' | '號' | '世' | '紀'
     )
+}
+
+pub(crate) fn is_hanja_place_marker(ch: char) -> bool {
+    small_place_value(ch).is_some() || large_place_value(ch).is_some()
 }
 
 fn smart_positional_arabic_numeral_at(chars: &[char], index: usize) -> Option<NumeralMatch> {
@@ -195,12 +228,6 @@ fn smart_positional_arabic_numeral_at(chars: &[char], index: usize) -> Option<Nu
         .get(matched.next_index)
         .is_some_and(|&next| is_numeral_unit(next));
     (digit_count >= 4 || followed_by_unit).then_some(matched)
-}
-
-fn smart_numeral_at(chars: &[char], index: usize, initial_sound_law: bool) -> Option<NumeralMatch> {
-    additive_arabic_numeral_at(chars, index)
-        .or_else(|| smart_positional_arabic_numeral_at(chars, index))
-        .or_else(|| hangul_phonetic_numeral_at(chars, index, initial_sound_law))
 }
 
 fn hangul_phonetic_numeral_at(

@@ -53,6 +53,13 @@ To be released.
 
 ### gukhanmun-core
 
+ -  Fixed Arabic hanja numeral strategies so dictionary calendar entries no
+    longer split numeric normalization.  `NumeralStrategy::PositionalArabic`
+    now renders dates such as `二〇二六年 六月 二〇日` as
+    `2026년 6월 20일`, while `NumeralStrategy::HangulPhonetic`, the default
+    strategy, still keeps lexicalized dictionary readings such as `六月` as
+    `유월`.
+
  -  Fixed a bug where proper names and unknown multi-character hanja words
     were split into individual character annotations when the bundled
     dictionary contained single-character entries for some (but not all) of

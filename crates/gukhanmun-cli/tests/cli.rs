@@ -430,6 +430,17 @@ fn numeral_option_selects_positional_arabic_conversion() {
 }
 
 #[test]
+fn numeral_option_selects_positional_arabic_with_bundled_calendar_entries() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--numerals", "positional-arabic"])
+        .write_stdin("二〇二六年 六月 二〇日\n")
+        .assert()
+        .success()
+        .stdout("2026년 6월 20일\n");
+}
+
+#[test]
 fn numeral_option_selects_smart_conversion() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
@@ -438,6 +449,63 @@ fn numeral_option_selects_smart_conversion() {
         .assert()
         .success()
         .stdout("11월 1234\n");
+}
+
+#[test]
+fn numeral_option_selects_smart_with_bundled_calendar_entries() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--numerals", "smart"])
+        .write_stdin("二〇二六年 六月 二〇日 十月\n")
+        .assert()
+        .success()
+        .stdout("2026년 6월 20일 10월\n");
+}
+
+#[test]
+fn numeral_option_smart_overrides_user_calendar_entries_without_unit_entries() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n六月\t유월\n十月\t시월\n十一月\t십일월\n十二月\t십이월\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-bundled-dictionaries",
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--numerals",
+            "smart",
+        ])
+        .write_stdin("二〇二六年 六月 十月 十一月 十二月\n")
+        .assert()
+        .success()
+        .stdout("2026년 6월 10월 11월 12월\n");
+}
+
+#[test]
+fn numeral_option_smart_keeps_bundled_non_numeric_words() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--numerals", "smart"])
+        .write_stdin("北京 一分錢\n")
+        .assert()
+        .success()
+        .stdout("베이징 일푼전\n");
+}
+
+#[test]
+fn numeral_option_hangul_phonetic_keeps_bundled_calendar_readings() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--numerals", "hangul-phonetic"])
+        .write_stdin("六月 十月 十一月\n")
+        .assert()
+        .success()
+        .stdout("유월 시월 십일월\n");
 }
 
 #[test]
