@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/napi",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Node.js native addon (napi-rs) for the Gukhanmun hanja-to-hangul converter.",
   "type": "module",
   "exports": {

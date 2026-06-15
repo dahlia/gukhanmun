@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/opendict-cdb",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Open Korean Dictionary categories bundled as CDB binaries for @gukhanmun/wasm and @gukhanmun/napi.",
   "type": "module",
   "exports": {
