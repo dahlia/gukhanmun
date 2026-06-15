@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/stdict-cdb",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Standard Korean Language Dictionary bundled as a CDB binary for @gukhanmun/wasm and @gukhanmun/napi.",
   "type": "module",
   "exports": {

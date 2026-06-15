@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/opendict-fst",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "exports": "./index.ts",
   "license": "GPL-3.0-or-later",
   "publish": {
