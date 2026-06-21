@@ -1,5 +1,5 @@
 no_inherit = true
-include = ["*.md", "**/*.md"]
+include = ["*.md", "*.mdx", "**/*.md", "**/*.mdx"]
 exclude = [
   "**/target/**",
   ".agents/skills/**/*.md",
