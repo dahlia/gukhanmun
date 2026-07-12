@@ -549,7 +549,11 @@ not establish.
 
 Compatibility folding also applies to character fallback readings, so a
 compatibility form such as `神` inherits the reading of `神`. Parenthetical
-reading validation remains source-based.
+reading validation remains source-based. Reading lookup deliberately ignores
+`kHangul` values attached directly to compatibility code points, including
+distinctions inherited from KS X 1001/1002. Gukhanmun treats those code points
+as presentation variants of the unified character rather than independent
+lexical characters.
 
 
 Middlewares
