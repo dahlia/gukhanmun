@@ -21,8 +21,8 @@ use std::cell::Cell;
 #[cfg(any(feature = "opendict", feature = "stdict"))]
 use gukhanmun::HanjaDictionary;
 use gukhanmun::{
-    Builder, ContextWindow, DirectiveAction, InputToken, MapDictionary, NumeralStrategy,
-    PlainScopeData, Preset, RenderMode, RenderedToken, write_plain_text,
+    Builder, ContextWindow, DirectiveAction, HanjaVariantSet, InputToken, MapDictionary,
+    NumeralStrategy, PlainScopeData, Preset, RenderMode, RenderedToken, write_plain_text,
 };
 
 #[cfg(feature = "stdict")]
@@ -254,6 +254,21 @@ fn rendering_override_emits_hanja_first() {
         .expect("builder");
     let output = converter.convert_text_to_string("學校").expect("convert");
     assert_eq!(output, "學校(학교)");
+}
+
+#[test]
+fn rendering_preserves_a_prior_variant_set_override() {
+    let converter = Builder::new()
+        .no_bundled_dictionaries()
+        .hanja_variant_set(HanjaVariantSet::Shinjitai)
+        .rendering(RenderMode::Original)
+        .build()
+        .expect("builder");
+
+    assert_eq!(
+        converter.options().rendering.hanja_variant_set,
+        HanjaVariantSet::Shinjitai
+    );
 }
 
 #[test]
