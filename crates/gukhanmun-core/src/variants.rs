@@ -135,8 +135,7 @@ fn is_table_target(ch: char, targets: &[char]) -> bool {
     targets.binary_search(&ch).is_ok()
 }
 
-fn simplified_char(ch: char) -> char {
-    let folded = compatibility_fold(ch);
+fn simplified_char_folded(folded: char) -> char {
     let directly_simplified = map_char(folded, SIMPLIFIED_FORMS);
     if directly_simplified != folded {
         return directly_simplified;
@@ -146,8 +145,11 @@ fn simplified_char(ch: char) -> char {
     if projected == old { folded } else { projected }
 }
 
-fn kanxi_char(ch: char) -> char {
-    let folded = compatibility_fold(ch);
+fn simplified_char(ch: char) -> char {
+    simplified_char_folded(compatibility_fold(ch))
+}
+
+fn kanxi_char_folded(folded: char) -> char {
     let old = unique_source_for_target(folded, JOYO_REVERSE_FORMS).unwrap_or(folded);
     let directly_traditional = map_char(old, TRADITIONAL_FORMS);
     let traditional = if directly_traditional == old {
@@ -158,12 +160,20 @@ fn kanxi_char(ch: char) -> char {
     map_char(compatibility_fold(traditional), Z_CANONICAL_FORMS)
 }
 
-fn asahimoji_char(ch: char) -> char {
+fn kanxi_char(ch: char) -> char {
+    kanxi_char_folded(compatibility_fold(ch))
+}
+
+fn asahimoji_char_folded(ch: char, folded: char) -> char {
     let asahi = map_char(ch, ASAHI_FORMS);
     if asahi != ch || is_table_target(ch, ASAHI_TARGETS) {
         return asahi;
     }
-    shinjitai_char(ch)
+    shinjitai_char_folded(folded)
+}
+
+fn asahimoji_char(ch: char) -> char {
+    asahimoji_char_folded(ch, compatibility_fold(ch))
 }
 
 fn push_unique(choices: &mut Vec<char>, ch: char) {
@@ -174,14 +184,15 @@ fn push_unique(choices: &mut Vec<char>, ch: char) {
 
 fn recognition_variants(ch: char) -> Vec<char> {
     let mut choices = Vec::with_capacity(9);
+    let folded = compatibility_fold(ch);
     for variant in [
         ch,
-        compatibility_fold(ch),
+        folded,
         map_char(ch, Z_FORMS),
-        shinjitai_char(ch),
-        kanxi_char(ch),
-        simplified_char(ch),
-        asahimoji_char(ch),
+        shinjitai_char_folded(folded),
+        kanxi_char_folded(folded),
+        simplified_char_folded(folded),
+        asahimoji_char_folded(ch, folded),
     ] {
         push_unique(&mut choices, variant);
     }
@@ -197,8 +208,7 @@ fn recognition_variants(ch: char) -> Vec<char> {
     choices
 }
 
-fn shinjitai_char(ch: char) -> char {
-    let folded = compatibility_fold(ch);
+fn shinjitai_char_folded(folded: char) -> char {
     let directly_joyo = map_char(folded, JOYO_FORMS);
     if directly_joyo != folded || is_table_target(folded, JOYO_TARGETS) {
         return directly_joyo;
@@ -221,26 +231,41 @@ fn shinjitai_char(ch: char) -> char {
     }
 }
 
+fn shinjitai_char(ch: char) -> char {
+    shinjitai_char_folded(compatibility_fold(ch))
+}
+
 pub(crate) fn compatibility_fold(ch: char) -> char {
     map_char(ch, COMPATIBILITY_FOLDS)
+}
+
+fn render_hanja_char(ch: char, variant_set: crate::HanjaVariantSet) -> char {
+    match variant_set {
+        crate::HanjaVariantSet::AsDictionary => unreachable!("handled by render_hanja"),
+        crate::HanjaVariantSet::Shinjitai => shinjitai_char(ch),
+        crate::HanjaVariantSet::Kanxi => kanxi_char(ch),
+        crate::HanjaVariantSet::Simplified => simplified_char(ch),
+        crate::HanjaVariantSet::Asahimoji => asahimoji_char(ch),
+    }
 }
 
 pub(crate) fn render_hanja(source: &str, variant_set: crate::HanjaVariantSet) -> Cow<'_, str> {
     if variant_set == crate::HanjaVariantSet::AsDictionary {
         return Cow::Borrowed(source);
     }
-    Cow::Owned(
-        source
-            .chars()
-            .map(|ch| match variant_set {
-                crate::HanjaVariantSet::AsDictionary => unreachable!("handled above"),
-                crate::HanjaVariantSet::Shinjitai => shinjitai_char(ch),
-                crate::HanjaVariantSet::Kanxi => kanxi_char(ch),
-                crate::HanjaVariantSet::Simplified => simplified_char(ch),
-                crate::HanjaVariantSet::Asahimoji => asahimoji_char(ch),
-            })
-            .collect(),
-    )
+    let mut chars = source.char_indices();
+    while let Some((byte_index, ch)) = chars.next() {
+        let rendered = render_hanja_char(ch, variant_set);
+        if rendered == ch {
+            continue;
+        }
+        let mut output = String::with_capacity(source.len());
+        output.push_str(&source[..byte_index]);
+        output.push(rendered);
+        output.extend(chars.map(|(_, ch)| render_hanja_char(ch, variant_set)));
+        return Cow::Owned(output);
+    }
+    Cow::Borrowed(source)
 }
 
 #[cfg(test)]
@@ -255,6 +280,22 @@ mod tests {
         assert!(matches!(
             render_hanja("漢字", HanjaVariantSet::AsDictionary),
             Cow::Borrowed("漢字")
+        ));
+    }
+
+    #[test]
+    fn normalized_variant_set_borrows_the_source() {
+        assert!(matches!(
+            render_hanja("芸術", HanjaVariantSet::Shinjitai),
+            Cow::Borrowed("芸術")
+        ));
+    }
+
+    #[test]
+    fn changed_variant_set_owns_the_rendered_source() {
+        assert!(matches!(
+            render_hanja("藝術", HanjaVariantSet::Shinjitai),
+            Cow::Owned(rendered) if rendered == "芸術"
         ));
     }
 }
