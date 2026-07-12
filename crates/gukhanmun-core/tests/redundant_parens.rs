@@ -196,6 +196,13 @@ fn pattern_a_overrides_reading_with_valid_alternative() {
 }
 
 #[test]
+fn compatibility_hanja_accepts_unified_form_alternative_readings() {
+    let collapsed = collapse(vec![ann("數字", "숫자"), text("(수자)")]);
+
+    assert_eq!(only_annotation(&collapsed).reading, "수자");
+}
+
+#[test]
 fn pattern_b_overrides_reading_with_valid_alternative() {
     let collapsed = collapse(vec![text("수자("), ann("數字", "숫자"), text(")")]);
     assert_eq!(only_annotation(&collapsed).reading, "수자");

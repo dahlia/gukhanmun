@@ -524,6 +524,7 @@ pub(crate) fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
 /// `議論(의론)` versus `議論(의논)`). Returns an empty slice when `ch` has no
 /// recorded reading.
 pub(crate) fn khangul_all_readings(ch: char) -> &'static [&'static str] {
+    let ch = crate::variants::compatibility_fold(ch);
     KHANGUL_ALL_READINGS
         .binary_search_by_key(&ch, |(hanja, _)| *hanja)
         .ok()
