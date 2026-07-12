@@ -16,7 +16,6 @@
 
 use alloc::borrow::Cow;
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 
 use crate::generated::hanja_variants::{
@@ -52,45 +51,70 @@ where
             })
         })
         .collect::<Vec<_>>();
-    let chars = source
-        .chars()
-        .take(MAX_VARIANT_PREFIX_CHARS)
-        .collect::<Vec<_>>();
-    let mut candidates = vec![(String::new(), 0usize)];
+    let mut candidates: Option<Vec<(String, usize)>> = None;
     let mut source_byte_len = 0;
-    for prefix_len in 1..=chars.len() {
-        let source_char = chars[prefix_len - 1];
+    for source_char in source.chars().take(MAX_VARIANT_PREFIX_CHARS) {
         source_byte_len += source_char.len_utf8();
         let alternatives = recognition_variants(source_char);
-        let Some(next_capacity) = candidates.len().checked_mul(alternatives.len()) else {
-            break;
-        };
-        if next_capacity > MAX_VARIANT_CANDIDATES {
-            break;
-        }
-        let mut next = Vec::with_capacity(next_capacity);
-        let (last_alternative, other_alternatives) = alternatives
-            .split_last()
-            .expect("recognition variants include the source character");
-        for (mut prefix, substitutions) in candidates {
-            for alternative in other_alternatives {
-                let mut candidate = prefix.clone();
-                candidate.push(*alternative);
-                next.push((
-                    candidate,
-                    substitutions + usize::from(*alternative != source_char),
-                ));
+        let alternatives = alternatives.as_slice();
+        if let Some(current) = candidates.take() {
+            if alternatives.len() == 1 {
+                candidates = Some(
+                    current
+                        .into_iter()
+                        .map(|(mut candidate, substitutions)| {
+                            candidate.push(source_char);
+                            (candidate, substitutions)
+                        })
+                        .collect(),
+                );
+            } else {
+                let Some(next_capacity) = current.len().checked_mul(alternatives.len()) else {
+                    break;
+                };
+                if next_capacity > MAX_VARIANT_CANDIDATES {
+                    break;
+                }
+                let mut next = Vec::with_capacity(next_capacity);
+                let (last_alternative, other_alternatives) = alternatives
+                    .split_last()
+                    .expect("recognition variants include the source character");
+                for (mut prefix, substitutions) in current {
+                    for alternative in other_alternatives {
+                        let mut candidate = prefix.clone();
+                        candidate.push(*alternative);
+                        next.push((
+                            candidate,
+                            substitutions + usize::from(*alternative != source_char),
+                        ));
+                    }
+                    prefix.push(*last_alternative);
+                    next.push((
+                        prefix,
+                        substitutions + usize::from(*last_alternative != source_char),
+                    ));
+                }
+                candidates = Some(next);
             }
-            prefix.push(*last_alternative);
-            next.push((
-                prefix,
-                substitutions + usize::from(*last_alternative != source_char),
-            ));
-        }
-        candidates = next;
-        if candidates.len() == 1 {
+        } else if alternatives.len() > 1 {
+            let source_prefix = &source[..source_byte_len - source_char.len_utf8()];
+            candidates = Some(
+                alternatives
+                    .iter()
+                    .map(|alternative| {
+                        let mut candidate = String::with_capacity(source_prefix.len() + 4);
+                        candidate.push_str(source_prefix);
+                        candidate.push(*alternative);
+                        (candidate, usize::from(*alternative != source_char))
+                    })
+                    .collect(),
+            );
+        } else {
             continue;
         }
+        let candidates = candidates
+            .as_ref()
+            .expect("variant candidates exist after a nontrivial alternative");
         let source_prefix = &source[..source_byte_len];
         debug_assert_eq!(
             candidates.first().map(|(candidate, _)| candidate.as_str()),
@@ -193,14 +217,36 @@ fn asahimoji_char(ch: char) -> char {
     asahimoji_char_folded(ch, compatibility_fold(ch))
 }
 
-fn push_unique(choices: &mut Vec<char>, ch: char) {
-    if !choices.contains(&ch) {
-        choices.push(ch);
+const MAX_RECOGNITION_VARIANTS: usize = 10;
+
+struct RecognitionVariants {
+    values: [char; MAX_RECOGNITION_VARIANTS],
+    len: usize,
+}
+
+impl RecognitionVariants {
+    fn new() -> Self {
+        Self {
+            values: ['\0'; MAX_RECOGNITION_VARIANTS],
+            len: 0,
+        }
+    }
+
+    fn push_unique(&mut self, ch: char) {
+        if !self.as_slice().contains(&ch) {
+            debug_assert!(self.len < MAX_RECOGNITION_VARIANTS);
+            self.values[self.len] = ch;
+            self.len += 1;
+        }
+    }
+
+    fn as_slice(&self) -> &[char] {
+        &self.values[..self.len]
     }
 }
 
-fn recognition_variants(ch: char) -> Vec<char> {
-    let mut choices = Vec::with_capacity(10);
+fn recognition_variants(ch: char) -> RecognitionVariants {
+    let mut choices = RecognitionVariants::new();
     let folded = compatibility_fold(ch);
     for variant in [
         ch,
@@ -211,7 +257,7 @@ fn recognition_variants(ch: char) -> Vec<char> {
         simplified_char_folded(folded),
         asahimoji_char_folded(ch, folded),
     ] {
-        push_unique(&mut choices, variant);
+        choices.push_unique(variant);
     }
     for table in [
         COMPATIBILITY_REVERSE_FORMS,
@@ -219,7 +265,7 @@ fn recognition_variants(ch: char) -> Vec<char> {
         ASAHI_REVERSE_FORMS,
     ] {
         if let Some(source) = unique_source_for_target(ch, table) {
-            push_unique(&mut choices, source);
+            choices.push_unique(source);
         }
     }
     choices

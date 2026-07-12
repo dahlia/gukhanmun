@@ -428,19 +428,27 @@ pub trait HanjaDictionary {
     /// preference. Each returned index identifies the spelling that matched.
     #[doc(hidden)]
     fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
-        let mut alternatives = Vec::new();
-        for (index, spelling) in spellings.iter().enumerate() {
-            let matches = self
-                .matches_at(spelling)
-                .filter(|matched| matched.byte_len == spelling.len())
-                .map(|matched| (index, matched))
-                .collect::<Vec<_>>();
-            if index == 0 && !matches.is_empty() {
-                return matches;
-            }
-            alternatives.extend(matches);
+        let Some((source, alternative_spellings)) = spellings.split_first() else {
+            return Vec::new();
+        };
+        let exact = self
+            .matches_at(source)
+            .filter(|matched| matched.byte_len == source.len())
+            .map(|matched| (0, matched))
+            .collect::<Vec<_>>();
+        if !exact.is_empty() {
+            return exact;
         }
-        alternatives
+
+        let mut matches = Vec::new();
+        for (offset, spelling) in alternative_spellings.iter().enumerate() {
+            matches.extend(
+                self.matches_at(spelling)
+                    .filter(|matched| matched.byte_len == spelling.len())
+                    .map(|matched| (offset + 1, matched)),
+            );
+        }
+        matches
     }
 
     /// Returns the greatest dictionary entry length in Unicode scalar values.
