@@ -237,11 +237,15 @@ fn parse_pair_file(input: &str) -> Result<Vec<(char, char)>> {
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
     {
         let (new, old) = line.split_once('\t').ok_or("invalid variant pair row")?;
-        let new_chars = new.chars().collect::<Vec<_>>();
+        let mut new_chars = new.chars();
+        let Some(new_char) = new_chars.next() else {
+            continue;
+        };
+        if new_chars.next().is_some() {
+            continue;
+        }
         for old in old.split_whitespace().flat_map(str::chars) {
-            if new_chars.len() == 1 {
-                pairs.push((old, new_chars[0]));
-            }
+            pairs.push((old, new_char));
         }
     }
     pairs.sort_unstable();
