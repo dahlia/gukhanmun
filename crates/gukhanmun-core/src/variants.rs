@@ -183,7 +183,7 @@ fn push_unique(choices: &mut Vec<char>, ch: char) {
 }
 
 fn recognition_variants(ch: char) -> Vec<char> {
-    let mut choices = Vec::with_capacity(9);
+    let mut choices = Vec::with_capacity(10);
     let folded = compatibility_fold(ch);
     for variant in [
         ch,
