@@ -420,7 +420,9 @@ where
             && let Some((matched, end_char)) =
                 longest_match(span, &boundaries, start_char, lookup, dictionary)
         {
-            let byte_end = byte_start + matched.source_byte_len;
+            let Some(byte_end) = byte_start.checked_add(matched.source_byte_len) else {
+                continue;
+            };
             let source = &span[byte_start..byte_end];
             segments.push(segment_for_dictionary_match(
                 source,
