@@ -3293,49 +3293,62 @@ fn render_annotation<S>(
     options: &RenderOptions,
     allows_inline_markup: bool,
 ) -> RenderedToken<S> {
+    if annotation.skip_annotation
+        && matches!(
+            options.mode,
+            RenderMode::HangulOnly
+                | RenderMode::HangulHanjaParens
+                | RenderMode::Ruby(RubyBase::OnHangul)
+        )
+    {
+        return RenderedToken::Text(annotation.reading.clone());
+    }
+    if !annotation.skip_annotation
+        && options.mode == RenderMode::HangulOnly
+        && !annotation.require_hanja
+        && !annotation.homophone
+    {
+        return RenderedToken::Text(annotation.reading.clone());
+    }
     let dictionary_hanja = annotation
         .dictionary_hanja
         .as_deref()
         .unwrap_or(&annotation.hanja);
     let rendered_hanja = variants::render_hanja(dictionary_hanja, options.hanja_variant_set);
     if annotation.skip_annotation {
-        let primary = match options.mode {
-            RenderMode::HangulOnly | RenderMode::HangulHanjaParens => annotation.reading.clone(),
-            RenderMode::HanjaHangulParens | RenderMode::Original => rendered_hanja.clone(),
-            RenderMode::Ruby(RubyBase::OnHangul) => annotation.reading.clone(),
-            RenderMode::Ruby(RubyBase::OnHanja) => rendered_hanja.clone(),
-        };
-        return RenderedToken::Text(primary);
+        return RenderedToken::Text(rendered_hanja.into_owned());
     }
 
     match options.mode {
-        RenderMode::HangulOnly if annotation.require_hanja || annotation.homophone => {
-            RenderedToken::Text(parens(&annotation.reading, &rendered_hanja))
+        RenderMode::HangulOnly => {
+            RenderedToken::Text(parens(&annotation.reading, rendered_hanja.as_ref()))
         }
-        RenderMode::HangulOnly => RenderedToken::Text(annotation.reading.clone()),
         RenderMode::HangulHanjaParens => {
-            RenderedToken::Text(parens(&annotation.reading, &rendered_hanja))
+            RenderedToken::Text(parens(&annotation.reading, rendered_hanja.as_ref()))
         }
         RenderMode::HanjaHangulParens => {
-            RenderedToken::Text(parens(&rendered_hanja, &annotation.reading))
+            RenderedToken::Text(parens(rendered_hanja.as_ref(), &annotation.reading))
         }
-        RenderMode::Ruby(base) => {
-            render_ruby(annotation, &rendered_hanja, base, allows_inline_markup)
-        }
+        RenderMode::Ruby(base) => render_ruby(
+            annotation,
+            rendered_hanja.as_ref(),
+            base,
+            allows_inline_markup,
+        ),
         RenderMode::Original if annotation.require_hangul => match options.original_gloss {
             OriginalGloss::Parens => {
-                RenderedToken::Text(parens(&rendered_hanja, &annotation.reading))
+                RenderedToken::Text(parens(rendered_hanja.as_ref(), &annotation.reading))
             }
             // `Original` keeps hanja as the primary text, so its ruby form
             // always uses hanja as the base regardless of any other setting.
             OriginalGloss::Ruby => render_ruby(
                 annotation,
-                &rendered_hanja,
+                rendered_hanja.as_ref(),
                 RubyBase::OnHanja,
                 allows_inline_markup,
             ),
         },
-        RenderMode::Original => RenderedToken::Text(rendered_hanja),
+        RenderMode::Original => RenderedToken::Text(rendered_hanja.into_owned()),
     }
 }
 

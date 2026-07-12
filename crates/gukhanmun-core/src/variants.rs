@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use alloc::borrow::Cow;
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -224,15 +225,36 @@ pub(crate) fn compatibility_fold(ch: char) -> char {
     map_char(ch, COMPATIBILITY_FOLDS)
 }
 
-pub(crate) fn render_hanja(source: &str, variant_set: crate::HanjaVariantSet) -> String {
-    source
-        .chars()
-        .map(|ch| match variant_set {
-            crate::HanjaVariantSet::AsDictionary => ch,
-            crate::HanjaVariantSet::Shinjitai => shinjitai_char(ch),
-            crate::HanjaVariantSet::Kanxi => kanxi_char(ch),
-            crate::HanjaVariantSet::Simplified => simplified_char(ch),
-            crate::HanjaVariantSet::Asahimoji => asahimoji_char(ch),
-        })
-        .collect()
+pub(crate) fn render_hanja(source: &str, variant_set: crate::HanjaVariantSet) -> Cow<'_, str> {
+    if variant_set == crate::HanjaVariantSet::AsDictionary {
+        return Cow::Borrowed(source);
+    }
+    Cow::Owned(
+        source
+            .chars()
+            .map(|ch| match variant_set {
+                crate::HanjaVariantSet::AsDictionary => unreachable!("handled above"),
+                crate::HanjaVariantSet::Shinjitai => shinjitai_char(ch),
+                crate::HanjaVariantSet::Kanxi => kanxi_char(ch),
+                crate::HanjaVariantSet::Simplified => simplified_char(ch),
+                crate::HanjaVariantSet::Asahimoji => asahimoji_char(ch),
+            })
+            .collect(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::borrow::Cow;
+
+    use super::render_hanja;
+    use crate::HanjaVariantSet;
+
+    #[test]
+    fn as_dictionary_borrows_the_source() {
+        assert!(matches!(
+            render_hanja("漢字", HanjaVariantSet::AsDictionary),
+            Cow::Borrowed("漢字")
+        ));
+    }
 }
