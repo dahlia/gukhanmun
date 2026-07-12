@@ -159,6 +159,7 @@ const DICT_LOADERS: Record<DictId, () => Promise<Uint8Array>> = {
 // excluded too.
 type PresetConfig = {
   rendering: RenderMode;
+  hanjaVariantSet: HanjaVariantSet;
   segmentation: Segmentation;
   numerals: NumeralStrategy;
   initialSoundLaw: boolean;
@@ -172,6 +173,7 @@ type PresetConfig = {
 const PRESET_CONFIGS: Record<Preset, PresetConfig> = {
   "ko-kr": {
     rendering: "hangul-only",
+    hanjaVariantSet: "as-dictionary",
     segmentation: "lattice",
     numerals: "hangul-phonetic",
     initialSoundLaw: true,
@@ -189,6 +191,7 @@ const PRESET_CONFIGS: Record<Preset, PresetConfig> = {
   },
   "ko-kp": {
     rendering: "hangul-only",
+    hanjaVariantSet: "as-dictionary",
     segmentation: "lattice",
     numerals: "hangul-phonetic",
     initialSoundLaw: false,
@@ -570,6 +573,7 @@ export function Playground() {
   // True when the live configuration matches a preset's complete setting set.
   function matchesPreset(cfg: PresetConfig): boolean {
     return rendering === cfg.rendering &&
+      hanjaVariantSet === cfg.hanjaVariantSet &&
       segmentation === cfg.segmentation &&
       numerals === cfg.numerals &&
       initialSoundLaw === cfg.initialSoundLaw &&
@@ -590,6 +594,7 @@ export function Playground() {
   function applyPreset(p: Preset) {
     const cfg = PRESET_CONFIGS[p];
     setRendering(cfg.rendering);
+    setHanjaVariantSet(cfg.hanjaVariantSet);
     setSegmentation(cfg.segmentation);
     setNumerals(cfg.numerals);
     setInitialSoundLaw(cfg.initialSoundLaw);
