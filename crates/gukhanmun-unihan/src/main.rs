@@ -137,12 +137,15 @@ fn format_rust_source(source: &str) -> Result<String> {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
-    child
-        .stdin
-        .take()
-        .expect("rustfmt stdin is piped")
-        .write_all(source.as_bytes())?;
-    let output = child.wait_with_output()?;
+    let mut stdin = child.stdin.take().expect("rustfmt stdin is piped");
+    let output = std::thread::scope(|scope| -> Result<std::process::Output> {
+        let writer = scope.spawn(move || stdin.write_all(source.as_bytes()));
+        let output = child.wait_with_output()?;
+        writer
+            .join()
+            .map_err(|_| "rustfmt stdin writer panicked")??;
+        Ok(output)
+    })?;
     if !output.status.success() {
         return Err("rustfmt failed while formatting generated Rust source".into());
     }
