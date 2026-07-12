@@ -480,14 +480,16 @@ where
 /// fallback phoneticizer, but it deliberately returns canonical pre-initial
 /// sound law readings. Stateful orthographic rules such as the initial sound
 /// law, `列`/`律`, and numeral grouping remain engine fallback behavior rather
-/// than dictionary behavior.
+/// than dictionary behavior. Compatibility ideographs are folded to their
+/// unified code points before lookup, so compatibility-specific `kHangul`
+/// readings do not override the unified character's reading.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct UnihanCharDict;
 
 impl HanjaDictionary for UnihanCharDict {
     fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
         let matched = s.chars().next().and_then(|ch| {
-            khangul_reading(ch).map(|reading| Match {
+            phoneticize_hanja_char(ch).map(|reading| Match {
                 byte_len: ch.len_utf8(),
                 reading: reading.to_string(),
                 suffix_reading: None,
@@ -629,13 +631,6 @@ where
             .iter()
             .any(|dictionary| dictionary.has_homophone(hanja, reading))
     }
-}
-
-fn khangul_reading(ch: char) -> Option<&'static str> {
-    KHANGUL_READINGS
-        .binary_search_by_key(&ch, |(hanja, _)| *hanja)
-        .ok()
-        .map(|index| KHANGUL_READINGS[index].1)
 }
 
 /// Engine-level options that affect hanja conversion before rendering.

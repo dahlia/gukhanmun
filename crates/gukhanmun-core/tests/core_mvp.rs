@@ -542,6 +542,15 @@ fn unihan_char_dictionary_returns_single_canonical_character_matches() {
 }
 
 #[test]
+fn unihan_char_dictionary_folds_compatibility_ideographs() {
+    let compatibility = UnihanCharDict.matches_at("豈").next().unwrap();
+    let unified = UnihanCharDict.matches_at("豈").next().unwrap();
+
+    assert_eq!(compatibility.byte_len, "豈".len());
+    assert_eq!(compatibility.reading, unified.reading);
+}
+
+#[test]
 fn unihan_char_dictionary_matches_fallback_canonical_reading_without_initial_sound_law() {
     let no_law = EngineOptions {
         initial_sound_law: false,
