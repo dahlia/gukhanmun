@@ -601,6 +601,21 @@ fn single_hanja_dictionary_reading_follows_initial_sound_law_by_position() {
 }
 
 #[test]
+fn variant_dictionary_reading_follows_initial_sound_law_by_position() {
+    let mut dict = MapDictionary::new();
+    dict.insert("勞", "노");
+
+    assert_eq!(
+        convert_plain_text("1998勞", &dict, RenderMode::HangulOnly),
+        "1998로"
+    );
+    assert_eq!(
+        convert_plain_text("1998劳", &dict, RenderMode::HangulOnly),
+        "1998로"
+    );
+}
+
+#[test]
 fn single_hanja_dictionary_reading_honors_yeol_yul_rule() {
     // `률`/`렬` keep the `율`/`열` form after a vowel or `ㄴ` coda even outside
     // word-initial position, just as fallback does.

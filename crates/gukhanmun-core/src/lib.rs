@@ -1522,7 +1522,7 @@ fn process_trivial_fallback_run<S>(
             } => {
                 let source = &text[*byte_start..*byte_end];
                 let effective = dictionary_effective_reading(
-                    source,
+                    dictionary_hanja,
                     dict_reading,
                     suffix_reading.as_deref(),
                     options,
@@ -1689,7 +1689,7 @@ fn process_segments_with_state<S, D>(
             } => {
                 let source = &text[*byte_start..*byte_end];
                 let effective = dictionary_effective_reading(
-                    source,
+                    dictionary_hanja,
                     reading,
                     suffix_reading.as_deref(),
                     options,
@@ -1880,8 +1880,12 @@ fn update_fallback_state_for_text(text: &str, state: &mut FallbackState) {
 ///
 /// With initial sound law disabled (for example the North Korean preset) the
 /// original reading is used everywhere.
+///
+/// Variant recognition can make the source spelling differ from the matched
+/// dictionary spelling. This calculation uses the dictionary spelling because
+/// that is the character identity to which the recorded reading belongs.
 fn dictionary_effective_reading(
-    source: &str,
+    dictionary_hanja: &str,
     reading: &str,
     suffix_reading: Option<&str>,
     options: EngineOptions,
@@ -1896,7 +1900,7 @@ fn dictionary_effective_reading(
         };
     }
 
-    let mut chars = source.chars();
+    let mut chars = dictionary_hanja.chars();
     if let (Some(ch), None) = (chars.next(), chars.next())
         && let Some(base) = phoneticize_hanja_char(ch)
     {
