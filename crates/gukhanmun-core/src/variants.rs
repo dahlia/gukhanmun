@@ -69,8 +69,11 @@ where
             break;
         }
         let mut next = Vec::with_capacity(next_capacity);
-        for (prefix, substitutions) in &candidates {
-            for alternative in &alternatives {
+        let (last_alternative, other_alternatives) = alternatives
+            .split_last()
+            .expect("recognition variants include the source character");
+        for (mut prefix, substitutions) in candidates {
+            for alternative in other_alternatives {
                 let mut candidate = prefix.clone();
                 candidate.push(*alternative);
                 next.push((
@@ -78,6 +81,11 @@ where
                     substitutions + usize::from(*alternative != source_char),
                 ));
             }
+            prefix.push(*last_alternative);
+            next.push((
+                prefix,
+                substitutions + usize::from(*last_alternative != source_char),
+            ));
         }
         candidates = next;
         if candidates.len() == 1 {
