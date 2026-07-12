@@ -55,52 +55,48 @@ where
         .chars()
         .take(MAX_VARIANT_PREFIX_CHARS)
         .collect::<Vec<_>>();
-    let mut choices = Vec::with_capacity(chars.len());
+    let mut candidates = vec![(String::new(), 0usize)];
     let mut source_byte_len = 0;
     for prefix_len in 1..=chars.len() {
-        source_byte_len += chars[prefix_len - 1].len_utf8();
-        choices.push(recognition_variants(chars[prefix_len - 1]));
+        let source_char = chars[prefix_len - 1];
+        source_byte_len += source_char.len_utf8();
+        let alternatives = recognition_variants(source_char);
+        let Some(next_capacity) = candidates.len().checked_mul(alternatives.len()) else {
+            break;
+        };
+        if next_capacity > MAX_VARIANT_CANDIDATES {
+            break;
+        }
+        let mut next = Vec::with_capacity(next_capacity);
+        for (prefix, substitutions) in &candidates {
+            for alternative in &alternatives {
+                let mut candidate = prefix.clone();
+                candidate.push(*alternative);
+                next.push((
+                    candidate,
+                    substitutions + usize::from(*alternative != source_char),
+                ));
+            }
+        }
+        candidates = next;
         if exact
             .iter()
             .any(|matched| matched.byte_len == source_byte_len)
         {
             continue;
         }
-        let prefix_choices = &choices[..prefix_len];
-        let Some(product) = prefix_choices.iter().try_fold(1usize, |count, choices| {
-            count
-                .checked_mul(choices.len())
-                .filter(|count| *count <= MAX_VARIANT_CANDIDATES)
-        }) else {
+        if candidates.len() == 1 {
             continue;
-        };
-        if product == 1 {
-            continue;
-        }
-        let mut candidates = vec![(String::new(), 0usize)];
-        for (source_char, alternatives) in chars[..prefix_len].iter().zip(prefix_choices) {
-            let mut next = Vec::with_capacity(candidates.len() * alternatives.len());
-            for (prefix, substitutions) in &candidates {
-                for alternative in alternatives {
-                    let mut candidate = prefix.clone();
-                    candidate.push(*alternative);
-                    next.push((
-                        candidate,
-                        substitutions + usize::from(*alternative != *source_char),
-                    ));
-                }
-            }
-            candidates = next;
         }
         let source_prefix = &source[..source_byte_len];
         let mut matches = Vec::<(usize, String, Match)>::new();
-        for (candidate, substitutions) in candidates {
+        for (candidate, substitutions) in &candidates {
             if candidate == source_prefix {
                 continue;
             }
-            for matched in dictionary.matches_at(&candidate) {
+            for matched in dictionary.matches_at(candidate) {
                 if matched.byte_len == candidate.len() {
-                    matches.push((substitutions, candidate.clone(), matched));
+                    matches.push((*substitutions, candidate.clone(), matched));
                 }
             }
         }
