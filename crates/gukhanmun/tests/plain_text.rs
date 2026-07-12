@@ -22,7 +22,8 @@ use std::cell::Cell;
 use gukhanmun::HanjaDictionary;
 use gukhanmun::{
     Builder, ContextWindow, DirectiveAction, HanjaVariantSet, InputToken, MapDictionary,
-    NumeralStrategy, PlainScopeData, Preset, RenderMode, RenderedToken, write_plain_text,
+    NumeralStrategy, PlainScopeData, Preset, RenderMode, RenderOptions, RenderedToken,
+    write_plain_text,
 };
 
 #[cfg(feature = "stdict")]
@@ -268,6 +269,25 @@ fn rendering_preserves_a_prior_variant_set_override() {
     assert_eq!(
         converter.options().rendering.hanja_variant_set,
         HanjaVariantSet::Shinjitai
+    );
+}
+
+#[test]
+fn full_rendering_options_replace_a_prior_variant_set_override() {
+    let converter = Builder::new()
+        .no_bundled_dictionaries()
+        .hanja_variant_set(HanjaVariantSet::Shinjitai)
+        .rendering(RenderOptions {
+            mode: RenderMode::Original,
+            hanja_variant_set: HanjaVariantSet::Simplified,
+            ..RenderOptions::default()
+        })
+        .build()
+        .expect("builder");
+
+    assert_eq!(
+        converter.options().rendering.hanja_variant_set,
+        HanjaVariantSet::Simplified
     );
 }
 

@@ -85,7 +85,7 @@ mod builder;
 mod error;
 mod options;
 
-pub use builder::{Builder, Converter};
+pub use builder::{Builder, BuilderRendering, Converter};
 pub use error::{Error, Result};
 pub use options::{ConversionOptions, Preset};
 
