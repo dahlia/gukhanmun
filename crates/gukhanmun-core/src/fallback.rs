@@ -459,6 +459,7 @@ fn push_numeral_readings(output: &mut String, chars: &[char], initial_sound_law:
 }
 
 fn initial_sound_numeral_reading(ch: char) -> Option<&'static str> {
+    let ch = normalize_hanja_char(ch);
     Some(match ch {
         '六' | '陸' | '陆' => "육",
         _ => return None,
@@ -466,6 +467,7 @@ fn initial_sound_numeral_reading(ch: char) -> Option<&'static str> {
 }
 
 fn digit_value(ch: char) -> Option<u8> {
+    let ch = normalize_hanja_char(ch);
     Some(match ch {
         '零' | '〇' => 0,
         '一' | '壹' | '壱' | '弌' | '夁' => 1,
@@ -482,6 +484,7 @@ fn digit_value(ch: char) -> Option<u8> {
 }
 
 fn small_place_value(ch: char) -> Option<u128> {
+    let ch = normalize_hanja_char(ch);
     Some(match ch {
         '十' | '拾' => 10,
         '百' | '佰' | '陌' => 100,
@@ -491,6 +494,7 @@ fn small_place_value(ch: char) -> Option<u128> {
 }
 
 fn large_place_value(ch: char) -> Option<u128> {
+    let ch = normalize_hanja_char(ch);
     let exponent = match ch {
         '萬' | '万' => 4,
         '億' => 8,
@@ -506,18 +510,18 @@ fn large_place_value(ch: char) -> Option<u128> {
     10u128.checked_pow(exponent)
 }
 
-/// Normalizes compatibility ideographs before any Unihan reading lookup.
+/// Normalizes compatibility ideographs before numeral or Unihan lookup.
 ///
 /// Gukhanmun treats them as presentation variants of their unified code
 /// points, not as separate lexical characters. Compatibility-specific
 /// `kHangul` values, including distinctions inherited from KS X 1001/1002,
 /// are therefore ignored intentionally.
-fn normalize_khangul_lookup_char(ch: char) -> char {
+fn normalize_hanja_char(ch: char) -> char {
     crate::variants::compatibility_fold(ch)
 }
 
 pub(crate) fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
-    let ch = normalize_khangul_lookup_char(ch);
+    let ch = normalize_hanja_char(ch);
     KHANGUL_READINGS
         .binary_search_by_key(&ch, |(hanja, _)| *hanja)
         .ok()
@@ -534,7 +538,7 @@ pub(crate) fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
 /// `議論(의론)` versus `議論(의논)`). Returns an empty slice when `ch` has no
 /// recorded reading.
 pub(crate) fn khangul_all_readings(ch: char) -> &'static [&'static str] {
-    let ch = normalize_khangul_lookup_char(ch);
+    let ch = normalize_hanja_char(ch);
     KHANGUL_ALL_READINGS
         .binary_search_by_key(&ch, |(hanja, _)| *hanja)
         .ok()
@@ -543,6 +547,7 @@ pub(crate) fn khangul_all_readings(ch: char) -> &'static [&'static str] {
 }
 
 fn numeral_reading(ch: char) -> Option<&'static str> {
+    let ch = normalize_hanja_char(ch);
     Some(match ch {
         '零' | '〇' => "영",
         '一' | '壹' | '壱' | '弌' | '夁' => "일",
@@ -571,6 +576,7 @@ fn numeral_reading(ch: char) -> Option<&'static str> {
 }
 
 fn canonical_numeral_reading(ch: char) -> Option<&'static str> {
+    let ch = normalize_hanja_char(ch);
     Some(match ch {
         '零' => "영",
         '〇' => "공",
@@ -580,6 +586,7 @@ fn canonical_numeral_reading(ch: char) -> Option<&'static str> {
 }
 
 fn positional_numeral_reading(ch: char) -> Option<&'static str> {
+    let ch = normalize_hanja_char(ch);
     Some(match ch {
         '零' => "영",
         '〇' => "공",

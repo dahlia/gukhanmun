@@ -41,7 +41,8 @@ To be released.
     `shinjitai`, `kanxi`, `simplified`, and `asahimoji` output profiles across
     Rust, the CLI, WebAssembly, Node-API, and the documentation playground.
     `Annotation::canonical_hanja` exposes the same canonical spelling used by
-    policy middlewares and rendering.  [[#11], [#12]]
+    policy middlewares and rendering.  Compatibility forms are folded before
+    both reading and numeral lookup.  [[#11], [#12]]
 
 [#11]: https://github.com/dahlia/gukhanmun/issues/11
 [#12]: https://github.com/dahlia/gukhanmun/pull/12
