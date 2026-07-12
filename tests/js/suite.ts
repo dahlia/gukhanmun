@@ -110,7 +110,9 @@ export function registerSuite(name: string, binding: Binding): void {
   describe(`${name}: fixture parity (no dictionary)`, () => {
     test("html/initial-sound-raw", async () => {
       const input = await readFixture("html/initial-sound-raw.input.html");
-      const expected = await readFixture("html/initial-sound-raw.expected.html");
+      const expected = await readFixture(
+        "html/initial-sound-raw.expected.html",
+      );
       const g = await load({ preset: "ko-kr" });
       assert.equal(g.convert(input, "html"), expected);
     });
@@ -137,8 +139,13 @@ export function registerSuite(name: string, binding: Binding): void {
   describe(`${name}: bundled-dictionary parity`, () => {
     test("text/constitution-preamble matches the Rust fixture", async () => {
       const input = await readFixture("text/constitution-preamble.input.txt");
-      const expected = await readFixture("text/constitution-preamble.expected.txt");
-      const g = await load({ preset: "ko-kr", dictionaries: [await stdictFst()] });
+      const expected = await readFixture(
+        "text/constitution-preamble.expected.txt",
+      );
+      const g = await load({
+        preset: "ko-kr",
+        dictionaries: [await stdictFst()],
+      });
       assert.equal(g.convert(input, "text"), expected);
     });
   });
@@ -162,6 +169,22 @@ export function registerSuite(name: string, binding: Binding): void {
         rendering: "hangul-hanja-parens",
       });
       assert.equal(g.convert("漢字"), "한자(漢字)");
+    });
+
+    test("variant recognition and output sets are shared by every binding", async () => {
+      const dictionary = await stdictFst();
+      const canonical = await load({
+        dictionaries: [dictionary],
+        rendering: "original",
+      });
+      const shinjitai = await load({
+        dictionaries: [dictionary],
+        rendering: "original",
+        hanjaVariantSet: "shinjitai",
+      });
+      assert.equal(canonical.convert("芸術"), "藝術");
+      assert.equal(shinjitai.convert("芸術"), "芸術");
+      assert.equal(shinjitai.options.hanjaVariantSet, "shinjitai");
     });
   });
 

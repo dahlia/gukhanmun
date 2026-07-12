@@ -477,6 +477,7 @@ fn original_with_ruby_gloss_renders_required_hangul_as_inline_html() {
     let options = RenderOptions {
         mode: RenderMode::Original,
         original_gloss: OriginalGloss::Ruby,
+        ..RenderOptions::default()
     };
 
     let output = convert_markdown("漢字\n", &dict, options, MarkdownVariant::CommonMark).unwrap();

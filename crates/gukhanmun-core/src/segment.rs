@@ -22,7 +22,8 @@ use crate::fallback::{
     is_hanja_numeral, is_numeral_unit, phoneticize_fallback_run_with_state, phoneticize_hanja_char,
     reading_matches_with_initial_sound_law,
 };
-use crate::{EngineOptions, HanjaDictionary, Match, MatchMark, SegmentationStrategy, is_hanja};
+use crate::variants;
+use crate::{EngineOptions, HanjaDictionary, MatchMark, SegmentationStrategy, is_hanja};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Segment {
@@ -32,6 +33,7 @@ pub(crate) enum Segment {
         reading: String,
         suffix_reading: Option<String>,
         mark: MatchMark,
+        dictionary_hanja: String,
     },
     TrivialDictionary {
         byte_start: usize,
@@ -39,6 +41,7 @@ pub(crate) enum Segment {
         reading: String,
         suffix_reading: Option<String>,
         mark: MatchMark,
+        dictionary_hanja: String,
     },
     Fallback {
         byte_start: usize,
@@ -100,6 +103,7 @@ fn segment_for_dictionary_match(
     reading: String,
     suffix_reading: Option<String>,
     mark: MatchMark,
+    dictionary_hanja: String,
 ) -> Segment {
     if is_trivial_single_char_match(source, &reading, suffix_reading.as_deref(), mark) {
         Segment::TrivialDictionary {
@@ -108,6 +112,7 @@ fn segment_for_dictionary_match(
             reading,
             suffix_reading,
             mark,
+            dictionary_hanja,
         }
     } else {
         Segment::Dictionary {
@@ -116,6 +121,7 @@ fn segment_for_dictionary_match(
             reading,
             suffix_reading,
             mark,
+            dictionary_hanja,
         }
     }
 }
@@ -263,7 +269,7 @@ where
         let byte_start = boundaries[start_char];
         let lookup = lookup_suffix(span, &boundaries, start_char, max_word_chars);
         let dictionary_matches = if lookup.chars().any(is_hanja) {
-            dictionary.matches_at(lookup).collect::<Vec<_>>()
+            variants::matches_at(lookup, dictionary)
         } else {
             Vec::new()
         };
@@ -295,8 +301,9 @@ where
         }
 
         if !dictionary_matches.is_empty() {
-            for matched in dictionary_matches {
-                let Some(byte_end) = byte_start.checked_add(matched.byte_len) else {
+            for resolved in dictionary_matches {
+                let matched = resolved.matched;
+                let Some(byte_end) = byte_start.checked_add(resolved.source_byte_len) else {
                     continue;
                 };
                 let Ok(end_char) = boundaries.binary_search(&byte_end) else {
@@ -322,6 +329,7 @@ where
                         matched.reading,
                         matched.suffix_reading,
                         matched.mark,
+                        resolved.dictionary_hanja,
                     ),
                 );
             }
@@ -385,7 +393,7 @@ where
             && let Some(matched) = arabic_numeral_at(&chars, start_char, options.numeral_strategy)
         {
             let dictionary_matches = if lookup.chars().any(is_hanja) {
-                dictionary.matches_at(lookup).collect::<Vec<_>>()
+                variants::matches_at(lookup, dictionary)
             } else {
                 Vec::new()
             };
@@ -412,15 +420,16 @@ where
             && let Some((matched, end_char)) =
                 longest_match(span, &boundaries, start_char, lookup, dictionary)
         {
-            let byte_end = byte_start + matched.byte_len;
+            let byte_end = byte_start + matched.source_byte_len;
             let source = &span[byte_start..byte_end];
             segments.push(segment_for_dictionary_match(
                 source,
                 byte_offset + byte_start,
                 byte_offset + byte_end,
-                matched.reading,
-                matched.suffix_reading,
-                matched.mark,
+                matched.matched.reading,
+                matched.matched.suffix_reading,
+                matched.matched.mark,
+                matched.dictionary_hanja,
             ));
             start_char = end_char;
             continue;
@@ -461,7 +470,7 @@ fn arabic_numeral_segment(
     start_char: usize,
     byte_start: usize,
     matched: ArabicNumeralMatch,
-    dictionary_matches: &[Match],
+    dictionary_matches: &[variants::ResolvedMatch],
     options: EngineOptions,
 ) -> Option<ArabicSegment> {
     let char_count = boundaries.len().saturating_sub(1);
@@ -501,12 +510,12 @@ fn longest_arabic_override_byte_end(
     span: &str,
     byte_start: usize,
     numeral_byte_end: usize,
-    matches: &[Match],
+    matches: &[variants::ResolvedMatch],
 ) -> Option<usize> {
     matches
         .iter()
         .filter_map(|matched| {
-            let byte_end = byte_start.checked_add(matched.byte_len)?;
+            let byte_end = byte_start.checked_add(matched.source_byte_len)?;
             if byte_end < numeral_byte_end {
                 return None;
             }
@@ -544,16 +553,16 @@ fn longest_match<D>(
     start_char: usize,
     lookup: &str,
     dictionary: &D,
-) -> Option<(Match, usize)>
+) -> Option<(variants::ResolvedMatch, usize)>
 where
     D: HanjaDictionary + ?Sized,
 {
     let byte_start = boundaries[start_char];
     let char_count = boundaries.len().saturating_sub(1);
-    let mut best: Option<(Match, usize)> = None;
+    let mut best: Option<(variants::ResolvedMatch, usize)> = None;
 
-    for matched in dictionary.matches_at(lookup) {
-        let Some(byte_end) = byte_start.checked_add(matched.byte_len) else {
+    for matched in variants::matches_at(lookup, dictionary) {
+        let Some(byte_end) = byte_start.checked_add(matched.source_byte_len) else {
             continue;
         };
         let Ok(end_char) = boundaries.binary_search(&byte_end) else {
@@ -567,7 +576,7 @@ where
         }
         if best
             .as_ref()
-            .is_some_and(|(current, _)| current.byte_len >= matched.byte_len)
+            .is_some_and(|(current, _)| current.source_byte_len >= matched.source_byte_len)
         {
             continue;
         }
@@ -581,16 +590,18 @@ fn has_protected_dictionary_match(
     span: &str,
     byte_start: usize,
     numeral_byte_end: usize,
-    matches: &[Match],
+    matches: &[variants::ResolvedMatch],
 ) -> bool {
     matches.iter().any(|matched| {
-        let Some(byte_end) = byte_start.checked_add(matched.byte_len) else {
+        let Some(byte_end) = byte_start.checked_add(matched.source_byte_len) else {
             return false;
         };
         if byte_end <= numeral_byte_end {
             return false;
         }
-        let source = &span[byte_start..byte_end];
+        let Some(source) = span.get(byte_start..byte_end) else {
+            return false;
+        };
         !dictionary_match_allows_arabic_override(source, numeral_byte_end - byte_start)
     })
 }

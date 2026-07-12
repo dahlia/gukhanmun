@@ -546,6 +546,7 @@ fn original_mode_with_ruby_gloss_uses_ruby_for_required_hangul_entries() {
     let options = RenderOptions {
         mode: RenderMode::Original,
         original_gloss: OriginalGloss::Ruby,
+        ..RenderOptions::default()
     };
 
     let output = convert_html_fragment("<p>漢字</p>", &dict, options);

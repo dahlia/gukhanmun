@@ -16,6 +16,7 @@
 
 import type {
   ContextWindow,
+  HanjaVariantSet,
   HomophoneDetection,
   NumeralStrategy,
   OriginalGloss,
@@ -101,6 +102,7 @@ export interface CodegenConfig {
   input: string;
   rendering: RenderMode;
   originalGloss: OriginalGloss;
+  hanjaVariantSet: HanjaVariantSet;
   segmentation: Segmentation;
   numerals: NumeralStrategy;
   initialSoundLaw: boolean;
@@ -121,6 +123,7 @@ export interface CodegenConfig {
 const DEFAULTS = {
   rendering: "hangul-only",
   originalGloss: "parens",
+  hanjaVariantSet: "as-dictionary",
   segmentation: "lattice",
   numerals: "hangul-phonetic",
   initialSoundLaw: true,
@@ -154,6 +157,14 @@ const RUST_RENDER: Record<RenderMode, string> = {
   "ruby-on-hangul": "RenderMode::Ruby(RubyBase::OnHangul)",
   "ruby-on-hanja": "RenderMode::Ruby(RubyBase::OnHanja)",
   "original": "RenderMode::Original",
+};
+
+const RUST_HANJA_VARIANT_SET: Record<HanjaVariantSet, string> = {
+  "as-dictionary": "HanjaVariantSet::AsDictionary",
+  "shinjitai": "HanjaVariantSet::Shinjitai",
+  "kanxi": "HanjaVariantSet::Kanxi",
+  "simplified": "HanjaVariantSet::Simplified",
+  "asahimoji": "HanjaVariantSet::Asahimoji",
 };
 
 const RUST_SEGMENTATION: Record<Segmentation, string> = {
@@ -237,7 +248,9 @@ export function generateRust(cfg: CodegenConfig): string {
 
   if (cfg.activePreset) {
     symbols.add("Preset");
-    lines.push(`let converter = Builder::with_preset(${RUST_PRESET[cfg.activePreset]})`);
+    lines.push(
+      `let converter = Builder::with_preset(${RUST_PRESET[cfg.activePreset]})`,
+    );
   } else {
     lines.push(`let converter = Builder::new()`);
     // Dictionaries: stdict is the default bundle, so {stdict} needs nothing.
@@ -253,12 +266,17 @@ export function generateRust(cfg: CodegenConfig): string {
     if (cfg.rendering !== DEFAULTS.rendering) {
       symbols.add("RenderMode");
       if (cfg.rendering.startsWith("ruby")) symbols.add("RubyBase");
-      if (cfg.rendering === "original" && cfg.originalGloss !== DEFAULTS.originalGloss) {
+      if (
+        cfg.rendering === "original" &&
+        cfg.originalGloss !== DEFAULTS.originalGloss
+      ) {
         symbols.add("RenderOptions");
         symbols.add("OriginalGloss");
         lines.push(
           `    .rendering(RenderOptions { mode: ${RUST_RENDER[cfg.rendering]}, ` +
-            `original_gloss: ${RUST_ORIGINAL_GLOSS[cfg.originalGloss]} })`,
+            `original_gloss: ${
+              RUST_ORIGINAL_GLOSS[cfg.originalGloss]
+            }, ..RenderOptions::default() })`,
         );
       } else {
         lines.push(`    .rendering(${RUST_RENDER[cfg.rendering]})`);
@@ -281,16 +299,26 @@ export function generateRust(cfg: CodegenConfig): string {
     }
     if (cfg.homophoneDetection !== DEFAULTS.homophoneDetection) {
       symbols.add("HomophoneDetection");
-      lines.push(`    .homophone_detection(${RUST_DETECTION[cfg.homophoneDetection]})`);
+      lines.push(
+        `    .homophone_detection(${RUST_DETECTION[cfg.homophoneDetection]})`,
+      );
     }
     if (cfg.firstOccurrenceWindow !== DEFAULTS.firstOccurrenceWindow) {
       symbols.add("ContextWindow");
-      lines.push(`    .first_occurrence_window(${RUST_WINDOW[cfg.firstOccurrenceWindow]})`);
+      lines.push(
+        `    .first_occurrence_window(${RUST_WINDOW[cfg.firstOccurrenceWindow]})`,
+      );
     }
     if (html && cfg.recovery !== DEFAULTS.recovery) {
       symbols.add("Recovery");
       lines.push(`    .recovery(${RUST_RECOVERY[cfg.recovery]})`);
     }
+  }
+  if (cfg.hanjaVariantSet !== DEFAULTS.hanjaVariantSet) {
+    symbols.add("HanjaVariantSet");
+    lines.push(
+      `    .hanja_variant_set(${RUST_HANJA_VARIANT_SET[cfg.hanjaVariantSet]})`,
+    );
   }
 
   // Directives apply regardless of preset.
@@ -313,8 +341,12 @@ export function generateRust(cfg: CodegenConfig): string {
       ...cfg.preserveClasses.map((c) => `info.raw_attributes.contains(${quote(`class="${c}"`)})`),
       ...cfg.preserveAttributes.map((a) => `info.raw_attributes.contains(${quote(a)})`),
     ];
-    lines.push(`    // Illustrative substring check. A real predicate should match`);
-    lines.push(`    // whole class tokens and exact attribute names/values rather`);
+    lines.push(
+      `    // Illustrative substring check. A real predicate should match`,
+    );
+    lines.push(
+      `    // whole class tokens and exact attribute names/values rather`,
+    );
     lines.push(`    // than raw \`raw_attributes\` substrings.`);
     lines.push(`    .html_preserve_when(|info| ${checks.join(" || ")})`);
   }
@@ -324,7 +356,9 @@ export function generateRust(cfg: CodegenConfig): string {
   // Conversion call.
   const raw = rustRawString(cfg.input);
   if (cfg.format === "html") {
-    lines.push(`let output = converter.convert_html_fragment_to_string(${raw})?;`);
+    lines.push(
+      `let output = converter.convert_html_fragment_to_string(${raw})?;`,
+    );
   } else if (cfg.format === "markdown") {
     symbols.add("__markdown");
     lines.push(
@@ -370,14 +404,21 @@ export function generateJs(cfg: CodegenConfig): string {
   if (cfg.activePreset) {
     fields.push(`preset: ${quote(cfg.activePreset)},`);
   } else {
-    if (cfg.rendering !== DEFAULTS.rendering) fields.push(`rendering: ${quote(cfg.rendering)},`);
-    if (cfg.rendering === "original" && cfg.originalGloss !== DEFAULTS.originalGloss) {
+    if (cfg.rendering !== DEFAULTS.rendering) {
+      fields.push(`rendering: ${quote(cfg.rendering)},`);
+    }
+    if (
+      cfg.rendering === "original" &&
+      cfg.originalGloss !== DEFAULTS.originalGloss
+    ) {
       fields.push(`originalGloss: ${quote(cfg.originalGloss)},`);
     }
     if (cfg.segmentation !== DEFAULTS.segmentation) {
       fields.push(`segmentation: ${quote(cfg.segmentation)},`);
     }
-    if (cfg.numerals !== DEFAULTS.numerals) fields.push(`numerals: ${quote(cfg.numerals)},`);
+    if (cfg.numerals !== DEFAULTS.numerals) {
+      fields.push(`numerals: ${quote(cfg.numerals)},`);
+    }
     if (cfg.initialSoundLaw !== DEFAULTS.initialSoundLaw) {
       fields.push(`initialSoundLaw: ${cfg.initialSoundLaw},`);
     }
@@ -388,11 +429,16 @@ export function generateJs(cfg: CodegenConfig): string {
       fields.push(`homophoneDetection: ${quote(cfg.homophoneDetection)},`);
     }
     if (cfg.firstOccurrenceWindow !== DEFAULTS.firstOccurrenceWindow) {
-      fields.push(`firstOccurrenceWindow: ${quote(cfg.firstOccurrenceWindow)},`);
+      fields.push(
+        `firstOccurrenceWindow: ${quote(cfg.firstOccurrenceWindow)},`,
+      );
     }
     if (html && cfg.recovery !== DEFAULTS.recovery) {
       fields.push(`recovery: ${quote(cfg.recovery)},`);
     }
+  }
+  if (cfg.hanjaVariantSet !== DEFAULTS.hanjaVariantSet) {
+    fields.push(`hanjaVariantSet: ${quote(cfg.hanjaVariantSet)},`);
   }
 
   // Dictionaries (JavaScript never bundles, so even stdict is listed).
@@ -404,13 +450,19 @@ export function generateJs(cfg: CodegenConfig): string {
   // Directives.
   const directiveFields: string[] = [];
   if (cfg.requireHanja.length) {
-    directiveFields.push(`requireHanja: [${cfg.requireHanja.map(quote).join(", ")}]`);
+    directiveFields.push(
+      `requireHanja: [${cfg.requireHanja.map(quote).join(", ")}]`,
+    );
   }
   if (cfg.requireHangul.length) {
-    directiveFields.push(`requireHangul: [${cfg.requireHangul.map(quote).join(", ")}]`);
+    directiveFields.push(
+      `requireHangul: [${cfg.requireHangul.map(quote).join(", ")}]`,
+    );
   }
   if (cfg.skipAnnotation.length) {
-    directiveFields.push(`skipAnnotation: [${cfg.skipAnnotation.map(quote).join(", ")}]`);
+    directiveFields.push(
+      `skipAnnotation: [${cfg.skipAnnotation.map(quote).join(", ")}]`,
+    );
   }
   if (directiveFields.length) {
     fields.push(`directives: { ${directiveFields.join(", ")} },`);
@@ -420,10 +472,14 @@ export function generateJs(cfg: CodegenConfig): string {
   if (html && (cfg.preserveClasses.length || cfg.preserveAttributes.length)) {
     const htmlFields: string[] = [];
     if (cfg.preserveClasses.length) {
-      htmlFields.push(`preserveClasses: [${cfg.preserveClasses.map(quote).join(", ")}]`);
+      htmlFields.push(
+        `preserveClasses: [${cfg.preserveClasses.map(quote).join(", ")}]`,
+      );
     }
     if (cfg.preserveAttributes.length) {
-      htmlFields.push(`preserveAttributes: [${cfg.preserveAttributes.map(quote).join(", ")}]`);
+      htmlFields.push(
+        `preserveAttributes: [${cfg.preserveAttributes.map(quote).join(", ")}]`,
+      );
     }
     fields.push(`html: { ${htmlFields.join(", ")} },`);
   }
@@ -451,12 +507,21 @@ export function generateCli(cfg: CodegenConfig): string {
     args.push(`--preset ko-kp`);
   }
   if (cfg.activePreset === null) {
-    if (cfg.rendering !== DEFAULTS.rendering) args.push(`--rendering ${cfg.rendering}`);
-    if (cfg.rendering === "original" && cfg.originalGloss !== DEFAULTS.originalGloss) {
+    if (cfg.rendering !== DEFAULTS.rendering) {
+      args.push(`--rendering ${cfg.rendering}`);
+    }
+    if (
+      cfg.rendering === "original" &&
+      cfg.originalGloss !== DEFAULTS.originalGloss
+    ) {
       args.push(`--original-gloss ${cfg.originalGloss}`);
     }
-    if (cfg.segmentation !== DEFAULTS.segmentation) args.push(`--segmentation ${cfg.segmentation}`);
-    if (cfg.initialSoundLaw !== DEFAULTS.initialSoundLaw) args.push(`--no-initial-sound-law`);
+    if (cfg.segmentation !== DEFAULTS.segmentation) {
+      args.push(`--segmentation ${cfg.segmentation}`);
+    }
+    if (cfg.initialSoundLaw !== DEFAULTS.initialSoundLaw) {
+      args.push(`--no-initial-sound-law`);
+    }
     if (cfg.homophoneWindow !== DEFAULTS.homophoneWindow) {
       args.push(`--disambiguation ${cfg.homophoneWindow}`);
     }
@@ -466,7 +531,9 @@ export function generateCli(cfg: CodegenConfig): string {
     if (cfg.firstOccurrenceWindow !== DEFAULTS.firstOccurrenceWindow) {
       args.push(`--first-occurrence ${cfg.firstOccurrenceWindow}`);
     }
-    if (html && cfg.recovery !== DEFAULTS.recovery) args.push(`--recovery ${cfg.recovery}`);
+    if (html && cfg.recovery !== DEFAULTS.recovery) {
+      args.push(`--recovery ${cfg.recovery}`);
+    }
 
     // Dictionaries: the CLI bundles only via presets, so anything other than
     // the default {stdict} uses --no-bundled-dictionaries + --dictionary files.
@@ -486,14 +553,29 @@ export function generateCli(cfg: CodegenConfig): string {
       }
     }
   }
-  if (cfg.numerals !== CLI_DEFAULTS.numerals) args.push(`--numerals ${cfg.numerals}`);
+  if (cfg.hanjaVariantSet !== DEFAULTS.hanjaVariantSet) {
+    args.push(`--hanja-variant-set ${cfg.hanjaVariantSet}`);
+  }
+  if (cfg.numerals !== CLI_DEFAULTS.numerals) {
+    args.push(`--numerals ${cfg.numerals}`);
+  }
 
-  for (const h of cfg.requireHanja) args.push(`--require-hanja ${shellQuote(h)}`);
-  for (const h of cfg.requireHangul) args.push(`--require-hangul ${shellQuote(h)}`);
-  for (const h of cfg.skipAnnotation) args.push(`--skip-annotation ${shellQuote(h)}`);
+  for (const h of cfg.requireHanja) {
+    args.push(`--require-hanja ${shellQuote(h)}`);
+  }
+  for (const h of cfg.requireHangul) {
+    args.push(`--require-hangul ${shellQuote(h)}`);
+  }
+  for (const h of cfg.skipAnnotation) {
+    args.push(`--skip-annotation ${shellQuote(h)}`);
+  }
   if (html) {
-    for (const c of cfg.preserveClasses) args.push(`--html-preserve-class ${shellQuote(c)}`);
-    for (const a of cfg.preserveAttributes) args.push(`--html-preserve-attr ${shellQuote(a)}`);
+    for (const c of cfg.preserveClasses) {
+      args.push(`--html-preserve-class ${shellQuote(c)}`);
+    }
+    for (const a of cfg.preserveAttributes) {
+      args.push(`--html-preserve-attr ${shellQuote(a)}`);
+    }
   }
 
   // Pipe the exact input bytes via `printf '%s'`.  Unlike a heredoc or here

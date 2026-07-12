@@ -45,6 +45,23 @@ use gukhanmun::{RenderOptions, RenderMode, OriginalGloss};
 
 builder.rendering(RenderOptions {
     mode: RenderMode::Original,
-    original_gloss: Some(OriginalGloss::Parens),  // or OriginalGloss::Ruby
+    original_gloss: OriginalGloss::Parens,  // or OriginalGloss::Ruby
+    ..RenderOptions::default()
 });
 ~~~~
+
+
+hanja variant sets
+------------------
+
+Variant recognition is always enabled. `Builder::hanja_variant_set`
+independently chooses the spelling used whenever the renderer emits hanja:
+
+~~~~ rust
+use gukhanmun::HanjaVariantSet;
+
+builder.hanja_variant_set(HanjaVariantSet::Shinjitai);
+~~~~
+
+The available profiles are `AsDictionary` (default), `Shinjitai`, `Kanxi`,
+`Simplified`, and `Asahimoji`.

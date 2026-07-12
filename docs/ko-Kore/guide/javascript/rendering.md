@@ -36,6 +36,25 @@ console.log(g.convert("漢字"));  // 한자(漢字)
 ~~~~
 
 
+異體字 集合
+-----------
+
+異體字 認識은 언제나 活性化됩니다. 漢字를 남기는 모드의 出力 表記만 바꾸려면
+`hanjaVariantSet`를 設定합니다.
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({
+  rendering: "original",
+  hanjaVariantSet: "shinjitai",
+});
+~~~~
+
+값은 `"as-dictionary"`(基本), `"shinjitai"`, `"kanxi"`,
+`"simplified"`, `"asahimoji"`입니다.
+
+
 루비 마크업
 -----------
 

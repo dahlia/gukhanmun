@@ -132,7 +132,8 @@ The token coming out of the engine is one of:
     forms, passed through.
  -  `Annotated(Annotation)`: a position in the stream where the engine
     converted a hanja word. The annotation carries the original hanja, the
-    hangul reading, and flags describing why the conversion happened and what
+    canonical dictionary spelling when one matched, the hangul reading, and
+    flags describing why the conversion happened and what
     subsequent stages might want to do with it.
 
 The `Annotation` carries policy flags. `homophone` is set when the effective
@@ -150,6 +151,11 @@ window is a block, a section, or the document depending on configuration.
 `from_dictionary` distinguishes a dictionary match from a
 character-by-character fallback; renderers may choose to mark these differently
 for debugging.
+
+`dictionary_hanja` is `Some` for dictionary-backed annotations and `None` for
+fallback annotations. Variant spellings retain the source in `hanja`, while
+middlewares use the canonical spelling as lexical identity and renderers use
+it as the input to their variant set.
 
 The split between `InputToken` and `OutputToken` is the most consequential
 shape decision in the IR. The alternative we considered was a single `Token`
@@ -508,6 +514,44 @@ inputs and validation path for user-built dictionaries.  Bugs in the build path
 get caught by the library's own integration tests before they reach users.
 
 
+Variant normalization
+---------------------
+
+Variant recognition is always enabled and does not change the
+`HanjaDictionary` trait or the FST/CDB formats. At each source position the
+engine first asks the dictionary for exact prefixes. For each prefix length
+without an exact match, each source character produces a bounded set of forms
+through the directional compatibility, Joyo, traditional, simplified, and
+Asahi projections used by the output variant sets. Reverse relations are used
+only when an exact target has one source. The engine enumerates the Cartesian
+product of those per-character forms, and the dictionary remains the oracle: a
+generated spelling is accepted only when it is itself a complete dictionary
+key. An exact match blocks expansion only at the same length, so a direct match
+for `芸` does not hide a longer `藝術` match for source `芸術`.
+
+The generated directional tables use Unicode 17.0.0 `kZVariant`,
+`kSimplifiedVariant`, `kTraditionalVariant`, and `kCompatibilityVariant`, the
+Japanese Agency for Cultural Affairs Joyo old/new pairs, and a verified
+sixteen-pair Asahi character subset. Semantic, specialized-semantic, and
+spoofing relations are deliberately excluded. Multi-target Unicode relations
+are not traversed as equivalence classes, so characters that only meet through
+a shared simplified form do not become interchangeable. Non-self simplified
+mappings remain directional even when their source is also another mapping's
+target. Prefixes are limited to 32 characters and 256 Cartesian candidates.
+The per-character form sets are computed once for each lookup window, and
+generated reverse/target indexes keep every table lookup logarithmic.
+Expansion is skipped for a prefix that exceeds either bound. After identical
+duplicates are removed, a variant-derived match is accepted only when exactly
+one complete dictionary match remains. Distinct canonical spellings or
+distinct match metadata are ambiguous even when their readings agree, because
+choosing either spelling would invent a lexical identity that the source does
+not establish.
+
+Compatibility folding also applies to character fallback readings, so a
+compatibility form such as `神` inherits the reading of `神`. Parenthetical
+reading validation remains source-based.
+
+
 Middlewares
 -----------
 
@@ -601,6 +645,26 @@ a gloss; the gloss appears in either parens or ruby form depending on a
 sub-option. This is the mode for “keep mixed script, gloss only the difficult
 characters”, which is the style this very design document uses on its Korean
 edition.
+
+Every mode applies a separate `HanjaVariantSet` whenever it emits hanja.
+`AsDictionary` is the default and preserves `dictionary_hanja`, or source
+hanja for fallback annotations. `Shinjitai` applies the Joyo new forms,
+`Kanxi` prefers compatibility-folded traditional forms, `Simplified` uses the
+Chinese simplified representative, and `Asahimoji` applies shinjitai plus the
+verified Asahi subset. These conversions compose directional source/target
+relations. Within each connected `kZVariant` component, `Kanxi` chooses the
+lowest Unicode scalar value as a deterministic representative, so reciprocal
+rows produce stable, idempotent output. Compatibility folding is reapplied
+after traditional projection so that a directional mapping cannot reintroduce
+a compatibility ideograph. A reverse relation is used only when the exact
+target has one source, so a connected equivalence class never transfers a form
+across different senses that merely share a simplified character. A direct
+mapping for the requested set takes precedence over cross-set projection, and
+characters already recorded as Joyo or Asahi targets remain in that set. A
+cross-set reverse projection for simplified output is retained only when it
+reaches a direct simplified mapping; otherwise the existing character remains
+unchanged. This is an output policy only; all sets share the same recognition
+and reading.
 
 Renderers are pure functions over a single `Annotated` token plus the current
 scope's `allows_inline_markup()` value. They produce a small fixed-size

@@ -26,11 +26,11 @@ use gukhanmun::html::{HtmlElementInfo, HtmlFragmentReader, HtmlFragmentWriter, H
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
     Builder, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter, HanjaDictionary,
-    HomophoneDetection, HomophoneMarker, InputToken, NumeralStrategy, OriginalGloss, OutputToken,
-    PlainScopeData, Preset as UmbrellaPreset, RecoverableInputError, Recovery,
-    RedundantParenCollapser, RenderMode, RenderOptions, RenderedToken, Renderer, RubyBase,
-    ScopeData, SegmentationStrategy, UserDirectives, apply_user_directives, recover_input_token,
-    render_tokens_iter, write_plain_text,
+    HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken, NumeralStrategy,
+    OriginalGloss, OutputToken, PlainScopeData, Preset as UmbrellaPreset, RecoverableInputError,
+    Recovery, RedundantParenCollapser, RenderMode, RenderOptions, RenderedToken, Renderer,
+    RubyBase, ScopeData, SegmentationStrategy, UserDirectives, apply_user_directives,
+    recover_input_token, render_tokens_iter, write_plain_text,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -171,6 +171,10 @@ struct RenderingPolicyArgs {
     #[arg(short, long, value_enum)]
     rendering: Option<Rendering>,
 
+    /// Variant set used wherever output keeps hanja.
+    #[arg(long = "hanja-variant-set", value_enum, default_value_t = HanjaVariantSetArg::AsDictionary)]
+    hanja_variant_set: HanjaVariantSetArg,
+
     /// Gloss form used by the original renderer.  parens (default) emits
     /// 漢字(한글); ruby emits a `ruby` element with hanja as the base and
     /// hangul as the rt gloss, falling back to parens in scopes that disallow
@@ -293,6 +297,16 @@ enum Rendering {
     RubyOnHangul,
     RubyOnHanja,
     Original,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
+enum HanjaVariantSetArg {
+    #[default]
+    AsDictionary,
+    Shinjitai,
+    Kanxi,
+    Simplified,
+    Asahimoji,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -535,6 +549,7 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
     } else if cli.rendering.original_gloss.is_some() {
         bail!("--original-gloss is only valid with --rendering original");
     }
+    builder = builder.hanja_variant_set(cli.rendering.hanja_variant_set.into());
 
     if let Some(disambiguation) = cli.rendering.disambiguation {
         builder = builder.homophone_window(disambiguation.into());
@@ -670,7 +685,13 @@ fn add_directive_file_row(
         "glob" => {
             let pattern = pattern.to_owned();
             directives.add_predicate(
-                move |annotation| glob_matches(&pattern, &annotation.hanja),
+                move |annotation| {
+                    glob_matches(&pattern, &annotation.hanja)
+                        || annotation
+                            .dictionary_hanja
+                            .as_deref()
+                            .is_some_and(|hanja| glob_matches(&pattern, hanja))
+                },
                 action,
             );
         }
@@ -717,7 +738,13 @@ fn add_glob_directives(
     for pattern in patterns {
         let pattern = pattern.clone();
         directives.add_predicate(
-            move |annotation| glob_matches(&pattern, &annotation.hanja),
+            move |annotation| {
+                glob_matches(&pattern, &annotation.hanja)
+                    || annotation
+                        .dictionary_hanja
+                        .as_deref()
+                        .is_some_and(|hanja| glob_matches(&pattern, hanja))
+            },
             action,
         );
     }
@@ -1630,6 +1657,18 @@ impl From<OriginalGlossArg> for OriginalGloss {
         match arg {
             OriginalGlossArg::Parens => Self::Parens,
             OriginalGlossArg::Ruby => Self::Ruby,
+        }
+    }
+}
+
+impl From<HanjaVariantSetArg> for HanjaVariantSet {
+    fn from(arg: HanjaVariantSetArg) -> Self {
+        match arg {
+            HanjaVariantSetArg::AsDictionary => Self::AsDictionary,
+            HanjaVariantSetArg::Shinjitai => Self::Shinjitai,
+            HanjaVariantSetArg::Kanxi => Self::Kanxi,
+            HanjaVariantSetArg::Simplified => Self::Simplified,
+            HanjaVariantSetArg::Asahimoji => Self::Asahimoji,
         }
     }
 }

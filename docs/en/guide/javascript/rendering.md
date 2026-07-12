@@ -78,3 +78,22 @@ const g = await load({
 console.log(g.convert("東京에서 東洋까지"));
 // homophones glossed: 東京(동경)에서 東洋(동양)까지
 ~~~~
+
+
+hanja variant sets
+------------------
+
+Variant recognition is always enabled. Set `hanjaVariantSet` only when you want
+to change the spelling emitted by modes that keep hanja:
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({
+  rendering: "original",
+  hanjaVariantSet: "shinjitai",
+});
+~~~~
+
+The values are `"as-dictionary"` (default), `"shinjitai"`, `"kanxi"`,
+`"simplified"`, and `"asahimoji"`.

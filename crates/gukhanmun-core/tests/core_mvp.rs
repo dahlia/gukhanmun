@@ -16,10 +16,10 @@
 
 use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, EngineOptions,
-    Error as CoreError, HanjaDictionary, HomophoneDetection, InputToken, MapDictionary, Match,
-    MatchMark, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData, RecoverableInputError,
-    Recovery, RenderMode, RenderOptions, RenderedToken, RubyBase, Scope, ScopeData,
-    SegmentationStrategy, UnihanCharDict, UserDirectives, apply_user_directives,
+    Error as CoreError, HanjaDictionary, HanjaVariantSet, HomophoneDetection, InputToken,
+    MapDictionary, Match, MatchMark, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData,
+    RecoverableInputError, Recovery, RenderMode, RenderOptions, RenderedToken, RubyBase, Scope,
+    ScopeData, SegmentationStrategy, UnihanCharDict, UserDirectives, apply_user_directives,
     convert_plain_text, convert_plain_text_with_options, filter_first_occurrences, mark_homophones,
     mark_homophones_with_detection, process_fallible_tokens, process_tokens, process_tokens_iter,
     process_tokens_with_options, read_plain_text, recover_input_tokens, render_tokens,
@@ -114,6 +114,7 @@ fn mixed_script_dictionary() -> MapDictionary {
 fn annotation(hanja: &str, reading: &str) -> Annotation {
     annotated! {
         hanja: hanja.into(),
+        dictionary_hanja: Some(hanja.into()),
         reading: reading.into(),
         homophone: false,
         require_hanja: false,
@@ -141,6 +142,286 @@ fn converts_plain_text_to_hangul_only() {
     );
 
     assert_eq!(output, "천지현황과 한자");
+}
+
+#[test]
+fn recognizes_unicode_joyo_simplified_asahi_and_compatibility_variants() {
+    let mut dict = MapDictionary::new();
+    dict.insert("沖繩縣", "오키나와현");
+    dict.insert("辨護", "변호");
+    dict.insert("藝", "운");
+    dict.insert("藝術", "예술");
+    dict.insert("總統", "총통");
+    dict.insert("俠客", "협객");
+    dict.insert("神", "신");
+
+    let output = convert_plain_text(
+        "沖縄県 弁護 芸 芸術 总统 侠客 神",
+        &dict,
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(output, "오키나와현 변호 운 예술 총통 협객 신");
+}
+
+#[test]
+fn ambiguous_variant_readings_fall_back_instead_of_guessing() {
+    let mut dict = MapDictionary::new();
+    dict.insert("辨", "변");
+    dict.insert("瓣", "판");
+
+    let tokens = process_tokens(vec![InputToken::<PlainScopeData>::Text("弁".into())], &dict);
+    let annotation = match &tokens[0] {
+        OutputToken::Annotated(annotation) => annotation,
+        other => panic!("expected annotation, got {other:?}"),
+    };
+    assert_eq!(annotation.reading, "변");
+    assert!(!annotation.from_dictionary);
+    assert_eq!(annotation.dictionary_hanja, None);
+}
+
+#[test]
+fn ambiguous_variant_dictionary_identities_fall_back_even_with_the_same_reading() {
+    let mut dict = MapDictionary::new();
+    dict.insert("發", "발");
+    dict.insert("髮", "발");
+
+    let tokens = process_tokens(vec![InputToken::<PlainScopeData>::Text("发".into())], &dict);
+    assert_eq!(tokens, vec![OutputToken::Text("发".into())]);
+}
+
+#[test]
+fn ambiguous_variant_match_metadata_falls_back_instead_of_guessing() {
+    struct AmbiguousMetadataDictionary;
+
+    impl HanjaDictionary for AmbiguousMetadataDictionary {
+        fn matches_at<'a>(&'a self, source: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            let matches = if source.starts_with("發") {
+                vec![
+                    Match {
+                        byte_len: "發".len(),
+                        reading: "발".into(),
+                        suffix_reading: None,
+                        mark: MatchMark::default(),
+                    },
+                    Match {
+                        byte_len: "發".len(),
+                        reading: "발".into(),
+                        suffix_reading: None,
+                        mark: MatchMark {
+                            require_hanja: true,
+                            require_hangul: false,
+                        },
+                    },
+                ]
+            } else {
+                Vec::new()
+            };
+            Box::new(matches.into_iter())
+        }
+    }
+
+    let tokens = process_tokens(
+        vec![InputToken::<PlainScopeData>::Text("发".into())],
+        &AmbiguousMetadataDictionary,
+    );
+    assert_eq!(tokens, vec![OutputToken::Text("发".into())]);
+}
+
+#[test]
+fn variant_recognition_does_not_cross_senses_joined_by_a_simplified_form() {
+    for unrelated_hanja in ["干", "幹"] {
+        let mut dict = MapDictionary::new();
+        dict.insert(unrelated_hanja, "간");
+
+        let tokens = process_tokens(vec![InputToken::<PlainScopeData>::Text("乾".into())], &dict);
+        let annotation = match &tokens[0] {
+            OutputToken::Annotated(annotation) => annotation,
+            other => panic!("expected annotation, got {other:?}"),
+        };
+        assert_eq!(annotation.reading, "건");
+        assert!(!annotation.from_dictionary);
+        assert_eq!(annotation.dictionary_hanja, None);
+    }
+}
+
+#[test]
+fn variant_recognition_handles_long_unknown_runs_without_rebuilding_choices() {
+    let source = "漢".repeat(10_000);
+    let output = convert_plain_text(&source, &MapDictionary::new(), RenderMode::HangulOnly);
+
+    assert_eq!(output, "한".repeat(10_000));
+}
+
+#[test]
+fn variant_sets_render_from_the_canonical_dictionary_spelling() {
+    let mut dict = MapDictionary::new();
+    dict.insert("藝術", "예술");
+    let tokens = process_tokens(
+        vec![InputToken::<PlainScopeData>::Text("芸術".into())],
+        &dict,
+    );
+    let annotation = match &tokens[0] {
+        OutputToken::Annotated(annotation) => annotation,
+        other => panic!("expected annotation, got {other:?}"),
+    };
+    assert_eq!(annotation.hanja, "芸術");
+    assert_eq!(annotation.dictionary_hanja.as_deref(), Some("藝術"));
+
+    let rendered = render_tokens(
+        tokens,
+        RenderOptions {
+            mode: RenderMode::Original,
+            hanja_variant_set: HanjaVariantSet::Shinjitai,
+            ..RenderOptions::default()
+        },
+    );
+    assert_eq!(rendered, vec![RenderedToken::Text("芸術".into())]);
+}
+
+#[test]
+fn every_variant_set_applies_to_hanja_in_parentheses_and_original_output() {
+    let annotation = annotated! {
+        hanja: "芸術".into(),
+        dictionary_hanja: Some("藝術".into()),
+        reading: "예술".into(),
+        from_dictionary: true,
+    };
+    let cases = [
+        (HanjaVariantSet::AsDictionary, "藝術"),
+        (HanjaVariantSet::Shinjitai, "芸術"),
+        (HanjaVariantSet::Kanxi, "藝術"),
+        (HanjaVariantSet::Simplified, "艺术"),
+        (HanjaVariantSet::Asahimoji, "芸術"),
+    ];
+    for (variant_set, expected) in cases {
+        let parens = render_tokens(
+            vec![OutputToken::<PlainScopeData>::Annotated(annotation.clone())],
+            RenderOptions {
+                mode: RenderMode::HangulHanjaParens,
+                hanja_variant_set: variant_set,
+                ..RenderOptions::default()
+            },
+        );
+        assert_eq!(
+            parens,
+            vec![RenderedToken::Text(format!("예술({expected})"))]
+        );
+        let original = render_tokens(
+            vec![OutputToken::<PlainScopeData>::Annotated(annotation.clone())],
+            RenderOptions {
+                mode: RenderMode::Original,
+                hanja_variant_set: variant_set,
+                ..RenderOptions::default()
+            },
+        );
+        assert_eq!(original, vec![RenderedToken::Text(expected.into())]);
+    }
+}
+
+#[test]
+fn variant_sets_normalize_transitive_dictionary_spellings() {
+    let cases = [
+        ("艺术", HanjaVariantSet::Shinjitai, "芸術"),
+        ("芸術", HanjaVariantSet::Simplified, "艺术"),
+    ];
+    for (dictionary_hanja, variant_set, expected) in cases {
+        let annotation = annotated! {
+            hanja: dictionary_hanja.into(),
+            dictionary_hanja: Some(dictionary_hanja.into()),
+            reading: "예술".into(),
+            from_dictionary: true,
+        };
+        let rendered = render_tokens(
+            vec![OutputToken::<PlainScopeData>::Annotated(annotation)],
+            RenderOptions {
+                mode: RenderMode::Original,
+                hanja_variant_set: variant_set,
+                ..RenderOptions::default()
+            },
+        );
+        assert_eq!(rendered, vec![RenderedToken::Text(expected.into())]);
+    }
+}
+
+#[test]
+fn variant_sets_prefer_direct_mappings_and_preserve_existing_targets() {
+    let cases = [
+        ("並", HanjaVariantSet::Simplified, "并"),
+        ("苧", HanjaVariantSet::Simplified, "苎"),
+        ("叙", HanjaVariantSet::Simplified, "叙"),
+        ("卷", HanjaVariantSet::Shinjitai, "巻"),
+        ("卷", HanjaVariantSet::Asahimoji, "巻"),
+        ("侠桧涛祷", HanjaVariantSet::Asahimoji, "侠桧涛祷"),
+        ("値", HanjaVariantSet::Kanxi, "値"),
+        ("值", HanjaVariantSet::Kanxi, "値"),
+        ("叱", HanjaVariantSet::Kanxi, "叱"),
+        ("𠮟", HanjaVariantSet::Kanxi, "叱"),
+        ("漢字", HanjaVariantSet::Kanxi, "漢字"),
+        ("難民", HanjaVariantSet::Kanxi, "難民"),
+    ];
+    for (dictionary_hanja, variant_set, expected) in cases {
+        let annotation = annotated! {
+            hanja: dictionary_hanja.into(),
+            dictionary_hanja: Some(dictionary_hanja.into()),
+            reading: "읽기".into(),
+            from_dictionary: true,
+        };
+        let rendered = render_tokens(
+            vec![OutputToken::<PlainScopeData>::Annotated(annotation)],
+            RenderOptions {
+                mode: RenderMode::Original,
+                hanja_variant_set: variant_set,
+                ..RenderOptions::default()
+            },
+        );
+        assert_eq!(rendered, vec![RenderedToken::Text(expected.into())]);
+    }
+}
+
+#[test]
+fn variant_sets_do_not_cross_senses_joined_by_a_shared_simplified_form() {
+    let cases = [
+        (HanjaVariantSet::Shinjitai, "發"),
+        (HanjaVariantSet::Kanxi, "發"),
+        (HanjaVariantSet::Asahimoji, "發"),
+    ];
+    for (variant_set, expected) in cases {
+        let annotation = annotated! {
+            hanja: "發".into(),
+            dictionary_hanja: Some("發".into()),
+            reading: "발".into(),
+            from_dictionary: true,
+        };
+        let rendered = render_tokens(
+            vec![OutputToken::<PlainScopeData>::Annotated(annotation)],
+            RenderOptions {
+                mode: RenderMode::Original,
+                hanja_variant_set: variant_set,
+                ..RenderOptions::default()
+            },
+        );
+        assert_eq!(rendered, vec![RenderedToken::Text(expected.into())]);
+    }
+}
+
+#[test]
+fn asahi_variant_set_includes_the_verified_extra_pairs() {
+    let annotation = annotated! {
+        hanja: "彙".into(),
+        dictionary_hanja: Some("彙".into()),
+        reading: "휘".into(),
+        from_dictionary: true,
+    };
+    let rendered = render_tokens(
+        vec![OutputToken::<PlainScopeData>::Annotated(annotation)],
+        RenderOptions {
+            mode: RenderMode::Original,
+            hanja_variant_set: HanjaVariantSet::Asahimoji,
+            ..RenderOptions::default()
+        },
+    );
+    assert_eq!(rendered, vec![RenderedToken::Text("彚".into())]);
 }
 
 #[test]
@@ -548,6 +829,7 @@ fn mixed_script_annotation_keeps_the_full_source_spelling() {
         output,
         vec![OutputToken::Annotated(annotated! {
             hanja: "色깔論".into(),
+            dictionary_hanja: Some("色깔論".into()),
             reading: "색깔론".into(),
             homophone: false,
             require_hanja: false,
@@ -598,11 +880,13 @@ fn non_hanja_text_does_not_query_the_dictionary() {
 #[test]
 fn whitespace_bounds_dictionary_lookup_windows() {
     let dict = CountingDictionary::new(vec![("漢字", "한자")]);
+    let baseline = CountingDictionary::new(vec![("漢字", "한자")]);
 
     let output = convert_plain_text("가나다 漢字", &dict, RenderMode::HangulOnly);
 
     assert_eq!(output, "가나다 한자");
-    assert_eq!(dict.lookup_count(), 2);
+    let _ = convert_plain_text("漢字", &baseline, RenderMode::HangulOnly);
+    assert_eq!(dict.lookup_count(), baseline.lookup_count());
 }
 
 #[test]
@@ -921,11 +1205,13 @@ proptest! {
 #[test]
 fn whitespace_bounded_lattice_skips_non_hanja_spans_without_max_word_length() {
     let dict = CountingDictionary::without_max_word_chars(vec![("漢字", "한자")]);
+    let baseline = CountingDictionary::without_max_word_chars(vec![("漢字", "한자")]);
 
     let output = convert_plain_text("가나다라마바사 漢字", &dict, RenderMode::HangulOnly);
 
     assert_eq!(output, "가나다라마바사 한자");
-    assert_eq!(dict.lookup_count(), 2);
+    let _ = convert_plain_text("漢字", &baseline, RenderMode::HangulOnly);
+    assert_eq!(dict.lookup_count(), baseline.lookup_count());
 }
 
 #[test]
@@ -1520,6 +1806,22 @@ fn additive_arabic_numerals_override_dictionary_calendar_entries() {
 }
 
 #[test]
+fn variant_dictionary_match_with_wider_utf8_key_does_not_panic_in_numeral_checks() {
+    let mut dict = MapDictionary::new();
+    dict.insert("𱁶年", "특별");
+    for segmentation in [SegmentationStrategy::Lattice, SegmentationStrategy::Eager] {
+        let options = EngineOptions {
+            segmentation,
+            numeral_strategy: NumeralStrategy::AdditiveArabic,
+            ..EngineOptions::default()
+        };
+        let output =
+            convert_plain_text_with_options("千年", &dict, RenderMode::HangulOnly, options);
+        assert_eq!(output, "1000년");
+    }
+}
+
+#[test]
 fn smart_numerals_choose_arabic_only_for_structured_numbers() {
     let options = EngineOptions {
         numeral_strategy: NumeralStrategy::Smart,
@@ -1751,6 +2053,26 @@ fn pure_trivial_dictionary_run_merges_into_one_annotation() {
     let output = convert_plain_text("洪民", &dict, RenderMode::HangulHanjaParens);
 
     assert_eq!(output, "홍민(洪民)");
+}
+
+#[test]
+fn merged_dictionary_identity_does_not_leak_across_fallback_numeral_boundaries() {
+    let mut dict = MapDictionary::new();
+    dict.insert("馬", "마");
+    let tokens = process_tokens(
+        vec![InputToken::<PlainScopeData>::Text("學一馬".into())],
+        &dict,
+    );
+    let last = tokens
+        .iter()
+        .rev()
+        .find_map(|token| match token {
+            OutputToken::Annotated(annotation) => Some(annotation),
+            _ => None,
+        })
+        .expect("input produces annotations");
+    assert_eq!(last.hanja, "馬");
+    assert_eq!(last.dictionary_hanja.as_deref(), Some("馬"));
 }
 
 #[test]
@@ -2658,6 +2980,7 @@ proptest! {
             output,
             vec![OutputToken::Annotated(annotated! {
                 hanja: key,
+                dictionary_hanja: Some(format!("{prefix}{middle}{suffix}")),
                 reading: reading,
                 homophone: false,
                 require_hanja: false,
@@ -3188,6 +3511,7 @@ fn original_with_ruby_gloss_emits_inline_markup_for_required_hangul() {
     let options = RenderOptions {
         mode: RenderMode::Original,
         original_gloss: OriginalGloss::Ruby,
+        ..RenderOptions::default()
     };
     let rendered = render_tokens(tokens, options);
 
@@ -3219,6 +3543,7 @@ fn original_with_ruby_gloss_falls_back_to_parens_in_disallowing_scope() {
     let options = RenderOptions {
         mode: RenderMode::Original,
         original_gloss: OriginalGloss::Ruby,
+        ..RenderOptions::default()
     };
     let rendered = render_tokens(tokens, options);
 
@@ -3246,6 +3571,7 @@ fn original_with_parens_gloss_keeps_existing_behavior() {
     let options = RenderOptions {
         mode: RenderMode::Original,
         original_gloss: OriginalGloss::Parens,
+        ..RenderOptions::default()
     };
     let rendered = render_tokens(tokens, options);
 

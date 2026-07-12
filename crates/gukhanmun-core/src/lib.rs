@@ -30,6 +30,7 @@ extern crate alloc;
 mod fallback;
 mod generated;
 mod segment;
+mod variants;
 
 use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -301,6 +302,12 @@ pub enum RenderedToken<S> {
 pub struct Annotation {
     /// The original hanja text from the input.
     pub hanja: String,
+
+    /// The spelling that produced the dictionary match, when the annotation
+    /// came from a dictionary. This may differ from [`hanja`](Self::hanja)
+    /// after variant normalization and provides the stable lexical identity
+    /// used by policy middlewares and variant-set rendering.
+    pub dictionary_hanja: Option<String>,
 
     /// The hangul reading selected for the hanja text.
     pub reading: String,
@@ -1501,6 +1508,7 @@ fn process_trivial_fallback_run<S>(
     let run_end = segment_bounds(&run_segments[run_segments.len() - 1]).1;
     let capacity = run_end.saturating_sub(run_start);
     let mut hanja = String::with_capacity(capacity);
+    let mut dictionary_hanja_accumulator = String::with_capacity(capacity);
     let mut reading = String::with_capacity(capacity);
     let mut has_dictionary = false;
     let mut last_trivial_source: Option<char> = None;
@@ -1514,6 +1522,7 @@ fn process_trivial_fallback_run<S>(
                 byte_end,
                 reading: dict_reading,
                 suffix_reading,
+                dictionary_hanja,
                 ..
             } => {
                 let source = &text[*byte_start..*byte_end];
@@ -1531,6 +1540,10 @@ fn process_trivial_fallback_run<S>(
                 {
                     output.push(OutputToken::Annotated(Annotation {
                         hanja: core::mem::take(&mut hanja),
+                        dictionary_hanja: take_dictionary_hanja(
+                            &mut dictionary_hanja_accumulator,
+                            has_dictionary,
+                        ),
                         reading: core::mem::take(&mut reading),
                         homophone: false,
                         require_hanja: false,
@@ -1542,6 +1555,7 @@ fn process_trivial_fallback_run<S>(
                     }));
                 }
                 hanja.push_str(source);
+                dictionary_hanja_accumulator.push_str(dictionary_hanja);
                 reading.push_str(&effective);
                 update_fallback_state_for_reading(&effective, state);
                 has_dictionary = true;
@@ -1570,6 +1584,10 @@ fn process_trivial_fallback_run<S>(
                                 if !hanja.is_empty() {
                                     output.push(OutputToken::Annotated(Annotation {
                                         hanja: core::mem::take(&mut hanja),
+                                        dictionary_hanja: take_dictionary_hanja(
+                                            &mut dictionary_hanja_accumulator,
+                                            has_dictionary,
+                                        ),
                                         reading: core::mem::take(&mut reading),
                                         homophone: false,
                                         require_hanja: false,
@@ -1583,6 +1601,7 @@ fn process_trivial_fallback_run<S>(
                                 }
                                 output.push(OutputToken::Annotated(Annotation {
                                     hanja: part_hanja,
+                                    dictionary_hanja: None,
                                     reading: part_reading,
                                     homophone: false,
                                     require_hanja: false,
@@ -1594,6 +1613,7 @@ fn process_trivial_fallback_run<S>(
                                 }));
                             } else {
                                 hanja.push_str(&part_hanja);
+                                dictionary_hanja_accumulator.push_str(&part_hanja);
                                 reading.push_str(&part_reading);
                             }
                         }
@@ -1601,6 +1621,10 @@ fn process_trivial_fallback_run<S>(
                             if !hanja.is_empty() {
                                 output.push(OutputToken::Annotated(Annotation {
                                     hanja: core::mem::take(&mut hanja),
+                                    dictionary_hanja: take_dictionary_hanja(
+                                        &mut dictionary_hanja_accumulator,
+                                        has_dictionary,
+                                    ),
                                     reading: core::mem::take(&mut reading),
                                     homophone: false,
                                     require_hanja: false,
@@ -1624,6 +1648,7 @@ fn process_trivial_fallback_run<S>(
     if !hanja.is_empty() {
         output.push(OutputToken::Annotated(Annotation {
             hanja,
+            dictionary_hanja: has_dictionary.then_some(dictionary_hanja_accumulator),
             reading,
             homophone: false,
             require_hanja: false,
@@ -1634,6 +1659,11 @@ fn process_trivial_fallback_run<S>(
             from_source_gloss: false,
         }));
     }
+}
+
+fn take_dictionary_hanja(buffer: &mut String, from_dictionary: bool) -> Option<String> {
+    let value = core::mem::take(buffer);
+    from_dictionary.then_some(value)
 }
 
 fn process_segments_with_state<S, D>(
@@ -1656,6 +1686,7 @@ fn process_segments_with_state<S, D>(
                 reading,
                 suffix_reading,
                 mark,
+                dictionary_hanja,
             } => {
                 let source = &text[*byte_start..*byte_end];
                 let effective = dictionary_effective_reading(
@@ -1668,6 +1699,7 @@ fn process_segments_with_state<S, D>(
                 );
                 output.push(OutputToken::Annotated(Annotation {
                     hanja: source.to_string(),
+                    dictionary_hanja: Some(dictionary_hanja.clone()),
                     homophone: false,
                     reading: effective.clone(),
                     require_hanja: mark.require_hanja,
@@ -1785,6 +1817,7 @@ fn process_fallback_text<S>(
             FallbackPart::Annotation { hanja, reading } => {
                 output.push(OutputToken::Annotated(Annotation {
                     hanja,
+                    dictionary_hanja: None,
                     reading,
                     homophone: false,
                     require_hanja: false,
@@ -1987,6 +2020,26 @@ pub enum RenderMode {
     Original,
 }
 
+/// Selects the hanja variant set used wherever a renderer emits hanja.
+///
+/// Recognition is independent of this setting. The engine always recognizes
+/// supported variants, then this profile transforms the dictionary spelling
+/// at the final rendering stage.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum HanjaVariantSet {
+    /// Keeps the spelling selected by the dictionary.
+    #[default]
+    AsDictionary,
+    /// Uses the Japanese Joyo kanji new forms.
+    Shinjitai,
+    /// Prefers traditional and compatibility-folded forms.
+    Kanxi,
+    /// Uses the first Unicode `kSimplifiedVariant` mapping when available.
+    Simplified,
+    /// Uses shinjitai plus Gukhanmun's verified Asahi character subset.
+    Asahimoji,
+}
+
 /// Selects which side of a `<ruby>` element is the base text.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RubyBase {
@@ -2033,6 +2086,9 @@ pub struct RenderOptions {
 
     /// Gloss form used by [`RenderMode::Original`]. Ignored by other modes.
     pub original_gloss: OriginalGloss,
+
+    /// Variant set applied after dictionary recognition.
+    pub hanja_variant_set: HanjaVariantSet,
 }
 
 impl Default for RenderOptions {
@@ -2040,6 +2096,7 @@ impl Default for RenderOptions {
         Self {
             mode: RenderMode::HangulOnly,
             original_gloss: OriginalGloss::Parens,
+            hanja_variant_set: HanjaVariantSet::AsDictionary,
         }
     }
 }
@@ -2049,6 +2106,7 @@ impl From<RenderMode> for RenderOptions {
         Self {
             mode,
             original_gloss: OriginalGloss::default(),
+            hanja_variant_set: HanjaVariantSet::default(),
         }
     }
 }
@@ -2214,7 +2272,9 @@ enum UserDirectivePredicate<'a> {
 impl UserDirectivePredicate<'_> {
     fn matches(&self, annotation: &Annotation) -> bool {
         match self {
-            Self::Literal(hanja) => annotation.hanja == *hanja,
+            Self::Literal(hanja) => {
+                annotation.hanja == *hanja || annotation.dictionary_hanja.as_ref() == Some(hanja)
+            }
             Self::Predicate(predicate) => predicate(annotation),
         }
     }
@@ -2278,9 +2338,9 @@ where
 
 /// Clears repeat gloss requirements after the first occurrence of each hanja.
 ///
-/// The first occurrence key is the original hanja form. Later annotations for
-/// the same form have `first_in_context` set to false and no longer require
-/// either side to be shown.
+/// The first occurrence key is the canonical dictionary form when available.
+/// Later annotations for the same lexical form have `first_in_context` set to
+/// false and no longer require either side to be shown.
 pub fn filter_first_occurrences<S>(
     tokens: impl IntoIterator<Item = OutputToken<S>>,
     window: ContextWindow,
@@ -3029,7 +3089,13 @@ fn mark_homophones_in_context<S, D>(
             forms_by_reading
                 .entry(annotation.reading.clone())
                 .or_default()
-                .insert(annotation.hanja.clone());
+                .insert(
+                    annotation
+                        .dictionary_hanja
+                        .as_ref()
+                        .unwrap_or(&annotation.hanja)
+                        .clone(),
+                );
         }
     }
 
@@ -3037,9 +3103,21 @@ fn mark_homophones_in_context<S, D>(
         if let OutputToken::Annotated(annotation) = token {
             annotation.homophone = annotation.from_dictionary
                 && (index.is_some_and(|index| {
-                    index.has_homophone(&annotation.hanja, &annotation.reading)
+                    index.has_homophone(
+                        annotation
+                            .dictionary_hanja
+                            .as_deref()
+                            .unwrap_or(&annotation.hanja),
+                        &annotation.reading,
+                    )
                 }) || lookup_fallback.is_some_and(|dictionary| {
-                    dictionary.has_homophone(&annotation.hanja, &annotation.reading)
+                    dictionary.has_homophone(
+                        annotation
+                            .dictionary_hanja
+                            .as_deref()
+                            .unwrap_or(&annotation.hanja),
+                        &annotation.reading,
+                    )
                 }) || forms_by_reading
                     .get(&annotation.reading)
                     .is_some_and(|forms| forms.len() > 1));
@@ -3052,7 +3130,13 @@ fn filter_first_occurrences_in_context<S>(tokens: &mut [OutputToken<S>]) {
 
     for token in tokens.iter_mut() {
         if let OutputToken::Annotated(annotation) = token {
-            if seen.insert(annotation.hanja.clone()) {
+            if seen.insert(
+                annotation
+                    .dictionary_hanja
+                    .as_ref()
+                    .unwrap_or(&annotation.hanja)
+                    .clone(),
+            ) {
                 annotation.first_in_context = true;
             } else {
                 annotation.first_in_context = false;
@@ -3209,55 +3293,68 @@ fn render_annotation<S>(
     options: &RenderOptions,
     allows_inline_markup: bool,
 ) -> RenderedToken<S> {
+    let dictionary_hanja = annotation
+        .dictionary_hanja
+        .as_deref()
+        .unwrap_or(&annotation.hanja);
+    let rendered_hanja = variants::render_hanja(dictionary_hanja, options.hanja_variant_set);
     if annotation.skip_annotation {
         let primary = match options.mode {
             RenderMode::HangulOnly | RenderMode::HangulHanjaParens => annotation.reading.clone(),
-            RenderMode::HanjaHangulParens | RenderMode::Original => annotation.hanja.clone(),
+            RenderMode::HanjaHangulParens | RenderMode::Original => rendered_hanja.clone(),
             RenderMode::Ruby(RubyBase::OnHangul) => annotation.reading.clone(),
-            RenderMode::Ruby(RubyBase::OnHanja) => annotation.hanja.clone(),
+            RenderMode::Ruby(RubyBase::OnHanja) => rendered_hanja.clone(),
         };
         return RenderedToken::Text(primary);
     }
 
     match options.mode {
         RenderMode::HangulOnly if annotation.require_hanja || annotation.homophone => {
-            RenderedToken::Text(parens(&annotation.reading, &annotation.hanja))
+            RenderedToken::Text(parens(&annotation.reading, &rendered_hanja))
         }
         RenderMode::HangulOnly => RenderedToken::Text(annotation.reading.clone()),
         RenderMode::HangulHanjaParens => {
-            RenderedToken::Text(parens(&annotation.reading, &annotation.hanja))
+            RenderedToken::Text(parens(&annotation.reading, &rendered_hanja))
         }
         RenderMode::HanjaHangulParens => {
-            RenderedToken::Text(parens(&annotation.hanja, &annotation.reading))
+            RenderedToken::Text(parens(&rendered_hanja, &annotation.reading))
         }
-        RenderMode::Ruby(base) => render_ruby(annotation, base, allows_inline_markup),
+        RenderMode::Ruby(base) => {
+            render_ruby(annotation, &rendered_hanja, base, allows_inline_markup)
+        }
         RenderMode::Original if annotation.require_hangul => match options.original_gloss {
             OriginalGloss::Parens => {
-                RenderedToken::Text(parens(&annotation.hanja, &annotation.reading))
+                RenderedToken::Text(parens(&rendered_hanja, &annotation.reading))
             }
             // `Original` keeps hanja as the primary text, so its ruby form
             // always uses hanja as the base regardless of any other setting.
-            OriginalGloss::Ruby => render_ruby(annotation, RubyBase::OnHanja, allows_inline_markup),
+            OriginalGloss::Ruby => render_ruby(
+                annotation,
+                &rendered_hanja,
+                RubyBase::OnHanja,
+                allows_inline_markup,
+            ),
         },
-        RenderMode::Original => RenderedToken::Text(annotation.hanja.clone()),
+        RenderMode::Original => RenderedToken::Text(rendered_hanja),
     }
 }
 
 fn render_ruby<S>(
     annotation: &Annotation,
+    hanja: &str,
     base: RubyBase,
     allows_inline_markup: bool,
 ) -> RenderedToken<S> {
     let (base_text, rt_text) = match base {
-        RubyBase::OnHangul => (&annotation.reading, &annotation.hanja),
-        RubyBase::OnHanja => (&annotation.hanja, &annotation.reading),
+        RubyBase::OnHangul => (annotation.reading.as_str(), hanja),
+        RubyBase::OnHanja => (hanja, annotation.reading.as_str()),
     };
     if !allows_inline_markup {
         return RenderedToken::Text(parens(base_text, rt_text));
     }
     RenderedToken::Ruby {
-        base: base_text.clone(),
-        rt: rt_text.clone(),
+        base: String::from(base_text),
+        rt: String::from(rt_text),
     }
 }
 

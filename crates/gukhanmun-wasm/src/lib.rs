@@ -36,8 +36,9 @@ use gukhanmun::fst::FstDictionary;
 use gukhanmun::html::HtmlElementInfo;
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
-    Builder, ContextWindow, Converter, DirectiveAction, HomophoneDetection, NumeralStrategy,
-    OriginalGloss, Preset, Recovery, RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
+    Builder, ContextWindow, Converter, DirectiveAction, HanjaVariantSet, HomophoneDetection,
+    NumeralStrategy, OriginalGloss, Preset, Recovery, RenderMode, RenderOptions, RubyBase,
+    SegmentationStrategy,
 };
 
 // ── Option deserialization structs ──────────────────────────────────────────
@@ -48,6 +49,7 @@ struct JsOptions {
     preset: Option<String>,
     rendering: Option<String>,
     original_gloss: Option<String>,
+    hanja_variant_set: Option<String>,
     segmentation: Option<String>,
     numerals: Option<String>,
     initial_sound_law: Option<bool>,
@@ -142,6 +144,9 @@ impl WasmGukhanmun {
         if let Some(r) = &opts.rendering {
             let mode = parse_render_mode(r, opts.original_gloss.as_deref())?;
             builder = builder.rendering(mode);
+        }
+        if let Some(variant_set) = &opts.hanja_variant_set {
+            builder = builder.hanja_variant_set(parse_hanja_variant_set(variant_set)?);
         }
         if let Some(s) = &opts.segmentation {
             builder = builder.segmentation(parse_segmentation(s)?);
@@ -410,7 +415,22 @@ fn parse_render_mode(mode: &str, gloss: Option<&str>) -> Result<RenderOptions, J
     Ok(RenderOptions {
         mode: render_mode,
         original_gloss,
+        ..RenderOptions::default()
     })
+}
+
+fn parse_hanja_variant_set(variant_set: &str) -> Result<HanjaVariantSet, JsValue> {
+    match variant_set {
+        "as-dictionary" => Ok(HanjaVariantSet::AsDictionary),
+        "shinjitai" => Ok(HanjaVariantSet::Shinjitai),
+        "kanxi" => Ok(HanjaVariantSet::Kanxi),
+        "simplified" => Ok(HanjaVariantSet::Simplified),
+        "asahimoji" => Ok(HanjaVariantSet::Asahimoji),
+        other => Err(make_error(
+            "invalid-input",
+            &format!("unknown hanjaVariantSet: {other}"),
+        )),
+    }
 }
 
 fn parse_segmentation(s: &str) -> Result<SegmentationStrategy, JsValue> {

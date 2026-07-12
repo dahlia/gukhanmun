@@ -507,6 +507,7 @@ fn large_place_value(ch: char) -> Option<u128> {
 }
 
 pub(crate) fn phoneticize_hanja_char(ch: char) -> Option<&'static str> {
+    let ch = crate::variants::compatibility_fold(ch);
     KHANGUL_READINGS
         .binary_search_by_key(&ch, |(hanja, _)| *hanja)
         .ok()

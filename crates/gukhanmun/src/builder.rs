@@ -138,6 +138,12 @@ impl<'a> Builder<'a> {
         self
     }
 
+    /// Selects the hanja variant set used by every rendering mode.
+    pub fn hanja_variant_set(mut self, variant_set: gukhanmun_core::HanjaVariantSet) -> Self {
+        self.options.rendering.hanja_variant_set = variant_set;
+        self
+    }
+
     /// Overrides the engine's lattice / eager segmentation strategy.
     pub fn segmentation(mut self, strategy: SegmentationStrategy) -> Self {
         self.options.engine.segmentation = strategy;

@@ -356,12 +356,12 @@ depends = ["rust-init"]
 run = "cargo check -p gukhanmun --no-default-features --features 'html,fst' --target wasm32-unknown-unknown"
 
 [tasks.generate-unihan]
-description = "Regenerate Unihan kHangul fallback reading data"
+description = "Regenerate Unihan readings and hanja variant tables"
 depends = ["rust-init"]
 run = "cargo run -p gukhanmun-unihan --"
 
 [tasks.generate-unihan-check]
-description = "Check generated Unihan kHangul fallback reading data"
+description = "Check generated Unihan readings and hanja variant tables"
 depends = ["rust-init"]
 run = "cargo run -p gukhanmun-unihan -- --check"
 
