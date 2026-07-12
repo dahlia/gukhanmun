@@ -701,6 +701,20 @@ fn chain_dictionary_allows_lattice_to_choose_lower_priority_longer_match() {
 }
 
 #[test]
+fn chain_dictionary_priority_applies_before_variant_spelling_preference() {
+    let mut high = MapDictionary::new();
+    high.insert("藝術", "예술");
+    let mut low = MapDictionary::new();
+    low.insert("芸術", "기예");
+    let chain = ChainDictionary::from_iter([high, low]);
+
+    assert_eq!(
+        convert_plain_text("芸術", &chain, RenderMode::HangulOnly),
+        "예술"
+    );
+}
+
+#[test]
 fn chain_dictionary_reports_homophones_from_any_dictionary() {
     let mut first = MapDictionary::new();
     first.insert("天地", "천지");

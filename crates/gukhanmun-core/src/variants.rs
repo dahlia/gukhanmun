@@ -80,26 +80,35 @@ where
             }
         }
         candidates = next;
-        if exact
-            .iter()
-            .any(|matched| matched.byte_len == source_byte_len)
-        {
-            continue;
-        }
         if candidates.len() == 1 {
             continue;
         }
         let source_prefix = &source[..source_byte_len];
+        debug_assert_eq!(
+            candidates.first().map(|(candidate, _)| candidate.as_str()),
+            Some(source_prefix)
+        );
+        let spellings = candidates
+            .iter()
+            .map(|(candidate, _)| candidate.as_str())
+            .collect::<Vec<_>>();
+        let selected = dictionary.matches_at_spellings(&spellings);
+        if selected.is_empty() {
+            continue;
+        }
+        resolved.retain(|matched| matched.source_byte_len != source_byte_len);
+        if selected.iter().any(|(index, _)| *index == 0) {
+            resolved.extend(selected.into_iter().map(|(_, matched)| ResolvedMatch {
+                matched,
+                source_byte_len,
+                dictionary_hanja: source_prefix.into(),
+            }));
+            continue;
+        }
         let mut matches = Vec::<(usize, String, Match)>::new();
-        for (candidate, substitutions) in &candidates {
-            if candidate == source_prefix {
-                continue;
-            }
-            for matched in dictionary.matches_at(candidate) {
-                if matched.byte_len == candidate.len() {
-                    matches.push((*substitutions, candidate.clone(), matched));
-                }
-            }
+        for (candidate_index, matched) in selected {
+            let (candidate, substitutions) = &candidates[candidate_index];
+            matches.push((*substitutions, candidate.clone(), matched));
         }
         matches.sort_by(|left, right| (left.0, &left.1).cmp(&(right.0, &right.1)));
         matches.dedup_by(|left, right| left.1 == right.1 && left.2 == right.2);

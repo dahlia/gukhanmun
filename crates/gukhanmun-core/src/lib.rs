@@ -410,6 +410,29 @@ pub trait HanjaDictionary {
     /// Yields every dictionary match that starts at the beginning of `s`.
     fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a>;
 
+    /// Returns complete matches for an original spelling and its alternatives.
+    ///
+    /// The first spelling is the source text and takes precedence over later
+    /// alternatives within one dictionary. Composite dictionaries override
+    /// this operation so dictionary priority is applied before that spelling
+    /// preference. Each returned index identifies the spelling that matched.
+    #[doc(hidden)]
+    fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
+        let mut alternatives = Vec::new();
+        for (index, spelling) in spellings.iter().enumerate() {
+            let matches = self
+                .matches_at(spelling)
+                .filter(|matched| matched.byte_len == spelling.len())
+                .map(|matched| (index, matched))
+                .collect::<Vec<_>>();
+            if index == 0 && !matches.is_empty() {
+                return matches;
+            }
+            alternatives.extend(matches);
+        }
+        alternatives
+    }
+
     /// Returns the greatest dictionary entry length in Unicode scalar values.
     fn max_word_chars(&self) -> Option<usize> {
         None
@@ -440,6 +463,10 @@ where
         (**self).matches_at(s)
     }
 
+    fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
+        (**self).matches_at_spellings(spellings)
+    }
+
     fn max_word_chars(&self) -> Option<usize> {
         (**self).max_word_chars()
     }
@@ -459,6 +486,10 @@ where
 {
     fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
         (**self).matches_at(s)
+    }
+
+    fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
+        (**self).matches_at_spellings(spellings)
     }
 
     fn max_word_chars(&self) -> Option<usize> {
@@ -599,6 +630,16 @@ where
 
         matches.sort_by_key(|matched| matched.byte_len);
         Box::new(matches.into_iter())
+    }
+
+    fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
+        for dictionary in &self.dictionaries {
+            let matches = dictionary.matches_at_spellings(spellings);
+            if !matches.is_empty() {
+                return matches;
+            }
+        }
+        Vec::new()
     }
 
     fn max_word_chars(&self) -> Option<usize> {
