@@ -1657,8 +1657,12 @@ fn process_trivial_fallback_run<S>(
 }
 
 fn take_dictionary_hanja(buffer: &mut String, from_dictionary: bool) -> Option<String> {
-    let value = core::mem::take(buffer);
-    from_dictionary.then_some(value)
+    if from_dictionary {
+        Some(core::mem::take(buffer))
+    } else {
+        buffer.clear();
+        None
+    }
 }
 
 fn process_segments_with_state<S, D>(
