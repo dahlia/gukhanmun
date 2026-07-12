@@ -344,6 +344,16 @@ pub struct Annotation {
     pub from_source_gloss: bool,
 }
 
+impl Annotation {
+    /// Returns the canonical hanja spelling used by policy and rendering.
+    ///
+    /// Dictionary-backed annotations use the spelling that produced the
+    /// match. Other annotations retain their original source spelling.
+    pub fn canonical_hanja(&self) -> &str {
+        self.dictionary_hanja.as_deref().unwrap_or(&self.hanja)
+    }
+}
+
 /// Dictionary-provided rendering constraints for a match.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct MatchMark {
@@ -3133,13 +3143,7 @@ fn mark_homophones_in_context<S, D>(
             forms_by_reading
                 .entry(annotation.reading.clone())
                 .or_default()
-                .insert(
-                    annotation
-                        .dictionary_hanja
-                        .as_ref()
-                        .unwrap_or(&annotation.hanja)
-                        .clone(),
-                );
+                .insert(annotation.canonical_hanja().to_string());
         }
     }
 
@@ -3147,21 +3151,9 @@ fn mark_homophones_in_context<S, D>(
         if let OutputToken::Annotated(annotation) = token {
             annotation.homophone = annotation.from_dictionary
                 && (index.is_some_and(|index| {
-                    index.has_homophone(
-                        annotation
-                            .dictionary_hanja
-                            .as_deref()
-                            .unwrap_or(&annotation.hanja),
-                        &annotation.reading,
-                    )
+                    index.has_homophone(annotation.canonical_hanja(), &annotation.reading)
                 }) || lookup_fallback.is_some_and(|dictionary| {
-                    dictionary.has_homophone(
-                        annotation
-                            .dictionary_hanja
-                            .as_deref()
-                            .unwrap_or(&annotation.hanja),
-                        &annotation.reading,
-                    )
+                    dictionary.has_homophone(annotation.canonical_hanja(), &annotation.reading)
                 }) || forms_by_reading
                     .get(&annotation.reading)
                     .is_some_and(|forms| forms.len() > 1));
@@ -3174,13 +3166,7 @@ fn filter_first_occurrences_in_context<S>(tokens: &mut [OutputToken<S>]) {
 
     for token in tokens.iter_mut() {
         if let OutputToken::Annotated(annotation) = token {
-            if seen.insert(
-                annotation
-                    .dictionary_hanja
-                    .as_ref()
-                    .unwrap_or(&annotation.hanja)
-                    .clone(),
-            ) {
+            if seen.insert(annotation.canonical_hanja().to_string()) {
                 annotation.first_in_context = true;
             } else {
                 annotation.first_in_context = false;
@@ -3354,10 +3340,7 @@ fn render_annotation<S>(
     {
         return RenderedToken::Text(annotation.reading.clone());
     }
-    let dictionary_hanja = annotation
-        .dictionary_hanja
-        .as_deref()
-        .unwrap_or(&annotation.hanja);
+    let dictionary_hanja = annotation.canonical_hanja();
     let rendered_hanja = variants::render_hanja(dictionary_hanja, options.hanja_variant_set);
     if annotation.skip_annotation {
         return RenderedToken::Text(rendered_hanja.into_owned());

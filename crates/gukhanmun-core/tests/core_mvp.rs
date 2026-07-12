@@ -46,6 +46,18 @@ macro_rules! annotated {
 use std::cell::Cell;
 
 #[test]
+fn annotation_canonical_hanja_prefers_the_dictionary_spelling() {
+    let source_only = annotated! { hanja: "芸術".into() };
+    let dictionary_backed = annotated! {
+        hanja: "芸術".into(),
+        dictionary_hanja: Some("藝術".into()),
+    };
+
+    assert_eq!(source_only.canonical_hanja(), "芸術");
+    assert_eq!(dictionary_backed.canonical_hanja(), "藝術");
+}
+
+#[test]
 fn hanja_detection_covers_known_cjk_ranges() {
     let cases = [
         '⼀',        // CJK radicals / ideographic description range used by Seonbi.

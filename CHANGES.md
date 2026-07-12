@@ -40,7 +40,8 @@ To be released.
     canonical dictionary spelling metadata and the `as-dictionary`,
     `shinjitai`, `kanxi`, `simplified`, and `asahimoji` output profiles across
     Rust, the CLI, WebAssembly, Node-API, and the documentation playground.
-    [[#11], [#12]]
+    `Annotation::canonical_hanja` exposes the same canonical spelling used by
+    policy middlewares and rendering.  [[#11], [#12]]
 
 [#11]: https://github.com/dahlia/gukhanmun/issues/11
 [#12]: https://github.com/dahlia/gukhanmun/pull/12
