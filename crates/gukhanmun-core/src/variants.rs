@@ -305,6 +305,9 @@ fn shinjitai_char(ch: char) -> char {
 }
 
 pub(crate) fn compatibility_fold(ch: char) -> char {
+    if ch < '\u{F900}' {
+        return ch;
+    }
     map_char(ch, COMPATIBILITY_FOLDS)
 }
 
