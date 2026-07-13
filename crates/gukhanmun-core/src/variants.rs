@@ -251,6 +251,10 @@ impl RecognitionVariants {
 
 fn recognition_variants(ch: char) -> RecognitionVariants {
     let mut choices = RecognitionVariants::new();
+    if !crate::is_hanja(ch) {
+        choices.push_unique(ch);
+        return choices;
+    }
     let folded = compatibility_fold(ch);
     let projections: [char; RECOGNITION_PROJECTION_COUNT] = [
         ch,
@@ -312,6 +316,9 @@ pub(crate) fn compatibility_fold(ch: char) -> char {
 }
 
 fn render_hanja_char(ch: char, variant_set: crate::HanjaVariantSet) -> char {
+    if !crate::is_hanja(ch) {
+        return ch;
+    }
     match variant_set {
         crate::HanjaVariantSet::AsDictionary => unreachable!("handled by render_hanja"),
         crate::HanjaVariantSet::Shinjitai => shinjitai_char(ch),
