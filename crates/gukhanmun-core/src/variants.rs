@@ -131,11 +131,13 @@ where
         }
         resolved.retain(|matched| matched.source_byte_len != source_byte_len);
         if selected.iter().any(|(index, _)| *index == 0) {
-            resolved.extend(selected.into_iter().map(|(_, matched)| ResolvedMatch {
-                matched,
-                source_byte_len,
-                dictionary_hanja: source_prefix.into(),
-            }));
+            resolved.extend(selected.into_iter().filter(|(index, _)| *index == 0).map(
+                |(_, matched)| ResolvedMatch {
+                    matched,
+                    source_byte_len,
+                    dictionary_hanja: source_prefix.into(),
+                },
+            ));
             continue;
         }
         let mut matches = Vec::<(usize, &str, Match)>::new();

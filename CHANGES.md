@@ -43,7 +43,9 @@ To be released.
     `Annotation::canonical_hanja` exposes the same canonical spelling used by
     policy middlewares and rendering.  Compatibility forms are folded before
     both reading and numeral lookup, and playground presets reset the variant
-    profile with their other governed settings.  [[#11], [#12]]
+    profile with their other governed settings.  Exact source matches remain
+    authoritative when a custom dictionary backend also returns variant
+    matches in the same batch.  [[#11], [#12]]
 
 [#11]: https://github.com/dahlia/gukhanmun/issues/11
 [#12]: https://github.com/dahlia/gukhanmun/pull/12

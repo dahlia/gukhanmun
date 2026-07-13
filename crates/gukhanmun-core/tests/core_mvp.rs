@@ -273,6 +273,56 @@ fn invalid_custom_variant_candidate_indices_are_ignored() {
 }
 
 #[test]
+fn custom_dictionary_exact_results_override_variant_results() {
+    struct ExactAndVariantDictionary;
+
+    impl HanjaDictionary for ExactAndVariantDictionary {
+        fn matches_at<'a>(&'a self, _: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            Box::new(core::iter::empty())
+        }
+
+        fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
+            let variant_index = spellings
+                .iter()
+                .position(|spelling| *spelling == "藝")
+                .expect("recognition includes the traditional form");
+            vec![
+                (
+                    0,
+                    Match {
+                        byte_len: "芸".len(),
+                        reading: "운".into(),
+                        suffix_reading: None,
+                        mark: MatchMark::default(),
+                    },
+                ),
+                (
+                    variant_index,
+                    Match {
+                        byte_len: "藝".len(),
+                        reading: "예".into(),
+                        suffix_reading: None,
+                        mark: MatchMark::default(),
+                    },
+                ),
+            ]
+        }
+    }
+
+    let tokens = process_tokens(
+        vec![InputToken::<PlainScopeData>::Text("芸".into())],
+        &ExactAndVariantDictionary,
+    );
+    let annotation = match &tokens[0] {
+        OutputToken::Annotated(annotation) => annotation,
+        other => panic!("expected annotation, got {other:?}"),
+    };
+
+    assert_eq!(annotation.reading, "운");
+    assert_eq!(annotation.dictionary_hanja.as_deref(), Some("芸"));
+}
+
+#[test]
 fn variant_recognition_does_not_cross_senses_joined_by_a_simplified_form() {
     for unrelated_hanja in ["干", "幹"] {
         let mut dict = MapDictionary::new();
