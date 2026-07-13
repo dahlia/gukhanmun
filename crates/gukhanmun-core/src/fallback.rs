@@ -218,6 +218,7 @@ pub(crate) fn arabic_numeral_at(
 /// (`年月日時分秒號世紀`). Extend this function—and nowhere else—when the set
 /// needs to grow.
 pub(crate) fn is_numeral_unit(ch: char) -> bool {
+    let ch = normalize_hanja_char(ch);
     matches!(
         ch,
         '年' | '月' | '日' | '時' | '分' | '秒' | '號' | '世' | '紀'

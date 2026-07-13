@@ -1898,6 +1898,7 @@ fn smart_numerals_choose_arabic_only_for_structured_numbers() {
         ("百年", "100년"),
         ("十一日", "11일"),
         ("六月", "6월"),
+        ("六年", "6년"),
         // Short digit run without unit → hangul phonetic
         ("三", "삼"),
         ("一二三", "일이삼"),
