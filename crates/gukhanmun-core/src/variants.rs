@@ -206,16 +206,17 @@ fn kanxi_char(ch: char) -> char {
     kanxi_char_folded(compatibility_fold(ch))
 }
 
-fn asahimoji_char_folded(ch: char, folded: char) -> char {
+fn asahimoji_char_from_shinjitai(ch: char, shinjitai: char) -> char {
     let asahi = map_char(ch, ASAHI_FORMS);
     if asahi != ch || is_table_target(ch, ASAHI_TARGETS) {
         return asahi;
     }
-    shinjitai_char_folded(folded)
+    shinjitai
 }
 
 fn asahimoji_char(ch: char) -> char {
-    asahimoji_char_folded(ch, compatibility_fold(ch))
+    let folded = compatibility_fold(ch);
+    asahimoji_char_from_shinjitai(ch, shinjitai_char_folded(folded))
 }
 
 const RECOGNITION_PROJECTION_COUNT: usize = 7;
@@ -256,14 +257,15 @@ fn recognition_variants(ch: char) -> RecognitionVariants {
         return choices;
     }
     let folded = compatibility_fold(ch);
+    let shinjitai = shinjitai_char_folded(folded);
     let projections: [char; RECOGNITION_PROJECTION_COUNT] = [
         ch,
         folded,
         map_char(ch, Z_FORMS),
-        shinjitai_char_folded(folded),
+        shinjitai,
         kanxi_char_folded(folded),
         simplified_char_folded(folded),
-        asahimoji_char_folded(ch, folded),
+        asahimoji_char_from_shinjitai(ch, shinjitai),
     ];
     for projection in projections {
         choices.push_unique(projection);
