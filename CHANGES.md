@@ -35,20 +35,51 @@ Version 0.3.0
 
 To be released.
 
- -  Recognize Unicode, Joyo kanji, Asahi, simplified/traditional, and CJK
-    compatibility variant spellings against existing dictionary keys. Added
-    canonical dictionary spelling metadata and the `as-dictionary`,
-    `shinjitai`, `kanxi`, `simplified`, and `asahimoji` output profiles across
-    Rust, the CLI, WebAssembly, Node-API, and the documentation playground.
-    `Annotation::canonical_hanja` exposes the same canonical spelling used by
-    policy middlewares and rendering.  Compatibility forms are folded before
-    both reading and numeral lookup, and playground presets reset the variant
-    profile with their other governed settings.  Exact source matches remain
-    authoritative when a custom dictionary backend also returns variant
-    matches in the same batch.  [[#11], [#12]]
+### gukhanmun
+
+ -  Added `Builder::hanja_variant_set()` for selecting the hanja spelling used
+    in rendered output independently of the rendering mode.  A separately
+    selected variant set remains in effect when the rendering mode changes,
+    while complete `RenderOptions` replace both settings.  [[#11], [#12]]
 
 [#11]: https://github.com/dahlia/gukhanmun/issues/11
 [#12]: https://github.com/dahlia/gukhanmun/pull/12
+
+### gukhanmun-core
+
+ -  Added dictionary-guided recognition of Unicode z-variants,
+    traditional/simplified forms, CJK compatibility ideographs, Joyo kanji
+    old/new forms, and Asahi variants.  Ambiguous variant relations are
+    accepted only when the dictionary identifies one matching sense, while
+    exact source matches remain authoritative.  Compatibility ideographs are
+    folded before fallback reading and numeral lookup.  [[#11], [#12]]
+ -  Added `HanjaVariantSet` with `AsDictionary`, `Shinjitai`, `Kanxi`,
+    `Simplified`, and `Asahimoji` output profiles.
+    `Annotation::canonical_hanja()` exposes the dictionary spelling for a
+    dictionary match and the source hanja for a fallback annotation, so
+    rendering and policy middlewares use the same lexical identity.
+    [[#11], [#12]]
+
+### gukhanmun-cli
+
+ -  Added `--hanja-variant-set` for selecting `as-dictionary`, `shinjitai`,
+    `kanxi`, `simplified`, or `asahimoji` whenever the selected rendering mode
+    emits hanja.  [[#11], [#12]]
+
+### @gukhanmun/napi
+
+ -  Added the `hanjaVariantSet` converter option for selecting the hanja
+    spelling emitted by the Node-API binding.  [[#11], [#12]]
+
+### @gukhanmun/wasm
+
+ -  Added the `hanjaVariantSet` converter option for selecting the hanja
+    spelling emitted by the WebAssembly binding.  [[#11], [#12]]
+
+### @gukhanmun/types
+
+ -  Added the `HanjaVariantSet` type and the `hanjaVariantSet` field on
+    `GukhanmunOptions` for the shared JavaScript API.  [[#11], [#12]]
 
 
 Version 0.2.0

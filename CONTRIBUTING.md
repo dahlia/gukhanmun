@@ -97,11 +97,6 @@ Document every new public Rust API with rustdoc comments. Public documentation
 should explain the API's role, important invariants, and where it fits in the
 pipeline so that `mise run doc` stays useful as an API review gate.
 
-When adding a feature, changing existing behaviour, or fixing a bug, add an
-entry to *CHANGES.md* under the current development version heading.
-Documentation-only changes (edits to *docs/*, prose in Markdown files, or
-code comments) do not need a *CHANGES.md* entry.
-
 
 Writing docs
 ------------
@@ -135,6 +130,37 @@ Follow these prose conventions:
     followed by an anchor (for example,
     `../cli/dictionary.md#building-a-custom-dictionary`).  The explicit
     extension keeps the anchor intact through `hongdown`.
+
+
+Writing the changelog
+---------------------
+
+When adding a feature, changing existing behaviour, or fixing a bug, add an
+entry to *CHANGES.md* under the current development version. Documentation-only
+changes, including edits under *docs/*, prose in Markdown files, and code
+comments, do not need an entry.
+
+Organize entries by the public surface whose users will encounter the change.
+Use a level-3 heading named after the Cargo crate or JavaScript package, such as
+`### gukhanmun-core` or `### @gukhanmun/wasm`. Repeat a change under every
+affected surface, including the crate where the behaviour originates and each
+umbrella crate, CLI, binding, or shared type package that exposes it. This
+duplication is intentional: a reader should be able to follow only the sections
+for the components they use. Changes to internal generators belong under the
+public crate whose behaviour or data they alter, not under the generator
+itself.
+
+Place an entry directly under the version heading only when it applies to the
+workspace as a whole and cannot usefully be attributed to a particular crate or
+package. Release-wide packaging and repository infrastructure changes are
+typical examples.
+
+Keep each bullet focused on one user-visible change. Split distinct behaviours
+into separate bullets when that helps readers find the part relevant to them.
+State what changed and how users access or configure it; include implementation
+details only when they explain an observable constraint or compatibility
+decision. End every bullet with bracketed issue or pull request references,
+with reference links defined in the same version section.
 
 
 Testing
