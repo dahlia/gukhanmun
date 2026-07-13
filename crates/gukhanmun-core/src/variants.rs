@@ -41,8 +41,7 @@ where
 {
     let exact = dictionary.matches_at(source).collect::<Vec<_>>();
     let mut resolved = exact
-        .iter()
-        .cloned()
+        .into_iter()
         .filter_map(|matched| {
             source.get(..matched.byte_len).map(|hanja| ResolvedMatch {
                 source_byte_len: matched.byte_len,
