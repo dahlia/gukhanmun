@@ -42,6 +42,23 @@ use gukhanmun::{RenderOptions, RenderMode, OriginalGloss};
 
 builder.rendering(RenderOptions {
     mode: RenderMode::Original,
-    original_gloss: Some(OriginalGloss::Parens),  // 또는 OriginalGloss::Ruby
+    original_gloss: OriginalGloss::Parens,  // 또는 OriginalGloss::Ruby
+    ..RenderOptions::default()
 });
 ~~~~
+
+
+異體字 集合
+-----------
+
+異體字 認識은 언제나 活性化됩니다. `Builder::hanja_variant_set`는 렌더러가
+漢字를 내보낼 때의 表記를 獨立的으로 選擇합니다.
+
+~~~~ rust
+use gukhanmun::HanjaVariantSet;
+
+builder.hanja_variant_set(HanjaVariantSet::Shinjitai);
+~~~~
+
+프로필은 `AsDictionary`(基本), `Shinjitai`, `Kanxi`, `Simplified`,
+`Asahimoji`입니다.

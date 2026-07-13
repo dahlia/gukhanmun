@@ -42,6 +42,27 @@ echo "漢字" | gukhanmun --rendering hanja-hangul-parens
 # → 漢字(한자)
 ~~~~
 
+
+hanja variant sets
+------------------
+
+Recognition accepts supported traditional, simplified, Japanese, Asahi, and
+CJK compatibility forms regardless of this setting. `--hanja-variant-set`
+controls only the spelling emitted when a rendering mode keeps hanja:
+
+| Value           | Policy                                         |
+| --------------- | ---------------------------------------------- |
+| `as-dictionary` | Keep the matched dictionary spelling.          |
+| `shinjitai`     | Use Japanese Joyo kanji new forms.             |
+| `kanxi`         | Prefer compatibility-folded traditional forms. |
+| `simplified`    | Use Unicode simplified variants.               |
+| `asahimoji`     | Use shinjitai plus the verified Asahi set.     |
+
+~~~~ sh
+echo "藝術" | gukhanmun --rendering original --hanja-variant-set shinjitai
+# → 芸術
+~~~~
+
 ### `ruby-on-hangul`
 
 Wraps the hangul reading in a `<ruby>` element with the hanja as the

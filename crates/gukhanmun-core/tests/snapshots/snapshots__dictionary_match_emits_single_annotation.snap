@@ -5,6 +5,7 @@ expression: "common::tokens_to_snapshot_value(&tokens)"
 [
   {
     "annotated": {
+      "dictionary_hanja": "學校",
       "first_in_context": true,
       "from_dictionary": true,
       "from_source_gloss": false,

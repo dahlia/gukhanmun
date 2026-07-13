@@ -35,6 +35,21 @@ Version 0.3.0
 
 To be released.
 
+ -  Recognize Unicode, Joyo kanji, Asahi, simplified/traditional, and CJK
+    compatibility variant spellings against existing dictionary keys. Added
+    canonical dictionary spelling metadata and the `as-dictionary`,
+    `shinjitai`, `kanxi`, `simplified`, and `asahimoji` output profiles across
+    Rust, the CLI, WebAssembly, Node-API, and the documentation playground.
+    `Annotation::canonical_hanja` exposes the same canonical spelling used by
+    policy middlewares and rendering.  Compatibility forms are folded before
+    both reading and numeral lookup, and playground presets reset the variant
+    profile with their other governed settings.  Exact source matches remain
+    authoritative when a custom dictionary backend also returns variant
+    matches in the same batch.  [[#11], [#12]]
+
+[#11]: https://github.com/dahlia/gukhanmun/issues/11
+[#12]: https://github.com/dahlia/gukhanmun/pull/12
+
 
 Version 0.2.0
 -------------

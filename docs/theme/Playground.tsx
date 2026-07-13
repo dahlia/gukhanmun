@@ -24,6 +24,7 @@ import type {
   Format,
   Gukhanmun,
   GukhanmunOptions,
+  HanjaVariantSet,
   HomophoneDetection,
   NumeralStrategy,
   OriginalGloss,
@@ -158,6 +159,7 @@ const DICT_LOADERS: Record<DictId, () => Promise<Uint8Array>> = {
 // excluded too.
 type PresetConfig = {
   rendering: RenderMode;
+  hanjaVariantSet: HanjaVariantSet;
   segmentation: Segmentation;
   numerals: NumeralStrategy;
   initialSoundLaw: boolean;
@@ -171,6 +173,7 @@ type PresetConfig = {
 const PRESET_CONFIGS: Record<Preset, PresetConfig> = {
   "ko-kr": {
     rendering: "hangul-only",
+    hanjaVariantSet: "as-dictionary",
     segmentation: "lattice",
     numerals: "hangul-phonetic",
     initialSoundLaw: true,
@@ -188,6 +191,7 @@ const PRESET_CONFIGS: Record<Preset, PresetConfig> = {
   },
   "ko-kp": {
     rendering: "hangul-only",
+    hanjaVariantSet: "as-dictionary",
     segmentation: "lattice",
     numerals: "hangul-phonetic",
     initialSoundLaw: false,
@@ -312,14 +316,23 @@ export function Playground() {
   });
   const [rendering, setRendering] = useState<RenderMode>("hangul-only");
   const [originalGloss, setOriginalGloss] = useState<OriginalGloss>("parens");
+  const [hanjaVariantSet, setHanjaVariantSet] = useState<HanjaVariantSet>(
+    "as-dictionary",
+  );
   const [segmentation, setSegmentation] = useState<Segmentation>("lattice");
   const [numerals, setNumerals] = useState<NumeralStrategy>("hangul-phonetic");
   const [initialSoundLaw, setInitialSoundLaw] = useState(true);
-  const [homophoneWindow, setHomophoneWindow] = useState<ContextWindow>("per-block");
-  const [homophoneDetection, setHomophoneDetection] = useState<HomophoneDetection>(
+  const [homophoneWindow, setHomophoneWindow] = useState<ContextWindow>(
+    "per-block",
+  );
+  const [homophoneDetection, setHomophoneDetection] = useState<
+    HomophoneDetection
+  >(
     "context-local",
   );
-  const [firstOccurrenceWindow, setFirstOccurrenceWindow] = useState<ContextWindow>("off");
+  const [firstOccurrenceWindow, setFirstOccurrenceWindow] = useState<
+    ContextWindow
+  >("off");
   const [recovery, setRecovery] = useState<Recovery>("strict");
   const [requireHanja, setRequireHanja] = useState("");
   const [requireHangul, setRequireHangul] = useState("");
@@ -351,6 +364,13 @@ export function Playground() {
   const ORIGINAL_GLOSS_OPTIONS: [OriginalGloss, string][] = [
     ["parens", t("pgGlossParens")],
     ["ruby", t("pgGlossRuby")],
+  ];
+  const HANJA_VARIANT_SET_OPTIONS: [HanjaVariantSet, string][] = [
+    ["as-dictionary", t("pgVariantSetAsDictionary")],
+    ["shinjitai", t("pgVariantSetShinjitai")],
+    ["kanxi", t("pgVariantSetKanxi")],
+    ["simplified", t("pgVariantSetSimplified")],
+    ["asahimoji", t("pgVariantSetAsahimoji")],
   ];
   const SEGMENTATION_OPTIONS: [Segmentation, string][] = [
     ["lattice", t("pgSegLattice")],
@@ -414,6 +434,7 @@ export function Playground() {
       // all overridden here anyway).
       rendering,
       originalGloss,
+      hanjaVariantSet,
       segmentation,
       numerals,
       initialSoundLaw,
@@ -512,6 +533,7 @@ export function Playground() {
     enabledDicts,
     rendering,
     originalGloss,
+    hanjaVariantSet,
     segmentation,
     numerals,
     initialSoundLaw,
@@ -551,6 +573,7 @@ export function Playground() {
   // True when the live configuration matches a preset's complete setting set.
   function matchesPreset(cfg: PresetConfig): boolean {
     return rendering === cfg.rendering &&
+      hanjaVariantSet === cfg.hanjaVariantSet &&
       segmentation === cfg.segmentation &&
       numerals === cfg.numerals &&
       initialSoundLaw === cfg.initialSoundLaw &&
@@ -571,6 +594,7 @@ export function Playground() {
   function applyPreset(p: Preset) {
     const cfg = PRESET_CONFIGS[p];
     setRendering(cfg.rendering);
+    setHanjaVariantSet(cfg.hanjaVariantSet);
     setSegmentation(cfg.segmentation);
     setNumerals(cfg.numerals);
     setInitialSoundLaw(cfg.initialSoundLaw);
@@ -593,6 +617,7 @@ export function Playground() {
     input,
     rendering,
     originalGloss,
+    hanjaVariantSet,
     segmentation,
     numerals,
     initialSoundLaw,
@@ -685,12 +710,17 @@ export function Playground() {
 
           <div className="playground-options">
             <div className="playground-options-group">
-              <span className="playground-options-group-label">{t("pgGroupInputRendering")}</span>
+              <span className="playground-options-group-label">
+                {t("pgGroupInputRendering")}
+              </span>
               <div className="playground-options-group-controls">
                 <Field
                   label={t("pgInputFormat")}
                   value={format}
-                  options={[["text", t("pgFormatText")], ["markdown", t("pgFormatMarkdown")], [
+                  options={[["text", t("pgFormatText")], [
+                    "markdown",
+                    t("pgFormatMarkdown"),
+                  ], [
                     "html",
                     t("pgFormatHtml"),
                   ]]}
@@ -710,11 +740,19 @@ export function Playground() {
                     onChange={setOriginalGloss}
                   />
                 )}
+                <Field
+                  label={t("pgHanjaVariantSet")}
+                  value={hanjaVariantSet}
+                  options={HANJA_VARIANT_SET_OPTIONS}
+                  onChange={setHanjaVariantSet}
+                />
               </div>
             </div>
 
             <div className="playground-options-group">
-              <span className="playground-options-group-label">{t("pgGroupProcessing")}</span>
+              <span className="playground-options-group-label">
+                {t("pgGroupProcessing")}
+              </span>
               <div className="playground-options-group-controls">
                 <Field
                   label={t("pgSegmentation")}
@@ -745,7 +783,9 @@ export function Playground() {
             </div>
 
             <div className="playground-options-group">
-              <span className="playground-options-group-label">{t("pgGroupHomophone")}</span>
+              <span className="playground-options-group-label">
+                {t("pgGroupHomophone")}
+              </span>
               <div className="playground-options-group-controls">
                 <Field
                   label={t("pgHomophoneWindow")}
@@ -770,7 +810,9 @@ export function Playground() {
           </div>
 
           <div className="playground-dicts">
-            <span className="playground-dicts-label">{t("pgDictionaries")}</span>
+            <span className="playground-dicts-label">
+              {t("pgDictionaries")}
+            </span>
             <div className="playground-dicts-body">
               <Toggle
                 label={t("pgStdict")}
@@ -782,7 +824,10 @@ export function Playground() {
                 role="group"
                 aria-labelledby={opendictGroupId}
               >
-                <span id={opendictGroupId} className="playground-dicts-opendict-label">
+                <span
+                  id={opendictGroupId}
+                  className="playground-dicts-opendict-label"
+                >
                   {t("pgOpendictGroup")}
                 </span>
                 <div className="playground-dicts-opendict-toggles">
@@ -812,7 +857,9 @@ export function Playground() {
           </div>
 
           <details className="playground-advanced">
-            <summary>{format === "html" ? t("pgDirectivesHtml") : t("pgDirectives")}</summary>
+            <summary>
+              {format === "html" ? t("pgDirectivesHtml") : t("pgDirectives")}
+            </summary>
             <div className="playground-advanced-grid">
               <TextField
                 label={t("pgRequireHanja")}
@@ -874,10 +921,16 @@ export function Playground() {
                 : (
                   <div
                     className="playground-output playground-output--html"
-                    dangerouslySetInnerHTML={{ __html: renderPreview(output, format) }}
+                    dangerouslySetInnerHTML={{
+                      __html: renderPreview(output, format),
+                    }}
                   />
                 )}
-              {errorMsg && <p className="playground-convert-error" role="alert">{errorMsg}</p>}
+              {errorMsg && (
+                <p className="playground-convert-error" role="alert">
+                  {errorMsg}
+                </p>
+              )}
             </div>
           </div>
 
@@ -899,7 +952,11 @@ export function Playground() {
                   </button>
                 ))}
               </div>
-              <button type="button" className="playground-copy" onClick={copyExample}>
+              <button
+                type="button"
+                className="playground-copy"
+                onClick={copyExample}
+              >
                 {copied ? t("pgCopied") : t("pgCopy")}
               </button>
             </div>

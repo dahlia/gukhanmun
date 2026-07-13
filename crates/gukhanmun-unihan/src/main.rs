@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fmt::Write as _;
 use std::fs;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write as IoWrite};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use sha2::{Digest, Sha256};
 use zip::ZipArchive;
@@ -28,7 +29,12 @@ const UNICODE_VERSION: &str = "17.0.0";
 const UNIHAN_URL: &str = "https://www.unicode.org/Public/17.0.0/ucd/Unihan.zip";
 const UNIHAN_SHA256: &str = "f7a48b2b545acfaa77b2d607ae28747404ce02baefee16396c5d2d7a8ef34b5e";
 const EXPECTED_KHANGUL_ENTRY_COUNT: usize = 8_525;
+const EXPECTED_VARIANT_CLASS_COUNT: usize = 7_124;
+const EXPECTED_VARIANT_MEMBER_COUNT: usize = 14_944;
+const EXPECTED_JOYO_PAIR_COUNT: usize = 342;
+const EXPECTED_ASAHI_PAIR_COUNT: usize = 16;
 const GENERATED_PATH: &str = "crates/gukhanmun-core/src/generated/unihan_readings.rs";
+const GENERATED_VARIANTS_PATH: &str = "crates/gukhanmun-core/src/generated/hanja_variants.rs";
 
 // GPLv3 notice block prepended to the generated source.  The generator owns
 // the whole file (it overwrites it with `fs::write`), so it must emit the
@@ -69,7 +75,26 @@ fn main() -> Result<()> {
         )
         .into());
     }
-    let generated = render_generated(&readings);
+    let generated = format_rust_source(&render_generated(&readings))?;
+    let variants = parse_variants(
+        &read_zip_text(&zip_bytes, "Unihan_Variants.txt")?,
+        &read_zip_text(&zip_bytes, "Unihan_IRGSources.txt")?,
+        &fs::read_to_string(workspace_root.join("data/joyo-variants.tsv"))?,
+        &fs::read_to_string(workspace_root.join("data/asahi-variants.tsv"))?,
+    )?;
+    let variant_members = variants.classes.iter().map(Vec::len).sum::<usize>();
+    if variants.classes.len() != EXPECTED_VARIANT_CLASS_COUNT
+        || variant_members != EXPECTED_VARIANT_MEMBER_COUNT
+        || variants.joyo.len() != EXPECTED_JOYO_PAIR_COUNT
+        || variants.asahi.len() != EXPECTED_ASAHI_PAIR_COUNT
+    {
+        return Err(format!(
+            "variant data drifted: expected {EXPECTED_VARIANT_CLASS_COUNT} classes/{EXPECTED_VARIANT_MEMBER_COUNT} members/{EXPECTED_JOYO_PAIR_COUNT} Joyo/{EXPECTED_ASAHI_PAIR_COUNT} Asahi, got {}/{}/{}/{}",
+            variants.classes.len(), variant_members, variants.joyo.len(), variants.asahi.len()
+        ).into());
+    }
+    let generated_variants = format_rust_source(&render_generated_variants(&variants))?;
+    let variants_output_path = workspace_root.join(GENERATED_VARIANTS_PATH);
 
     if check {
         let current = fs::read_to_string(&output_path)?;
@@ -80,11 +105,20 @@ fn main() -> Result<()> {
             )
             .into());
         }
+        let current_variants = fs::read_to_string(&variants_output_path)?;
+        if current_variants != generated_variants {
+            return Err(format!(
+                "{} is not up to date; run `mise run generate-unihan`",
+                GENERATED_VARIANTS_PATH
+            )
+            .into());
+        }
         return Ok(());
     }
 
     fs::create_dir_all(output_path.parent().expect("generated path has a parent"))?;
     fs::write(output_path, generated)?;
+    fs::write(variants_output_path, generated_variants)?;
     Ok(())
 }
 
@@ -95,6 +129,27 @@ fn workspace_root() -> Result<PathBuf> {
         .and_then(Path::parent)
         .map(Path::to_path_buf)
         .ok_or_else(|| "failed to find workspace root".into())
+}
+
+fn format_rust_source(source: &str) -> Result<String> {
+    let mut child = Command::new("rustfmt")
+        .args(["--emit", "stdout", "--edition", "2024"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    let mut stdin = child.stdin.take().expect("rustfmt stdin is piped");
+    let output = std::thread::scope(|scope| -> Result<std::process::Output> {
+        let writer = scope.spawn(move || stdin.write_all(source.as_bytes()));
+        let output = child.wait_with_output()?;
+        writer
+            .join()
+            .map_err(|_| "rustfmt stdin writer panicked")??;
+        Ok(output)
+    })?;
+    if !output.status.success() {
+        return Err("rustfmt failed while formatting generated Rust source".into());
+    }
+    Ok(String::from_utf8(output.stdout)?)
 }
 
 fn unihan_zip_path(workspace_root: &Path) -> PathBuf {
@@ -143,11 +198,164 @@ fn verify_sha256(bytes: &[u8]) -> Result<()> {
 }
 
 fn read_unihan_readings(zip_bytes: &[u8]) -> Result<String> {
+    read_zip_text(zip_bytes, "Unihan_Readings.txt")
+}
+
+fn read_zip_text(zip_bytes: &[u8], name: &str) -> Result<String> {
     let mut archive = ZipArchive::new(Cursor::new(zip_bytes))?;
-    let mut file = archive.by_name("Unihan_Readings.txt")?;
+    let mut file = archive.by_name(name)?;
     let mut readings = String::new();
     file.read_to_string(&mut readings)?;
     Ok(readings)
+}
+
+#[derive(Debug)]
+struct Variants {
+    classes: Vec<Vec<char>>,
+    compatibility: Vec<(char, char)>,
+    simplified: Vec<(char, char)>,
+    traditional: Vec<(char, char)>,
+    z: Vec<(char, char)>,
+    joyo: Vec<(char, char)>,
+    asahi: Vec<(char, char)>,
+}
+
+fn parse_scalar(code: &str) -> Result<char> {
+    let code = code.strip_prefix("U+").ok_or("invalid Unihan scalar")?;
+    char::from_u32(u32::from_str_radix(code, 16)?)
+        .ok_or_else(|| "invalid Unihan scalar value".into())
+}
+
+fn variant_values(value: &str) -> Result<Vec<char>> {
+    value
+        .split_whitespace()
+        .map(|field| parse_scalar(field.split('<').next().unwrap_or(field)))
+        .collect()
+}
+
+fn parse_pair_file(input: &str) -> Result<Vec<(char, char)>> {
+    let mut pairs = Vec::new();
+    for line in input
+        .lines()
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+    {
+        let (new, old) = line.split_once('\t').ok_or("invalid variant pair row")?;
+        let mut new_chars = new.chars();
+        let Some(new_char) = new_chars.next() else {
+            continue;
+        };
+        if new_chars.next().is_some() {
+            continue;
+        }
+        for old in old.split_whitespace().flat_map(str::chars) {
+            pairs.push((old, new_char));
+        }
+    }
+    pairs.sort_unstable();
+    pairs.dedup();
+    Ok(pairs)
+}
+
+fn parse_variants(
+    variants_input: &str,
+    irg_input: &str,
+    joyo_input: &str,
+    asahi_input: &str,
+) -> Result<Variants> {
+    let joyo = parse_pair_file(joyo_input)?;
+    let asahi = parse_pair_file(asahi_input)?;
+    let mut edges = Vec::new();
+    let mut simplified = Vec::new();
+    let mut traditional = Vec::new();
+    let mut z = Vec::new();
+    for line in variants_input
+        .lines()
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+    {
+        let Some((code, property, value)) = parse_unihan_line(line) else {
+            continue;
+        };
+        if !matches!(
+            property,
+            "kZVariant" | "kSimplifiedVariant" | "kTraditionalVariant"
+        ) {
+            continue;
+        }
+        let source = parse_scalar(code)?;
+        let values = variant_values(value)?;
+        for target in &values {
+            edges.push((source, *target));
+        }
+        if let Some(target) = values.first().copied() {
+            match property {
+                "kSimplifiedVariant" => simplified.push((source, target)),
+                "kTraditionalVariant" if values.len() == 1 => traditional.push((source, target)),
+                "kZVariant" if values.len() == 1 => z.push((source, target)),
+                _ => {}
+            }
+        }
+    }
+    let mut compatibility = Vec::new();
+    for line in irg_input
+        .lines()
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+    {
+        let Some((code, property, value)) = parse_unihan_line(line) else {
+            continue;
+        };
+        if property == "kCompatibilityVariant" {
+            compatibility.push((parse_scalar(code)?, parse_scalar(value)?));
+        }
+    }
+    edges.extend(joyo.iter().copied());
+    edges.extend(asahi.iter().copied());
+    edges.extend(compatibility.iter().copied());
+    simplified.retain(|(source, target)| source != target);
+
+    let mut graph = BTreeMap::<char, BTreeSet<char>>::new();
+    for (left, right) in edges {
+        graph.entry(left).or_default().insert(right);
+        graph.entry(right).or_default().insert(left);
+    }
+    let mut seen = BTreeSet::new();
+    let mut classes = Vec::new();
+    for start in graph.keys().copied() {
+        if seen.contains(&start) {
+            continue;
+        }
+        let mut pending = vec![start];
+        let mut class = Vec::new();
+        while let Some(ch) = pending.pop() {
+            if !seen.insert(ch) {
+                continue;
+            }
+            class.push(ch);
+            if let Some(neighbors) = graph.get(&ch) {
+                pending.extend(neighbors.iter().copied());
+            }
+        }
+        class.sort_unstable();
+        classes.push(class);
+    }
+    classes.sort_by_key(|class| class[0]);
+    for pairs in [
+        &mut compatibility,
+        &mut simplified,
+        &mut traditional,
+        &mut z,
+    ] {
+        pairs.sort_unstable();
+        pairs.dedup();
+    }
+    Ok(Variants {
+        classes,
+        compatibility,
+        simplified,
+        traditional,
+        z,
+        joyo,
+        asahi,
+    })
 }
 
 fn parse_unihan_readings(input: &str) -> Result<Vec<(char, Vec<String>)>> {
@@ -290,10 +498,157 @@ fn render_generated(readings: &[(char, Vec<String>)]) -> String {
             .map(|reading| format!("\"{}\"", escape_rust_string(reading)))
             .collect::<Vec<_>>()
             .join(", ");
-        writeln!(output, "    ('\\u{{{:X}}}', &[{joined}]),", *ch as u32).unwrap();
+        let line = format!("    ('\\u{{{:X}}}', &[{joined}]),", *ch as u32);
+        if char_readings.len() < 4 {
+            writeln!(output, "{line}").unwrap();
+        } else {
+            writeln!(output, "    (").unwrap();
+            writeln!(output, "        '\\u{{{:X}}}',", *ch as u32).unwrap();
+            writeln!(output, "        &[{joined}],").unwrap();
+            writeln!(output, "    ),").unwrap();
+        }
     }
     writeln!(output, "];").unwrap();
     output
+}
+
+fn render_generated_variants(variants: &Variants) -> String {
+    let mut output = String::new();
+    output.push_str(&LICENSE_HEADER.replace(
+        "Generated Unihan kHangul fallback reading tables.",
+        "Generated Han character variant normalization tables.",
+    ));
+    writeln!(output).unwrap();
+    writeln!(
+        output,
+        "// @generated by gukhanmun-unihan. Do not edit by hand."
+    )
+    .unwrap();
+    writeln!(output, "// Unicode version: {UNICODE_VERSION}").unwrap();
+    writeln!(
+        output,
+        "// Sources: {UNIHAN_URL}, data/joyo-variants.tsv, data/asahi-variants.tsv"
+    )
+    .unwrap();
+    writeln!(output).unwrap();
+    render_pair_table(&mut output, "COMPATIBILITY_FOLDS", &variants.compatibility);
+    render_pair_table(&mut output, "SIMPLIFIED_FORMS", &variants.simplified);
+    render_pair_table(&mut output, "TRADITIONAL_FORMS", &variants.traditional);
+    render_pair_table(&mut output, "Z_FORMS", &variants.z);
+    render_pair_table(
+        &mut output,
+        "Z_CANONICAL_FORMS",
+        &canonical_component_forms(&variants.z),
+    );
+    render_pair_table(&mut output, "JOYO_FORMS", &variants.joyo);
+    render_pair_table(&mut output, "ASAHI_FORMS", &variants.asahi);
+    render_pair_table(
+        &mut output,
+        "COMPATIBILITY_REVERSE_FORMS",
+        &unique_reverse_pairs(&variants.compatibility),
+    );
+    render_pair_table(
+        &mut output,
+        "SIMPLIFIED_REVERSE_FORMS",
+        &unique_reverse_pairs(&variants.simplified),
+    );
+    render_pair_table(
+        &mut output,
+        "Z_REVERSE_FORMS",
+        &unique_reverse_pairs(&variants.z),
+    );
+    render_pair_table(
+        &mut output,
+        "JOYO_REVERSE_FORMS",
+        &unique_reverse_pairs(&variants.joyo),
+    );
+    render_pair_table(
+        &mut output,
+        "ASAHI_REVERSE_FORMS",
+        &unique_reverse_pairs(&variants.asahi),
+    );
+    render_char_table(&mut output, "JOYO_TARGETS", &targets(&variants.joyo));
+    render_char_table(&mut output, "ASAHI_TARGETS", &targets(&variants.asahi));
+    output
+}
+
+fn unique_reverse_pairs(pairs: &[(char, char)]) -> Vec<(char, char)> {
+    let mut sources = BTreeMap::<char, BTreeSet<char>>::new();
+    for (source, target) in pairs {
+        sources.entry(*target).or_default().insert(*source);
+    }
+    sources
+        .into_iter()
+        .filter_map(|(target, sources)| {
+            (sources.len() == 1).then(|| (target, *sources.first().expect("one source")))
+        })
+        .collect()
+}
+
+fn canonical_component_forms(pairs: &[(char, char)]) -> Vec<(char, char)> {
+    let mut graph = BTreeMap::<char, BTreeSet<char>>::new();
+    for (left, right) in pairs {
+        graph.entry(*left).or_default().insert(*right);
+        graph.entry(*right).or_default().insert(*left);
+    }
+    let mut seen = BTreeSet::new();
+    let mut canonical = Vec::new();
+    for start in graph.keys().copied() {
+        if seen.contains(&start) {
+            continue;
+        }
+        let mut pending = vec![start];
+        let mut members = Vec::new();
+        while let Some(ch) = pending.pop() {
+            if !seen.insert(ch) {
+                continue;
+            }
+            members.push(ch);
+            if let Some(neighbors) = graph.get(&ch) {
+                pending.extend(neighbors.iter().copied());
+            }
+        }
+        members.sort_unstable();
+        let representative = members[0];
+        canonical.extend(
+            members
+                .into_iter()
+                .skip(1)
+                .map(|member| (member, representative)),
+        );
+    }
+    canonical.sort_unstable();
+    canonical
+}
+
+fn targets(pairs: &[(char, char)]) -> Vec<char> {
+    pairs
+        .iter()
+        .map(|(_, target)| *target)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn render_pair_table(output: &mut String, name: &str, pairs: &[(char, char)]) {
+    writeln!(output, "pub(crate) static {name}: &[(char, char)] = &[").unwrap();
+    for (from, to) in pairs {
+        writeln!(
+            output,
+            "    ('\\u{{{:X}}}', '\\u{{{:X}}}'),",
+            *from as u32, *to as u32
+        )
+        .unwrap();
+    }
+    writeln!(output, "];").unwrap();
+}
+
+fn render_char_table(output: &mut String, name: &str, chars: &[char]) {
+    writeln!(output, "pub(crate) static {name}: &[char] = &[").unwrap();
+    for ch in chars {
+        writeln!(output, "    '\\u{{{:X}}}',", *ch as u32).unwrap();
+    }
+    writeln!(output, "];").unwrap();
 }
 
 fn escape_rust_string(s: &str) -> String {
@@ -309,8 +664,8 @@ fn escape_rust_string(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        canonical_khangul_reading, ordered_khangul_readings, parse_unihan_readings,
-        render_generated,
+        canonical_component_forms, canonical_khangul_reading, ordered_khangul_readings,
+        parse_unihan_readings, parse_variants, render_generated, unique_reverse_pairs,
     };
     use proptest::prelude::*;
 
@@ -319,6 +674,43 @@ mod tests {
             .iter()
             .map(|reading| (*reading).to_owned())
             .collect()
+    }
+
+    #[test]
+    fn variant_parser_builds_transitive_classes_and_directional_maps() {
+        let variants = parse_variants(
+            "U+4E00\tkSimplifiedVariant\tU+4E01\nU+4E01\tkSimplifiedVariant\tU+4E02\nU+4E02\tkSimplifiedVariant\tU+4E02\nU+82B8\tkTraditionalVariant\tU+85DD\nU+85DD\tkZVariant\tU+85DD<kMatthews\n",
+            "U+FA19\tkCompatibilityVariant\tU+795E\n",
+            "芸\t藝\n",
+            "侠\t俠\n",
+        )
+        .unwrap();
+        assert!(
+            variants
+                .classes
+                .iter()
+                .any(|class| class.contains(&'芸') && class.contains(&'藝'))
+        );
+        assert_eq!(variants.joyo, vec![('藝', '芸')]);
+        assert_eq!(variants.asahi, vec![('俠', '侠')]);
+        assert_eq!(variants.compatibility, vec![('神', '神')]);
+        assert_eq!(variants.simplified, vec![('一', '丁'), ('丁', '丂')]);
+    }
+
+    #[test]
+    fn reverse_variant_index_keeps_only_unique_sources() {
+        assert_eq!(
+            unique_reverse_pairs(&[('發', '发'), ('髮', '发'), ('藝', '艺')]),
+            vec![('艺', '藝')]
+        );
+    }
+
+    #[test]
+    fn z_variant_components_choose_the_lowest_scalar_once() {
+        assert_eq!(
+            canonical_component_forms(&[('値', '值'), ('值', '値'), ('叱', '𠮟'), ('𠮟', '叱'),]),
+            vec![('值', '値'), ('𠮟', '叱')]
+        );
     }
 
     #[test]

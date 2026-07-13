@@ -32,6 +32,15 @@ The Unicode version and the expected SHA-256 of *Unihan.zip* are pinned as
 constants in the source. A checksum mismatch causes the tool to abort, so
 accidental use of a different Unicode release is caught immediately.
 
+The same run also reads `kZVariant`, `kSimplifiedVariant`,
+`kTraditionalVariant`, and `kCompatibilityVariant`, then combines them with
+the pinned Joyo and Asahi snapshots under *data/*. It builds equivalence
+classes to validate source-data coverage, then emits the directional tables
+and unambiguous reverse indexes used for dictionary recognition and hanja
+variant-set output profiles. `kSemanticVariant`,
+`kSpecializedSemanticVariant`, and `kSpoofingVariant` are intentionally not
+used.
+
 
 Running
 -------

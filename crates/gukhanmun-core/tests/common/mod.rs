@@ -107,6 +107,7 @@ fn token_to_value<S: ScopeData + SnapshotScope>(token: &OutputToken<S>) -> Value
 fn annotation_to_value(ann: &Annotation) -> Value {
     json!({
         "hanja": ann.hanja,
+        "dictionary_hanja": ann.dictionary_hanja,
         "reading": ann.reading,
         "homophone": ann.homophone,
         "require_hanja": ann.require_hanja,

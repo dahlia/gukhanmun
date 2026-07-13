@@ -153,6 +153,30 @@ fn rendering_option_selects_parenthesized_output() {
 }
 
 #[test]
+fn hanja_variant_set_changes_hanja_output_after_variant_recognition() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--rendering", "original"])
+        .write_stdin("芸術\n")
+        .assert()
+        .success()
+        .stdout("藝術\n");
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--rendering",
+            "original",
+            "--hanja-variant-set",
+            "shinjitai",
+        ])
+        .write_stdin("芸術\n")
+        .assert()
+        .success()
+        .stdout("芸術\n");
+}
+
+#[test]
 fn ruby_rendering_in_plain_text_falls_back_to_parens() {
     Command::cargo_bin("gukhanmun")
         .unwrap()

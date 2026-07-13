@@ -51,6 +51,7 @@ import type {
   Format,
   Gukhanmun,
   GukhanmunOptions,
+  HanjaVariantSet,
   HomophoneDetection,
   NumeralStrategy,
   Preset,
@@ -70,6 +71,7 @@ export type {
   Gukhanmun,
   GukhanmunFactory,
   GukhanmunOptions,
+  HanjaVariantSet,
   HomophoneDetection,
   HtmlOptions,
   NumeralStrategy,
@@ -289,6 +291,7 @@ async function resolveDictionary(
 interface ResolvedOptions {
   readonly preset: Preset;
   readonly rendering: RenderMode;
+  readonly hanjaVariantSet: HanjaVariantSet;
   readonly segmentation: Segmentation;
   readonly numerals: NumeralStrategy;
   readonly initialSoundLaw: boolean;
@@ -305,6 +308,7 @@ function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
   return {
     preset,
     rendering: opts.rendering ?? "hangul-only",
+    hanjaVariantSet: opts.hanjaVariantSet ?? "as-dictionary",
     segmentation: opts.segmentation ?? "lattice",
     numerals: opts.numerals ?? "hangul-phonetic",
     initialSoundLaw: opts.initialSoundLaw ?? (koKp ? false : true),
@@ -325,6 +329,7 @@ function buildRawOptions(
   const raw: Record<string, unknown> = {
     preset: resolved.preset,
     rendering: resolved.rendering,
+    hanjaVariantSet: resolved.hanjaVariantSet,
     segmentation: resolved.segmentation,
     numerals: resolved.numerals,
     initialSoundLaw: resolved.initialSoundLaw,

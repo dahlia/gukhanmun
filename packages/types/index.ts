@@ -78,6 +78,14 @@ export type RenderMode =
   | "ruby-on-hanja"
   | "original";
 
+/** The hanja variant set applied after dictionary recognition. */
+export type HanjaVariantSet =
+  | "as-dictionary"
+  | "shinjitai"
+  | "kanxi"
+  | "simplified"
+  | "asahimoji";
+
 /**
  * Selects how glosses are rendered when {@link RenderMode} is `"original"`.
  *
@@ -379,6 +387,8 @@ export interface GukhanmunOptions {
    * @see {@link OriginalGloss}
    */
   readonly originalGloss?: OriginalGloss;
+  /** The hanja variant set. Defaults to `"as-dictionary"`. */
+  readonly hanjaVariantSet?: HanjaVariantSet;
   /**
    * Hanja-span segmentation algorithm.  Defaults to `"lattice"`.
    *

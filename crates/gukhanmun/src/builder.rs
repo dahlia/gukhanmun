@@ -20,11 +20,12 @@
 use gukhanmun_core::recover_input_tokens;
 use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter,
-    HanjaDictionary, HomophoneDetection, HomophoneMarker, InputToken, NumeralStrategy, OutputToken,
-    PlainScopeData, Recovery, RedundantParenCollapser, RenderOptions, RenderedToken, ScopeData,
-    SegmentationStrategy, UserDirectives, apply_user_directives, apply_user_directives_iter,
-    collapse_redundant_parens, filter_first_occurrences, mark_homophones_with_detection,
-    process_tokens_iter_with_options, read_plain_text, render_tokens_iter, write_plain_text,
+    HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken,
+    NumeralStrategy, OutputToken, PlainScopeData, Recovery, RedundantParenCollapser, RenderMode,
+    RenderOptions, RenderedToken, ScopeData, SegmentationStrategy, UserDirectives,
+    apply_user_directives, apply_user_directives_iter, collapse_redundant_parens,
+    filter_first_occurrences, mark_homophones_with_detection, process_tokens_iter_with_options,
+    read_plain_text, render_tokens_iter, write_plain_text,
 };
 
 #[cfg(any(not(feature = "opendict"), not(feature = "stdict")))]
@@ -39,6 +40,33 @@ use gukhanmun_html::{
 };
 #[cfg(feature = "markdown")]
 use gukhanmun_markdown::{MarkdownScopeData, MarkdownVariant, read_markdown_iter, write_markdown};
+
+/// Rendering configuration accepted by [`Builder::rendering`].
+///
+/// A bare [`RenderMode`] replaces the mode while preserving a variant set
+/// selected separately through [`Builder::hanja_variant_set`]. A complete
+/// [`RenderOptions`] value replaces every rendering option, including the
+/// variant set.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BuilderRendering {
+    /// Changes the rendering mode while retaining separately configured axes.
+    Mode(RenderMode),
+
+    /// Replaces the complete rendering configuration.
+    Options(RenderOptions),
+}
+
+impl From<RenderMode> for BuilderRendering {
+    fn from(mode: RenderMode) -> Self {
+        Self::Mode(mode)
+    }
+}
+
+impl From<RenderOptions> for BuilderRendering {
+    fn from(options: RenderOptions) -> Self {
+        Self::Options(options)
+    }
+}
 
 /// Adapter iterator that wraps a streaming [`Engine`] as
 /// `Iterator<Item = OutputToken<S>>` over an arbitrary input-token source.
@@ -96,6 +124,7 @@ type BoxedDictionary<'a> = Box<dyn HanjaDictionary + 'a>;
 /// preset resolution.
 pub struct Builder<'a> {
     options: ConversionOptions,
+    hanja_variant_set_override: Option<HanjaVariantSet>,
     bundled_stdict: bool,
     bundled_opendict_north_korean: bool,
     dictionaries: Vec<BoxedDictionary<'a>>,
@@ -120,6 +149,7 @@ impl<'a> Builder<'a> {
     pub fn with_preset(preset: Preset) -> Self {
         Self {
             options: preset.options(),
+            hanja_variant_set_override: None,
             bundled_stdict: preset.includes_bundled_stdict(),
             bundled_opendict_north_korean: preset.includes_bundled_opendict_north_korean(),
             dictionaries: Vec::new(),
@@ -133,8 +163,26 @@ impl<'a> Builder<'a> {
     ///
     /// Accepts either a bare [`RenderMode`](gukhanmun_core::RenderMode) or a
     /// fully populated [`RenderOptions`] value.
-    pub fn rendering(mut self, rendering: impl Into<RenderOptions>) -> Self {
-        self.options.rendering = rendering.into();
+    pub fn rendering(mut self, rendering: impl Into<BuilderRendering>) -> Self {
+        match rendering.into() {
+            BuilderRendering::Mode(mode) => {
+                self.options.rendering = mode.into();
+                if let Some(variant_set) = self.hanja_variant_set_override {
+                    self.options.rendering.hanja_variant_set = variant_set;
+                }
+            }
+            BuilderRendering::Options(options) => {
+                self.options.rendering = options;
+                self.hanja_variant_set_override = None;
+            }
+        }
+        self
+    }
+
+    /// Selects the hanja variant set used by every rendering mode.
+    pub fn hanja_variant_set(mut self, variant_set: HanjaVariantSet) -> Self {
+        self.hanja_variant_set_override = Some(variant_set);
+        self.options.rendering.hanja_variant_set = variant_set;
         self
     }
 
@@ -305,6 +353,7 @@ impl<'a> Builder<'a> {
     pub fn build(self) -> Result<Converter<'a>> {
         let Self {
             options,
+            hanja_variant_set_override: _,
             bundled_stdict,
             bundled_opendict_north_korean,
             dictionaries,
