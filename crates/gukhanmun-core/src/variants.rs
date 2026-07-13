@@ -129,8 +129,8 @@ where
         if selected.is_empty() {
             continue;
         }
-        resolved.retain(|matched| matched.source_byte_len != source_byte_len);
         if selected.iter().any(|(index, _)| *index == 0) {
+            resolved.retain(|matched| matched.source_byte_len != source_byte_len);
             resolved.extend(selected.into_iter().filter(|(index, _)| *index == 0).map(
                 |(_, matched)| ResolvedMatch {
                     matched,
@@ -151,6 +151,7 @@ where
             continue;
         }
         if let Some((_, dictionary_hanja, matched)) = matches.into_iter().next() {
+            resolved.retain(|matched| matched.source_byte_len != source_byte_len);
             resolved.push(ResolvedMatch {
                 matched,
                 source_byte_len,

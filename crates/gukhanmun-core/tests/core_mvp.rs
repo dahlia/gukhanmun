@@ -323,6 +323,56 @@ fn custom_dictionary_exact_results_override_variant_results() {
 }
 
 #[test]
+fn ambiguous_variant_results_preserve_an_existing_exact_match() {
+    struct ExactAndAmbiguousVariantsDictionary;
+
+    impl HanjaDictionary for ExactAndAmbiguousVariantsDictionary {
+        fn matches_at<'a>(&'a self, source: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            let matches = source.starts_with("发").then(|| Match {
+                byte_len: "发".len(),
+                reading: "발".into(),
+                suffix_reading: None,
+                mark: MatchMark::default(),
+            });
+            Box::new(matches.into_iter())
+        }
+
+        fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
+            [("發", "팔"), ("髮", "모")]
+                .into_iter()
+                .map(|(spelling, reading)| {
+                    let index = spellings
+                        .iter()
+                        .position(|candidate| *candidate == spelling)
+                        .expect("recognition includes both ambiguous forms");
+                    (
+                        index,
+                        Match {
+                            byte_len: spelling.len(),
+                            reading: reading.into(),
+                            suffix_reading: None,
+                            mark: MatchMark::default(),
+                        },
+                    )
+                })
+                .collect()
+        }
+    }
+
+    let tokens = process_tokens(
+        vec![InputToken::<PlainScopeData>::Text("发".into())],
+        &ExactAndAmbiguousVariantsDictionary,
+    );
+    let annotation = match &tokens[0] {
+        OutputToken::Annotated(annotation) => annotation,
+        other => panic!("expected annotation, got {other:?}"),
+    };
+
+    assert_eq!(annotation.reading, "발");
+    assert_eq!(annotation.dictionary_hanja.as_deref(), Some("发"));
+}
+
+#[test]
 fn variant_recognition_does_not_cross_senses_joined_by_a_simplified_form() {
     for unrelated_hanja in ["干", "幹"] {
         let mut dict = MapDictionary::new();
