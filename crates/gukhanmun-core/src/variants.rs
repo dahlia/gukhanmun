@@ -137,12 +137,12 @@ where
             }));
             continue;
         }
-        let mut matches = Vec::<(usize, String, Match)>::new();
+        let mut matches = Vec::<(usize, &str, Match)>::new();
         for (candidate_index, matched) in selected {
             let (candidate, substitutions) = &candidates[candidate_index];
-            matches.push((*substitutions, candidate.clone(), matched));
+            matches.push((*substitutions, candidate.as_str(), matched));
         }
-        matches.sort_by(|left, right| (left.0, &left.1).cmp(&(right.0, &right.1)));
+        matches.sort_by(|left, right| (left.0, left.1).cmp(&(right.0, right.1)));
         matches.dedup_by(|left, right| left.1 == right.1 && left.2 == right.2);
         if matches.len() != 1 {
             continue;
@@ -151,7 +151,7 @@ where
             resolved.push(ResolvedMatch {
                 matched,
                 source_byte_len,
-                dictionary_hanja,
+                dictionary_hanja: dictionary_hanja.into(),
             });
         }
     }
