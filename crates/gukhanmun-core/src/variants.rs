@@ -218,7 +218,10 @@ fn asahimoji_char(ch: char) -> char {
     asahimoji_char_folded(ch, compatibility_fold(ch))
 }
 
-const MAX_RECOGNITION_VARIANTS: usize = 10;
+const RECOGNITION_PROJECTION_COUNT: usize = 7;
+const RECOGNITION_REVERSE_TABLE_COUNT: usize = 3;
+const MAX_RECOGNITION_VARIANTS: usize =
+    RECOGNITION_PROJECTION_COUNT + RECOGNITION_REVERSE_TABLE_COUNT;
 
 struct RecognitionVariants {
     values: [char; MAX_RECOGNITION_VARIANTS],
@@ -249,7 +252,7 @@ impl RecognitionVariants {
 fn recognition_variants(ch: char) -> RecognitionVariants {
     let mut choices = RecognitionVariants::new();
     let folded = compatibility_fold(ch);
-    for variant in [
+    let projections: [char; RECOGNITION_PROJECTION_COUNT] = [
         ch,
         folded,
         map_char(ch, Z_FORMS),
@@ -257,14 +260,16 @@ fn recognition_variants(ch: char) -> RecognitionVariants {
         kanxi_char_folded(folded),
         simplified_char_folded(folded),
         asahimoji_char_folded(ch, folded),
-    ] {
-        choices.push_unique(variant);
+    ];
+    for projection in projections {
+        choices.push_unique(projection);
     }
-    for table in [
+    let reverse_tables: [&[(char, char)]; RECOGNITION_REVERSE_TABLE_COUNT] = [
         COMPATIBILITY_REVERSE_FORMS,
         Z_REVERSE_FORMS,
         ASAHI_REVERSE_FORMS,
-    ] {
+    ];
+    for table in reverse_tables {
         if let Some(source) = unique_source_for_target(ch, table) {
             choices.push_unique(source);
         }
