@@ -124,7 +124,8 @@ where
             .iter()
             .map(|(candidate, _)| candidate.as_str())
             .collect::<Vec<_>>();
-        let selected = dictionary.matches_at_spellings(&spellings);
+        let mut selected = dictionary.matches_at_spellings(&spellings);
+        selected.retain(|(candidate_index, _)| *candidate_index < candidates.len());
         if selected.is_empty() {
             continue;
         }

@@ -241,6 +241,38 @@ fn ambiguous_variant_match_metadata_falls_back_instead_of_guessing() {
 }
 
 #[test]
+fn invalid_custom_variant_candidate_indices_are_ignored() {
+    struct InvalidCandidateDictionary;
+
+    impl HanjaDictionary for InvalidCandidateDictionary {
+        fn matches_at<'a>(&'a self, _: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            Box::new(core::iter::empty())
+        }
+
+        fn matches_at_spellings(&self, _: &[&str]) -> Vec<(usize, Match)> {
+            vec![(
+                usize::MAX,
+                Match {
+                    byte_len: "藝".len(),
+                    reading: "예".into(),
+                    suffix_reading: None,
+                    mark: MatchMark::default(),
+                },
+            )]
+        }
+    }
+
+    let tokens = process_tokens(
+        vec![InputToken::<PlainScopeData>::Text("芸".into())],
+        &InvalidCandidateDictionary,
+    );
+
+    assert!(tokens.iter().all(|token| {
+        !matches!(token, OutputToken::Annotated(annotation) if annotation.from_dictionary)
+    }));
+}
+
+#[test]
 fn variant_recognition_does_not_cross_senses_joined_by_a_simplified_form() {
     for unrelated_hanja in ["干", "幹"] {
         let mut dict = MapDictionary::new();
