@@ -184,9 +184,45 @@ let mut dictionary = MapDictionary::new();
 dictionary.insert_candidates("東京", candidates);
 ~~~~
 
-The default selector chooses `도쿄`. It preserves a following particle as
-written; it does not yet use particles to select a reading. A higher-priority
+The context-free default is `도쿄`. Conversion selects `동경` in `東京을`
+and `도쿄` in `東京를`, leaving the particle unchanged. A higher-priority
 dictionary replaces the whole set for `東京`. Use `candidate_matches_at()` or
 `candidate_entries()` to inspect alternatives; `matches_at()` and `entries()`
 expose only the selected default. FST/CDB `lookup().candidates()` exposes the
 same sets.
+
+### Particle evidence and limits
+
+The filter runs automatically after dictionary precedence and variant identity
+resolution. It keeps the first compatible candidate in preference order;
+uncertain context or an empty survivor set uses the default. An override that
+leaves a single reading therefore stays authoritative. Candidate marks and
+positional spellings travel with the selected reading. Unknown endings remain
+eligible. If a custom candidate's initial and suffix spellings disagree, either
+compatible or unknown ending keeps that candidate eligible.
+
+Supported particles are `을/를`, `은/는`, `이/가`, `과/와`, and `으로/로`,
+including the rieul exception. Supported combinations are `으로는`, `으로도`,
+`으로만`, `로는`, `로도`, `로만`, `과는`, `과도`, `과만`, `와는`, `와도`,
+and `와만`. A complete suffix must end at whitespace, EOF, a block boundary
+reported by the reader, or `.,!?:;)]}。、！？，：；）】」』`. Copulas such as
+`이다`, lexical prefixes such as `이름`, and unsupported combinations keep the
+default.
+
+Streaming holds four extra source scalars beyond dictionary lookahead.
+`finish()` proves EOF; calling `flush()` inside a word may forfeit evidence.
+Inline markup, preserved/verbatim transitions, Markdown soft/hard line breaks
+and links, HTML `br`, literal entities, and unlisted quotation marks do not
+prove a boundary. For example, `[東京을](u)` keeps the default, while a space
+after `을` supplies evidence. The engine never connects the particle across
+separate inline tokens.
+
+Dictionary-wide homophone detection indexes context-free defaults and queries
+the emitted reading. A selected alternate may be marked as a homophone of
+another key's default, while unused alternatives alone do not create marks.
+Context-local detection compares the readings actually emitted in the active
+window.
+
+If the document ends right after a root inline close such as `<b>東京을</b>`,
+EOF still supplies evidence. A later token or explicit `flush()` treats that
+boundary as uncertain.

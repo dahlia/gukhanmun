@@ -232,8 +232,8 @@ impl ReadingCandidates {
 /// Selects the recorded default, independently of candidate collection.
 ///
 /// Sets have already been restricted by dictionary precedence and normalized.
-/// This first selector uses no text context, so chunk boundaries cannot change
-/// its answer. Positional spelling is applied later by the engine.
+/// This selector uses no text context. The engine may choose a different allowed
+/// candidate from following particle evidence, before applying positional spelling.
 pub fn select_default_reading(candidates: &ReadingCandidates) -> &ReadingCandidate {
     &candidates.0[0]
 }

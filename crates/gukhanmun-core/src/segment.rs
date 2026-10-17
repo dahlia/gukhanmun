@@ -34,6 +34,7 @@ pub(crate) enum Segment {
         suffix_reading: Option<String>,
         mark: MatchMark,
         dictionary_hanja: String,
+        pending_selection: bool,
     },
     TrivialDictionary {
         byte_start: usize,
@@ -42,6 +43,7 @@ pub(crate) enum Segment {
         suffix_reading: Option<String>,
         mark: MatchMark,
         dictionary_hanja: String,
+        pending_selection: bool,
     },
     Fallback {
         byte_start: usize,
@@ -100,11 +102,20 @@ fn segment_for_dictionary_match(
     source: &str,
     byte_start: usize,
     byte_end: usize,
-    reading: String,
-    suffix_reading: Option<String>,
-    mark: MatchMark,
-    dictionary_hanja: String,
+    resolved: variants::ResolvedMatch,
 ) -> Segment {
+    let variants::ResolvedMatch {
+        matched:
+            crate::Match {
+                reading,
+                suffix_reading,
+                mark,
+                ..
+            },
+        dictionary_hanja,
+        pending_selection,
+        ..
+    } = resolved;
     if is_trivial_single_char_match(source, &reading, suffix_reading.as_deref(), mark) {
         Segment::TrivialDictionary {
             byte_start,
@@ -113,6 +124,7 @@ fn segment_for_dictionary_match(
             suffix_reading,
             mark,
             dictionary_hanja,
+            pending_selection,
         }
     } else {
         Segment::Dictionary {
@@ -122,6 +134,7 @@ fn segment_for_dictionary_match(
             suffix_reading,
             mark,
             dictionary_hanja,
+            pending_selection,
         }
     }
 }
@@ -192,7 +205,12 @@ impl Score {
     }
 }
 
-pub(crate) fn segment_text<D>(text: &str, dictionary: &D, options: EngineOptions) -> Vec<Segment>
+pub(crate) fn segment_text<D>(
+    text: &str,
+    dictionary: &D,
+    options: EngineOptions,
+    final_end: bool,
+) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
 {
@@ -208,7 +226,11 @@ where
         let span = &text[cursor..span_end];
         if span.chars().any(is_hanja) {
             segments.extend(segment_span_with_strategy(
-                span, cursor, dictionary, options,
+                span,
+                cursor,
+                dictionary,
+                options,
+                span_end < text.len() || final_end,
             ));
         } else {
             segments.push(Segment::Text {
@@ -227,15 +249,18 @@ fn segment_span_with_strategy<D>(
     byte_offset: usize,
     dictionary: &D,
     options: EngineOptions,
+    final_end: bool,
 ) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
 {
     match options.segmentation {
         SegmentationStrategy::Lattice => {
-            segment_span_lattice(span, byte_offset, dictionary, options)
+            segment_span_lattice(span, byte_offset, dictionary, options, final_end)
         }
-        SegmentationStrategy::Eager => segment_span_eager(span, byte_offset, dictionary, options),
+        SegmentationStrategy::Eager => {
+            segment_span_eager(span, byte_offset, dictionary, options, final_end)
+        }
     }
 }
 
@@ -244,6 +269,7 @@ fn segment_span_lattice<D>(
     byte_offset: usize,
     dictionary: &D,
     options: EngineOptions,
+    final_end: bool,
 ) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
@@ -269,7 +295,7 @@ where
         let byte_start = boundaries[start_char];
         let lookup = lookup_suffix(span, &boundaries, start_char, max_word_chars);
         let dictionary_matches = if lookup.chars().any(is_hanja) {
-            variants::matches_at(lookup, dictionary)
+            variants::matches_at(lookup, dictionary, &span[byte_start..], final_end)
         } else {
             Vec::new()
         };
@@ -302,7 +328,6 @@ where
 
         if !dictionary_matches.is_empty() {
             for resolved in dictionary_matches {
-                let matched = resolved.matched;
                 let Some(byte_end) = byte_start.checked_add(resolved.source_byte_len) else {
                     continue;
                 };
@@ -326,10 +351,7 @@ where
                         source,
                         byte_offset + byte_start,
                         byte_offset + byte_end,
-                        matched.reading,
-                        matched.suffix_reading,
-                        matched.mark,
-                        resolved.dictionary_hanja,
+                        resolved,
                     ),
                 );
             }
@@ -374,6 +396,7 @@ fn segment_span_eager<D>(
     byte_offset: usize,
     dictionary: &D,
     options: EngineOptions,
+    final_end: bool,
 ) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
@@ -393,7 +416,7 @@ where
             && let Some(matched) = arabic_numeral_at(&chars, start_char, options.numeral_strategy)
         {
             let dictionary_matches = if lookup.chars().any(is_hanja) {
-                variants::matches_at(lookup, dictionary)
+                variants::matches_at(lookup, dictionary, &span[byte_start..], final_end)
             } else {
                 Vec::new()
             };
@@ -418,7 +441,7 @@ where
 
         if lookup.chars().any(is_hanja)
             && let Some((matched, end_char)) =
-                longest_match(span, &boundaries, start_char, lookup, dictionary)
+                longest_match(span, &boundaries, start_char, lookup, dictionary, final_end)
         {
             let Some(byte_end) = byte_start.checked_add(matched.source_byte_len) else {
                 continue;
@@ -428,10 +451,7 @@ where
                 source,
                 byte_offset + byte_start,
                 byte_offset + byte_end,
-                matched.matched.reading,
-                matched.matched.suffix_reading,
-                matched.matched.mark,
-                matched.dictionary_hanja,
+                matched,
             ));
             start_char = end_char;
             continue;
@@ -555,6 +575,7 @@ fn longest_match<D>(
     start_char: usize,
     lookup: &str,
     dictionary: &D,
+    final_end: bool,
 ) -> Option<(variants::ResolvedMatch, usize)>
 where
     D: HanjaDictionary + ?Sized,
@@ -563,7 +584,7 @@ where
     let char_count = boundaries.len().saturating_sub(1);
     let mut best: Option<(variants::ResolvedMatch, usize)> = None;
 
-    for matched in variants::matches_at(lookup, dictionary) {
+    for matched in variants::matches_at(lookup, dictionary, &span[byte_start..], final_end) {
         let Some(byte_end) = byte_start.checked_add(matched.source_byte_len) else {
             continue;
         };
@@ -732,6 +753,7 @@ mod tests {
                     segmentation: SegmentationStrategy::Lattice,
                     ..EngineOptions::default()
                 },
+                true,
             );
             assert_segments_cover_input(&input, segments)?;
         }
@@ -746,6 +768,7 @@ mod tests {
                     segmentation: SegmentationStrategy::Eager,
                     ..EngineOptions::default()
                 },
+                true,
             );
             assert_segments_cover_input(&input, segments)?;
         }

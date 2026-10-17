@@ -523,7 +523,8 @@ default preference together. `ReadingCandidates` validates and deduplicates
 these pairs, merging marks only for identical pairs. It normalizes the minimum
 preference to zero and sorts by descending preference, then reading and suffix.
 `select_default_reading` chooses the first candidate without consulting text.
-Profiles and contextual filters remain future work.
+Profiles remain future work; the engine applies the conservative particle
+filter below by default.
 
 `HanjaDictionary::candidate_matches_at()` and `candidate_entries()` expose the
 full sets. Their default implementations wrap each existing `Match` or
@@ -538,14 +539,66 @@ Variant resolution compares canonical spellings and their complete candidate
 sets before choosing a reading. Selection happens before segmentation scores
 or classifies a dictionary edge, because the chosen marks and positional forms
 can affect fallback coalescing. The existing positional-reading step runs after
-segmentation. The default selector needs no additional lookahead, so eager,
-lattice, streaming and one-shot conversion use the same decision.
+segmentation. The engine retains four additional source scalars beyond
+dictionary lookahead so eager, lattice, streaming and one-shot conversion use
+the same evidence.
 
-Dictionary-wide homophone detection indexes only the chosen candidate's initial
-and suffix readings, excluding unselected lexical alternatives. Custom
-lookup-only chains retain the existing per-child homophone fallback limitation.
-The *Standard Korean Language Dictionary* snapshot records source identifiers
-and curated tie-breaking decisions outside the runtime binary.
+Dictionary-wide homophone detection indexes context-free default initial and
+suffix readings, then queries the actual emitted reading. Unused alternatives
+never create collisions by themselves. Context-local detection compares actual
+emitted readings. Custom lookup-only chains retain the existing per-child
+homophone fallback limitation. The *Standard Korean Language Dictionary*
+snapshot records source identifiers and curated tie-breaking decisions outside
+the runtime binary.
+
+### Particle evidence
+
+After resolving a complete key and its candidate set, the engine chooses the
+first candidate compatible with an immediately following Korean particle.
+`을/를`, `은/는`, `이/가`, and `과/와` distinguish consonant and vowel endings;
+`으로/로` also handles the rieul exception. The finite grammar additionally
+accepts `으로는`, `으로도`, `으로만`, `로는`, `로도`, `로만`, `과는`, `과도`,
+`과만`, `와는`, `와도`, and `와만`. The source particle is never rewritten.
+The entire suffix needs a witness: whitespace, EOF, a block boundary reported
+by the reader, or one of `.,!?:;)]}。、！？，：；）】」』`. Unsupported
+combinations, copulas such as `이다`, and lexical prefixes such as `이름`
+supply no evidence.
+
+Endings use the final precomposed hangul syllable. Unknown endings stay
+eligible, and a custom candidate remains eligible if either its initial or
+suffix form is compatible or unknown. Several survivors retain preference
+order; when no candidate survives or context is uncertain, the default is kept.
+The heuristic neither revives candidates removed by overrides nor resolves
+semantic ambiguity. A longer mixed-script key consumes its complete spelling
+before context is examined. Variant identity is resolved on full candidate
+sets, and context starts after the matched source bytes, even when variant byte
+widths differ.
+
+Incremental chunk ends do not prove EOF. Inline, preserved, or verbatim
+transitions alone do not supply a witness. `finish()` supplies EOF; explicit
+`flush()` emits conservatively and can forfeit evidence when called inside a
+word. Textual whitespace remains a witness in either case. Pending
+multi-candidate edges also hold a preceding fallback run until selection is
+stable, preserving annotation grouping. The engine allows four extra source
+scalars for particle lookahead in its tail, never in the dictionary lookup
+bound.
+
+The following examples assume a controlled dictionary containing `東京` but no
+longer `東京이` key. The bundled dictionary has `東京이 → 동경이`, which takes
+precedence and makes `東京이다` become `동경이다`.
+
+The engine does not connect particle evidence across inline tokens. Markdown
+soft/hard line breaks and links, HTML `br`, literal entities such as `&nbsp;`,
+and quotation marks outside the witness set can therefore miss evidence. For
+example, `[東京을](u)` and `東京을<br>` keep the default, while a space after
+`을`, as in `[東京을 ](u)`, supplies evidence. `東京이<b>다</b>` and
+`*東京이*다` also keep the default.
+
+A sole non-block root `Close` is deferred until the next token or EOF. EOF can
+therefore supply evidence before a root inline close, such as `<b>東京을</b>`;
+a later token or explicit `flush()` resolves that endpoint as unknown. This
+also preserves the plain reader's `Open`/`Text`/`Close` shape without adding
+block boundaries to plain-text middleware contexts.
 
 
 Variant normalization
