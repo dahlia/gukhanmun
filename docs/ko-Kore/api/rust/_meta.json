@@ -21,6 +21,11 @@
   },
   {
     "type": "custom-link",
+    "label": "gukhanmun-loanwords",
+    "link": "https://docs.rs/gukhanmun-loanwords/"
+  },
+  {
+    "type": "custom-link",
     "label": "gukhanmun-cdb",
     "link": "https://docs.rs/gukhanmun-cdb/"
   },

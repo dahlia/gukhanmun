@@ -145,3 +145,9 @@ pub mod stdict {
 pub mod opendict {
     pub use gukhanmun_opendict::*;
 }
+
+/// Bundled NIKL loanword examples, independently selectable and offline.
+#[cfg(feature = "loanwords")]
+pub mod loanwords {
+    pub use gukhanmun_loanwords::*;
+}

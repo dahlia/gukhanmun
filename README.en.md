@@ -184,18 +184,19 @@ Crates
 
 The project is a Cargo workspace. All crates share the same version.
 
-| Crate                                       | Description                                                                                                |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [`gukhanmun-core`][cr-core]                 | Format-neutral IR, engine, dictionary trait, lattice segmenter, fallback phoneticizer. `no_std` + `alloc`. |
-| [`gukhanmun-html`][cr-html]                 | HTML fragment reader and writer; `HtmlScopeData` with `lang` inheritance and preserved-tag handling.       |
-| [`gukhanmun-markdown`][cr-md]               | Markdown adapter over `pulldown-cmark`; inline HTML is re-scanned for `lang` attributes.                   |
-| [`gukhanmun-fst`][cr-fst]                   | FST-backed `HanjaDictionary` implementation for mmap-friendly on-disk dictionaries.                        |
-| [`gukhanmun-cdb`][cr-cdb]                   | CDB-trie `HanjaDictionary` implementation; trivially auditable on-disk format.                             |
-| [`gukhanmun-stdict`][cr-stdict]             | The bundled *Standard Korean Language Dictionary* as an embedded FST byte array.                           |
-| [`gukhanmun-opendict`][cr-opendict]         | The bundled *Open Korean Dictionary* (우리말샘) data.                                                      |
-| [`gukhanmun-dict-extract`][cr-dict-extract] | Shared dictionary dump extraction helpers.                                                                 |
-| [`gukhanmun-mkdict`][cr-mkdict]             | CLI tool to build FST or CDB dictionary files from TSV, CSV, or JSON Lines input.                          |
-| [`gukhanmun-cli`][cr-cli]                   | The `gukhanmun` command-line binary.                                                                       |
+| Crate                                                           | Description                                                                                                |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [`gukhanmun-core`][cr-core]                                     | Format-neutral IR, engine, dictionary trait, lattice segmenter, fallback phoneticizer. `no_std` + `alloc`. |
+| [`gukhanmun-html`][cr-html]                                     | HTML fragment reader and writer; `HtmlScopeData` with `lang` inheritance and preserved-tag handling.       |
+| [`gukhanmun-markdown`][cr-md]                                   | Markdown adapter over `pulldown-cmark`; inline HTML is re-scanned for `lang` attributes.                   |
+| [`gukhanmun-fst`][cr-fst]                                       | FST-backed `HanjaDictionary` implementation for mmap-friendly on-disk dictionaries.                        |
+| [`gukhanmun-cdb`][cr-cdb]                                       | CDB-trie `HanjaDictionary` implementation; trivially auditable on-disk format.                             |
+| [`gukhanmun-stdict`][cr-stdict]                                 | The bundled *Standard Korean Language Dictionary* as an embedded FST byte array.                           |
+| [`gukhanmun-opendict`][cr-opendict]                             | The bundled *Open Korean Dictionary* (우리말샘) data.                                                      |
+| [`gukhanmun-loanwords`](./crates/gukhanmun-loanwords/README.md) | NIKL loanword spelling examples with explicit reading choices.                                             |
+| [`gukhanmun-dict-extract`][cr-dict-extract]                     | Shared dictionary dump extraction helpers.                                                                 |
+| [`gukhanmun-mkdict`][cr-mkdict]                                 | CLI tool to build FST or CDB dictionary files from TSV, CSV, or JSON Lines input.                          |
+| [`gukhanmun-cli`][cr-cli]                                       | The `gukhanmun` command-line binary.                                                                       |
 
 [cr-core]: https://crates.io/crates/gukhanmun-core
 [cr-html]: https://crates.io/crates/gukhanmun-html
@@ -212,18 +213,20 @@ The project is a Cargo workspace. All crates share the same version.
 npm/JSR packages
 ----------------
 
-The project also publishes seven JavaScript packages, all sharing the same
+The project also publishes nine JavaScript packages, all sharing the same
 version as the Rust crates.
 
-| Package                   | JSR                                | npm                                | Description                                                                         |
-| ------------------------- | ---------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------- |
-| `@gukhanmun/types`        | [JSR][jsr:@gukhanmun/types]        | [npm][npm:@gukhanmun/types]        | TypeScript type declarations shared by the WASM and NAPI packages. No runtime code. |
-| `@gukhanmun/wasm`         | [JSR][jsr:@gukhanmun/wasm]         | [npm][npm:@gukhanmun/wasm]         | WebAssembly build. Runs in browsers, Deno, Node.js, and Bun.                        |
-| `@gukhanmun/napi`         |                                    | [npm][npm:@gukhanmun/napi]         | Native Node.js addon via napi-rs. Faster than WASM for server-side use.             |
-| `@gukhanmun/stdict-fst`   | [JSR][jsr:@gukhanmun/stdict-fst]   | [npm][npm:@gukhanmun/stdict-fst]   | Bundled *Standard Korean Language Dictionary* in FST format.                        |
-| `@gukhanmun/stdict-cdb`   | [JSR][jsr:@gukhanmun/stdict-cdb]   | [npm][npm:@gukhanmun/stdict-cdb]   | Bundled *Standard Korean Language Dictionary* in CDB format.                        |
-| `@gukhanmun/opendict-fst` | [JSR][jsr:@gukhanmun/opendict-fst] | [npm][npm:@gukhanmun/opendict-fst] | Bundled *Open Korean Dictionary* categories in FST format.                          |
-| `@gukhanmun/opendict-cdb` | [JSR][jsr:@gukhanmun/opendict-cdb] | [npm][npm:@gukhanmun/opendict-cdb] | Bundled *Open Korean Dictionary* categories in CDB format.                          |
+| Package                    | JSR                                 | npm                                 | Description                                                                         |
+| -------------------------- | ----------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------- |
+| `@gukhanmun/types`         | [JSR][jsr:@gukhanmun/types]         | [npm][npm:@gukhanmun/types]         | TypeScript type declarations shared by the WASM and NAPI packages. No runtime code. |
+| `@gukhanmun/wasm`          | [JSR][jsr:@gukhanmun/wasm]          | [npm][npm:@gukhanmun/wasm]          | WebAssembly build. Runs in browsers, Deno, Node.js, and Bun.                        |
+| `@gukhanmun/napi`          |                                     | [npm][npm:@gukhanmun/napi]          | Native Node.js addon via napi-rs. Faster than WASM for server-side use.             |
+| `@gukhanmun/stdict-fst`    | [JSR][jsr:@gukhanmun/stdict-fst]    | [npm][npm:@gukhanmun/stdict-fst]    | Bundled *Standard Korean Language Dictionary* in FST format.                        |
+| `@gukhanmun/stdict-cdb`    | [JSR][jsr:@gukhanmun/stdict-cdb]    | [npm][npm:@gukhanmun/stdict-cdb]    | Bundled *Standard Korean Language Dictionary* in CDB format.                        |
+| `@gukhanmun/opendict-fst`  | [JSR][jsr:@gukhanmun/opendict-fst]  | [npm][npm:@gukhanmun/opendict-fst]  | Bundled *Open Korean Dictionary* categories in FST format.                          |
+| `@gukhanmun/opendict-cdb`  | [JSR][jsr:@gukhanmun/opendict-cdb]  | [npm][npm:@gukhanmun/opendict-cdb]  | Bundled *Open Korean Dictionary* categories in CDB format.                          |
+| `@gukhanmun/loanwords-fst` | [JSR][jsr:@gukhanmun/loanwords-fst] | [npm][npm:@gukhanmun/loanwords-fst] | Bundled NIKL loanword spelling examples in FST format.                              |
+| `@gukhanmun/loanwords-cdb` | [JSR][jsr:@gukhanmun/loanwords-cdb] | [npm][npm:@gukhanmun/loanwords-cdb] | Bundled NIKL loanword spelling examples in CDB format.                              |
 
 [jsr:@gukhanmun/types]: https://jsr.io/@gukhanmun/types
 [npm:@gukhanmun/types]: https://www.npmjs.com/package/@gukhanmun/types
@@ -238,6 +241,10 @@ version as the Rust crates.
 [npm:@gukhanmun/opendict-fst]: https://www.npmjs.com/package/@gukhanmun/opendict-fst
 [jsr:@gukhanmun/opendict-cdb]: https://jsr.io/@gukhanmun/opendict-cdb
 [npm:@gukhanmun/opendict-cdb]: https://www.npmjs.com/package/@gukhanmun/opendict-cdb
+[jsr:@gukhanmun/loanwords-fst]: https://jsr.io/@gukhanmun/loanwords-fst
+[npm:@gukhanmun/loanwords-fst]: https://www.npmjs.com/package/@gukhanmun/loanwords-fst
+[jsr:@gukhanmun/loanwords-cdb]: https://jsr.io/@gukhanmun/loanwords-cdb
+[npm:@gukhanmun/loanwords-cdb]: https://www.npmjs.com/package/@gukhanmun/loanwords-cdb
 
 
 Design documentation

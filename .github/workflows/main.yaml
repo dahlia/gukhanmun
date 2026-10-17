@@ -736,6 +736,8 @@ jobs:
         mise run stdict-cdb-data
         mise run opendict-fst-data
         mise run opendict-cdb-data
+        mise run loanwords-fst-data
+        mise run loanwords-cdb-data
     - name: Sync JS manifest versions
       shell: bash
       env:

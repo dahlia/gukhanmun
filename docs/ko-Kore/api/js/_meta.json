@@ -33,5 +33,15 @@
     "type": "custom-link",
     "label": "@gukhanmun/opendict-fst",
     "link": "../../api/js/modules/_gukhanmun_opendict-fst"
+  },
+  {
+    "type": "custom-link",
+    "label": "@gukhanmun/loanwords-cdb",
+    "link": "../../api/js/modules/_gukhanmun_loanwords-cdb"
+  },
+  {
+    "type": "custom-link",
+    "label": "@gukhanmun/loanwords-fst",
+    "link": "../../api/js/modules/_gukhanmun_loanwords-fst"
   }
 ]

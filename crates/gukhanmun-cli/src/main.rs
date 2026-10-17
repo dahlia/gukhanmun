@@ -113,6 +113,10 @@ struct LanguageArgs {
     /// Disable every bundled dictionary selected by the preset.
     #[arg(short = 'S', long)]
     no_bundled_dictionaries: bool,
+
+    /// Enable NIKL loanword examples ahead of preset dictionaries.
+    #[arg(long, conflicts_with = "no_bundled_dictionaries")]
+    loanwords: bool,
 }
 
 #[derive(Debug, Args)]
@@ -570,6 +574,9 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
     }
     if cli.conversion.no_collapse_parens {
         builder = builder.collapse_redundant_parens(false);
+    }
+    if cli.language.loanwords {
+        builder = builder.bundled_loanwords();
     }
     if cli.language.no_bundled_dictionaries {
         builder = builder.no_bundled_dictionaries();

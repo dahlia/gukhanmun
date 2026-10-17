@@ -76,3 +76,31 @@ Unicode 17.0.0 and these two snapshots.
 [Asahi character history]: https://www.asahi.com/special/kotoba/archive2015/moji/2013062500003.html
 [its revised character policy]: https://www.asahi.com/special/kotoba/archive2015/moji/2014032500001.html
 [Japanese Wikipedia revision]: https://ja.wikipedia.org/w/index.php?title=朝日文字&oldid=107230023
+
+
+NIKL loanword spelling examples
+-------------------------------
+
+The separately selectable loanword dictionary comes from the National Institute
+of Korean Language's [*Korean Language Norms* loanword examples]. Gukhanmun
+collects complete matching API sweeps, preserves original record fields and
+normalizes supported keys/readings into candidate dictionaries. Explicit
+Gukhanmun editorial decisions select among competing readings.
+
+The site's [help page, item 7] states that all materials are public and may be
+freely used. The [official Public Data Portal entry for NIKL loanword spelling]
+also lists no restrictions on permitted use. These sources were checked on
+2026-10-18. No Creative Commons or KOGL identifier is inferred from them; the
+NIKL data-use statements remain separate from the software's GPLv3-or-later
+terms. The API key holder reported no additional conditions during issuance.
+
+The pinned snapshot, content checksum and collection date are recorded in
+*crates/gukhanmun-loanwords/data/snapshot.json*. The full source and audit stay
+in the repository; runtime Rust/JavaScript packages carry the generated
+lookup data, provenance and *ATTRIBUTION.md*. All such packages must retain
+that attribution under this project's packaging policy. Session/IP metadata
+from the API response envelope is discarded.
+
+[*Korean Language Norms* loanword examples]: https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003
+[help page, item 7]: https://korean.go.kr/kornorms/help/helpView.do
+[official Public Data Portal entry for NIKL loanword spelling]: https://www.data.go.kr/data/15104999/openapi.do

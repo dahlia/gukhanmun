@@ -1,0 +1,14 @@
+{
+  "name": "@gukhanmun/loanwords-fst",
+  "version": "0.3.0",
+  "exports": "./index.ts",
+  "publish": {
+    "include": [
+      "README.md",
+      "index.ts",
+      "loanwords.fst",
+      "ATTRIBUTION.md",
+      "LICENSE"
+    ]
+  }
+}

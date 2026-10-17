@@ -28,7 +28,11 @@ use gukhanmun_core::{
     read_plain_text, render_tokens_iter, write_plain_text,
 };
 
-#[cfg(any(not(feature = "opendict"), not(feature = "stdict")))]
+#[cfg(any(
+    not(feature = "opendict"),
+    not(feature = "stdict"),
+    not(feature = "loanwords")
+))]
 use crate::error::Error;
 use crate::error::Result;
 use crate::options::{ConversionOptions, Preset};
@@ -126,6 +130,7 @@ pub struct Builder<'a> {
     options: ConversionOptions,
     hanja_variant_set_override: Option<HanjaVariantSet>,
     bundled_stdict: bool,
+    bundled_loanwords: bool,
     bundled_opendict_north_korean: bool,
     dictionaries: Vec<BoxedDictionary<'a>>,
     directives: UserDirectives<'a>,
@@ -151,6 +156,7 @@ impl<'a> Builder<'a> {
             options: preset.options(),
             hanja_variant_set_override: None,
             bundled_stdict: preset.includes_bundled_stdict(),
+            bundled_loanwords: false,
             bundled_opendict_north_korean: preset.includes_bundled_opendict_north_korean(),
             dictionaries: Vec::new(),
             directives: UserDirectives::new(),
@@ -252,6 +258,7 @@ impl<'a> Builder<'a> {
     /// user-supplied dictionaries.
     pub fn no_bundled_dictionaries(mut self) -> Self {
         self.bundled_stdict = false;
+        self.bundled_loanwords = false;
         self.bundled_opendict_north_korean = false;
         self
     }
@@ -283,6 +290,20 @@ impl<'a> Builder<'a> {
     /// [`crate::Error::Config`].
     pub fn bundled_stdict(mut self) -> Self {
         self.bundled_stdict = true;
+        self
+    }
+
+    /// Enables bundled loanwords ahead of preset dictionaries, after user dictionaries.
+    /// Both presets leave this off by default. Requires the `loanwords` feature;
+    /// otherwise `build` returns an invalid-options error.
+    pub fn bundled_loanwords(mut self) -> Self {
+        self.bundled_loanwords = true;
+        self
+    }
+
+    /// Disables only bundled loanwords while retaining the preset dictionaries.
+    pub fn no_bundled_loanwords(mut self) -> Self {
+        self.bundled_loanwords = false;
         self
     }
 
@@ -355,6 +376,7 @@ impl<'a> Builder<'a> {
             options,
             hanja_variant_set_override: _,
             bundled_stdict,
+            bundled_loanwords,
             bundled_opendict_north_korean,
             dictionaries,
             directives,
@@ -362,6 +384,12 @@ impl<'a> Builder<'a> {
             html_reader_options,
         } = self;
 
+        #[cfg(not(feature = "loanwords"))]
+        if bundled_loanwords {
+            return Err(Error::Config(
+                "bundled loanwords requested but `loanwords` feature is disabled".into(),
+            ));
+        }
         #[cfg(not(feature = "opendict"))]
         {
             if bundled_opendict_north_korean {
@@ -383,9 +411,13 @@ impl<'a> Builder<'a> {
             }
         }
 
-        #[cfg(any(feature = "opendict", feature = "stdict"))]
+        #[cfg(any(feature = "opendict", feature = "stdict", feature = "loanwords"))]
         let dictionaries = {
             let mut dictionaries = dictionaries;
+            #[cfg(feature = "loanwords")]
+            if bundled_loanwords {
+                dictionaries.push(Box::new(gukhanmun_loanwords::dictionary()));
+            }
             #[cfg(feature = "opendict")]
             if bundled_opendict_north_korean {
                 dictionaries.push(Box::new(gukhanmun_opendict::north_korean()));
@@ -396,7 +428,7 @@ impl<'a> Builder<'a> {
             }
             dictionaries
         };
-        #[cfg(not(any(feature = "opendict", feature = "stdict")))]
+        #[cfg(not(any(feature = "opendict", feature = "stdict", feature = "loanwords")))]
         let dictionaries = dictionaries;
 
         let chain = ChainDictionary::from_iter(dictionaries);

@@ -1,4 +1,5 @@
 /target/
+.env
 .playwright-mcp/
 cargo-release-publish.log
 node_modules/
@@ -15,3 +16,6 @@ packages/napi-*/gukhanmun_napi.node
 
 # Claude Code per-developer local settings
 /.claude/settings.local.json
+
+packages/loanwords-fst/loanwords.fst
+packages/loanwords-cdb/loanwords.cdb

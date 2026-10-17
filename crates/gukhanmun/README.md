@@ -110,3 +110,24 @@ License
 -------
 
 GPL-3.0-only. See *LICENSE* at the repository root.
+
+
+Bundled loanword examples
+-------------------------
+
+Enable the `loanwords` feature and call `Builder::bundled_loanwords()` to use
+the bundled NIKL loanword spelling examples. This dictionary takes priority
+over preset dictionaries, while user dictionaries remain first. Both presets
+leave it disabled by default; `no_bundled_dictionaries()` disables every family
+and `no_bundled_loanwords()` disables this one. The source snapshot and explicit
+choices for competing readings are maintained in `gukhanmun-loanwords`.
+
+~~~~ rust
+# #[cfg(all(feature = "loanwords", feature = "stdict"))] {
+use gukhanmun::{Builder, ContextWindow};
+let converter = Builder::new().bundled_loanwords()
+    .homophone_window(ContextWindow::Off).build()?;
+assert_eq!(converter.convert_text_to_string("香港")?, "홍콩");
+# }
+# Ok::<(), gukhanmun::Error>(())
+~~~~

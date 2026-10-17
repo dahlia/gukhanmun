@@ -26,6 +26,8 @@
 
 use serde::Deserialize;
 
+pub mod loanwords;
+
 /// One `original_language_info` record from a dictionary dump item.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 pub struct OriginalLanguageInfo {

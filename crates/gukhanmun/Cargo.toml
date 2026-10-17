@@ -16,9 +16,11 @@ fst = ["dep:gukhanmun-fst"]
 cdb = ["dep:gukhanmun-cdb"]
 stdict = ["dep:gukhanmun-stdict", "fst"]
 opendict = ["dep:gukhanmun-opendict", "fst"]
+loanwords = ["dep:gukhanmun-loanwords", "fst"]
 
 [dependencies]
 gukhanmun-core.workspace = true
+gukhanmun-loanwords = { workspace = true, optional = true }
 gukhanmun-html = { workspace = true, optional = true }
 gukhanmun-markdown = { workspace = true, optional = true }
 gukhanmun-fst = { workspace = true, optional = true }

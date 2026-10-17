@@ -60,7 +60,16 @@ run = "actionlint"
 
 [tasks.ci]
 description = "Run the full CI verification gate"
-depends = ["check", "test", "doc", "js-build", "js-test"]
+depends = [
+  "check",
+  "test",
+  "doc",
+  "js-build",
+  "js-test",
+  "loanwords-verify",
+  "loanwords-check",
+  "loanwords-update-test",
+]
 
 [tasks.rust-init]
 description = "Materialize the pinned Rust toolchain in a single rustup process"
@@ -145,8 +154,9 @@ depends = ["rust-init"]
 run = [
   "cargo fmt --all",
   "hongdown --write",
+  "hongdown --no-line-width --write scripts/loanwords/update-pr.md scripts/loanwords/conflicts-pr.md",
   "mise fmt",
-  "deno fmt packages/",
+  "deno fmt packages/ scripts/loanwords/",
   "sacho sync --force",
   "sacho fmt",
 ]
@@ -154,7 +164,12 @@ run = [
 [tasks.fmt-check]
 description = "Check code, docs, and mise formatting"
 depends = ["rust-init"]
-run = ["cargo fmt --all --check", "hongdown --check", "mise fmt --check"]
+run = [
+  "cargo fmt --all --check",
+  "hongdown --check",
+  "hongdown --no-line-width --check scripts/loanwords/update-pr.md scripts/loanwords/conflicts-pr.md",
+  "mise fmt --check",
+]
 
 [tasks.test]
 description = "Run Rust workspace tests"
@@ -180,10 +195,15 @@ run = [
   "deno check packages/stdict-cdb/index.ts",
   "deno check packages/opendict-fst/index.ts",
   "deno check packages/opendict-cdb/index.ts",
+  "deno check packages/loanwords-fst/index.ts",
+  "deno check packages/loanwords-cdb/index.ts",
   "deno check tests/js/wasm.test.ts",
   "deno check tests/js/napi.test.ts",
   "deno check tests/js/stdict-loader.test.ts",
   "deno check tests/js/opendict-loader.test.ts",
+  "deno check tests/js/loanwords.test.ts",
+  "deno check scripts/loanwords/update.ts",
+  "deno check scripts/loanwords/publish.ts",
 ]
 
 [tasks.js-lint]
@@ -199,6 +219,8 @@ run = [
   "deno doc --lint ./packages/stdict-cdb/index.ts",
   "deno doc --lint ./packages/opendict-fst/index.ts",
   "deno doc --lint ./packages/opendict-cdb/index.ts",
+  "deno doc --lint ./packages/loanwords-fst/index.ts",
+  "deno doc --lint ./packages/loanwords-cdb/index.ts",
 ]
 
 [tasks.js-fmt]
@@ -302,6 +324,8 @@ depends = [
   "stdict-cdb-data",
   "opendict-fst-data",
   "opendict-cdb-data",
+  "loanwords-fst-data",
+  "loanwords-cdb-data",
   "js-install",
 ]
 run = "pnpm -r run build"
@@ -315,15 +339,15 @@ description = "Run JavaScript integration tests on Node.js, Deno, and Bun"
 # sharing violation.  Ordering js-test after js-build removes that race.
 # js-build already pulls in wasm-build, the *-data tasks, and js-install, so
 # only napi-build needs to be listed alongside it here.
-depends = ["js-build", "napi-build"]
+depends = ["js-build", "napi-build", "loanwords-test-data"]
 # Both bindings run on all three runtimes.  The wasm binding loads its module
 # and dictionary files via fetch(file://) (Deno/Bun) or node:fs (Node); the
 # napi native addon needs Deno's --allow-ffi/--allow-env/--allow-sys on top of
 # --allow-read.
 run = [
-  "node --test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts",
-  "deno test --allow-read --allow-env --allow-ffi --allow-sys tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts",
-  "bun test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts",
+  "node --test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts tests/js/loanwords.test.ts",
+  "deno test --allow-read --allow-env --allow-ffi --allow-sys tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts tests/js/loanwords.test.ts",
+  "bun test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts tests/js/loanwords.test.ts",
 ]
 
 [tasks.js-sync-version]
@@ -344,13 +368,13 @@ for pkg in [
   packages/napi-aarch64-apple-darwin packages/napi-x86_64-apple-darwin
   packages/napi-aarch64-pc-windows-msvc packages/napi-x86_64-pc-windows-msvc
   packages/napi-aarch64-unknown-linux-gnu packages/napi-x86_64-unknown-linux-gnu
-  packages/stdict-fst packages/stdict-cdb packages/opendict-fst packages/opendict-cdb
+  packages/stdict-fst packages/stdict-cdb packages/opendict-fst packages/opendict-cdb packages/loanwords-fst packages/loanwords-cdb
 ] {
   update_json $"($pkg)/package.json"
 }
 for pkg in [
   packages/types packages/wasm packages/stdict-fst packages/stdict-cdb
-  packages/opendict-fst packages/opendict-cdb
+  packages/opendict-fst packages/opendict-cdb packages/loanwords-fst packages/loanwords-cdb
 ] {
   update_json $"($pkg)/deno.json"
 }
@@ -421,10 +445,12 @@ depends = [
   "stdict-cdb-data",
   "opendict-fst-data",
   "opendict-cdb-data",
+  "loanwords-fst-data",
+  "loanwords-cdb-data",
   "js-install",
 ]
 run = [
-  "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/opendict-fst --filter @gukhanmun/opendict-cdb --filter @gukhanmun/napi run build",
+  "pnpm --filter @gukhanmun/types --filter @gukhanmun/wasm --filter @gukhanmun/stdict-fst --filter @gukhanmun/stdict-cdb --filter @gukhanmun/opendict-fst --filter @gukhanmun/opendict-cdb --filter @gukhanmun/loanwords-fst --filter @gukhanmun/loanwords-cdb --filter @gukhanmun/napi run build",
   "pnpm --filter @gukhanmun/docs run dev",
 ]
 
@@ -436,6 +462,8 @@ depends = [
   "stdict-cdb-data",
   "opendict-fst-data",
   "opendict-cdb-data",
+  "loanwords-fst-data",
+  "loanwords-cdb-data",
   "js-install",
 ]
 run = "pnpm --filter @gukhanmun/docs run build"
@@ -471,3 +499,88 @@ usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
 shell = "nu -c"
 depends = ["rust-init"]
 run = 'cargo run -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output crates/gukhanmun-opendict/data/general.tsv --north-korean-output crates/gukhanmun-opendict/data/north-korean.tsv --dialect-output crates/gukhanmun-opendict/data/dialect.tsv --archaic-output crates/gukhanmun-opendict/data/archaic.tsv --check'
+
+[tasks.loanwords-verify]
+description = "Verify optional loanword CLI and collector without official credentials"
+depends = ["rust-init"]
+env = { RUSTDOCFLAGS = "-D warnings" }
+run = [
+  "cargo check -p gukhanmun-dict-extract --all-targets --features loanwords-collect",
+  "cargo clippy -p gukhanmun-dict-extract --all-targets --features loanwords-collect -- -D warnings",
+  "cargo test -p gukhanmun-dict-extract --features loanwords-collect",
+  "cargo doc -p gukhanmun-dict-extract --no-deps --features loanwords-collect",
+]
+
+[tasks.loanwords-extract]
+description = "Extract an explicitly supplied loanword snapshot and editorial decisions"
+usage = 'arg "<snapshot>" help="Authorized versioned snapshot"; arg "<decisions>" help="Editorial decisions JSON"; arg "<output>" help="TSV destination"; arg "<report>" help="Hashed report destination"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = 'cargo run -p gukhanmun-dict-extract --features loanwords-cli --bin gukhanmun-loanwords -- extract --snapshot $env.usage_snapshot --decisions $env.usage_decisions --output $env.usage_output --report $env.usage_report'
+
+[tasks.loanwords-extract-check]
+description = "Check explicit loanword extraction artifacts without modifying files"
+usage = 'arg "<snapshot>"; arg "<decisions>"; arg "<output>"; arg "<report>"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = 'cargo run -p gukhanmun-dict-extract --features loanwords-cli --bin gukhanmun-loanwords -- check --snapshot $env.usage_snapshot --decisions $env.usage_decisions --output $env.usage_output --report $env.usage_report'
+
+[tasks.loanwords-collect]
+description = "Experimentally collect two full sweeps to an explicit external snapshot"
+usage = 'arg "<output>" help="Snapshot destination outside Git checkouts"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = 'cargo run -p gukhanmun-dict-extract --features loanwords-collect --bin gukhanmun-loanwords -- collect --output $env.usage_output'
+
+[tasks.loanwords-fst-data]
+description = "Build the pinned loanword FST for JavaScript packages"
+depends = ["rust-init"]
+shell = "nu -c"
+run = """
+let metadata = (open crates/gukhanmun-loanwords/data/metadata.json | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
+cargo run --locked --release -p gukhanmun-mkdict -- --validate --format fst --output packages/loanwords-fst/loanwords.fst ...$metadata crates/gukhanmun-loanwords/data/loanwords.tsv
+"""
+
+[tasks.loanwords-cdb-data]
+description = "Build the pinned loanword CDB for JavaScript packages"
+depends = ["rust-init"]
+shell = "nu -c"
+run = """
+let metadata = (open crates/gukhanmun-loanwords/data/metadata.json | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
+cargo run --locked --release -p gukhanmun-mkdict -- --validate --format cdb --output packages/loanwords-cdb/loanwords.cdb ...$metadata crates/gukhanmun-loanwords/data/loanwords.tsv
+"""
+
+[tasks.loanwords-regenerate]
+depends = ["rust-init"]
+description = "Regenerate pinned loanword artifacts offline"
+run = "deno run -A scripts/loanwords/update.ts regenerate"
+
+[tasks.loanwords-check]
+depends = ["rust-init"]
+description = "Check pinned loanword artifacts offline without writes"
+run = "deno run -A scripts/loanwords/update.ts check"
+
+[tasks.loanwords-update]
+depends = ["rust-init"]
+description = "Collect and validate a NIKL loanword update using an environment key"
+run = "deno run -A scripts/loanwords/update.ts update"
+
+[tasks.loanwords-update-local]
+depends = ["rust-init"]
+description = "Explicitly load .env for a live loanword update"
+run = "deno run --env-file=.env -A scripts/loanwords/update.ts update"
+
+[tasks.loanwords-tools]
+description = "Build the loanword collector before providing API credentials"
+depends = ["rust-init"]
+run = "cargo build --locked --target-dir target/loanwords-tools -p gukhanmun-dict-extract --features loanwords-collect --bin gukhanmun-loanwords"
+
+[tasks.loanwords-update-test]
+description = "Exercise offline weekly update transactions and fragment idempotence"
+depends = ["loanwords-tools"]
+run = "deno test -A scripts/loanwords/update_test.ts scripts/loanwords/publish_test.ts"
+
+[tasks.loanwords-test-data]
+description = "Build a synthetic user override for cross-runtime loanword tests"
+depends = ["rust-init"]
+run = "cargo run --locked --release -p gukhanmun-mkdict -- --format fst --output target/loanword-user.gukfst tests/fixtures/loanwords/user.tsv"
