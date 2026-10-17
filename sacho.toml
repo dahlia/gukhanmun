@@ -1,0 +1,31 @@
+[changelog]
+path = "CHANGES.md"
+title = "Gukhanmun changelog"
+unreleased-heading = "To be released."
+materialize = true
+region-detection = "marker"
+
+[fragments]
+directory = "changes.d"
+next-file = "next"
+
+[links]
+"#" = "https://github.com/dahlia/gukhanmun/issues/{n}"
+
+[vcs]
+preset = "git"
+
+[check]
+paths = []
+
+[[section-patterns]]
+source = "crates/{name}"
+id = "{name}"
+directory = "crates/{name}"
+paths = ["crates/{name}/src/**", "crates/{name}/data/**"]
+
+[[section-patterns]]
+source = "packages/{name}"
+id = "@gukhanmun/{name}"
+directory = "packages/{name}"
+paths = ["packages/{name}/*.ts", "packages/{name}/*.js"]

@@ -1,6 +1,8 @@
 no_inherit = true
 include = ["*.md", "*.mdx", "**/*.md", "**/*.mdx"]
 exclude = [
+  "CHANGES.md",
+  "changes.d/**",
   "**/target/**",
   ".agents/skills/**/*.md",
   ".claude/skills/**/*.md",
