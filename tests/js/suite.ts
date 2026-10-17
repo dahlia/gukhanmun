@@ -154,6 +154,13 @@ export function registerSuite(name: string, binding: Binding): void {
   // Both backends carry the same dictionary and must convert identically.
   describe(`${name}: dictionary-backed conversion`, () => {
     for (const [backend, loadDict] of dictionaryBackends) {
+      test(`${backend}: candidate defaults and positional readings agree`, async () => {
+        const g = await load({ dictionaries: [await loadDict()], homophoneWindow: "off" });
+        assert.equal(
+          g.convert("北京 數字 1990年代 1998年度 비率"),
+          "베이징 숫자 1990년대 1998년도 비율",
+        );
+      });
       test(`${backend}: 漢字를 한글로 → 한자를 한글로`, async () => {
         const g = await load({ dictionaries: [await loadDict()] });
         assert.equal(g.convert("漢字를 한글로"), "한자를 한글로");

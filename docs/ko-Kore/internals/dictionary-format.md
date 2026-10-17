@@ -182,3 +182,36 @@ CDB 백엔드 形式은 `cdb`입니다.  이는 CDB 키 空間에 內藏된 트�
 `--validate`를 쓰면 `gukhanmun-mkdict`는 出力을 쓴 뒤 選擇된 백엔드로 다시 열어,
 倂合된 모든 項目이 같은 讀音과 標識 비트로 復元될 수 있는지 檢査합니다.  檢證
 失敗는 致命的입니다.
+
+
+複數 讀音과 v2
+--------------
+
+TSV/CSV의 `preference`와 `suffix_reading` 列로 여러 讀音과 候補別 接尾 讀音을
+記錄한다. `preference`가 빈칸이 아니면(`0`도 包含) 같은 파일의 그 키 行들을
+하나의 候補 集合으로 다룬다. 같은 키에 빈칸과 數値를 섞으면 誤謬이다.
+JSONL도 `preference`와 `suffixReading`/`suffix_reading`을 받는다.
+`source_ids`는 出處 確認用이며 바이너리에는 들어가지 않는다.
+
+큰 選好度가 優先하고, 同率이면 讀音·接尾 讀音 byte 順으로 고른다. 같은 쌍의
+標識만 OR로 合치고 最小 選好度를 빼서 正規化한다. 파일 사이의
+`first-wins`/`last-wins`/`error`는 키의 集合 全體에 適用한다.
+`reading` 規則은 해당 候補에만 適用한다.
+
+單一 候補이며 接尾 讀音이 없으면 旣存 v1을 輸出하고, 그 밖에는 v2를 쓴다.
+새 讀取器는 두 版本을 모두 支援하지만 舊版은 v2를 拒否하므로, 使用하는
+크레이트·바인딩도 함께 更新해야 한다. v2의 `0x80` mark byte는 候補 payload를
+가리킨다. FST는 旣存 16-bit 길이와 40-bit 오프셋을 使用한다. CDB는 오프셋
+2의 16-bit 길이가 payload 길이가 되고 payload는 오프셋 4에서 始作한다.
+
+payload는 little-endian `u16` 候補 數와, 各 候補의 `u32` 選好度, `u8` 標識,
+`u16` 讀音 byte 길이, `u16` 接尾 byte 길이, UTF-8 讀音·接尾 byte로 構成된다.
+接尾 길이 0은 없음이다. 全體 길이는 65,535 byte 以下이며 빈 集合·빈 讀音,
+不明 標識, 잘린 값, 뒤에 남는 byte, 重複 쌍, 非正準 順序·選好度와 v1의
+payload 標識는 拒否한다. `--validate`는 키 數와 全體 候補 集合을 檢證한다.
+
+`lookup().candidates()`와 `candidate_matches_at()`/`candidate_entries()`는
+全體 候補를, 旣存 `reading()`/`mark()`/`matches_at()`/`entries()`는 基本값을
+提供한다. 單一 候補·接尾 없음은 scalar 配置를 써야 한다. 詳細 配置는
+[英語 明細](../../en/internals/dictionary-format.md#version-2-candidate-payloads)도
+參考한다.

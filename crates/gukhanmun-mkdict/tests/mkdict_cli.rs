@@ -566,3 +566,207 @@ fn unique_entries() -> impl proptest::strategy::Strategy<Value = Vec<(String, St
             .collect()
     })
 }
+
+#[test]
+fn candidate_inputs_round_trip_all_readings_defaults_suffixes_and_marks() {
+    let inputs = [
+        (
+            "tsv",
+            "hanja\thangul\tpreference\tsuffix_reading\trequire_hangul\n東京\t동경\t20\t\tfalse\n東京\t도쿄\t10\t\ttrue\n年代\t연대\t0\t년대\tfalse\n銅鏡\t동경\t0\t\tfalse\n",
+        ),
+        (
+            "csv",
+            "hanja,hangul,preference,suffix_reading,require_hangul\n東京,동경,20,,false\n東京,도쿄,10,,true\n年代,연대,0,년대,false\n銅鏡,동경,0,,false\n",
+        ),
+        (
+            "jsonl",
+            "{\"hanja\":\"東京\",\"hangul\":\"동경\",\"preference\":20}\n{\"hanja\":\"東京\",\"hangul\":\"도쿄\",\"preference\":10,\"requireHangul\":true}\n{\"hanja\":\"年代\",\"hangul\":\"연대\",\"preference\":0,\"suffixReading\":\"년대\"}\n{\"hanja\":\"銅鏡\",\"hangul\":\"동경\",\"preference\":0}\n",
+        ),
+    ];
+    let mut baseline = None;
+    for (extension, text) in inputs {
+        let temp = tempdir().unwrap();
+        let input = temp.path().join(format!("input.{extension}"));
+        fs::write(&input, text).unwrap();
+        let rules = temp.path().join("rules.tsv");
+        fs::write(&rules,"kind\tpattern\trequire_hanja\trequire_hangul\treason\nreading\t도쿄\ttrue\tfalse\tCandidate-specific annotation\n").unwrap();
+        for format in ["fst", "cdb"] {
+            let output = temp.path().join(format!("dictionary.{format}"));
+            Command::cargo_bin("gukhanmun-mkdict")
+                .unwrap()
+                .args([
+                    "--format",
+                    format,
+                    "--validate",
+                    "--rules",
+                    rules.to_str().unwrap(),
+                    "-o",
+                    output.to_str().unwrap(),
+                    input.to_str().unwrap(),
+                ])
+                .assert()
+                .success();
+            let dictionary: Box<dyn HanjaDictionary> = if format == "fst" {
+                let dictionary = FstDictionary::open(&output).unwrap();
+                assert_eq!(dictionary.metadata()["version"], "2");
+                assert_eq!(dictionary.entry_count(), 3);
+                let entry = dictionary.lookup("東京").unwrap().unwrap();
+                assert_eq!(entry.reading(), "동경");
+                assert!(!entry.mark().require_hanja);
+                Box::new(dictionary)
+            } else {
+                let dictionary = CdbDictionary::open(&output).unwrap();
+                assert_eq!(dictionary.metadata()["version"], "2");
+                assert_eq!(dictionary.entry_count(), 3);
+                Box::new(dictionary)
+            };
+            let records = dictionary.candidate_entries().unwrap().collect::<Vec<_>>();
+            if let Some(baseline) = &baseline {
+                assert_eq!(baseline, &records);
+            } else {
+                baseline = Some(records.clone());
+            }
+            let tokyo = dictionary.candidate_matches_at("東京を").next().unwrap();
+            assert_eq!(tokyo.candidates.as_slice().len(), 2);
+            assert_eq!(tokyo.candidates.as_slice()[0].preference, 10);
+            assert!(!tokyo.candidates.as_slice()[0].mark.require_hanja);
+            assert!(
+                tokyo.candidates.as_slice()[1].mark.require_hanja
+                    && tokyo.candidates.as_slice()[1].mark.require_hangul
+            );
+            assert_eq!(
+                dictionary
+                    .matches_at("年代")
+                    .next()
+                    .unwrap()
+                    .suffix_reading
+                    .as_deref(),
+                Some("년대")
+            );
+            assert_eq!(
+                gukhanmun_core::convert_plain_text(
+                    "1990年代 東京",
+                    &dictionary,
+                    gukhanmun_core::RenderMode::HangulOnly
+                ),
+                "1990년대 동경"
+            );
+            assert!(!dictionary.has_homophone("東京", "도쿄"));
+            assert!(dictionary.has_homophone("東京", "동경"));
+        }
+    }
+}
+
+#[test]
+fn candidate_sets_obey_whole_file_precedence_and_reject_mixed_rows() {
+    let temp = tempdir().unwrap();
+    let first = temp.path().join("first.tsv");
+    let second = temp.path().join("second.tsv");
+    let output = temp.path().join("output.fst");
+    fs::write(
+        &first,
+        "hanja\thangul\tpreference\n東京\t동경\t0\n東京\t도쿄\t10\n",
+    )
+    .unwrap();
+    fs::write(&second, "hanja\thangul\n東京\t도오꾜오\n").unwrap();
+    for (merge, count, reading) in [("first-wins", 2, "도쿄"), ("last-wins", 1, "도오꾜오")] {
+        Command::cargo_bin("gukhanmun-mkdict")
+            .unwrap()
+            .args([
+                "--merge",
+                merge,
+                "--validate",
+                "-o",
+                output.to_str().unwrap(),
+                first.to_str().unwrap(),
+                second.to_str().unwrap(),
+            ])
+            .assert()
+            .success();
+        let dictionary = FstDictionary::open(&output).unwrap();
+        let entry = dictionary.lookup("東京").unwrap().unwrap();
+        assert_eq!(entry.candidates().as_slice().len(), count);
+        assert_eq!(entry.reading(), reading);
+    }
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            output.to_str().unwrap(),
+            first.to_str().unwrap(),
+            second.to_str().unwrap(),
+        ])
+        .assert()
+        .failure();
+    fs::write(
+        &first,
+        "hanja\thangul\tpreference\n東京\t동경\t0\n東京\t도쿄\t\n",
+    )
+    .unwrap();
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "--merge",
+            "last-wins",
+            "-o",
+            output.to_str().unwrap(),
+            first.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("mixed candidate and legacy rows"));
+}
+
+#[test]
+fn single_candidates_remain_v1_and_duplicate_candidates_merge_only_their_marks() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("input.tsv");
+    let output = temp.path().join("output.fst");
+    fs::write(&input,"hanja\thangul\tpreference\trequire_hanja\trequire_hangul\n東京\t동경\t10\ttrue\tfalse\n東京\t동경\t20\tfalse\ttrue\n").unwrap();
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "--validate",
+            "-o",
+            output.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let dictionary = FstDictionary::open(&output).unwrap();
+    assert_eq!(dictionary.metadata()["version"], "1");
+    let entry = dictionary.lookup("東京").unwrap().unwrap();
+    assert_eq!(entry.candidates().as_slice().len(), 1);
+    assert_eq!(entry.candidates().as_slice()[0].preference, 0);
+    assert!(entry.mark().require_hanja && entry.mark().require_hangul);
+}
+
+#[test]
+fn v1_cannot_interpret_a_tagged_v2_fst_payload() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("input.tsv");
+    let output = temp.path().join("output.fst");
+    fs::write(
+        &input,
+        "hanja\thangul\tpreference\n東京\t동경\t0\n東京\t도쿄\t10\n",
+    )
+    .unwrap();
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args(["-o", output.to_str().unwrap(), input.to_str().unwrap()])
+        .assert()
+        .success();
+    let mut bytes = fs::read(&output).unwrap();
+    let mut corrupt = bytes.clone();
+    let offset = u64::from_le_bytes(corrupt[48..56].try_into().unwrap()) as usize;
+    corrupt[offset..offset + 2].copy_from_slice(&0u16.to_le_bytes());
+    assert!(
+        FstDictionary::from_bytes(&corrupt)
+            .unwrap()
+            .lookup("東京")
+            .is_err()
+    );
+    bytes[8..12].copy_from_slice(&1u32.to_le_bytes());
+    let dictionary = FstDictionary::from_bytes(&bytes).unwrap();
+    assert!(dictionary.lookup("東京").is_err());
+}

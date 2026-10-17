@@ -37,6 +37,10 @@ struct Cli {
     /// (`hanja\tinitial\tsuffix`).
     #[arg(long, value_name = "PATH")]
     suffix_output: Option<PathBuf>,
+
+    /// Check that output files match extraction without modifying them.
+    #[arg(long, requires = "output")]
+    check: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -55,13 +59,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &mut output,
             &mut suffix_output,
         )?;
-        fs::write(suffix_path, suffix_output)?;
+        write_or_check(suffix_path, &suffix_output, cli.check)?;
         stats
     } else {
         gukhanmun_stdict::extract::extract_path_to_tsv(&cli.input, &mut output)?
     };
     if let Some(path) = cli.output {
-        fs::write(path, output)?;
+        write_or_check(path, &output, cli.check)?;
     } else {
         print!("{}", String::from_utf8(output)?);
     }
@@ -70,7 +74,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         entries_written = stats.entries_written,
         duplicate_keys = stats.duplicate_keys,
         skipped_items = stats.skipped_items,
+        skipped_default_pins = stats.skipped_default_pins,
         "extraction complete"
     );
     Ok(())
+}
+
+fn write_or_check(path: PathBuf, bytes: &[u8], check: bool) -> io::Result<()> {
+    if check {
+        if fs::read(&path)? != bytes {
+            return Err(io::Error::other(format!(
+                "{} differs from extracted data",
+                path.display()
+            )));
+        }
+        Ok(())
+    } else {
+        fs::write(path, bytes)
+    }
 }

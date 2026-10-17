@@ -38,11 +38,10 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+use gukhanmun_core::{MatchMark, ReadingCandidate, ReadingCandidates, select_default_reading};
+
 const MAGIC: &[u8; 8] = b"GUKHMFST";
-const FORMAT_VERSION: u32 = 1;
 const FIXED_HEADER_LEN: usize = 64;
-const MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
-const MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
 const VALUE_MARK_SHIFT: u64 = 16;
 const VALUE_OFFSET_SHIFT: u64 = 24;
 const VALUE_MAX_OFFSET: u64 = (1u64 << 40) - 1;
@@ -54,8 +53,6 @@ const RESERVED_METADATA_KEYS: &[&str] = &[
     "prefix_count",
 ];
 const CDB_META_KEY: &[u8] = b"__gukhanmun_meta__";
-const CDB_MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
-const CDB_MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
 
 /// Error returned while parsing inputs or building dictionary files.
 #[derive(Debug, thiserror::Error)]
@@ -185,6 +182,8 @@ pub struct DictionaryEntry {
     hanja: String,
     reading: String,
     mark: EntryMark,
+    suffix_reading: Option<String>,
+    preference: Option<u32>,
 }
 
 impl DictionaryEntry {
@@ -194,6 +193,8 @@ impl DictionaryEntry {
             hanja: hanja.into(),
             reading: reading.into(),
             mark,
+            suffix_reading: None,
+            preference: None,
         }
     }
 
@@ -669,24 +670,87 @@ fn read_and_merge_inputs(
     input_paths: &[PathBuf],
     options: &BuildOptions,
 ) -> Result<Vec<DictionaryEntry>> {
-    let mut merged = BTreeMap::<String, DictionaryEntry>::new();
-
+    let mut merged = BTreeMap::<String, Vec<DictionaryEntry>>::new();
     for path in input_paths {
         let file =
             fs::File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
-        let entries = parse_input(BufReader::new(file), path, options.max_key_bytes)?;
-        for entry in entries {
-            match (options.merge, merged.contains_key(entry.hanja())) {
-                (MergePolicy::Error, true) => bail!("duplicate entry for `{}`", entry.hanja()),
+        let mut local = BTreeMap::<String, Vec<DictionaryEntry>>::new();
+        for entry in parse_input(BufReader::new(file), path, options.max_key_bytes)? {
+            if let Some(previous) = local.get_mut(entry.hanja()) {
+                ensure!(
+                    previous[0].preference.is_some() == entry.preference.is_some(),
+                    "{}: mixed candidate and legacy rows for `{}`",
+                    path.display(),
+                    entry.hanja()
+                );
+                if entry.preference.is_some() {
+                    previous.push(entry);
+                } else {
+                    match options.merge {
+                        MergePolicy::Error => bail!("duplicate entry for `{}`", entry.hanja()),
+                        MergePolicy::FirstWins => {}
+                        MergePolicy::LastWins => *previous = vec![entry],
+                    }
+                }
+            } else {
+                local.insert(entry.hanja.clone(), vec![entry]);
+            }
+        }
+        for (key, entries) in local {
+            match (options.merge, merged.contains_key(&key)) {
+                (MergePolicy::Error, true) => bail!("duplicate entry for `{key}`"),
                 (MergePolicy::FirstWins, true) => {}
-                (MergePolicy::LastWins, true) | (_, false) => {
-                    merged.insert(entry.hanja.clone(), entry);
+                _ => {
+                    merged.insert(key, entries);
                 }
             }
         }
     }
+    Ok(merged.into_values().flatten().collect())
+}
 
-    Ok(merged.into_values().collect())
+fn candidate_groups(entries: &[DictionaryEntry]) -> Result<BTreeMap<String, ReadingCandidates>> {
+    let mut groups = BTreeMap::<String, Vec<ReadingCandidate>>::new();
+    for entry in entries {
+        groups
+            .entry(entry.hanja.clone())
+            .or_default()
+            .push(ReadingCandidate {
+                reading: entry.reading.clone(),
+                suffix_reading: entry.suffix_reading.clone(),
+                mark: MatchMark {
+                    require_hanja: entry.mark.require_hanja,
+                    require_hangul: entry.mark.require_hangul,
+                },
+                preference: entry.preference.unwrap_or(0),
+            });
+    }
+    groups
+        .into_iter()
+        .map(|(key, candidates)| {
+            let candidates = ReadingCandidates::new(candidates)
+                .with_context(|| format!("invalid candidates for `{key}`"))?;
+            Ok((key, candidates))
+        })
+        .collect()
+}
+
+fn encoded_candidates(candidates: &ReadingCandidates) -> Result<(u8, Vec<u8>)> {
+    if candidates.is_scalar() {
+        let selected = select_default_reading(candidates);
+        u16::try_from(selected.reading.len()).context("reading is too long")?;
+        Ok((
+            u8::from(selected.mark.require_hanja) | (u8::from(selected.mark.require_hangul) << 1),
+            selected.reading.as_bytes().to_vec(),
+        ))
+    } else {
+        Ok((
+            0x80,
+            candidates
+                .encode_payload()
+                .context("cannot encode candidates")?,
+        ))
+    }
 }
 
 fn reject_reserved_cdb_keys(entries: &[DictionaryEntry]) -> Result<()> {
@@ -796,7 +860,7 @@ fn parse_jsonl(
                 path.display()
             )
         })?;
-        entries.push(normalize_entry(
+        let mut entry = normalize_entry(
             &record.hanja,
             &record.hangul,
             EntryMark {
@@ -805,7 +869,15 @@ fn parse_jsonl(
             },
             max_key_bytes,
             &format!("{}:{line_number}", path.display()),
-        )?);
+        )?;
+        ensure!(
+            !record.suffix_reading.as_ref().is_some_and(String::is_empty),
+            "empty suffix reading at {}:{line_number}",
+            path.display()
+        );
+        entry.suffix_reading = record.suffix_reading;
+        entry.preference = record.preference;
+        entries.push(entry);
     }
     Ok(entries)
 }
@@ -816,6 +888,8 @@ struct HeaderColumns {
     hangul: usize,
     require_hanja: Option<usize>,
     require_hangul: Option<usize>,
+    preference: Option<usize>,
+    suffix_reading: Option<usize>,
     column_count: usize,
 }
 
@@ -830,6 +904,8 @@ fn parse_header_with_format(header: &str, format_name: &str) -> Result<HeaderCol
     let mut hangul = None;
     let mut require_hanja = None;
     let mut require_hangul = None;
+    let mut preference = None;
+    let mut suffix_reading = None;
 
     for (index, column) in columns.iter().enumerate() {
         ensure!(
@@ -845,6 +921,9 @@ fn parse_header_with_format(header: &str, format_name: &str) -> Result<HeaderCol
             "hangul" => hangul = Some(index),
             "require_hanja" => require_hanja = Some(index),
             "require_hangul" => require_hangul = Some(index),
+            "preference" => preference = Some(index),
+            "suffix_reading" => suffix_reading = Some(index),
+            "source_ids" => {}
             extra => {
                 tracing::warn!(
                     column = extra,
@@ -860,6 +939,8 @@ fn parse_header_with_format(header: &str, format_name: &str) -> Result<HeaderCol
         hangul: hangul.ok_or_else(|| Error::message("missing required `hangul` column"))?,
         require_hanja,
         require_hangul,
+        preference,
+        suffix_reading,
         column_count: columns.len(),
     })
 }
@@ -892,7 +973,7 @@ fn parse_fields(
     let require_hanja = parse_optional_bool(fields, columns.require_hanja, location)?;
     let require_hangul = parse_optional_bool(fields, columns.require_hangul, location)?;
 
-    normalize_entry(
+    let mut entry = normalize_entry(
         hanja,
         hangul,
         EntryMark {
@@ -901,7 +982,22 @@ fn parse_fields(
         },
         max_key_bytes,
         location,
-    )
+    )?;
+    entry.preference = columns
+        .preference
+        .and_then(|i| fields.get(i))
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.parse::<u32>()
+                .with_context(|| format!("{location}: invalid preference `{v}`"))
+        })
+        .transpose()?;
+    entry.suffix_reading = columns
+        .suffix_reading
+        .and_then(|i| fields.get(i))
+        .filter(|v| !v.is_empty())
+        .map(|v| (*v).to_owned());
+    Ok(entry)
 }
 
 fn normalize_entry(
@@ -965,8 +1061,17 @@ fn build_metadata(
             .cloned()
             .unwrap_or_else(default_build_date),
     );
-    metadata.insert("entry_count".to_owned(), entries.len().to_string());
-    metadata.insert("version".to_owned(), FORMAT_VERSION.to_string());
+    let groups = candidate_groups(entries)?;
+    metadata.insert("entry_count".to_owned(), groups.len().to_string());
+    metadata.insert(
+        "version".to_owned(),
+        if groups.values().all(ReadingCandidates::is_scalar) {
+            "1"
+        } else {
+            "2"
+        }
+        .to_owned(),
+    );
     metadata.insert(
         "max_word_chars".to_owned(),
         entries
@@ -1015,20 +1120,21 @@ fn build_fst_bytes(
 
     let mut readings = Vec::new();
     let mut builder = MapBuilder::memory();
-    for entry in entries {
-        let reading_len = u16::try_from(entry.reading().len())
-            .with_context(|| format!("reading for `{}` is too long", entry.hanja()))?;
-        let reading_offset =
-            u64::try_from(readings.len()).context("reading table offset too large")?;
+    for (key, candidates) in candidate_groups(entries)? {
+        let (mark, payload) = encoded_candidates(&candidates)?;
+        let length = u16::try_from(payload.len()).context("candidate payload is too long")?;
+        let offset = u64::try_from(readings.len()).context("reading table offset too large")?;
         ensure!(
-            reading_offset <= VALUE_MAX_OFFSET,
+            offset <= VALUE_MAX_OFFSET,
             "reading table exceeds the FST value layout"
         );
-        let value = encode_value(reading_len, entry.mark(), reading_offset);
+        let value = u64::from(length)
+            | (u64::from(mark) << VALUE_MARK_SHIFT)
+            | (offset << VALUE_OFFSET_SHIFT);
         builder
-            .insert(entry.hanja().as_bytes(), value)
-            .with_context(|| format!("failed to insert `{}` into FST", entry.hanja()))?;
-        readings.extend_from_slice(entry.reading().as_bytes());
+            .insert(key.as_bytes(), value)
+            .with_context(|| format!("failed to insert `{key}` into FST"))?;
+        readings.extend_from_slice(&payload);
     }
     let fst_bytes = builder.into_inner().context("failed to finish FST map")?;
 
@@ -1040,6 +1146,7 @@ fn build_fst_bytes(
         .checked_add(u64::try_from(fst_bytes.len()).context("FST bytes too large")?)
         .context("reading table offset overflow")?;
     let header = FixedHeader {
+        format_version: metadata["version"].parse().expect("builder format version"),
         metadata_offset,
         metadata_len: u64::try_from(metadata_bytes.len()).context("metadata too large")?,
         fst_offset,
@@ -1068,7 +1175,7 @@ fn build_cdb_file(
     metadata: &BTreeMap<String, String>,
     output_path: &Path,
 ) -> Result<()> {
-    let records = build_cdb_records(entries);
+    let records = build_cdb_records(entries)?;
     let mut metadata = metadata.clone();
     metadata.insert("prefix_count".to_owned(), records.len().to_string());
     let mut metadata_bytes = Vec::new();
@@ -1102,101 +1209,67 @@ fn build_cdb_file(
     Ok(())
 }
 
-fn build_cdb_records(entries: &[DictionaryEntry]) -> BTreeMap<String, Option<DictionaryEntry>> {
+fn build_cdb_records(
+    entries: &[DictionaryEntry],
+) -> Result<BTreeMap<String, Option<ReadingCandidates>>> {
     let mut records = BTreeMap::new();
-    for entry in entries {
+    for (key, candidates) in candidate_groups(entries)? {
         let mut prefix = String::new();
-        for ch in entry.hanja().chars() {
+        for ch in key.chars() {
             prefix.push(ch);
             records.entry(prefix.clone()).or_insert(None);
         }
-        records.insert(entry.hanja().to_owned(), Some(entry.clone()));
+        records.insert(key, Some(candidates));
     }
-    records
+    Ok(records)
 }
 
-fn encode_cdb_record(entry: Option<&DictionaryEntry>) -> Result<Vec<u8>> {
-    let mut output = Vec::new();
-    match entry {
-        Some(entry) => {
-            let reading_len = u16::try_from(entry.reading().len())
-                .with_context(|| format!("reading for `{}` is too long", entry.hanja()))?;
-            output.push(1);
-            output.push(encode_cdb_mark(entry.mark()));
-            output.extend_from_slice(&reading_len.to_le_bytes());
-            output.extend_from_slice(entry.reading().as_bytes());
-        }
-        None => {
-            output.push(0);
-            output.push(0);
-            output.extend_from_slice(&0u16.to_le_bytes());
-        }
-    }
+fn encode_cdb_record(entry: Option<&ReadingCandidates>) -> Result<Vec<u8>> {
+    let Some(candidates) = entry else {
+        return Ok(vec![0, 0, 0, 0]);
+    };
+    let (mark, payload) = encoded_candidates(candidates)?;
+    let mut output = vec![1, mark];
+    output.extend_from_slice(
+        &u16::try_from(payload.len())
+            .context("candidate payload is too long")?
+            .to_le_bytes(),
+    );
+    output.extend_from_slice(&payload);
     Ok(output)
 }
 
-fn encode_cdb_mark(mark: EntryMark) -> u8 {
-    let mut encoded = 0;
-    if mark.require_hanja {
-        encoded |= CDB_MARK_REQUIRE_HANJA;
-    }
-    if mark.require_hangul {
-        encoded |= CDB_MARK_REQUIRE_HANGUL;
-    }
-    encoded
-}
-
 fn validate_fst_round_trip(entries: &[DictionaryEntry], dictionary: &FstDictionary) -> Result<()> {
-    if dictionary.entry_count() != entries.len() as u64 {
-        tracing::error!(
-            actual = dictionary.entry_count(),
-            expected = entries.len() as u64,
-            "round-trip validation failed: entry count mismatch"
-        );
-        bail!("round-trip validation failed: entry count mismatch");
-    }
-    for entry in entries {
-        let actual = dictionary.lookup(entry.hanja())?.ok_or_else(|| {
-            Error::message(format!(
-                "round-trip validation failed: `{}` is missing",
-                entry.hanja()
-            ))
+    let groups = candidate_groups(entries)?;
+    ensure!(
+        dictionary.entry_count() == groups.len() as u64,
+        "round-trip validation failed: entry count mismatch"
+    );
+    for (key, candidates) in groups {
+        let actual = dictionary.lookup(&key)?.ok_or_else(|| {
+            Error::message(format!("round-trip validation failed: `{key}` is missing"))
         })?;
-        let mark = actual.mark();
         ensure!(
-            actual.reading() == entry.reading()
-                && mark.require_hanja == entry.mark().require_hanja
-                && mark.require_hangul == entry.mark().require_hangul,
-            "round-trip validation failed for `{}`",
-            entry.hanja()
+            actual.candidates() == &candidates,
+            "round-trip validation failed for `{key}`"
         );
     }
     Ok(())
 }
 
 fn validate_cdb_round_trip(entries: &[DictionaryEntry], dictionary: &CdbDictionary) -> Result<()> {
-    if dictionary.entry_count() != entries.len() as u64 {
-        tracing::error!(
-            actual = dictionary.entry_count(),
-            expected = entries.len() as u64,
-            "round-trip validation failed: entry count mismatch"
-        );
-        bail!("round-trip validation failed: entry count mismatch");
-    }
-    for entry in entries {
-        let actual = dictionary.lookup(entry.hanja())?.ok_or_else(|| {
-            Error::message(format!(
-                "round-trip validation failed: `{}` is missing",
-                entry.hanja()
-            ))
+    let groups = candidate_groups(entries)?;
+    ensure!(
+        dictionary.entry_count() == groups.len() as u64,
+        "round-trip validation failed: entry count mismatch"
+    );
+    for (key, candidates) in groups {
+        let actual = dictionary.lookup(&key)?.ok_or_else(|| {
+            Error::message(format!("round-trip validation failed: `{key}` is missing"))
         })?;
-        let mark = actual.mark();
         ensure!(
-            actual.reading() == entry.reading()
-                && mark.require_hanja == entry.mark().require_hanja
-                && mark.require_hangul == entry.mark().require_hangul,
-            "round-trip validation failed for `{}`",
-            entry.hanja()
+            actual.candidates() == &candidates,
+            "round-trip validation failed for `{key}`"
         );
     }
     Ok(())
@@ -1204,6 +1277,10 @@ fn validate_cdb_round_trip(entries: &[DictionaryEntry], dictionary: &CdbDictiona
 
 #[derive(Debug, Deserialize)]
 struct JsonLineEntry {
+    #[serde(default)]
+    preference: Option<u32>,
+    #[serde(default, alias = "suffixReading")]
+    suffix_reading: Option<String>,
     hanja: String,
     hangul: String,
     #[serde(default, alias = "requireHanja")]
@@ -1212,25 +1289,9 @@ struct JsonLineEntry {
     require_hangul: bool,
 }
 
-fn encode_value(reading_len: u16, mark: EntryMark, reading_offset: u64) -> u64 {
-    u64::from(reading_len)
-        | (u64::from(encode_mark(mark)) << VALUE_MARK_SHIFT)
-        | (reading_offset << VALUE_OFFSET_SHIFT)
-}
-
-fn encode_mark(mark: EntryMark) -> u8 {
-    let mut encoded = 0;
-    if mark.require_hanja {
-        encoded |= MARK_REQUIRE_HANJA;
-    }
-    if mark.require_hangul {
-        encoded |= MARK_REQUIRE_HANGUL;
-    }
-    encoded
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct FixedHeader {
+    format_version: u32,
     metadata_offset: u64,
     metadata_len: u64,
     fst_offset: u64,
@@ -1242,7 +1303,7 @@ struct FixedHeader {
 impl FixedHeader {
     fn write(self, output: &mut Vec<u8>) {
         output.extend_from_slice(MAGIC);
-        output.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
+        output.extend_from_slice(&self.format_version.to_le_bytes());
         output.extend_from_slice(&(FIXED_HEADER_LEN as u32).to_le_bytes());
         output.extend_from_slice(&self.metadata_offset.to_le_bytes());
         output.extend_from_slice(&self.metadata_len.to_le_bytes());

@@ -416,3 +416,17 @@ run = "pnpm --filter @gukhanmun/docs run build"
 [tasks.docs-fonts]
 description = "Subset Noto Sans/Serif KR to the glyphs used by the docs hero animation"
 run = "node docs/scripts/subset-hero-fonts.mjs"
+
+[tasks.stdict-extract]
+description = "Regenerate stdict candidates and positional forms from a pinned dump"
+usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = 'cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output crates/gukhanmun-stdict/data/stdict.tsv --suffix-output crates/gukhanmun-stdict/data/suffix.tsv'
+
+[tasks.stdict-extract-check]
+description = "Check stdict extraction against a pinned dump without modifying files"
+usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = 'cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output crates/gukhanmun-stdict/data/stdict.tsv --suffix-output crates/gukhanmun-stdict/data/suffix.tsv --check'

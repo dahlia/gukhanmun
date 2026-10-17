@@ -30,10 +30,14 @@ use std::sync::Arc;
 use ciborium::de::from_reader;
 use fst::automaton::Automaton;
 use fst::{IntoStreamer, Map, Streamer};
-use gukhanmun_core::{DictionaryRecord, HanjaDictionary, Match, MatchMark};
+use gukhanmun_core::{
+    CandidateError, CandidateMatch, CandidateRecord, DictionaryRecord, HanjaDictionary, Match,
+    MatchMark, ReadingCandidate, ReadingCandidates, candidate_matches_at_spellings,
+    select_default_reading,
+};
 
 const MAGIC: &[u8; 8] = b"GUKHMFST";
-const FORMAT_VERSION: u32 = 1;
+const FORMAT_VERSION: u32 = 2;
 const FIXED_HEADER_LEN: usize = 64;
 const MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
 const MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
@@ -50,6 +54,7 @@ const VALUE_OFFSET_SHIFT: u64 = 24;
 #[derive(Clone, Debug)]
 pub struct FstDictionary {
     metadata: BTreeMap<String, String>,
+    format_version: u32,
     map: Map<ByteSection>,
     readings: ByteSection,
     entry_count: u64,
@@ -85,6 +90,7 @@ impl FstDictionary {
     fn from_source(source: ByteSource) -> Result<Self, Error> {
         let bytes = source.as_ref();
         let header = FixedHeader::parse(bytes)?;
+        let format_version = read_u32(&bytes[8..12]);
         let metadata_bytes = checked_slice(bytes, header.metadata_offset, header.metadata_len)
             .ok_or(Error::SectionOutOfBounds {
                 section: "metadata",
@@ -107,13 +113,14 @@ impl FstDictionary {
 
         tracing::debug!(
             byte_length = bytes.len(),
-            format_version = FORMAT_VERSION,
+            format_version,
             entry_count,
             ?max_word_chars,
             "decoded FST dictionary"
         );
         Ok(Self {
             metadata,
+            format_version,
             map,
             readings,
             entry_count,
@@ -158,6 +165,17 @@ impl FstDictionary {
             .ok_or(Error::SectionOutOfBounds {
                 section: "reading table entry",
             })?;
+        if (encoded >> VALUE_MARK_SHIFT) as u8 & 0x80 != 0 {
+            if self.format_version == 1 || (encoded >> VALUE_MARK_SHIFT) as u8 != 0x80 {
+                return Err(CandidateError::Malformed.into());
+            }
+            return Ok(LookupEntry {
+                candidates: ReadingCandidates::decode_payload(reading_bytes)?,
+            });
+        }
+        if self.format_version == 2 && (encoded >> VALUE_MARK_SHIFT) as u8 & !3 != 0 {
+            return Err(CandidateError::Malformed.into());
+        }
         let reading = std::str::from_utf8(reading_bytes)
             .map_err(|source| Error::InvalidUtf8 {
                 field: "reading",
@@ -165,7 +183,14 @@ impl FstDictionary {
             })?
             .to_owned();
 
-        Ok(LookupEntry { reading, mark })
+        Ok(LookupEntry {
+            candidates: ReadingCandidates::new(vec![ReadingCandidate {
+                reading,
+                suffix_reading: None,
+                mark,
+                preference: 0,
+            }])?,
+        })
     }
 }
 
@@ -209,7 +234,10 @@ impl AsRef<[u8]> for ByteSection {
 }
 
 impl HanjaDictionary for FstDictionary {
-    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+    fn candidate_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
         let mut stream = self
             .map
             .search(KeyIsPrefixOf::new(s.as_bytes()))
@@ -217,82 +245,74 @@ impl HanjaDictionary for FstDictionary {
         let mut matches = Vec::new();
         while let Some((key, encoded)) = stream.next() {
             match self.decode_entry(encoded) {
-                Ok(entry) => {
-                    matches.push(Match {
-                        byte_len: key.len(),
-                        reading: entry.reading,
-                        suffix_reading: None,
-                        mark: entry.mark,
-                    });
-                }
+                Ok(entry) => matches.push(CandidateMatch {
+                    byte_len: key.len(),
+                    candidates: entry.candidates,
+                }),
                 Err(error) => {
-                    if let Ok(key_str) = std::str::from_utf8(key) {
-                        tracing::warn!(key = key_str, error = ?error, "skipping FST entry with undecodable value");
-                    } else {
-                        tracing::warn!(key_len = key.len(), error = ?error, "skipping FST entry with non-UTF-8 key and undecodable value");
-                    }
+                    tracing::warn!(key_len = key.len(), error = ?error, "skipping FST entry with undecodable value")
                 }
             }
         }
         matches.sort_by_key(|matched| matched.byte_len);
         Box::new(matches.into_iter())
     }
-
+    fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
+        candidate_matches_at_spellings(self, spellings)
+    }
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        Box::new(
+            self.candidate_matches_at(s)
+                .map(|matched| matched.select_default()),
+        )
+    }
     fn max_word_chars(&self) -> Option<usize> {
         self.max_word_chars
     }
-
-    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+    fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
         let mut stream = self.map.stream();
         let mut records = Vec::new();
         while let Some((key, encoded)) = stream.next() {
-            let Ok(hanja) = std::str::from_utf8(key) else {
-                continue;
-            };
-            if let Ok(entry) = self.decode_entry(encoded) {
-                records.push(DictionaryRecord {
-                    hanja: hanja.to_owned(),
-                    reading: entry.reading,
-                    mark: entry.mark,
+            if let (Ok(hanja), Ok(entry)) = (std::str::from_utf8(key), self.decode_entry(encoded)) {
+                records.push(CandidateRecord {
+                    hanja: hanja.into(),
+                    candidates: entry.candidates,
                 });
             }
         }
         Some(Box::new(records.into_iter()))
     }
-
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        Some(Box::new(
+            self.candidate_entries()?
+                .map(|record| record.select_default()),
+        ))
+    }
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        let mut stream = self.map.stream();
-        while let Some((key, encoded)) = stream.next() {
-            if key == hanja.as_bytes() {
-                continue;
-            }
-            if self
-                .decode_entry(encoded)
-                .is_ok_and(|entry| entry.reading == reading)
-            {
-                return true;
-            }
-        }
-        false
+        self.candidate_entries()
+            .unwrap()
+            .any(|record| record.has_homophone(hanja, reading))
     }
 }
 
 /// A decoded exact-match dictionary entry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LookupEntry {
-    reading: String,
-    mark: MatchMark,
+    candidates: ReadingCandidates,
 }
 
 impl LookupEntry {
-    /// Returns the hangul reading for the entry.
+    /// Returns the selected default's word-initial reading.
     pub fn reading(&self) -> &str {
-        &self.reading
+        &select_default_reading(&self.candidates).reading
     }
-
-    /// Returns dictionary-provided rendering constraints.
+    /// Returns rendering constraints of the selected default only.
     pub fn mark(&self) -> MatchMark {
-        self.mark
+        select_default_reading(&self.candidates).mark
+    }
+    /// Returns all allowed candidates, including positional forms and defaults.
+    pub fn candidates(&self) -> &ReadingCandidates {
+        &self.candidates
     }
 }
 
@@ -300,6 +320,10 @@ impl LookupEntry {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// Candidate data is invalid, truncated, or noncanonical.
+    #[error(transparent)]
+    Candidates(#[from] CandidateError),
+
     /// Reading a dictionary file from disk failed.
     #[error("failed to read {path}: {source}")]
     Io {
@@ -412,7 +436,7 @@ impl FixedHeader {
             return Err(Error::InvalidMagic);
         }
         let version = read_u32(&bytes[8..12]);
-        if version != FORMAT_VERSION {
+        if !matches!(version, 1 | 2) {
             tracing::error!(
                 version,
                 expected = FORMAT_VERSION,

@@ -23,7 +23,7 @@ use crate::generated::hanja_variants::{
     COMPATIBILITY_REVERSE_FORMS, JOYO_FORMS, JOYO_REVERSE_FORMS, JOYO_TARGETS, SIMPLIFIED_FORMS,
     SIMPLIFIED_REVERSE_FORMS, TRADITIONAL_FORMS, Z_CANONICAL_FORMS, Z_FORMS, Z_REVERSE_FORMS,
 };
-use crate::{HanjaDictionary, Match};
+use crate::{CandidateMatch, HanjaDictionary, Match};
 
 pub(crate) const MAX_VARIANT_PREFIX_CHARS: usize = 32;
 pub(crate) const MAX_VARIANT_CANDIDATES: usize = 256;
@@ -39,14 +39,14 @@ pub(crate) fn matches_at<D>(source: &str, dictionary: &D) -> Vec<ResolvedMatch>
 where
     D: HanjaDictionary + ?Sized,
 {
-    let exact = dictionary.matches_at(source).collect::<Vec<_>>();
+    let exact = dictionary.candidate_matches_at(source).collect::<Vec<_>>();
     let mut resolved = exact
         .into_iter()
         .filter_map(|matched| {
             source.get(..matched.byte_len).map(|hanja| ResolvedMatch {
                 source_byte_len: matched.byte_len,
                 dictionary_hanja: hanja.into(),
-                matched,
+                matched: matched.select_default(),
             })
         })
         .collect::<Vec<_>>();
@@ -123,7 +123,7 @@ where
             .iter()
             .map(|(candidate, _)| candidate.as_str())
             .collect::<Vec<_>>();
-        let mut selected = dictionary.matches_at_spellings(&spellings);
+        let mut selected = dictionary.candidate_matches_at_spellings(&spellings);
         selected.retain(|(candidate_index, _)| *candidate_index < candidates.len());
         if selected.is_empty() {
             continue;
@@ -132,14 +132,14 @@ where
             resolved.retain(|matched| matched.source_byte_len != source_byte_len);
             resolved.extend(selected.into_iter().filter(|(index, _)| *index == 0).map(
                 |(_, matched)| ResolvedMatch {
-                    matched,
+                    matched: matched.select_default(),
                     source_byte_len,
                     dictionary_hanja: source_prefix.into(),
                 },
             ));
             continue;
         }
-        let mut matches = Vec::<(usize, &str, Match)>::new();
+        let mut matches = Vec::<(usize, &str, CandidateMatch)>::new();
         for (candidate_index, matched) in selected {
             let (candidate, substitutions) = &candidates[candidate_index];
             matches.push((*substitutions, candidate.as_str(), matched));
@@ -152,7 +152,7 @@ where
         if let Some((_, dictionary_hanja, matched)) = matches.into_iter().next() {
             resolved.retain(|matched| matched.source_byte_len != source_byte_len);
             resolved.push(ResolvedMatch {
-                matched,
+                matched: matched.select_default(),
                 source_byte_len,
                 dictionary_hanja: dictionary_hanja.into(),
             });

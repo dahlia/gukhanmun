@@ -25,7 +25,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use ciborium::de::from_reader;
-use gukhanmun_core::{DictionaryRecord, HanjaDictionary, Match, MatchMark};
+use gukhanmun_core::{
+    CandidateError, CandidateMatch, CandidateRecord, DictionaryRecord, HanjaDictionary, Match,
+    MatchMark, ReadingCandidate, ReadingCandidates, candidate_matches_at_spellings,
+    select_default_reading,
+};
 
 const META_KEY: &[u8] = b"__gukhanmun_meta__";
 const MARK_REQUIRE_HANJA: u8 = 0b0000_0001;
@@ -61,6 +65,7 @@ impl Deref for DataSource {
 /// `'static` slice, depending on how the dictionary was loaded.
 pub struct CdbDictionary {
     metadata: BTreeMap<String, String>,
+    format_version: u32,
     data: DataSource,
     entry_count: u64,
     max_word_chars: Option<usize>,
@@ -99,13 +104,16 @@ impl CdbDictionary {
         let metadata = from_reader::<BTreeMap<String, String>, _>(metadata_bytes.as_slice())
             .map_err(|source| Error::MetadataDecode { source })?;
         if let Some(version) = metadata.get("version")
-            && version != "1"
+            && !matches!(version.as_str(), "1" | "2")
         {
-            tracing::error!(version = %version, expected = "1", "unsupported CDB format version");
+            tracing::error!(version = %version, expected = "1 or 2", "unsupported CDB format version");
             return Err(Error::UnsupportedVersion {
                 version: version.clone(),
             });
         }
+        let format_version = metadata
+            .get("version")
+            .map_or(1, |v| if v == "2" { 2 } else { 1 });
         let entry_count = parse_u64_metadata(&metadata, "entry_count").unwrap_or(0);
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars");
 
@@ -116,6 +124,7 @@ impl CdbDictionary {
         );
         Ok(Self {
             metadata,
+            format_version,
             data,
             entry_count,
             max_word_chars,
@@ -138,7 +147,7 @@ impl CdbDictionary {
         let Some(value) = cdb_get(&self.data, hanja.as_bytes())? else {
             return Ok(None);
         };
-        let Some(record) = decode_record(&value)? else {
+        let Some(record) = decode_record_version(&value, self.format_version)? else {
             return Ok(None);
         };
         Ok(Some(record))
@@ -146,7 +155,10 @@ impl CdbDictionary {
 }
 
 impl HanjaDictionary for CdbDictionary {
-    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+    fn candidate_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
         let max_word_chars = self.max_word_chars.unwrap_or(usize::MAX);
         let mut matches = Vec::new();
         let mut prefix = String::new();
@@ -168,13 +180,11 @@ impl HanjaDictionary for CdbDictionary {
                     break;
                 }
             };
-            match decode_record(&value) {
+            match decode_record_version(&value, self.format_version) {
                 Ok(Some(entry)) => {
-                    matches.push(Match {
+                    matches.push(CandidateMatch {
                         byte_len: prefix.len(),
-                        reading: entry.reading,
-                        suffix_reading: None,
-                        mark: entry.mark,
+                        candidates: entry.candidates,
                     });
                 }
                 Ok(None) => {}
@@ -192,11 +202,20 @@ impl HanjaDictionary for CdbDictionary {
         Box::new(matches.into_iter())
     }
 
+    fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
+        candidate_matches_at_spellings(self, spellings)
+    }
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        Box::new(
+            self.candidate_matches_at(s)
+                .map(|matched| matched.select_default()),
+        )
+    }
     fn max_word_chars(&self) -> Option<usize> {
         self.max_word_chars
     }
 
-    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+    fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
         let mut records = Vec::new();
         for result in cdb_iter(&self.data) {
             let (key, value) = match result {
@@ -209,7 +228,7 @@ impl HanjaDictionary for CdbDictionary {
             if key == META_KEY {
                 continue;
             }
-            let entry = match decode_record(&value) {
+            let entry = match decode_record_version(&value, self.format_version) {
                 Ok(Some(entry)) => entry,
                 Ok(None) => continue,
                 Err(error) => {
@@ -221,49 +240,45 @@ impl HanjaDictionary for CdbDictionary {
                 tracing::warn!("skipping CDB entry with non-UTF-8 key");
                 continue;
             };
-            records.push(DictionaryRecord {
+            records.push(CandidateRecord {
                 hanja,
-                reading: entry.reading,
-                mark: entry.mark,
+                candidates: entry.candidates,
             });
         }
         Some(Box::new(records.into_iter()))
     }
 
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        Some(Box::new(
+            self.candidate_entries()?
+                .map(|record| record.select_default()),
+        ))
+    }
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        for result in cdb_iter(&self.data) {
-            let (key, value) = match result {
-                Ok(pair) => pair,
-                Err(_) => continue,
-            };
-            if key == META_KEY || key == hanja.as_bytes() {
-                continue;
-            }
-            if decode_record(&value).is_ok_and(|entry| entry.is_some_and(|e| e.reading == reading))
-            {
-                return true;
-            }
-        }
-        false
+        self.candidate_entries()
+            .unwrap()
+            .any(|record| record.has_homophone(hanja, reading))
     }
 }
 
 /// A decoded exact-match dictionary entry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LookupEntry {
-    reading: String,
-    mark: MatchMark,
+    candidates: ReadingCandidates,
 }
 
 impl LookupEntry {
-    /// Returns the hangul reading for the entry.
+    /// Returns the selected default's word-initial reading.
     pub fn reading(&self) -> &str {
-        &self.reading
+        &select_default_reading(&self.candidates).reading
     }
-
-    /// Returns dictionary-provided rendering constraints.
+    /// Returns rendering constraints of the selected default only.
     pub fn mark(&self) -> MatchMark {
-        self.mark
+        select_default_reading(&self.candidates).mark
+    }
+    /// Returns all allowed candidates, including positional forms and defaults.
+    pub fn candidates(&self) -> &ReadingCandidates {
+        &self.candidates
     }
 }
 
@@ -271,6 +286,10 @@ impl LookupEntry {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// Candidate data is invalid, truncated, or noncanonical.
+    #[error(transparent)]
+    Candidates(#[from] CandidateError),
+
     /// Opening a CDB dictionary file failed.
     #[error("failed to open {path}: {source}")]
     Open {
@@ -492,13 +511,19 @@ impl<'a> Iterator for CdbIter<'a> {
 
 // ── Record helpers ─────────────────────────────────────────────────────────
 
-fn decode_record(value: &[u8]) -> Result<Option<LookupEntry>, Error> {
+fn decode_record_version(value: &[u8], version: u32) -> Result<Option<LookupEntry>, Error> {
     if value.len() < 4 {
         return Err(Error::MalformedRecord {
             reason: "record is shorter than the fixed prefix",
         });
     }
+    if version == 1 && value[1] & 0x80 != 0 {
+        return Err(CandidateError::Malformed.into());
+    }
     if value[0] == 0 {
+        if version == 2 && value != [0, 0, 0, 0] {
+            return Err(CandidateError::Malformed.into());
+        }
         return Ok(None);
     }
 
@@ -512,6 +537,17 @@ fn decode_record(value: &[u8]) -> Result<Option<LookupEntry>, Error> {
     let reading_bytes = value
         .get(4..reading_end)
         .ok_or(Error::ValueOutOfBounds { field: "reading" })?;
+    if value[1] & 0x80 != 0 {
+        if version == 1 || value[1] != 0x80 || value[0] != 1 || value.len() != reading_end {
+            return Err(CandidateError::Malformed.into());
+        }
+        return Ok(Some(LookupEntry {
+            candidates: ReadingCandidates::decode_payload(reading_bytes)?,
+        }));
+    }
+    if version == 2 && (value[0] != 1 || value[1] & !3 != 0 || value.len() != reading_end) {
+        return Err(CandidateError::Malformed.into());
+    }
     let reading = std::str::from_utf8(reading_bytes)
         .map_err(|source| Error::InvalidUtf8 {
             field: "reading",
@@ -519,7 +555,14 @@ fn decode_record(value: &[u8]) -> Result<Option<LookupEntry>, Error> {
         })?
         .to_owned();
 
-    Ok(Some(LookupEntry { reading, mark }))
+    Ok(Some(LookupEntry {
+        candidates: ReadingCandidates::new(vec![ReadingCandidate {
+            reading,
+            suffix_reading: None,
+            mark,
+            preference: 0,
+        }])?,
+    }))
 }
 
 fn decode_mark(encoded: u8) -> MatchMark {
@@ -877,5 +920,43 @@ mod tests {
                 })
                 .collect()
         })
+    }
+}
+
+#[cfg(test)]
+mod candidate_record_tests {
+    use super::*;
+    #[test]
+    fn tagged_record_framing_is_versioned_and_bounded() {
+        let candidates = ReadingCandidates::new(vec![ReadingCandidate {
+            reading: "연대".into(),
+            suffix_reading: Some("년대".into()),
+            mark: MatchMark::default(),
+            preference: 0,
+        }])
+        .unwrap();
+        let payload = candidates.encode_payload().unwrap();
+        let mut record = vec![1, 0x80];
+        record.extend_from_slice(&(payload.len() as u16).to_le_bytes());
+        record.extend_from_slice(&payload);
+        assert_eq!(
+            decode_record_version(&record, 2)
+                .unwrap()
+                .unwrap()
+                .candidates(),
+            &candidates
+        );
+        assert!(decode_record_version(&record, 1).is_err());
+        for len in 0..record.len() {
+            assert!(decode_record_version(&record[..len], 2).is_err());
+        }
+        let mut trailing = record.clone();
+        trailing.push(0);
+        assert!(decode_record_version(&trailing, 2).is_err());
+        record[1] = 0x81;
+        assert!(decode_record_version(&record, 2).is_err());
+        assert!(decode_record_version(&[1, 0x80, 2, 0, 0, 0], 2).is_err());
+        assert!(decode_record_version(&[0, 0x80, 0, 0], 2).is_err());
+        assert!(decode_record_version(&[0, 0x80, 0, 0], 1).is_err());
     }
 }
