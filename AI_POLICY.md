@@ -62,9 +62,9 @@ Assisted-by: AGENT_NAME:MODEL_VERSION
 For example:
 
 ~~~~
-Assisted-by: Claude Code:claude-sonnet-4-6
-Assisted-by: Cursor:claude-opus-4-7
-Assisted-by: GitHub Copilot:gpt-4o
+Assisted-by: Claude Code:claude-sonnet-5-5
+Assisted-by: Cursor:claude-opus-5-5
+Assisted-by: GitHub Copilot:gpt-6.1-sol
 ~~~~
 
 If multiple AI tools were used, include one `Assisted-by` line per tool.

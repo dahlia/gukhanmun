@@ -10,6 +10,7 @@ bun = "1"
 "aqua:nushell/nushell" = "0.113.0"
 "pipx:fonttools" = { version = "4.63.0", extras = "woff" }
 "github:koalaman/shellcheck" = "0.11.0"
+"github:dahlia/sacho" = "0.3.2"
 
 [tools.rust]
 version = "1.95.0"
@@ -39,6 +40,7 @@ linux-arm64 = "hongdown-*-aarch64-unknown-linux-musl.tar.bz2"
 description = "Run fast checks suitable for pre-commit"
 depends = [
   "actionlint",
+  "changelog-check",
   "fmt-check",
   "typecheck",
   "clippy",
@@ -47,6 +49,10 @@ depends = [
   "js-doc",
   "js-fmt-check",
 ]
+
+[tasks.changelog-check]
+description = "Validate changelog fragments and materialized output"
+run = "sacho check"
 
 [tasks.actionlint]
 description = "Lint GitHub Actions workflows"
@@ -82,31 +88,45 @@ let target_args = ($rust.targets | split row "," | each { |t| ["--target" $t] } 
 """
 
 [tasks.bump]
-description = "Preview a workspace + JS manifest version bump"
+description = "Preview a workspace version bump and the changelog transition"
 usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
 shell = "nu -c"
-depends = ["rust-init"]
-run = "cargo release --workspace --no-publish --no-tag --no-push $env.usage_version"
+depends = ["rust-init", "changelog-check"]
+run = """
+cargo release --workspace --no-publish --no-tag --no-push $env.usage_version
+if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
+print "The applied bump will also run sacho next with the new workspace version."
+"""
 
 [tasks.bump-execute]
 description = "Create one signed commit bumping the workspace and the packages/ JS manifests"
 usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
 shell = "nu -c"
-depends = ["rust-init"]
+depends = ["rust-init", "changelog-check"]
 # cargo-release bumps the shared Cargo version, the intra-workspace dependency
 # requirements, and Cargo.lock, then writes a signed commit.  It knows nothing
 # about the package.json/deno.json manifests under packages/, so we sync those
-# to the same version and fold exactly them into that one signed commit; the
-# explicit pathspec keeps any unrelated working-tree change out of the bump.
+# to the same version, advance the changelog, and fold those files into the
+# same signed commit. The explicit pathspec keeps unrelated changes out.
 # The JS version is read back from Cargo.toml after cargo-release runs, so it
 # tracks the version actually applied even when <version> is a bump level such
 # as "patch" or "minor".  Run this on a clean tree; cargo-release refuses to
 # bump when there are uncommitted changes.
 run = """
+let previous_head = (git rev-parse HEAD | str trim)
 cargo release --workspace --no-publish --no-tag --no-push --execute $env.usage_version
+if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
+# cargo-release also exits successfully when the maintainer declines the bump.
+if (git rev-parse HEAD | str trim) == $previous_head { exit 0 }
 $env.VERSION = (open Cargo.toml | get workspace.package.version)
 mise run js-sync-version
-git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json
+if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
+sacho next $env.VERSION
+# A release removes next, so the next cycle must stage the recreated file.
+if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
+git add -- changes.d/next CHANGES.md
+if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
+git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json changes.d/next CHANGES.md
 """
 
 [tasks.typecheck]
@@ -122,7 +142,14 @@ run = "cargo clippy --workspace --all-targets"
 [tasks.fmt]
 description = "Format code and docs"
 depends = ["rust-init"]
-run = ["cargo fmt --all", "hongdown --write", "mise fmt", "deno fmt packages/"]
+run = [
+  "cargo fmt --all",
+  "hongdown --write",
+  "mise fmt",
+  "deno fmt packages/",
+  "sacho sync --force",
+  "sacho fmt",
+]
 
 [tasks.fmt-check]
 description = "Check code, docs, and mise formatting"

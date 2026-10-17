@@ -135,32 +135,75 @@ Follow these prose conventions:
 Writing the changelog
 ---------------------
 
-When adding a feature, changing existing behaviour, or fixing a bug, add an
-entry to *CHANGES.md* under the current development version. Documentation-only
-changes, including edits under *docs/*, prose in Markdown files, and code
-comments, do not need an entry.
+When adding a feature, changing existing behaviour, or fixing a bug, add or
+update a [Sacho] fragment under *changes.d/*. Fragments are the source of truth;
+*CHANGES.md* materializes the current development version automatically.
+Documentation-only changes, including edits under *docs/*, prose in Markdown
+files, and code comments, do not need an entry.
 
-Organize entries by the public surface whose users will encounter the change.
-Use a level-3 heading named after the Cargo crate or JavaScript package, such as
-`### gukhanmun-core` or `### @gukhanmun/wasm`. Repeat a change under every
-affected surface, including the crate where the behaviour originates and each
-umbrella crate, CLI, binding, or shared type package that exposes it. This
-duplication is intentional: a reader should be able to follow only the sections
-for the components they use. Changes to internal generators belong under the
-public crate whose behaviour or data they alter, not under the generator
-itself.
+Create a fragment named after the change in each affected public surface:
 
-Place an entry directly under the version heading only when it applies to the
-workspace as a whole and cannot usefully be attributed to a particular crate or
-package. Release-wide packaging and repository infrastructure changes are
-typical examples.
+~~~~ sh
+mise exec -- sacho add --section gukhanmun-core clearer-readings
+mise exec -- sacho add --section @gukhanmun/wasm clearer-readings
+~~~~
 
-Keep each bullet focused on one user-visible change. Split distinct behaviours
-into separate bullets when that helps readers find the part relevant to them.
-State what changed and how users access or configure it; include implementation
-details only when they explain an observable constraint or compatibility
-decision. End every bullet with bracketed issue or pull request references,
-with reference links defined in the same version section.
+Rust crate fragments live under *changes.d/crates/*, and JavaScript/TypeScript
+package fragments live under *changes.d/packages/*. The section patterns in
+*sacho.toml* render Rust crates first, then JavaScript/TypeScript packages,
+with section ids sorted within each family.
+
+Repeat a change under every affected surface, including the crate where the
+behaviour originates and each umbrella crate, CLI, binding, or shared type
+package that exposes it. This duplication is intentional: a reader should be
+able to follow only the sections for the components they use. Changes to
+internal generators belong under the public crate whose behaviour or data they
+alter, not under the generator itself. Related changes from one pull request
+can share a fragment as several bullets in each affected section.
+
+For a workspace-wide change, repeat the relevant note in each affected public
+crate or package section. All fragments belong to a section directory.
+
+Keep each bullet focused on one user-visible change. State what changed and how
+users access or configure it; include implementation details only when they
+explain an observable constraint or compatibility decision. End every bullet
+with bracketed issue or pull request references, such as `[[#42], [#64]]`.
+Sacho resolves these through *sacho.toml*; pin pull request URLs in fragment
+frontmatter when needed:
+
+~~~~ yaml
+---
+links:
+  "#64": https://github.com/dahlia/gukhanmun/pull/64
+---
+~~~~
+
+After editing a fragment, run `mise exec -- hongdown -w path/to/fragment.md`
+as for other Markdown. Then apply Sacho's final formatting and regenerate and
+validate the changelog:
+
+~~~~ sh
+mise exec -- sacho sync --force
+mise exec -- sacho fmt
+mise exec -- sacho check
+~~~~
+
+`sync --force` rebuilds the generated region from fragments without prompting,
+so keep every intended unreleased edit in a fragment.
+
+Commit the fragments and generated *CHANGES.md* together.
+`mise run check` validates fragments and materialized output, and
+`mise run fmt` formats them. Sacho owns formatting for *changes.d/* and
+*CHANGES.md*, so the repository-wide Hongdown pass excludes them. Source-path
+coverage enforcement is disabled; contributors choose the affected sections
+using the public-surface rules above.
+
+The official Sacho agent skill is installed under *.agents/skills/sacho/*.
+In a fresh clone, run
+`mise exec -- sacho init --no-interactive --integration-executable sacho` once
+to register the merge drivers from *.gitattributes* in local Git configuration.
+
+[Sacho]: https://sacho.dev/
 
 
 Testing
@@ -239,8 +282,8 @@ form `AGENT_NAME:MODEL_VERSION`, one line per tool.  Do not use `Co-authored-by`
 for AI assistants; that trailer is reserved for human co-authors.
 
 ~~~~
-Assisted-by: Claude Code:claude-opus-4-8
-Assisted-by: Codex:gpt-5.5
+Assisted-by: Claude Code:claude-opus-5-5
+Assisted-by: Codex:gpt-6.1-sol
 ~~~~
 
 
@@ -267,7 +310,8 @@ Version bumps go through `mise run bump-execute`, which wraps `cargo-release`.
 dependency requirements, and *Cargo.lock*, then writes a signed commit.  It does
 not understand the npm and JSR manifests, so the task additionally syncs every
 *package.json* and *deno.json* under *packages/* to the version `cargo-release`
-applied and folds exactly those manifests into that one signed commit.  The task
+applied, runs `sacho next` with that version, and folds those manifests,
+*changes.d/next*, and *CHANGES.md* into that one signed commit.  The task
 never tags, pushes, or publishes.
 
 Run the bump on a clean working tree: `cargo-release` refuses to proceed when
@@ -283,7 +327,8 @@ git config tag.gpgSign
 ~~~~
 
 Preview the bump first; this runs `cargo-release` in dry-run mode and changes
-nothing:
+nothing. It also reports that the applied bump will advance Sacho to the new
+workspace version:
 
 ~~~~ sh
 mise run bump -- 1.2.5
@@ -305,8 +350,17 @@ git push
 
 ### Tagging a release
 
-Prepare *CHANGES.md* so it contains a `Version x.y.z` section for the release.
-The GitHub Release body is cut from that section.
+Review the fragments and compile the current version into a dated release
+section before tagging:
+
+~~~~ sh
+mise exec -- sacho preview
+mise exec -- sacho release
+~~~~
+
+Commit *CHANGES.md*, the removed fragments, and the removed *changes.d/next*
+together. The GitHub Release body is cut from that frozen `Version x.y.z`
+section. The workspace version stays unchanged until the next cycle's bump.
 
 A release does not bump anything; it tags the version that
 `workspace.package.version` already holds.  Create and push a signed tag with
