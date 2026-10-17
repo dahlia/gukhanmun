@@ -16,7 +16,6 @@
 
 use std::fs;
 use std::io;
-use std::io::BufWriter;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -43,6 +42,10 @@ struct Cli {
 
     #[arg(long, value_name = "PATH")]
     archaic_output: PathBuf,
+
+    /// Compare all four outputs without creating or overwriting any files.
+    #[arg(long)]
+    check: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -54,19 +57,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_writer(io::stderr)
         .init();
 
-    let general = BufWriter::new(fs::File::create(&cli.general_output)?);
-    let north_korean = BufWriter::new(fs::File::create(&cli.north_korean_output)?);
-    let dialect = BufWriter::new(fs::File::create(&cli.dialect_output)?);
-    let archaic = BufWriter::new(fs::File::create(&cli.archaic_output)?);
+    let mut general = Vec::new();
+    let mut north_korean = Vec::new();
+    let mut dialect = Vec::new();
+    let mut archaic = Vec::new();
     let stats = extract_path_to_files(
         &cli.input,
         CategoryWriters {
-            general,
-            north_korean,
-            dialect,
-            archaic,
+            general: &mut general,
+            north_korean: &mut north_korean,
+            dialect: &mut dialect,
+            archaic: &mut archaic,
         },
     )?;
+    let outputs = [
+        (&cli.general_output, general),
+        (&cli.north_korean_output, north_korean),
+        (&cli.dialect_output, dialect),
+        (&cli.archaic_output, archaic),
+    ];
+    if cli.check {
+        let mut drift = false;
+        for (path, expected) in &outputs {
+            match fs::read(path) {
+                Ok(actual) if actual == *expected => {}
+                Ok(_) => {
+                    tracing::error!(path = %path.display(), "extraction drift");
+                    drift = true;
+                }
+                Err(error) => {
+                    tracing::error!(path = %path.display(), %error, "cannot check output");
+                    drift = true;
+                }
+            }
+        }
+        if drift {
+            return Err("Open Korean Dictionary extraction differs from checked outputs".into());
+        }
+    } else {
+        // Source and pin validation completes for every category before the
+        // first output is opened for writing.
+        for (path, bytes) in outputs {
+            fs::write(path, bytes)?;
+        }
+    }
     tracing::info!(
         general_entries = stats.general.entries_written,
         north_korean_entries = stats.north_korean.entries_written,

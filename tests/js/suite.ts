@@ -23,6 +23,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { stdictFst } from "../../packages/stdict-fst/index.ts";
+import { opendictGeneralFst, opendictNorthKoreanFst } from "../../packages/opendict-fst/index.ts";
+import { opendictGeneralCdb, opendictNorthKoreanCdb } from "../../packages/opendict-cdb/index.ts";
 import { stdictCdb } from "../../packages/stdict-cdb/index.ts";
 import type {
   FileDictionarySource,
@@ -164,6 +166,38 @@ export function registerSuite(name: string, binding: Binding): void {
       test(`${backend}: 漢字를 한글로 → 한자를 한글로`, async () => {
         const g = await load({ dictionaries: [await loadDict()] });
         assert.equal(g.convert("漢字를 한글로"), "한자를 한글로");
+      });
+    }
+  });
+
+  describe(`${name}: regenerated Open Korean Dictionary candidates`, () => {
+    for (
+      const [backend, generalLoader, northLoader] of [
+        ["fst", opendictGeneralFst, opendictNorthKoreanFst],
+        ["cdb", opendictGeneralCdb, opendictNorthKoreanCdb],
+      ] as const
+    ) {
+      test(`${backend}: pinned competing reading survives package bytes`, async () => {
+        const g = await load({ dictionaries: [await generalLoader()], homophoneWindow: "off" });
+        assert.equal(g.convert("俳句"), "하이쿠");
+      });
+      test(`${backend}: category priority replaces the whole candidate set`, async () => {
+        const general = await generalLoader();
+        const north = await northLoader();
+        const nkFirst = await load({
+          dictionaries: [north, general],
+          preset: "ko-kp",
+          homophoneWindow: "off",
+        });
+        const generalFirst = await load({
+          dictionaries: [general, north],
+          preset: "ko-kp",
+          homophoneWindow: "off",
+        });
+        assert.equal(nkFirst.convert("齘齒 歷史"), "계치 력사");
+        assert.equal(generalFirst.convert("齘齒 歷史"), "해치 역사");
+        const input = "俳句 齘齒 歷史 비率 1990年代";
+        assert.equal(await streamAll(nkFirst.stream("text"), [...input]), nkFirst.convert(input));
       });
     }
   });

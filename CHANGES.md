@@ -30,11 +30,15 @@ To be released.
     dictionaries replace all readings for a key.  [[#19], [#22]]
  -  Dictionary-wide homophone marking now includes the selected candidate's
     suffix reading, including custom `MapDictionary` suffixes.  [[#19], [#22]]
+ -  Added competing readings to the bundled *Open Korean Dictionary* data,
+    preserving existing default choices and dictionary priority. [[#21], [#24]]
 
 [#11]: https://github.com/dahlia/gukhanmun/issues/11
 [#12]: https://github.com/dahlia/gukhanmun/pull/12
 [#19]: https://github.com/dahlia/gukhanmun/issues/19
+[#21]: https://github.com/dahlia/gukhanmun/issues/21
 [#22]: https://github.com/dahlia/gukhanmun/pull/22
+[#24]: https://github.com/dahlia/gukhanmun/pull/24
 
 ### gukhanmun-cdb
 
@@ -46,6 +50,8 @@ To be released.
  -  Added `--hanja-variant-set` for selecting `as-dictionary`, `shinjitai`,
     `kanxi`, `simplified`, or `asahimoji` whenever the selected rendering mode
     emits hanja.  [[#11], [#12]]
+ -  Added competing readings to the bundled *Open Korean Dictionary* data,
+    preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]
@@ -88,9 +94,20 @@ To be released.
 
 ### gukhanmun-napi
 
+ -  Added competing readings to the bundled *Open Korean Dictionary* data,
+    preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
+
+### gukhanmun-opendict
+
+ -  Added all competing readings and sorted source sense identifiers to the
+    category TSV snapshots of the *Open Korean Dictionary*. Curated defaults
+    keep existing category choices reproducible; regenerate or check the
+    snapshots with `mise run opendict-extract -- /path/to/pinned-dump.zip` and
+    `mise run opendict-extract-check -- /path/to/pinned-dump.zip`.
+    [[#21], [#24]]
 
 ### gukhanmun-stdict
 
@@ -102,12 +119,16 @@ To be released.
 
 ### gukhanmun-wasm
 
+ -  Added competing readings to the bundled *Open Korean Dictionary* data,
+    preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
 
 ### @gukhanmun/napi
 
+ -  Added competing readings to the bundled *Open Korean Dictionary* data,
+    preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
     spelling emitted by the Node-API binding.  [[#11], [#12]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
@@ -115,6 +136,20 @@ To be released.
     [[#19], [#22]]
  -  Dictionary-wide homophone marking includes selected suffix readings.
     [[#19], [#22]]
+
+### @gukhanmun/opendict-cdb
+
+ -  Changed the bundled *Open Korean Dictionary* data to retain competing
+    readings within each category, preserving existing default choices and
+    category priority. Source identifiers remain in the extraction TSVs.
+    [[#21], [#24]]
+
+### @gukhanmun/opendict-fst
+
+ -  Changed the bundled *Open Korean Dictionary* data to retain competing
+    readings within each category, preserving existing default choices and
+    category priority. Source identifiers remain in the extraction TSVs.
+    [[#21], [#24]]
 
 ### @gukhanmun/stdict-cdb
 
@@ -135,6 +170,8 @@ To be released.
 
 ### @gukhanmun/wasm
 
+ -  Added competing readings to the bundled *Open Korean Dictionary* data,
+    preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
     spelling emitted by the WebAssembly binding.  [[#11], [#12]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
