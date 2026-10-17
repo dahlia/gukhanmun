@@ -37,6 +37,13 @@ To be released.
 
 ### gukhanmun
 
+ -  Added candidate-aware dictionary APIs and deterministic default reading
+    selection while preserving existing bundled defaults. Higher-priority
+    dictionaries replace all readings for a key.  [[#19], [#22]]
+
+ -  Dictionary-wide homophone marking now includes the selected candidate's
+    suffix reading, including custom `MapDictionary` suffixes.  [[#19], [#22]]
+
  -  Added `Builder::hanja_variant_set()` for selecting the hanja spelling used
     in rendered output independently of the rendering mode.  A separately
     selected variant set remains in effect when the rendering mode changes,
@@ -44,8 +51,18 @@ To be released.
 
 [#11]: https://github.com/dahlia/gukhanmun/issues/11
 [#12]: https://github.com/dahlia/gukhanmun/pull/12
+[#19]: https://github.com/dahlia/gukhanmun/issues/19
+[#22]: https://github.com/dahlia/gukhanmun/pull/22
 
 ### gukhanmun-core
+
+ -  Added `ReadingCandidate`, `ReadingCandidates`, candidate lookup/enumeration
+    methods, and `MapDictionary::insert_candidates()`. Selection happens before
+    segmentation; alternatives retain their own marks and positional forms.
+    Existing custom dictionary implementations remain supported.  [[#19], [#22]]
+
+ -  Dictionary-wide homophone marking indexes only selected candidates and
+    includes their suffix readings.  [[#19], [#22]]
 
  -  Added dictionary-guided recognition of Unicode z-variants,
     traditional/simplified forms, CJK compatibility ideographs, Joyo kanji
@@ -53,6 +70,7 @@ To be released.
     accepted only when the dictionary identifies one matching sense, while
     exact source matches remain authoritative.  Compatibility ideographs are
     folded before fallback reading and numeral lookup.  [[#11], [#12]]
+
  -  Added `HanjaVariantSet` with `AsDictionary`, `Shinjitai`, `Kanxi`,
     `Simplified`, and `Asahimoji` output profiles.
     `Annotation::canonical_hanja()` exposes the dictionary spelling for a
@@ -62,16 +80,37 @@ To be released.
 
 ### gukhanmun-cli
 
+ -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
+    options, retaining bundled default readings and positional forms.
+    [[#19], [#22]]
+
+ -  Dictionary-wide homophone marking includes selected suffix readings.
+    [[#19], [#22]]
+
  -  Added `--hanja-variant-set` for selecting `as-dictionary`, `shinjitai`,
     `kanxi`, `simplified`, or `asahimoji` whenever the selected rendering mode
     emits hanja.  [[#11], [#12]]
 
 ### @gukhanmun/napi
 
+ -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
+    options, retaining bundled default readings and positional forms.
+    [[#19], [#22]]
+
+ -  Dictionary-wide homophone marking includes selected suffix readings.
+    [[#19], [#22]]
+
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
     spelling emitted by the Node-API binding.  [[#11], [#12]]
 
 ### @gukhanmun/wasm
+
+ -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
+    options, retaining bundled default readings and positional forms.
+    [[#19], [#22]]
+
+ -  Dictionary-wide homophone marking includes selected suffix readings.
+    [[#19], [#22]]
 
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
     spelling emitted by the WebAssembly binding.  [[#11], [#12]]
@@ -80,6 +119,56 @@ To be released.
 
  -  Added the `HanjaVariantSet` type and the `hanjaVariantSet` field on
     `GukhanmunOptions` for the shared JavaScript API.  [[#11], [#12]]
+
+### gukhanmun-fst
+
+ -  Added v2 candidate payloads and `lookup().candidates()`, preserving v1
+    loading and selected-default lookup methods.  [[#19], [#22]]
+
+### gukhanmun-cdb
+
+ -  Added v2 candidate payloads and `lookup().candidates()`, preserving v1
+    loading and selected-default lookup methods.  [[#19], [#22]]
+
+### gukhanmun-mkdict
+
+ -  Accept candidate rows with `preference` and `suffix_reading` in TSV/CSV,
+    or `preference` and `suffixReading` in JSONL. Merge policies replace whole
+    sets across files, and reading rules apply to individual candidates. The
+    builder emits v1 for scalar dictionaries and v2 when candidates or suffixes
+    require it; old runtimes must be updated to read v2.  [[#19], [#22]]
+
+### gukhanmun-stdict
+
+ -  Retain competing readings and source record IDs during extraction, with
+    curated equal-priority decisions preserving all existing default readings.
+    Candidate-specific suffixes now survive raw FST/CDB loading. Use
+    `mise run stdict-extract` to regenerate and `mise run stdict-extract-check`
+    to check a source dump without modifying outputs.  [[#19], [#22]]
+
+### gukhanmun-napi
+
+ -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
+    options, and include selected suffixes in dictionary-wide homophone marking.
+    [[#19], [#22]]
+
+### gukhanmun-wasm
+
+ -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
+    options, and include selected suffixes in dictionary-wide homophone marking.
+    [[#19], [#22]]
+
+### @gukhanmun/stdict-fst
+
+ -  Bundle v2 data retaining competing readings and positional forms, with all
+    previous default readings preserved. Requires a binding that reads
+    dictionary format v2.  [[#19], [#22]]
+
+### @gukhanmun/stdict-cdb
+
+ -  Bundle v2 data retaining competing readings and positional forms, with all
+    previous default readings preserved. Requires a binding that reads
+    dictionary format v2.  [[#19], [#22]]
 
 
 Version 0.2.0

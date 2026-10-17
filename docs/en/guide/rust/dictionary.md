@@ -159,3 +159,34 @@ The *.gukfst* and *.gukcdb* files loaded above are compiled artifacts, built
 from a plain text table with the `gukhanmun-mkdict` tool.  See
 [*Building a custom dictionary*](../cli/dictionary.md#building-a-custom-dictionary)
 in the CLI guide for how to author and compile dictionary sources.
+
+
+Keeping alternative readings
+----------------------------
+
+Use `insert_candidates()` when a key has competing lexical readings. Ordinary
+`insert()` and `insert_with_suffix()` still replace the entire key.
+
+~~~~ rust
+use gukhanmun::{MapDictionary, MatchMark, ReadingCandidate, ReadingCandidates};
+
+let candidates = ReadingCandidates::new(vec![
+    ReadingCandidate {
+        reading: "동경".into(), suffix_reading: None,
+        mark: MatchMark::default(), preference: 0,
+    },
+    ReadingCandidate {
+        reading: "도쿄".into(), suffix_reading: None,
+        mark: MatchMark::default(), preference: 10,
+    },
+])?;
+let mut dictionary = MapDictionary::new();
+dictionary.insert_candidates("東京", candidates);
+~~~~
+
+The default selector chooses `도쿄`. It preserves a following particle as
+written; it does not yet use particles to select a reading. A higher-priority
+dictionary replaces the whole set for `東京`. Use `candidate_matches_at()` or
+`candidate_entries()` to inspect alternatives; `matches_at()` and `entries()`
+expose only the selected default. FST/CDB `lookup().candidates()` exposes the
+same sets.

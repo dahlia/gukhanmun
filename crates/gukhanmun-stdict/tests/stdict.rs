@@ -51,9 +51,10 @@ fn extracts_canonical_tsv_from_synthetic_json() {
         stats,
         ExtractStats {
             items_seen: 16,
-            entries_written: 12,
+            entries_written: 15,
             duplicate_keys: 3,
             skipped_items: 2,
+            skipped_default_pins: 46,
         }
     );
     // `北京` (multi-character) keeps its foreign reading 베이징, but the
@@ -62,19 +63,7 @@ fn extracts_canonical_tsv_from_synthetic_json() {
     // shadow the Sino-Korean reading (引 → 인) recovered from unihan.
     assert_eq!(
         String::from_utf8(output).unwrap(),
-        "hanja\thangul\trequire_hanja\trequire_hangul\n\
-         一分錢\t일푼전\tfalse\tfalse\n\
-         一點鎖線\t일점쇄선\tfalse\tfalse\n\
-         佈告하다\t포고하다\tfalse\tfalse\n\
-         北京\t베이징\tfalse\tfalse\n\
-         嚴戒\t엄계\tfalse\tfalse\n\
-         天地\t천지\tfalse\tfalse\n\
-         布告하다\t포고하다\tfalse\tfalse\n\
-         標識\t표지\tfalse\tfalse\n\
-         溫暖\t온난\tfalse\tfalse\n\
-         溫煖\t온난\tfalse\tfalse\n\
-         漢字\t한자\tfalse\tfalse\n\
-         입口字집\t입구자집\tfalse\tfalse\n"
+        "hanja\thangul\trequire_hanja\trequire_hangul\tpreference\tsuffix_reading\tsource_ids\n一分錢\t일푼전\tfalse\tfalse\t\t\t\n一點鎖線\t일점쇄선\tfalse\tfalse\t\t\t\n佈告하다\t포고하다\tfalse\tfalse\t\t\t\n北京\t베이징\tfalse\tfalse\t30\t\t\n北京\t북경\tfalse\tfalse\t10\t\t\n嚴戒\t엄계\tfalse\tfalse\t\t\t\n天地\t천지\tfalse\tfalse\t\t\t\n布告하다\t포고하다\tfalse\tfalse\t\t\t\n標識\t표식\tfalse\tfalse\t0\t\t\n標識\t표지\tfalse\tfalse\t10\t\t\n溫暖\t온난\tfalse\tfalse\t\t\t\n溫煖\t온난\tfalse\tfalse\t\t\t\n漢字\t중복한자\tfalse\tfalse\t10\t\t\n漢字\t한자\tfalse\tfalse\t10\t\t\n입口字집\t입구자집\tfalse\tfalse\t\t\t\n"
     );
 }
 
@@ -90,12 +79,14 @@ fn saisiot_prescribed_reading_wins_regardless_of_dump_order() {
         extract_json_reader_to_tsv(json.as_bytes(), &mut output).unwrap();
         let output = String::from_utf8(output).unwrap();
         assert!(
-            output.contains("數字\t숫자\tfalse\tfalse\n"),
+            output.contains("數字\t숫자\tfalse\tfalse\t"),
             "expected 數字 → 숫자 with dump order {first} then {second}, got:\n{output}"
         );
+        assert!(output.contains("數字\t숫자\tfalse\tfalse\t20\t"));
+        assert!(output.contains("數字\t수자\tfalse\tfalse\t10\t"));
         assert!(
-            !output.contains("數字\t수자\t"),
-            "saisiot-free 수자 must not win for 數字 with dump order {first} then {second}"
+            output.contains("數字\t수자\t"),
+            "saisiot-free 수자 must be preserved for 數字 with dump order {first} then {second}"
         );
     }
 }
@@ -124,7 +115,7 @@ fn cli_extracts_from_zip_archives() {
         .stderr(predicates::str::contains("extraction complete"));
 
     let output = fs::read_to_string(output_path).unwrap();
-    assert!(output.contains("漢字\t한자\tfalse\tfalse\n"));
+    assert!(output.contains("漢字\t한자\tfalse\tfalse\t"));
 }
 
 #[test]
@@ -338,6 +329,7 @@ proptest! {
         hanja in "[一-龥]{1,3}",
         reading in "[가-힣]{1,5}",
     ) {
+        proptest::prop_assume!(!include_str!("../data/defaults.tsv").lines().skip(1).any(|line| line.split('\t').next()==Some(hanja.as_str())));
         let json = format!(
             r#"{{"channel":{{"item":[{{"word_info":{{"word":"{reading}","word_unit":"단어","word_type":"한자어","pronunciation_info":[{{"pronunciation":"{reading}"}}],"original_language_info":[{{"original_language":"{hanja}","language_type":"한자"}}]}}}}]}}}}"#
         );
@@ -350,7 +342,7 @@ proptest! {
         prop_assert_eq!(first_stats, second_stats);
         prop_assert_eq!(&first, &second);
         let output = String::from_utf8(first).unwrap();
-        let expected = format!("{hanja}\t{reading}\tfalse\tfalse\n");
+        let expected = format!("{hanja}\t{reading}\tfalse\tfalse\t");
         prop_assert!(output.contains(&expected));
     }
 
@@ -360,6 +352,7 @@ proptest! {
         hanja in "[一-龥]{1,3}",
         reading in "[가-힣]{1,5}",
     ) {
+        proptest::prop_assume!(!include_str!("../data/defaults.tsv").lines().skip(1).any(|line| line.split('\t').next()==Some(hanja.as_str())));
         let json = format!(
             r#"{{"channel":{{"item":[{{"word_info":{{"word":"{reading}","word_unit":"단어","word_type":"외래어","original_language_info":[{{"original_language":"{romanized}[{hanja}]","language_type":"안 밝힘"}}]}}}}]}}}}"#
         );
@@ -381,6 +374,7 @@ proptest! {
                     entries_written: 0,
                     duplicate_keys: 0,
                     skipped_items: 0,
+                    skipped_default_pins: 46,
                 }
             );
             let dropped_key = format!("{hanja}\t");
@@ -394,9 +388,10 @@ proptest! {
                     entries_written: 1,
                     duplicate_keys: 0,
                     skipped_items: 0,
+                    skipped_default_pins: 46,
                 }
             );
-            let expected = format!("{hanja}\t{reading}\tfalse\tfalse\n");
+            let expected = format!("{hanja}\t{reading}\tfalse\tfalse\t");
             prop_assert!(output.contains(&expected));
         }
     }
@@ -614,4 +609,147 @@ fn synthetic_json() -> &'static str {
   }
 }
 "#
+}
+
+#[test]
+fn candidate_extraction_is_order_independent_and_unions_source_records() {
+    let item = |id: u64, word: &str| serde_json::json!({"target_code":id,"word_info":{"word":word,"word_unit":"단어","original_language_info":[{"original_language":"東京","language_type":"한자"}]}});
+    let items = vec![item(100, "동경"), item(101, "도쿄"), item(102, "동경")];
+    let extract = |items: Vec<serde_json::Value>| {
+        let mut output = Vec::new();
+        extract_json_reader_to_tsv(
+            serde_json::json!({"channel":{"item":items}})
+                .to_string()
+                .as_bytes(),
+            &mut output,
+        )
+        .unwrap();
+        String::from_utf8(output).unwrap()
+    };
+    let output = extract(items.clone());
+    assert_eq!(output, extract(items.into_iter().rev().collect()));
+    assert!(output.contains("東京\t동경\tfalse\tfalse\t10\t\t100,102\n"));
+    assert!(output.contains("東京\t도쿄\tfalse\tfalse\t10\t\t101\n"));
+}
+
+#[test]
+fn single_hanja_source_readings_stay_separate_from_positional_forms() {
+    let item = |id: u64, key: &str, word: &str| serde_json::json!({"target_code":id,"word_info":{"word":word,"word_unit":"단어","original_language_info":[{"original_language":key,"language_type":"한자"}]}});
+    // Real source identifiers for 率; automatic suffix pairing must not consume 률.
+    let json = serde_json::json!({"channel":{"item":[item(105043,"率","-률02"),item(256492,"率","율02"),item(1,"年","연"),item(2,"年","-년")]}});
+    let mut output = Vec::new();
+    extract_json_reader_to_tsv(json.to_string().as_bytes(), &mut output).unwrap();
+    let output = String::from_utf8(output).unwrap();
+    for reading in ["률", "율"] {
+        assert!(output.lines().any(|line| {
+            let f: Vec<_> = line.split('\t').collect();
+            f[0] == "率" && f[1] == reading && f[5].is_empty()
+        }));
+    }
+    for key in ["年", "率"] {
+        let matched = gukhanmun_stdict::ko_kr()
+            .candidate_matches_at(key)
+            .next()
+            .unwrap();
+        assert!(matched.candidates.as_slice().len() > 1);
+        assert!(
+            matched
+                .candidates
+                .as_slice()
+                .iter()
+                .all(|c| c.suffix_reading.is_none())
+        );
+    }
+    assert_eq!(
+        convert_plain_text(
+            "비率",
+            gukhanmun_stdict::ko_kr(),
+            RenderMode::HangulHanjaParens
+        ),
+        "비율(率)"
+    );
+}
+
+#[test]
+fn bundled_candidates_survive_boxed_chains_and_every_curated_pin_is_present() {
+    let dictionary: Box<dyn HanjaDictionary> = Box::new(gukhanmun_stdict::ko_kr());
+    let chain: gukhanmun_core::ChainDictionary<_> = [dictionary].into_iter().collect();
+    let matched = chain.candidate_matches_at("率").next().unwrap();
+    assert!(matched.candidates.as_slice().len() > 1);
+    assert_eq!(matched.select_default().reading, "률");
+    for line in include_str!("../data/defaults.tsv").lines().skip(1) {
+        let f: Vec<_> = line.split('\t').collect();
+        let matched = chain
+            .candidate_matches_at(f[0])
+            .find(|m| m.byte_len == f[0].len())
+            .unwrap()
+            .select_default();
+        assert_eq!(matched.reading, f[1], "{}", f[0]);
+        assert_eq!(matched.suffix_reading.as_deref().unwrap_or(""), f[2]);
+    }
+    assert_eq!(
+        gukhanmun_stdict::ko_kr()
+            .lookup("年代")
+            .unwrap()
+            .unwrap()
+            .candidates()
+            .as_slice()[0]
+            .suffix_reading
+            .as_deref(),
+        Some("년대")
+    );
+}
+
+#[test]
+fn changed_source_candidates_invalidate_a_curated_default() {
+    // 女 has a reviewed 여/녀 spelling decision in the pinned source;
+    // an unrelated replacement must never inherit its preference silently.
+    let json = serde_json::json!({"channel":{"item":[{"word_info":{"word":"다른독음","word_unit":"단어","original_language_info":[{"original_language":"女","language_type":"한자"}]}}]}});
+    let error = extract_json_reader_to_tsv(json.to_string().as_bytes(), Vec::new()).unwrap_err();
+    assert!(error.to_string().contains("candidate set changed"));
+}
+
+#[test]
+fn shared_initial_and_suffix_readings_keep_both_roles_and_their_own_sources() {
+    let item = |id: u64, word: &str| serde_json::json!({"target_code":id,"word_info":{"word":word,"word_unit":"단어","original_language_info":[{"original_language":"年度","language_type":"한자"}]}});
+    let extract = |items: Vec<serde_json::Value>| {
+        let mut output = Vec::new();
+        extract_json_reader_to_tsv(
+            serde_json::json!({"channel":{"item":items}})
+                .to_string()
+                .as_bytes(),
+            &mut output,
+        )
+        .unwrap();
+        String::from_utf8(output).unwrap()
+    };
+    let items = vec![item(1, "연도"), item(2, "-년도"), item(3, "년도")];
+    let output = extract(items.clone());
+    assert_eq!(output, extract(items.into_iter().rev().collect()));
+    assert!(output.contains("年度\t연도\tfalse\tfalse\t10\t년도\t1,2\n"));
+    assert!(output.contains("年度\t년도\tfalse\tfalse\t10\t\t2,3\n"));
+
+    // Independent initial provenance must not promote a different candidate's
+    // suffix pairing, even if its own source has higher priority.
+    let foreign = serde_json::json!({"target_code":4,"word_info":{"word":"년도","word_unit":"단어","original_language_info":[{"original_language":"Nyeondo[年度]","language_type":"안 밝힘"}]}});
+    let output = extract(vec![item(1, "연도"), item(2, "-년도"), foreign]);
+    assert!(output.contains("年度\t연도\tfalse\tfalse\t10\t년도\t1,2\n"));
+    assert!(output.contains("年度\t년도\tfalse\tfalse\t30\t\t2,4\n"));
+}
+
+#[test]
+fn one_initial_reading_can_keep_several_suffix_forms() {
+    let items=[(1,"여인"),(2,"-려인"),(3,"-녀인"),(4,"려인")].map(|(id,word)|serde_json::json!({"target_code":id,"word_info":{"word":word,"word_unit":"단어","original_language_info":[{"original_language":"旅人","language_type":"한자"}]}}));
+    let mut output = Vec::new();
+    extract_json_reader_to_tsv(
+        serde_json::json!({"channel":{"item":items}})
+            .to_string()
+            .as_bytes(),
+        &mut output,
+    )
+    .unwrap();
+    let output = String::from_utf8(output).unwrap();
+    assert!(output.contains("旅人\t여인\tfalse\tfalse\t10\t려인\t1,2\n"));
+    assert!(output.contains("旅人\t여인\tfalse\tfalse\t10\t녀인\t1,3\n"));
+    assert!(output.contains("旅人\t려인\tfalse\tfalse\t10\t\t2,4\n"));
 }

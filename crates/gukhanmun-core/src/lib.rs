@@ -27,7 +27,13 @@
 
 extern crate alloc;
 
+mod candidates;
 mod fallback;
+
+pub use candidates::{
+    CandidateError, CandidateMatch, CandidateRecord, ReadingCandidate, ReadingCandidates,
+    candidate_matches_at_spellings, select_default_reading,
+};
 mod generated;
 mod segment;
 mod variants;
@@ -417,6 +423,34 @@ pub struct Match {
 /// supplied string. This shape supports lattice segmentation because the
 /// engine must consider every candidate path through a hanja run.
 pub trait HanjaDictionary {
+    /// Yields candidate sets before reading selection. Legacy implementations
+    /// are lifted one match at a time, preserving their order and values.
+    fn candidate_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+        Box::new(self.matches_at(s).map(CandidateMatch::from_legacy))
+    }
+
+    /// Resolves complete alternative spellings before choosing a reading.
+    /// The default preserves custom legacy spelling-resolution overrides.
+    #[doc(hidden)]
+    fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
+        self.matches_at_spellings(spellings)
+            .into_iter()
+            .map(|(index, matched)| (index, CandidateMatch::from_legacy(matched)))
+            .collect()
+    }
+
+    /// Enumerates complete candidate sets, including their positional readings.
+    /// Legacy enumeration is lifted without changing its selected values.
+    fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
+        Some(Box::new(self.entries()?.map(|record| CandidateRecord {
+            hanja: record.hanja,
+            candidates: ReadingCandidates::from_legacy(record.reading, None, record.mark),
+        })))
+    }
+
     /// Yields every dictionary match that starts at the beginning of `s`.
     fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a>;
 
@@ -467,9 +501,8 @@ pub trait HanjaDictionary {
 
     /// Returns whether another hanja spelling has the same hangul reading.
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        self.entries().is_some_and(|mut entries| {
-            entries.any(|record| record.hanja != hanja && record.reading == reading)
-        })
+        self.candidate_entries()
+            .is_some_and(|mut entries| entries.any(|record| record.has_homophone(hanja, reading)))
     }
 }
 
@@ -477,6 +510,19 @@ impl<D> HanjaDictionary for &D
 where
     D: HanjaDictionary + ?Sized,
 {
+    fn candidate_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+        (**self).candidate_matches_at(s)
+    }
+    fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
+        (**self).candidate_matches_at_spellings(spellings)
+    }
+    fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
+        (**self).candidate_entries()
+    }
+
     fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
         (**self).matches_at(s)
     }
@@ -502,6 +548,19 @@ impl<D> HanjaDictionary for Box<D>
 where
     D: HanjaDictionary + ?Sized,
 {
+    fn candidate_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+        (**self).candidate_matches_at(s)
+    }
+    fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
+        (**self).candidate_matches_at_spellings(spellings)
+    }
+    fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
+        (**self).candidate_entries()
+    }
+
     fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
         (**self).matches_at(s)
     }
@@ -634,30 +693,52 @@ impl<D> HanjaDictionary for ChainDictionary<D>
 where
     D: HanjaDictionary,
 {
-    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
-        let mut seen_lengths = BTreeSet::new();
+    fn candidate_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+        let mut seen = BTreeSet::new();
         let mut matches = Vec::new();
-
         for dictionary in &self.dictionaries {
-            for matched in dictionary.matches_at(s) {
-                if seen_lengths.insert(matched.byte_len) {
+            for matched in dictionary.candidate_matches_at(s) {
+                if seen.insert(matched.byte_len) {
                     matches.push(matched);
                 }
             }
         }
-
         matches.sort_by_key(|matched| matched.byte_len);
         Box::new(matches.into_iter())
     }
-
-    fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
+    fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
         for dictionary in &self.dictionaries {
-            let matches = dictionary.matches_at_spellings(spellings);
+            let matches = dictionary.candidate_matches_at_spellings(spellings);
             if !matches.is_empty() {
                 return matches;
             }
         }
         Vec::new()
+    }
+    fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
+        let mut records = BTreeMap::<String, CandidateRecord>::new();
+        for dictionary in &self.dictionaries {
+            for record in dictionary.candidate_entries()? {
+                records.entry(record.hanja.clone()).or_insert(record);
+            }
+        }
+        Some(Box::new(records.into_values()))
+    }
+
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        Box::new(
+            self.candidate_matches_at(s)
+                .map(|matched| matched.select_default()),
+        )
+    }
+    fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
+        self.candidate_matches_at_spellings(spellings)
+            .into_iter()
+            .map(|(index, matched)| (index, matched.select_default()))
+            .collect()
     }
 
     fn max_word_chars(&self) -> Option<usize> {
@@ -670,20 +751,15 @@ where
     }
 
     fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
-        let mut records = BTreeMap::<String, DictionaryRecord>::new();
-
-        for dictionary in &self.dictionaries {
-            for record in dictionary.entries()? {
-                records.entry(record.hanja.clone()).or_insert(record);
-            }
-        }
-
-        Some(Box::new(records.into_values()))
+        Some(Box::new(
+            self.candidate_entries()?
+                .map(|record| record.select_default()),
+        ))
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        if let Some(mut records) = self.entries() {
-            return records.any(|record| record.hanja != hanja && record.reading == reading);
+        if let Some(mut records) = self.candidate_entries() {
+            return records.any(|record| record.has_homophone(hanja, reading));
         }
 
         self.dictionaries
@@ -780,13 +856,6 @@ pub enum NumeralStrategy {
     Smart,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct DictionaryEntry {
-    reading: String,
-    suffix_reading: Option<String>,
-    mark: MatchMark,
-}
-
 /// A small in-memory dictionary backed by an ordered map.
 ///
 /// This implementation is intended for tests, user-supplied custom entries,
@@ -794,7 +863,7 @@ struct DictionaryEntry {
 /// the engine can score every candidate path through a hanja run.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct MapDictionary {
-    entries: BTreeMap<String, DictionaryEntry>,
+    entries: BTreeMap<String, ReadingCandidates>,
     max_word_chars: Option<usize>,
 }
 
@@ -846,12 +915,17 @@ impl MapDictionary {
         }));
         self.entries.insert(
             hanja,
-            DictionaryEntry {
-                reading: reading.into(),
-                suffix_reading,
-                mark,
-            },
+            ReadingCandidates::from_legacy(reading.into(), suffix_reading, mark),
         );
+    }
+
+    /// Replaces a whole key with an explicitly authored, validated candidate set.
+    /// Lower-priority dictionaries cannot contribute alternatives to this key.
+    pub fn insert_candidates(&mut self, hanja: impl Into<String>, candidates: ReadingCandidates) {
+        let hanja = hanja.into();
+        let chars = hanja.chars().count();
+        self.max_word_chars = Some(self.max_word_chars.map_or(chars, |max| max.max(chars)));
+        self.entries.insert(hanja, candidates);
     }
 
     /// Returns whether the dictionary has no entries.
@@ -866,39 +940,59 @@ impl MapDictionary {
 }
 
 impl HanjaDictionary for MapDictionary {
-    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+    fn candidate_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
         Box::new(
             self.entries
                 .iter()
-                .filter(move |(hanja, _)| s.starts_with(hanja.as_str()))
-                .map(|(hanja, entry)| Match {
-                    byte_len: hanja.len(),
-                    reading: entry.reading.clone(),
-                    suffix_reading: entry.suffix_reading.clone(),
-                    mark: entry.mark,
+                .filter(move |(key, _)| s.starts_with(key.as_str()))
+                .map(|(key, candidates)| CandidateMatch {
+                    byte_len: key.len(),
+                    candidates: candidates.clone(),
                 }),
         )
     }
-
+    fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
+        candidate_matches_at_spellings(self, spellings)
+    }
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        Box::new(
+            self.candidate_matches_at(s)
+                .map(|matched| matched.select_default()),
+        )
+    }
     fn max_word_chars(&self) -> Option<usize> {
         self.max_word_chars
     }
-
-    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
-        Some(Box::new(self.entries.iter().map(|(hanja, entry)| {
-            DictionaryRecord {
-                hanja: hanja.clone(),
-                reading: entry.reading.clone(),
-                mark: entry.mark,
+    fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
+        Some(Box::new(self.entries.iter().map(|(key, candidates)| {
+            CandidateRecord {
+                hanja: key.clone(),
+                candidates: candidates.clone(),
             }
         })))
     }
-
-    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        self.entries
-            .iter()
-            .any(|(other_hanja, entry)| other_hanja != hanja && entry.reading == reading)
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        Some(Box::new(
+            self.candidate_entries()?
+                .map(|record| record.select_default()),
+        ))
     }
+    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        self.candidate_entries()
+            .unwrap()
+            .any(|record| record.has_homophone(hanja, reading))
+    }
+}
+
+/// Tests whether two distinct positional readings form an initial-sound-law pair.
+///
+/// Dictionary extractors use this to attach a non-word-initial form without
+/// merging unrelated lexical readings. This does not infer word boundaries.
+pub fn is_initial_sound_law_pair(initial: &str, suffix: &str) -> bool {
+    initial != suffix && apply_initial_sound_law_to_first_syllable(suffix) == initial
 }
 
 /// Scope data used by the plain-text adapter.
@@ -3119,11 +3213,15 @@ impl HomophoneIndex {
         D: HanjaDictionary + ?Sized,
     {
         let mut forms_by_reading = BTreeMap::<String, BTreeSet<String>>::new();
-        for record in dictionary.entries()? {
-            forms_by_reading
-                .entry(record.reading)
-                .or_default()
-                .insert(record.hanja);
+        for record in dictionary.candidate_entries()? {
+            let selected = select_default_reading(&record.candidates);
+            for reading in core::iter::once(&selected.reading).chain(selected.suffix_reading.iter())
+            {
+                forms_by_reading
+                    .entry(reading.clone())
+                    .or_default()
+                    .insert(record.hanja.clone());
+            }
         }
         Some(Self { forms_by_reading })
     }

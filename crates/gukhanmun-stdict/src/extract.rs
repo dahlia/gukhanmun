@@ -16,7 +16,6 @@
 
 //! Extractor for Standard Korean Language Dictionary JSON dumps.
 
-use std::collections::btree_map::Entry as BTreeEntry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{BufReader, Cursor, Read, Seek, Write};
@@ -35,6 +34,10 @@ pub enum Error {
     /// Filesystem or stream I/O failed.
     #[error("I/O failed: {0}")]
     Io(#[from] std::io::Error),
+
+    /// A curated default no longer agrees with the source candidate set.
+    #[error("invalid curated dictionary default: {0}")]
+    DefaultDecision(String),
 
     /// JSON input could not be decoded.
     #[error("failed to decode dictionary JSON: {0}")]
@@ -97,18 +100,20 @@ pub struct ExtractStats {
     pub items_seen: usize,
     /// Number of canonical TSV dictionary rows written after de-duplication.
     pub entries_written: usize,
-    /// Number of otherwise valid keys skipped because an earlier item already
-    /// emitted the same key.
+    /// Number of repeated key occurrences encountered while collecting readings.
+    /// Competing readings are retained, rather than counted as skipped items.
     pub duplicate_keys: usize,
     /// Number of JSON items skipped because they could not produce a supported
     /// dictionary entry.
     pub skipped_items: usize,
+    /// Curated default keys absent from this input subset.
+    pub skipped_default_pins: usize,
 }
 
 #[derive(Default)]
 struct Extractor {
     stats: ExtractStats,
-    entries: BTreeMap<String, Entry>,
+    entries: BTreeMap<String, BTreeMap<String, Entry>>,
     /// Word-initial readings seen for multi-syllable hanja keys.
     initial_forms: BTreeMap<String, BTreeSet<String>>,
     /// Suffix and bound-noun readings seen for multi-syllable hanja keys.
@@ -178,6 +183,7 @@ impl Extractor {
     }
 
     fn ingest_item(&mut self, item: Item) {
+        let source_id = item.target_code;
         let Some(word_info) = item.word_info else {
             tracing::debug!(reason = "missing word_info", "skipping dictionary item");
             self.stats.skipped_items += 1;
@@ -244,23 +250,27 @@ impl Extractor {
                 base_priority
             };
             self.track_multisyllable_form(&key, &reading, suffix_headword);
-            match self.entries.entry(key) {
-                BTreeEntry::Vacant(entry) => {
-                    entry.insert(Entry {
-                        reading: reading.clone(),
-                        priority,
-                    });
-                }
-                BTreeEntry::Occupied(mut entry) => {
-                    self.stats.duplicate_keys += 1;
-                    if priority > entry.get().priority {
-                        tracing::trace!(key = %entry.key(), "resolved duplicate dictionary key by priority");
-                        entry.insert(Entry {
-                            reading: reading.clone(),
-                            priority,
-                        });
-                    }
-                }
+            let entries = self.entries.entry(key).or_default();
+            if !entries.is_empty() {
+                self.stats.duplicate_keys += 1;
+            }
+            let entry = entries.entry(reading.clone()).or_insert_with(|| Entry {
+                reading: reading.clone(),
+                initial: None,
+                suffix: None,
+            });
+            let position = if suffix_headword {
+                &mut entry.suffix
+            } else {
+                &mut entry.initial
+            };
+            let records = position.get_or_insert_with(|| SourceRecords {
+                priority,
+                ids: BTreeSet::new(),
+            });
+            records.priority = records.priority.max(priority);
+            if let Some(source_id) = source_id {
+                records.ids.insert(source_id);
             }
         }
     }
@@ -313,13 +323,69 @@ impl Extractor {
     }
 
     fn write_tsv(mut self, mut writer: impl Write) -> Result<ExtractStats> {
-        writeln!(writer, "hanja\thangul\trequire_hanja\trequire_hangul")?;
-        for (key, entry) in &self.entries {
-            writeln!(writer, "{key}\t{}\tfalse\tfalse", entry.reading)?;
+        let pins = default_decisions()?;
+        self.stats.skipped_default_pins = pins
+            .keys()
+            .filter(|key| !self.entries.contains_key(*key))
+            .count();
+        writeln!(
+            writer,
+            "hanja\thangul\trequire_hanja\trequire_hangul\tpreference\tsuffix_reading\tsource_ids"
+        )?;
+        self.stats.entries_written = 0;
+        for (key, entries) in &self.entries {
+            let mut candidates = extraction_candidates(key, entries);
+            let signature = candidates
+                .iter()
+                .map(|c| (c.reading.clone(), c.suffix_reading.clone()))
+                .collect::<Vec<_>>();
+            if let Some(pin) = pins.get(key) {
+                if pin.candidates != signature {
+                    return Err(Error::DefaultDecision(format!(
+                        "candidate set changed for `{key}`"
+                    )));
+                }
+                let highest = candidates.iter().map(|c| c.preference).max().unwrap();
+                let Some(chosen) = candidates
+                    .iter_mut()
+                    .find(|c| c.reading == pin.reading && c.suffix_reading == pin.suffix_reading)
+                else {
+                    return Err(Error::DefaultDecision(format!(
+                        "chosen candidate missing for `{key}`"
+                    )));
+                };
+                if chosen.preference != highest {
+                    return Err(Error::DefaultDecision(format!(
+                        "chosen candidate for `{key}` is outside the highest priority band"
+                    )));
+                }
+                chosen.preference += 1;
+            }
+            let explicit = candidates.len() > 1;
+            for candidate in candidates {
+                let preference = if explicit {
+                    candidate.preference.to_string()
+                } else {
+                    String::new()
+                };
+                let ids = candidate
+                    .source_ids
+                    .iter()
+                    .map(u64::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                writeln!(
+                    writer,
+                    "{key}\t{}\tfalse\tfalse\t{preference}\t{}\t{ids}",
+                    candidate.reading,
+                    candidate.suffix_reading.as_deref().unwrap_or("")
+                )?;
+                self.stats.entries_written += 1;
+            }
         }
-        self.stats.entries_written = self.entries.len();
         tracing::info!(
             entries_written = self.stats.entries_written,
+            skipped_default_pins = self.stats.skipped_default_pins,
             "wrote dictionary TSV"
         );
         Ok(self.stats)
@@ -329,7 +395,134 @@ impl Extractor {
 #[derive(Clone, Debug)]
 struct Entry {
     reading: String,
+    initial: Option<SourceRecords>,
+    suffix: Option<SourceRecords>,
+}
+
+#[derive(Clone, Debug)]
+struct SourceRecords {
     priority: EntryPriority,
+    ids: BTreeSet<u64>,
+}
+
+struct ExtractCandidate {
+    reading: String,
+    suffix_reading: Option<String>,
+    preference: u32,
+    source_ids: BTreeSet<u64>,
+}
+
+impl ExtractCandidate {
+    fn from_sources(
+        reading: &str,
+        suffix_reading: Option<&str>,
+        sources: &[&SourceRecords],
+    ) -> Self {
+        Self {
+            reading: reading.to_owned(),
+            suffix_reading: suffix_reading.map(str::to_owned),
+            preference: sources
+                .iter()
+                .map(|source| source.priority)
+                .max()
+                .expect("candidate has a source") as u32
+                * 10,
+            source_ids: sources
+                .iter()
+                .flat_map(|source| source.ids.iter().copied())
+                .collect(),
+        }
+    }
+}
+
+fn extraction_candidates(key: &str, entries: &BTreeMap<String, Entry>) -> Vec<ExtractCandidate> {
+    let key_chars = key.chars().count();
+    let eligible = key_chars >= 2 && key.chars().all(is_hanja);
+    let mut consumed = BTreeSet::new();
+    let mut candidates = Vec::new();
+    for initial in entries.values().filter(|entry| entry.initial.is_some()) {
+        let initial_sources = initial.initial.as_ref().expect("word-initial record");
+        let pairs = entries
+            .values()
+            .filter(|suffix| {
+                eligible
+                    && suffix.suffix.is_some()
+                    && initial.reading.chars().count() == key_chars
+                    && suffix.reading.chars().count() == key_chars
+                    && gukhanmun_core::is_initial_sound_law_pair(&initial.reading, &suffix.reading)
+            })
+            .collect::<Vec<_>>();
+        // A separate suffix record with the same reading establishes a
+        // position-independent choice even when another suffix also pairs.
+        if pairs.is_empty() || initial.suffix.is_some() {
+            let sources = core::iter::once(initial_sources)
+                .chain(initial.suffix.as_ref())
+                .collect::<Vec<_>>();
+            candidates.push(ExtractCandidate::from_sources(
+                &initial.reading,
+                None,
+                &sources,
+            ));
+        }
+        for suffix in pairs {
+            consumed.insert(suffix.reading.clone());
+            candidates.push(ExtractCandidate::from_sources(
+                &initial.reading,
+                Some(&suffix.reading),
+                &[
+                    initial_sources,
+                    suffix.suffix.as_ref().expect("suffix record"),
+                ],
+            ));
+        }
+    }
+    for entry in entries
+        .values()
+        .filter(|entry| entry.initial.is_none() && !consumed.contains(&entry.reading))
+    {
+        candidates.push(ExtractCandidate::from_sources(
+            &entry.reading,
+            None,
+            &[entry.suffix.as_ref().expect("suffix-only record")],
+        ));
+    }
+    candidates
+        .sort_by(|a, b| (&a.reading, &a.suffix_reading).cmp(&(&b.reading, &b.suffix_reading)));
+    candidates
+}
+
+struct DefaultDecision {
+    reading: String,
+    suffix_reading: Option<String>,
+    candidates: Vec<(String, Option<String>)>,
+}
+
+fn default_decisions() -> Result<BTreeMap<String, DefaultDecision>> {
+    let mut pins = BTreeMap::new();
+    for line in include_str!("../data/defaults.tsv").lines().skip(1) {
+        let fields = line.split('\t').collect::<Vec<_>>();
+        if fields.len() != 5
+            || fields[0].is_empty()
+            || fields[1].is_empty()
+            || fields[4].trim().is_empty()
+        {
+            return Err(Error::DefaultDecision(
+                "expected key, reading, suffix, candidate signature and reason".into(),
+            ));
+        }
+        let pin = DefaultDecision {
+            reading: fields[1].into(),
+            suffix_reading: (!fields[2].is_empty()).then(|| fields[2].into()),
+            candidates: serde_json::from_str(fields[3])?,
+        };
+        if pins.insert(fields[0].into(), pin).is_some() {
+            return Err(Error::DefaultDecision(format!(
+                "duplicate key `{}`",
+                fields[0]
+            )));
+        }
+    }
+    Ok(pins)
 }
 
 #[derive(Debug, Deserialize)]
@@ -345,6 +538,8 @@ struct Channel {
 
 #[derive(Debug, Deserialize)]
 struct Item {
+    #[serde(default)]
+    target_code: Option<u64>,
     word_info: Option<WordInfo>,
 }
 
@@ -472,10 +667,5 @@ fn is_suffix_headword(word_info: &WordInfo) -> bool {
 /// Returns whether two equal-length readings differ in exactly their first
 /// syllable, the shape of an initial sound law alternation (`연대`/`년대`).
 fn differs_only_in_first_syllable(a: &str, b: &str) -> bool {
-    let mut a = a.chars();
-    let mut b = b.chars();
-    match (a.next(), b.next()) {
-        (Some(first_a), Some(first_b)) if first_a != first_b => a.eq(b),
-        _ => false,
-    }
+    gukhanmun_core::is_initial_sound_law_pair(a, b)
 }

@@ -514,6 +514,40 @@ inputs and validation path for user-built dictionaries.  Bugs in the build path
 get caught by the library's own integration tests before they reach users.
 
 
+Candidate readings
+------------------
+
+Dictionary keys can retain several lexical readings. `ReadingCandidate` keeps
+its word-initial reading, optional suffix reading, annotation marks and relative
+default preference together. `ReadingCandidates` validates and deduplicates
+these pairs, merging marks only for identical pairs. It normalizes the minimum
+preference to zero and sorts by descending preference, then reading and suffix.
+`select_default_reading` chooses the first candidate without consulting text.
+Profiles and contextual filters remain future work.
+
+`HanjaDictionary::candidate_matches_at()` and `candidate_entries()` expose the
+full sets. Their default implementations wrap each existing `Match` or
+`DictionaryRecord` as a single candidate, so custom dictionaries remain usable.
+Legacy empty readings and explicit empty suffixes remain intact in memory.
+Strict new sets and serialized input reject them. The existing lookup and
+enumeration APIs project defaults. A chain replaces the entire candidate set
+for a key with the first dictionary's set, so lower-priority alternatives
+cannot undo an explicit override.
+
+Variant resolution compares canonical spellings and their complete candidate
+sets before choosing a reading. Selection happens before segmentation scores
+or classifies a dictionary edge, because the chosen marks and positional forms
+can affect fallback coalescing. The existing positional-reading step runs after
+segmentation. The default selector needs no additional lookahead, so eager,
+lattice, streaming and one-shot conversion use the same decision.
+
+Dictionary-wide homophone detection indexes only the chosen candidate's initial
+and suffix readings, excluding unselected lexical alternatives. Custom
+lookup-only chains retain the existing per-child homophone fallback limitation.
+The *Standard Korean Language Dictionary* snapshot records source identifiers
+and curated tie-breaking decisions outside the runtime binary.
+
+
 Variant normalization
 ---------------------
 
@@ -1224,3 +1258,15 @@ Glossary
 | 한글           | 한글           | hangul, the native Korean alphabet                |
 | 한글전용       | 한글專用       | hangul-only writing                               |
 | 동음이의       | 同音異義       | homophony, distinct words sharing a reading       |
+
+
+Candidate payload extension
+---------------------------
+
+The CDB/FST layouts above describe scalar v1 records. A dictionary needing
+multiple candidates or a suffix form uses v2. Mark byte `0x80` then identifies
+a candidate payload, with the existing length and offset pointing to that
+payload. Scalar records remain unchanged, and payload-free dictionaries are
+still written as v1. New readers accept both versions; old readers reject v2.
+The full byte layout and validation rules are documented in
+*docs/en/internals/dictionary-format.md*.

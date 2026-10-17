@@ -18,12 +18,15 @@ the canonical TSV file at *crates/gukhanmun-stdict/data/stdict.tsv*.
 Snapshot
 --------
 
-| Field          | Value                                                              |
-| -------------- | ------------------------------------------------------------------ |
-| Source archive | *전체 내려받기\_표준국어대사전\_JSON\_20260606.zip*                |
-| Dump date      | 2026-06-06                                                         |
-| SHA-256        | `7082b9665ed1e01b563e4b5924fb241e455d945b35507910ac53453d7bb91dee` |
-| TSV entries    | 260,690                                                            |
+| Field           | Value                                                              |
+| --------------- | ------------------------------------------------------------------ |
+| Source archive  | *전체 내려받기\_표준국어대사전\_JSON\_20260606.zip*                |
+| Dump date       | 2026-06-06                                                         |
+| SHA-256         | `7082b9665ed1e01b563e4b5924fb241e455d945b35507910ac53453d7bb91dee` |
+| Dictionary keys | 260,690                                                            |
+
+The snapshot retains 262,084 candidate rows across 260,690 keys. 1,375 keys
+have competing readings. All previous effective defaults remain unchanged.
 
 
 Regeneration
@@ -32,10 +35,8 @@ Regeneration
 Place the downloaded zip wherever convenient, then run:
 
 ~~~~ sh
-cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- \
-  -o crates/gukhanmun-stdict/data/stdict.tsv \
-  --suffix-output crates/gukhanmun-stdict/data/suffix.tsv \
-  ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260606.zip
+mise run stdict-extract -- ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260606.zip
+mise run stdict-extract-check -- ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260606.zip
 ~~~~
 
 The extractor writes deterministic UTF-8 TSV sorted by dictionary key.  The
@@ -48,24 +49,22 @@ Suffix readings
 
 South Korean initial sound law (頭音法則) makes some hanja read differently
 word-initially than elsewhere, so `年` reads `연` in `年度` but `년` in
-`1998년`. The engine recovers the original sound of a *single* hanja outside
+`1998년`. The engine recovers the original sound of a single hanja outside
 word-initial position from the bundled unihan readings, so the canonical TSV
 needs no extra data for single hanja.
 
-Multi-syllable compounds are different: only the dictionary knows which ones
-keep their original leading sound outside word-initial position.  The dictionary
-records this through suffix head words (written with a leading hyphen, such as
-`-년대`) and bound-noun head words.  The extractor collects these and, for every
-hanja-only key of two or more characters whose word-initial reading `I` and
-suffix reading `S` differ only in their first syllable, writes a row
-`hanja<TAB>I<TAB>S` to *crates/gukhanmun-stdict/data/suffix.tsv* (for example
-`年代<TAB>연대<TAB>년대`).  The first-syllable-only test excludes semantically
-distinct readings such as `便` (`편`/`변`).  Single hanja are intentionally
-omitted because the engine handles them from the unihan readings.
+Multi-syllable positional pairs are stored in each candidate's `suffix_reading`
+and survive both FST and CDB loading. Automatic pairing requires an all-hanja
+key of at least two characters, matching key/reading character counts, and an
+exact first-syllable initial-sound-law pair with identical remainders.
+Suffix-only source records are folded into the candidate with the matching
+word-initial reading; a reading with independent word-initial provenance also
+retains its standalone candidate. Single-character `年` and `率` keep separate
+lexical readings, leaving the engine's positional sound rules intact.
 
-`gukhanmun_stdict::ko_kr` returns a `KoKrDictionary` that wraps the embedded FST
-and attaches each suffix reading to the matching entry, so the engine can pick
-the position-correct reading.
+The extractor still writes *data/suffix.tsv* for compatibility, but runtime
+lookup obtains suffix forms from the binary itself. `KoKrDictionary` and
+raw FST/CDB lookup therefore expose the same positional data.
 
 
 Extraction policy
@@ -96,12 +95,13 @@ contains it (`引` → `인`, recovered from the bundled unihan readings, not
 `삐끼`).  Multi-character foreign spellings such as `北京` → `베이징` are kept.
 
 Alternate hanja spellings marked with `/(병기)` are expanded into separate TSV
-rows.  Duplicate keys keep the highest-priority reading.  Entries whose senses
-only redirect to another entry, such as `→ 표지03.`, lose to entries with
-substantive definitions for the same hanja spelling.  Multi-character bracketed
-loanword hanja spellings are preferred over native Sino-Korean readings for the
-same key, and otherwise the first reading encountered in sorted dump shard order
-is kept.
+rows.  Duplicate keys retain every distinct reading and its source
+`target_code` IDs. The default uses the highest-priority reading.  Entries
+whose senses only redirect to another entry, such as `→ 표지03.`, lose to
+entries with substantive definitions for the same hanja spelling.
+Multi-character bracketed loanword hanja spellings are preferred over native
+Sino-Korean readings for the same key, and otherwise ties use lexical order
+unless a curated decision preserves the previous effective default.
 
 The six Sino-Korean compounds that Standard Korean Orthography §30 spells with
 a saisiot (사이시옷), namely 곳간(庫間), 셋방(貰房), 숫자(數字), 찻간(車間),
@@ -113,6 +113,27 @@ orthographic standard, so no general saisiot heuristic is involved.
 The extractor itself writes `require_hanja` and `require_hangul` as `false` for
 every row.  Annotation marks are layered on later by the rules file (see
 below) so the canonical TSV remains a pure hanja↔hangul mapping.
+
+
+Curated defaults and provenance
+-------------------------------
+
+*crates/gukhanmun-stdict/data/defaults.tsv* records 46 equal-priority decisions
+needed to preserve the 2026-06-06 snapshot's defaults. Each row names a key,
+the chosen reading and suffix pair, the complete candidate-identity signature
+for that key, and a reason. Keys are unique within the file. A pin adds one
+point inside the highest priority band. It cannot promote a redirect over a
+substantive entry. Changed candidate signatures or missing chosen readings fail
+extraction; absent keys are counted as skipped decisions so subset extraction
+remains possible. Full regeneration uses every decision.
+
+The source TSV keeps merged `target_code` IDs in `source_ids`, making candidate
+records traceable in the pinned JSON dump. Runtime binaries retain only
+readings, marks and relative preferences. They contain no definitions or source
+IDs. The existing priority bands are redirect 0, ordinary 10, prescribed
+saisiot 20, and foreign hanja spelling 30. Profiles and particle-based
+selection are not implemented. The *Open Korean Dictionary* extractor retains
+its existing single-reading policy.
 
 
 Annotation rules

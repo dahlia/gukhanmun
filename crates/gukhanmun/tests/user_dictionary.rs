@@ -117,3 +117,71 @@ fn user_directive_skip_annotation_collapses_to_plain_hangul() {
         "학교"
     );
 }
+
+#[test]
+fn candidate_sets_survive_builder_boxes_and_user_override() {
+    use gukhanmun::{HanjaDictionary, MatchMark, ReadingCandidate, ReadingCandidates};
+    let mut dictionary = MapDictionary::new();
+    dictionary.insert_candidates(
+        "東京",
+        ReadingCandidates::new(vec![
+            ReadingCandidate {
+                reading: "동경".into(),
+                suffix_reading: None,
+                mark: MatchMark::default(),
+                preference: 0,
+            },
+            ReadingCandidate {
+                reading: "도쿄".into(),
+                suffix_reading: None,
+                mark: MatchMark::default(),
+                preference: 10,
+            },
+        ])
+        .unwrap(),
+    );
+    let converter = Builder::new()
+        .no_bundled_stdict()
+        .push_dictionary(dictionary.clone())
+        .build()
+        .unwrap();
+    assert_eq!(
+        converter
+            .dictionary()
+            .candidate_matches_at("東京")
+            .next()
+            .unwrap()
+            .candidates
+            .as_slice()
+            .len(),
+        2
+    );
+    assert_eq!(
+        converter.convert_text_to_string("東京을").unwrap(),
+        "도쿄을"
+    );
+    let mut user = MapDictionary::new();
+    user.insert("東京", "동경");
+    let converter = Builder::new()
+        .no_bundled_stdict()
+        .push_dictionary(user)
+        .push_dictionary(dictionary)
+        .build()
+        .unwrap();
+    assert_eq!(
+        converter.convert_text_to_string("東京을").unwrap(),
+        "동경을"
+    );
+    assert_eq!(
+        converter
+            .dictionary()
+            .candidate_entries()
+            .unwrap()
+            .next()
+            .unwrap()
+            .candidates
+            .as_slice()
+            .len(),
+        1
+    );
+}

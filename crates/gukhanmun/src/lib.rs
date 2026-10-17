@@ -92,18 +92,20 @@ pub use options::{ConversionOptions, Preset};
 // Always-on re-exports from `gukhanmun-core` so that downstream users do not
 // have to depend on the core crate directly.
 pub use gukhanmun_core::{
-    Annotation, ChainDictionary, ContextWindow, DictionaryRecord, DirectiveAction, Engine,
-    EngineOptions, FirstOccurrenceFilter, HanjaDictionary, HanjaVariantSet, HomophoneDetection,
-    HomophoneMarker, InputToken, MapDictionary, Match, MatchMark, NumeralStrategy, OriginalGloss,
-    OutputToken, PlainScopeData, RecoverableInputError, Recovery, RedundantParenCollapser,
+    Annotation, CandidateError, CandidateMatch, CandidateRecord, ChainDictionary, ContextWindow,
+    DictionaryRecord, DirectiveAction, Engine, EngineOptions, FirstOccurrenceFilter,
+    HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken,
+    MapDictionary, Match, MatchMark, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData,
+    ReadingCandidate, ReadingCandidates, RecoverableInputError, Recovery, RedundantParenCollapser,
     RenderMode, RenderOptions, RenderedToken, Renderer, RubyBase, Scope, ScopeData,
     SegmentationStrategy, UnihanCharDict, UserDirectives, apply_user_directives,
     apply_user_directives_iter, collapse_redundant_parens, convert_plain_text,
-    convert_plain_text_with_options, filter_first_occurrences, is_hanja, mark_homophones,
-    mark_homophones_with_detection, process_fallible_tokens, process_fallible_tokens_with_options,
-    process_tokens, process_tokens_iter, process_tokens_iter_with_options,
-    process_tokens_with_options, read_plain_text, recover_input_token, recover_input_tokens,
-    render_tokens, render_tokens_iter, write_plain_text,
+    convert_plain_text_with_options, filter_first_occurrences, is_hanja, is_initial_sound_law_pair,
+    mark_homophones, mark_homophones_with_detection, process_fallible_tokens,
+    process_fallible_tokens_with_options, process_tokens, process_tokens_iter,
+    process_tokens_iter_with_options, process_tokens_with_options, read_plain_text,
+    recover_input_token, recover_input_tokens, render_tokens, render_tokens_iter,
+    select_default_reading, write_plain_text,
 };
 
 /// HTML adapter (re-export of [`gukhanmun_html`]).
