@@ -31,7 +31,7 @@ use gukhanmun_opendict::{general, north_korean, dialect, archaic};
 
 let dict_general = general();
 let dict_nk = north_korean();
-// dict: &'static FstDictionary — decoded once, shared for the process lifetime
+// &'static FstDictionary, decoded once and shared for the process lifetime
 ~~~~
 
 Each category loader function decodes the embedded FST bytes on the first call
@@ -45,17 +45,23 @@ they want using `ChainDictionary`.
 Regeneration
 ------------
 
-To extract and regenerate the canonical TSVs from the official *Open Korean
-Dictionary* JSON download, run the extraction binary:
+From the repository root, regenerate or check the canonical TSV snapshots
+from the official *Open Korean Dictionary* JSON download:
 
 ~~~~ sh
-cargo run --release -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- \
-  /path/to/우리말샘_json_directory_or_zip \
-  --general-output data/general.tsv \
-  --north-korean-output data/north-korean.tsv \
-  --dialect-output data/dialect.tsv \
-  --archaic-output data/archaic.tsv
+mise run opendict-extract -- /path/to/우리말샘_json_directory_or_zip
+mise run opendict-extract-check -- /path/to/우리말샘_json_directory_or_zip
 ~~~~
+
+Check mode compares all four categories without creating or overwriting files.
+Each category retains competing readings and sorted source sense identifiers.
+*data/defaults.tsv* records compatibility decisions with complete candidate
+signatures, so source changes that invalidate a decision fail extraction.
+Identifiers stay in the source TSVs; runtime files contain candidates and
+preferences. Higher-priority dictionaries replace a key's entire candidate
+set. See the [extraction policy] for positional forms and snapshot provenance.
+
+[extraction policy]: ../../docs/en/internals/opendict.md
 
 
 Build-time requirements
@@ -70,4 +76,5 @@ is used as a build dependency.
 License and attribution
 -----------------------
 
-GPL-3.0-or-later and CC BY-SA 2.0 KR. See *ATTRIBUTION.md* for details.
+Code is GPL-3.0-or-later. The bundled dictionary data is CC BY-SA 2.0 KR.
+See *ATTRIBUTION.md* for details.

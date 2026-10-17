@@ -286,7 +286,7 @@ depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-opendict"
 for category in [general north-korean dialect archaic] {
-  cargo run --release -p gukhanmun-mkdict -- --format cdb --output $"packages/opendict-cdb/($category).cdb" $"($manifest_dir)/data/($category).tsv"
+  cargo run --release -p gukhanmun-mkdict -- --validate --format cdb --output $"packages/opendict-cdb/($category).cdb" $"($manifest_dir)/data/($category).tsv"
   # Store gzip-compressed so every binary stays under the JSR 20 MiB per-file
   # limit; the byte loaders inflate transparently.  -n keeps the output
   # reproducible by omitting the name and timestamp.
@@ -457,3 +457,17 @@ usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
 shell = "nu -c"
 depends = ["rust-init"]
 run = 'cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output crates/gukhanmun-stdict/data/stdict.tsv --suffix-output crates/gukhanmun-stdict/data/suffix.tsv --check'
+
+[tasks.opendict-extract]
+description = "Regenerate Open Korean Dictionary candidates from a pinned dump"
+usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = 'cargo run -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output crates/gukhanmun-opendict/data/general.tsv --north-korean-output crates/gukhanmun-opendict/data/north-korean.tsv --dialect-output crates/gukhanmun-opendict/data/dialect.tsv --archaic-output crates/gukhanmun-opendict/data/archaic.tsv'
+
+[tasks.opendict-extract-check]
+description = "Check Open Korean Dictionary candidates from a pinned dump"
+usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = 'cargo run -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output crates/gukhanmun-opendict/data/general.tsv --north-korean-output crates/gukhanmun-opendict/data/north-korean.tsv --dialect-output crates/gukhanmun-opendict/data/dialect.tsv --archaic-output crates/gukhanmun-opendict/data/archaic.tsv --check'
