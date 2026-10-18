@@ -174,6 +174,7 @@ export function registerSuite(name: string, binding: Binding): void {
             });
             if (rendering === "hangul-only") {
               assert.equal(g.convert("東京을 東京를 東京이다"), "동경을 도쿄를 동경이다");
+              assert.equal(g.convert("東京으로는 간다"), "동경으로는 간다");
             }
             for (
               const input of [
