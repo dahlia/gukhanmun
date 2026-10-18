@@ -29,6 +29,7 @@ extern crate alloc;
 
 mod candidates;
 mod fallback;
+mod particles;
 
 pub use candidates::{
     CandidateError, CandidateMatch, CandidateRecord, ReadingCandidate, ReadingCandidates,
@@ -1246,6 +1247,7 @@ where
     pending_unflushable_fallback_run_bytes: Option<usize>,
     fallback_state: FallbackState,
     incremental_flush: bool,
+    deferred_root_close: bool,
 }
 
 impl<'a, S, D> Engine<'a, S, D>
@@ -1284,16 +1286,22 @@ where
             pending_unflushable_fallback_run_bytes: None,
             fallback_state: FallbackState::default(),
             incremental_flush,
+            deferred_root_close: false,
         }
     }
 
     /// Pushes one input token and returns output tokens that are now safe to
     /// emit.
+    ///
+    /// A sole non-block root `Close` with pending text is deferred until the
+    /// next token, [`Self::flush`], or [`Self::finish`], so EOF can still supply
+    /// particle evidence. Output keeps the original token order.
     pub fn push_token(&mut self, token: InputToken<S>) -> Vec<OutputToken<S>> {
         let mut output = Vec::new();
+        self.resolve_root_close(&mut output, false);
         match token {
             InputToken::Open(scope) => {
-                self.flush_into(&mut output);
+                self.flush_into(&mut output, scope.data().is_block_boundary());
                 if scope.data().is_block_boundary() {
                     self.reset_fallback_context();
                 }
@@ -1301,7 +1309,20 @@ where
                 output.push(OutputToken::Open(scope));
             }
             InputToken::Close => {
-                self.flush_into(&mut output);
+                // A sole non-block root may be the plain adapter's wrapper.
+                // Delay only its Close until EOF or the next input proves which.
+                if self.scopes.len() == 1
+                    && !self.scopes[0].data().is_block_boundary()
+                    && !self.pending_text.is_empty()
+                {
+                    self.deferred_root_close = true;
+                    return output;
+                }
+                let final_end = self
+                    .scopes
+                    .last()
+                    .is_some_and(|scope| scope.data().is_block_boundary());
+                self.flush_into(&mut output, final_end);
                 let closes_block_boundary = self
                     .scopes
                     .pop()
@@ -1317,7 +1338,7 @@ where
                     .last()
                     .is_some_and(|scope| scope.data().is_preserve())
                 {
-                    self.flush_into(&mut output);
+                    self.flush_into(&mut output, false);
                     self.reset_fallback_context();
                     output.push(OutputToken::Text(text));
                 } else {
@@ -1337,7 +1358,7 @@ where
                 }
             }
             InputToken::Verbatim(text) => {
-                self.flush_into(&mut output);
+                self.flush_into(&mut output, false);
                 self.reset_fallback_context();
                 output.push(OutputToken::Verbatim(text));
             }
@@ -1346,24 +1367,51 @@ where
     }
 
     /// Flushes all pending text without ending the engine.
+    ///
+    /// The endpoint is not EOF evidence for particle selection. Calling this
+    /// inside a word can forfeit evidence that a later chunk would supply;
+    /// textual whitespace and punctuation witnesses remain effective.
     pub fn flush(&mut self) -> Vec<OutputToken<S>> {
         let mut output = Vec::new();
-        self.flush_into(&mut output);
+        self.resolve_root_close(&mut output, false);
+        self.flush_into(&mut output, false);
         output
     }
 
     /// Finishes the stream and returns every remaining output token.
+    ///
+    /// Unlike [`Self::flush`], this proves EOF for particle selection and emits
+    /// any deferred root `Close` after the remaining text.
     pub fn finish(mut self) -> Vec<OutputToken<S>> {
-        self.flush()
+        let mut output = Vec::new();
+        self.resolve_root_close(&mut output, true);
+        self.flush_into(&mut output, true);
+        output
     }
 
     /// Returns the number of Unicode scalar values currently buffered.
+    ///
+    /// Particle lookahead adds four scalars to the dictionary tail allowance.
+    /// This is not a universal buffer ceiling: fallback annotation grouping
+    /// and dictionaries with an unknown maximum may retain longer runs.
     pub fn buffered_chars(&self) -> usize {
         self.pending_text.chars().count()
     }
 
+    fn resolve_root_close(&mut self, output: &mut Vec<OutputToken<S>>, final_end: bool) {
+        if self.deferred_root_close {
+            self.flush_into(output, final_end);
+            self.scopes.pop();
+            output.push(OutputToken::Close);
+            self.deferred_root_close = false;
+        }
+    }
+
     fn tail_bound(&self) -> Option<usize> {
-        self.dictionary.max_word_chars().filter(|bound| *bound > 0)
+        self.dictionary
+            .max_word_chars()
+            .filter(|bound| *bound > 0)
+            .map(|bound| bound.saturating_add(particles::LOOKAHEAD))
     }
 
     fn flush_safe_into(&mut self, output: &mut Vec<OutputToken<S>>) {
@@ -1404,13 +1452,13 @@ where
             return;
         }
 
-        if self.extends_unflushable_fallback_run(bound) {
+        if self.extends_unflushable_fallback_run(bound.saturating_sub(particles::LOOKAHEAD)) {
             self.pending_unflushable_fallback_run_bytes = Some(self.pending_text.len());
             return;
         }
 
         let safe_chars = buffered_chars.saturating_sub(bound).saturating_add(1);
-        let segments = segment_text(&self.pending_text, self.dictionary, self.options);
+        let segments = segment_text(&self.pending_text, self.dictionary, self.options, false);
         let mut flush_end = 0;
         let mut flush_segments = Vec::new();
         for segment in &segments {
@@ -1478,7 +1526,7 @@ where
             bound.saturating_sub(1),
         );
         let probe = &self.pending_text[probe_start..];
-        segment_text(probe, self.dictionary, self.options)
+        segment_text(probe, self.dictionary, self.options, false)
             .iter()
             .all(|segment| {
                 matches!(
@@ -1500,12 +1548,17 @@ where
 
     fn flush_prefix_into(&mut self, flush_end: usize, output: &mut Vec<OutputToken<S>>) {
         if flush_end == self.pending_text.len() {
-            self.flush_into(output);
+            self.flush_into(output, false);
             return;
         }
         self.pending_unflushable_fallback_run_bytes = None;
         let prefix = self.pending_text[..flush_end].to_string();
-        let segments = segment_text(&prefix, self.dictionary, self.options);
+        let segments = segment_text(
+            &prefix,
+            self.dictionary,
+            self.options,
+            prefix.chars().last().is_some_and(char::is_whitespace),
+        );
         self.flush_segments_prefix_into(flush_end, &segments, output);
     }
 
@@ -1527,7 +1580,7 @@ where
         self.pending_text.replace_range(..flush_end, "");
     }
 
-    fn flush_into(&mut self, output: &mut Vec<OutputToken<S>>) {
+    fn flush_into(&mut self, output: &mut Vec<OutputToken<S>>, final_end: bool) {
         if self.pending_text.is_empty() {
             return;
         }
@@ -1539,6 +1592,7 @@ where
             self.options,
             &mut self.fallback_state,
             output,
+            final_end,
         );
     }
 
@@ -1607,7 +1661,12 @@ fn trailing_fallback_run_start(segments: &[Segment], split_byte: usize) -> Optio
         if let Some(next) = segments.get(index + 1)
             && !matches!(
                 next,
-                Segment::Fallback { .. } | Segment::TrivialDictionary { .. }
+                Segment::Fallback { .. }
+                    | Segment::TrivialDictionary { .. }
+                    | Segment::Dictionary {
+                        pending_selection: true,
+                        ..
+                    }
             )
         {
             return None;
@@ -1638,10 +1697,11 @@ fn process_text_with_state<S, D>(
     options: EngineOptions,
     fallback_state: &mut FallbackState,
     output: &mut Vec<OutputToken<S>>,
+    final_end: bool,
 ) where
     D: HanjaDictionary + ?Sized,
 {
-    let segments = segment_text(text, dictionary, options);
+    let segments = segment_text(text, dictionary, options, final_end);
     process_segments_with_state(text, &segments, dictionary, options, fallback_state, output);
 }
 
@@ -1839,6 +1899,7 @@ fn process_segments_with_state<S, D>(
                 suffix_reading,
                 mark,
                 dictionary_hanja,
+                ..
             } => {
                 let source = &text[*byte_start..*byte_end];
                 let effective = dictionary_effective_reading(

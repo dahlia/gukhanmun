@@ -158,7 +158,11 @@ fn candidate_sets_survive_builder_boxes_and_user_override() {
     );
     assert_eq!(
         converter.convert_text_to_string("東京을").unwrap(),
-        "도쿄을"
+        "동경을"
+    );
+    assert_eq!(
+        converter.convert_text_to_string("東京를").unwrap(),
+        "도쿄를"
     );
     let mut user = MapDictionary::new();
     user.insert("東京", "동경");
@@ -184,4 +188,95 @@ fn candidate_sets_survive_builder_boxes_and_user_override() {
             .len(),
         1
     );
+}
+
+#[test]
+fn bundled_particles_and_format_boundaries() {
+    use gukhanmun::SegmentationStrategy;
+    for strategy in [SegmentationStrategy::Eager, SegmentationStrategy::Lattice] {
+        let converter = Builder::new()
+            .segmentation(strategy)
+            .homophone_window(ContextWindow::Off)
+            .build()
+            .unwrap();
+        for (input, expected) in [
+            ("東京을", "동경을"),
+            ("東京를", "도쿄를"),
+            ("東京이다", "동경이다"),
+            ("七分을", "칠분을"),
+            ("一切가", "일체가"),
+            ("一切로", "일절로"),
+        ] {
+            assert_eq!(
+                converter.convert_text_to_string(input).unwrap(),
+                expected,
+                "{input}"
+            );
+        }
+        // Use a controlled 東京-only dictionary: bundled 東京이 is itself a
+        // longer mixed-script key, so it cannot isolate copula evidence.
+        let mut controlled = MapDictionary::new();
+        controlled.insert_candidates(
+            "東京",
+            gukhanmun::ReadingCandidates::new(vec![
+                gukhanmun::ReadingCandidate {
+                    reading: "도쿄".into(),
+                    suffix_reading: None,
+                    preference: 10,
+                    mark: gukhanmun::MatchMark::default(),
+                },
+                gukhanmun::ReadingCandidate {
+                    reading: "동경".into(),
+                    suffix_reading: None,
+                    preference: 0,
+                    mark: gukhanmun::MatchMark::default(),
+                },
+            ])
+            .unwrap(),
+        );
+        let converter = Builder::new()
+            .no_bundled_dictionaries()
+            .push_dictionary(controlled)
+            .segmentation(strategy)
+            .homophone_window(ContextWindow::Off)
+            .build()
+            .unwrap();
+        #[cfg(feature = "html")]
+        for (input, expected) in [
+            ("東京이<b>다</b>", "도쿄이<b>다</b>"),
+            ("<p>東京이</p>", "<p>동경이</p>"),
+            ("東京<b>을</b>", "도쿄<b>을</b>"),
+            ("<b>東京이</b>다", "<b>도쿄이</b>다"),
+            ("<b>東京을</b>", "<b>동경을</b>"),
+            ("東京을<br>", "도쿄을<br>"),
+            ("東京을&nbsp;", "도쿄을&nbsp;"),
+            ("東京을 <br>", "동경을 <br>"),
+            ("東京을<code>x</code>", "도쿄을<code>x</code>"),
+        ] {
+            assert_eq!(
+                converter.convert_html_fragment_to_string(input).unwrap(),
+                expected,
+                "{input}"
+            );
+        }
+        #[cfg(feature = "markdown")]
+        for (input, expected) in [
+            ("*東京이*다", "*도쿄이*다"),
+            ("[東京을](u)", "[도쿄을](u)"),
+            ("東京을\n간다", "도쿄을\n간다"),
+            ("東京을  \n간다", "도쿄을  \n간다"),
+        ] {
+            assert_eq!(
+                converter
+                    .convert_markdown_to_string(
+                        input,
+                        gukhanmun::markdown::MarkdownVariant::CommonMark
+                    )
+                    .unwrap()
+                    .trim(),
+                expected,
+                "{input}"
+            );
+        }
+    }
 }

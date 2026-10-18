@@ -33,9 +33,15 @@ pub(crate) struct ResolvedMatch {
     pub(crate) matched: Match,
     pub(crate) source_byte_len: usize,
     pub(crate) dictionary_hanja: String,
+    pub(crate) pending_selection: bool,
 }
 
-pub(crate) fn matches_at<D>(source: &str, dictionary: &D) -> Vec<ResolvedMatch>
+pub(crate) fn matches_at<D>(
+    source: &str,
+    dictionary: &D,
+    context: &str,
+    final_end: bool,
+) -> Vec<ResolvedMatch>
 where
     D: HanjaDictionary + ?Sized,
 {
@@ -46,7 +52,18 @@ where
             source.get(..matched.byte_len).map(|hanja| ResolvedMatch {
                 source_byte_len: matched.byte_len,
                 dictionary_hanja: hanja.into(),
-                matched: matched.select_default(),
+                pending_selection: selection_pending(
+                    &matched,
+                    context,
+                    matched.byte_len,
+                    final_end,
+                ),
+                matched: crate::particles::select(
+                    &matched.candidates,
+                    &context[matched.byte_len..],
+                    final_end,
+                    matched.byte_len,
+                ),
             })
         })
         .collect::<Vec<_>>();
@@ -132,7 +149,18 @@ where
             resolved.retain(|matched| matched.source_byte_len != source_byte_len);
             resolved.extend(selected.into_iter().filter(|(index, _)| *index == 0).map(
                 |(_, matched)| ResolvedMatch {
-                    matched: matched.select_default(),
+                    pending_selection: selection_pending(
+                        &matched,
+                        context,
+                        source_byte_len,
+                        final_end,
+                    ),
+                    matched: crate::particles::select(
+                        &matched.candidates,
+                        &context[source_byte_len..],
+                        final_end,
+                        matched.byte_len,
+                    ),
                     source_byte_len,
                     dictionary_hanja: source_prefix.into(),
                 },
@@ -152,7 +180,13 @@ where
         if let Some((_, dictionary_hanja, matched)) = matches.into_iter().next() {
             resolved.retain(|matched| matched.source_byte_len != source_byte_len);
             resolved.push(ResolvedMatch {
-                matched: matched.select_default(),
+                pending_selection: selection_pending(&matched, context, source_byte_len, final_end),
+                matched: crate::particles::select(
+                    &matched.candidates,
+                    &context[source_byte_len..],
+                    final_end,
+                    matched.byte_len,
+                ),
                 source_byte_len,
                 dictionary_hanja: dictionary_hanja.into(),
             });
@@ -349,6 +383,21 @@ pub(crate) fn render_hanja(source: &str, variant_set: crate::HanjaVariantSet) ->
         return Cow::Owned(output);
     }
     Cow::Borrowed(source)
+}
+
+fn selection_pending(
+    matched: &CandidateMatch,
+    context: &str,
+    source_byte_len: usize,
+    final_end: bool,
+) -> bool {
+    !final_end
+        && matched.candidates.as_slice().len() > 1
+        && context[source_byte_len..]
+            .chars()
+            .take(crate::particles::LOOKAHEAD)
+            .count()
+            < crate::particles::LOOKAHEAD
 }
 
 #[cfg(test)]

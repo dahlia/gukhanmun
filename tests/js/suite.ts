@@ -163,6 +163,43 @@ export function registerSuite(name: string, binding: Binding): void {
           "베이징 숫자 1990년대 1998년도 비율",
         );
       });
+      test(`${backend}: particle evidence uses bundled candidates in conversion and streams`, async () => {
+        for (const segmentation of ["eager", "lattice"] as const) {
+          for (const rendering of ["hangul-only", "hangul-hanja-parens"] as const) {
+            const g = await load({
+              dictionaries: [await loadDict()],
+              homophoneWindow: "off",
+              segmentation,
+              rendering,
+            });
+            if (rendering === "hangul-only") {
+              assert.equal(g.convert("東京을 東京를 東京이다"), "동경을 도쿄를 동경이다");
+              assert.equal(g.convert("東京으로는 간다"), "동경으로는 간다");
+            }
+            for (
+              const input of [
+                "東京을",
+                "東京으로는 간다",
+                "東京이다",
+                "東京을아아아아아아아아아아아아",
+              ]
+            ) {
+              const expected = g.convert(input);
+              assert.equal(await streamAll(g.stream("text"), [...input]), expected);
+              const chars = [...input];
+              for (let split = 0; split <= chars.length; split++) {
+                assert.equal(
+                  await streamAll(g.stream("text"), [
+                    chars.slice(0, split).join(""),
+                    chars.slice(split).join(""),
+                  ]),
+                  expected,
+                );
+              }
+            }
+          }
+        }
+      });
       test(`${backend}: 漢字를 한글로 → 한자를 한글로`, async () => {
         const g = await load({ dictionaries: [await loadDict()] });
         assert.equal(g.convert("漢字를 한글로"), "한자를 한글로");
