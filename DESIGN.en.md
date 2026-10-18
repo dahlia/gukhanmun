@@ -1356,7 +1356,7 @@ inherits its preserve flag to descendants, mirroring how the built-in
 preserved tags propagate, so callers do not have to re-assert the rule on
 every child. The CLI exposes the two most common shapes of this hook as
 `--html-preserve-class CLASS` and `--html-preserve-attr KEY[=VALUE]` (both
-repeatable, OR-composed, valid only with `--format text`/`--format html`). A
+repeatable, OR-composed, valid only with `--format text/html`). A
 format-neutral skip closure on `EngineOptions` is contemplated for a future
 release; it is not implemented today because every adapter that currently
 ships can satisfy its preserve needs through its own `ScopeData`.

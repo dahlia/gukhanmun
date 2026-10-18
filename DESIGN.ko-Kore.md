@@ -1144,7 +1144,7 @@ raw 屬性 슬라이스, 相續된 `lang` 값)를 받아서 `true`를 返還하�
 後孫에게 保存 플래그를 相續하므로 子 要素마다 規則을 다시 提示할 必要가 없다.
 CLI는 이 훅을 가장 자주 쓰는 두 가지 形態로 노출한다:
 `--html-preserve-class CLASS`와 `--html-preserve-attr KEY[=VALUE]`(各各 反復
-可能, OR 合成, `--format text`/`--format html`에서만 有效). format에 中立인
+可能, OR 合成, `--format text/html`에서만 有效). format에 中立인
 skip 클로저를 `EngineOptions`에 두는 代案은 後續 릴리즈에서 다시 檢討한다. 現在
 同梱 어댑터들은 各自의 `ScopeData` 로 保存 規則을 充分히 表現할 수 있어 이번
 範圍에서는 除外했다.
