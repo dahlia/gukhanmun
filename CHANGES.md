@@ -30,15 +30,15 @@ To be released.
     default preserves punctuation across plain text, HTML, and Markdown.
     [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Changed `Engine` streaming boundaries: a sole non-block root `Close` with
     pending text is emitted at the next token, `flush()`, or `finish()`.
     `finish()` supplies EOF evidence while `flush()` stays conservative;
     particle lookahead retains four extra source scalars beyond the dictionary
-    tail allowance. [[#20], [#25]]
+    tail allowance.  [[#20], [#25]]
  -  Added candidate-aware dictionary APIs and deterministic default reading
     selection while preserving existing bundled defaults. Higher-priority
     dictionaries replace all readings for a key.  [[#19], [#22]]
@@ -91,10 +91,10 @@ To be released.
  -  Added `--punctuation` and `--punctuation-profile` to normalize punctuation
     with a built-in profile or custom JSON configuration.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
@@ -112,15 +112,15 @@ To be released.
  -  Dictionary-wide homophone marking indexes only selected candidates and
     includes their suffix readings.  [[#19], [#22]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Changed `Engine` streaming boundaries: a sole non-block root `Close` with
     pending text is emitted at the next token, `flush()`, or `finish()`.
     `finish()` supplies EOF evidence while `flush()` stays conservative;
     particle lookahead retains four extra source scalars beyond the dictionary
-    tail allowance. [[#20], [#25]]
+    tail allowance.  [[#20], [#25]]
  -  Added dictionary-guided recognition of Unicode z-variants,
     traditional/simplified forms, CJK compatibility ideographs, Joyo kanji
     old/new forms, and Asahi variants.  Ambiguous variant relations are
@@ -165,10 +165,10 @@ To be released.
     retained for untouched references. Opt-in reader options protect unmatched
     end tags.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
 
 ### gukhanmun-loanwords
 
@@ -186,10 +186,10 @@ To be released.
     preserve Markdown structure when punctuation normalization changes text.
     [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
 
 ### gukhanmun-mkdict
 
@@ -202,10 +202,10 @@ To be released.
 ### gukhanmun-napi
 
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `punctuationJson` option and `punctuationProfileJson()` resolved
@@ -235,10 +235,10 @@ To be released.
 ### gukhanmun-wasm
 
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `punctuationJson` option and `punctuation_profile_json()`
@@ -269,10 +269,10 @@ To be released.
 ### @gukhanmun/napi
 
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
@@ -323,10 +323,10 @@ To be released.
 ### @gukhanmun/wasm
 
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
