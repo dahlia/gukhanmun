@@ -149,7 +149,7 @@ pub fn arb_punctuation_text() -> impl proptest::strategy::Strategy<Value = Strin
     proptest::collection::vec(
         prop_oneof![
             arb_hangul_only_string(),
-            "[,，、︐︑.．。︒〈〉「」《》『』︿﹀﹁﹂︽︾﹃﹄ abcABC012０１\\n\\t]{0,40}"
+            "[,，、︐︑.．。︒〈〉「」《》『』︿﹀﹁﹂︽︾﹃﹄ abcABCéɑꞵ\u{301}\u{93e}\u{20dd}\u{200d}\u{fe0f}\u{e0100}012０１\\n\\t]{0,40}"
         ],
         0..12,
     )

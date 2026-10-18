@@ -112,7 +112,10 @@ alphanumeric and spaces followed by a Latin letter, also remain unchanged. Thus
 `IMF, 세계은행` can be normalized. Case-insensitive `http://`, `https://`,
 `mailto:`, and `www.` runs are protected until Unicode whitespace or a
 structural/annotation boundary. These rules deliberately favor preserving
-technical text over converting every stop.
+technical text over converting every stop. Latin guards include Unicode
+Latin-script letters and retain their base across combining marks. In `single`
+spacing, combining marks, variation selectors, and format controls keep existing
+spaces without causing insertion, so a new space cannot detach them from a stop.
 
 
 HTML and Markdown

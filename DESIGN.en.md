@@ -735,7 +735,10 @@ and line-break boundaries trim a pending contextual space; opaque boundaries
 retain existing spaces without adding one. Unknown scopes default to opaque
 unless they already declare a block boundary. Technical guards for numbers,
 URLs, and Latin text reset at every structural or annotation boundary, even
-when space lookahead can cross it.
+when space lookahead can cross it. Unicode Latin-script letters share guard
+context across combining marks. Marks and format controls are ambiguous spacing
+witnesses, so they do not cause a new space to detach a continuation from a
+stop.
 
 Preservation has two separate meanings. `is_preserve()` is the adapter's
 already-resolved answer for the current scope, so a Korean child can override

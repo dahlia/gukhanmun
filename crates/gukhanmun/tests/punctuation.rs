@@ -121,6 +121,96 @@ fn chunk_invariance_all_utf8_boundaries() {
     }
 }
 #[test]
+fn punctuation_unicode_latin_guards_share_chunk_context() {
+    let c = converter(P::traditional());
+    for (input, expected) in [
+        ("café, world", "café, world"),
+        ("IMF, école", "IMF, école"),
+        ("naïve, élève", "naïve, élève"),
+        ("cafe\u{301}, world", "cafe\u{301}, world"),
+        (
+            "ɑ, world ꞵ, world \u{1df00}, world",
+            "ɑ, world ꞵ, world \u{1df00}, world",
+        ),
+        ("é.example example.é", "é.example example.é"),
+        ("Ａ, Ｂ", "Ａ, Ｂ"),
+        ("cafe\u{301}, 한국어", "cafe\u{301}、한국어"),
+        ("Ж, world Ω, world", "Ж、world Ω、world"),
+        ("IMF, 한국어", "IMF、한국어"),
+    ] {
+        assert_eq!(c.convert_text_to_string(input).unwrap(), expected);
+        for split in input.char_indices().map(|(i, _)| i) {
+            let tokens = [
+                InputToken::<PlainScopeData>::Text(input[..split].into()),
+                InputToken::Text(input[split..].into()),
+            ];
+            assert_eq!(
+                write_plain_text(c.convert_tokens(tokens)),
+                expected,
+                "{input}: {split}"
+            );
+        }
+    }
+}
+
+#[test]
+fn punctuation_single_spacing_keeps_unicode_continuations_attached() {
+    let c = converter(P::modern());
+    for continuation in [
+        '\u{301}',
+        '\u{93e}',
+        '\u{20dd}',
+        '\u{200d}',
+        '\u{2060}',
+        '\u{fe0f}',
+        '\u{e0100}',
+    ] {
+        for spaces in ["", "  "] {
+            let input = format!("가。{spaces}{continuation}나");
+            let expected = format!("가.{spaces}{continuation}나");
+            assert_eq!(c.convert_text_to_string(&input).unwrap(), expected);
+            for split in input.char_indices().map(|(i, _)| i) {
+                let tokens = [
+                    InputToken::<PlainScopeData>::Text(input[..split].into()),
+                    InputToken::Text(input[split..].into()),
+                ];
+                assert_eq!(
+                    write_plain_text(c.convert_tokens(tokens)),
+                    expected,
+                    "{input}: {split}"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(feature = "html")]
+#[test]
+fn punctuation_unicode_context_decodes_html_entities_once() {
+    let c = converter(P::traditional());
+    for input in [
+        "caf&eacute;, world",
+        "IMF, &eacute;cole",
+        "cafe&#x301;, world",
+    ] {
+        assert_eq!(c.convert_html_fragment_to_string(input).unwrap(), input);
+    }
+    for input in [
+        "가。&#xFE0F;나",
+        "가。&#x200D;나",
+        "가。&NegativeThinSpace;나",
+    ] {
+        let expected = input.replacen('。', ".", 1);
+        assert_eq!(
+            converter(P::modern())
+                .convert_html_fragment_to_string(input)
+                .unwrap(),
+            expected
+        );
+    }
+}
+
+#[test]
 fn custom_validation() {
     let mut p = P::modern();
     p.period = Some(StopStyle::new(';', SpaceAfter::Remove));

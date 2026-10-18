@@ -5,4 +5,5 @@ links:
 ---
  -  Added the `punctuationJson` option and `punctuationProfileJson()` resolved
     view for output punctuation profiles, including custom role styles.
-    [[#27], [#28]]
+    Technical guards include Unicode Latin letters, and contextual spaces do
+    not detach combining marks or format controls.  [[#27], [#28]]

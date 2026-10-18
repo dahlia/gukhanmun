@@ -56,9 +56,12 @@ The download is cached next to the output path between runs.
 Punctuation data
 ----------------
 
-`mise run generate-unihan` also regenerates the Unicode 17.0 punctuation and
-symbol category ranges from the vendored *data/punctuation-categories.tsv*
-projection. Its comments record the original UnicodeData URL and SHA-256.
+`mise run generate-unihan` also regenerates Unicode 17.0 punctuation context
+tables. *data/punctuation-categories.tsv* projects punctuation, symbols, marks,
+and format controls from *UnicodeData.txt*. *data/punctuation-latin.tsv* selects
+Latin-script letters using *Scripts.txt* and *UnicodeData.txt*. Both projections
+record their upstream URLs and SHA-256 checksums. Regeneration reads these
+vendored files offline.
 
 `mise run generate-html-entities` regenerates the HTML text reference table
 from *data/html-entities.json*, the WHATWG snapshot retrieved on 2026-10-18.

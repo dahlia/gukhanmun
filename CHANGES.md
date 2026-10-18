@@ -28,7 +28,8 @@ To be released.
  -  Added `Builder::punctuation()` with `preserve`, `modern`, `traditional`,
     and `traditional-vertical` output profiles and custom role styles. The
     default preserves punctuation across plain text, HTML, and Markdown.
-    [[#27], [#28]]
+    Technical guards include Unicode Latin letters, and contextual spaces do
+    not detach combining marks or format controls.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로`/`로` and combinations such as `으로는`.
     Conversion keeps the source particle and falls back to the dictionary
@@ -89,7 +90,9 @@ To be released.
     *main* current. Before the dictionary's first stable release, updates target
     *main* only. [[#18], [#26]]
  -  Added `--punctuation` and `--punctuation-profile` to normalize punctuation
-    with a built-in profile or custom JSON configuration.  [[#27], [#28]]
+    with a built-in profile or custom JSON configuration.  Technical guards
+    include Unicode Latin letters, and contextual spaces do not detach
+    combining marks or format controls.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로`/`로` and combinations such as `으로는`.
     Conversion keeps the source particle and falls back to the dictionary
@@ -135,7 +138,9 @@ To be released.
     [[#11], [#12]]
  -  Added opt-in output punctuation profiles, including custom marks and
     contextual spacing, through `PunctuationProfile` and the post-annotation
-    `PunctuationNormalizer`.  [[#27], [#28]]
+    `PunctuationNormalizer`.  Technical guards include Unicode Latin letters,
+    and contextual spaces do not detach combining marks or format controls.
+    [[#27], [#28]]
 
 ### gukhanmun-dict-extract
 
@@ -210,7 +215,8 @@ To be released.
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `punctuationJson` option and `punctuationProfileJson()` resolved
     view for output punctuation profiles, including custom role styles.
-    [[#27], [#28]]
+    Technical guards include Unicode Latin letters, and contextual spaces do
+    not detach combining marks or format controls.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
@@ -243,7 +249,8 @@ To be released.
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `punctuationJson` option and `punctuation_profile_json()`
     resolved view for output punctuation profiles, including custom role
-    styles.  [[#27], [#28]]
+    styles.  Technical guards include Unicode Latin letters, and contextual
+    spaces do not detach combining marks or format controls.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
@@ -279,7 +286,9 @@ To be released.
     spelling emitted by the Node-API binding.  [[#11], [#12]]
  -  Added the `punctuation` option for built-in and custom output profiles,
     including HTML character references. Resolved styles are available as a
-    copied, deeply frozen `options.punctuation` view.  [[#27], [#28]]
+    copied, deeply frozen `options.punctuation` view.  Technical guards include
+    Unicode Latin letters, and contextual spaces do not detach combining marks
+    or format controls.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]
@@ -333,7 +342,9 @@ To be released.
     spelling emitted by the WebAssembly binding.  [[#11], [#12]]
  -  Added the `punctuation` option for built-in and custom output profiles,
     including HTML character references. Resolved styles are available as a
-    copied, deeply frozen `options.punctuation` view.  [[#27], [#28]]
+    copied, deeply frozen `options.punctuation` view.  Technical guards include
+    Unicode Latin letters, and contextual spaces do not detach combining marks
+    or format controls.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]

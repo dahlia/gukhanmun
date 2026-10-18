@@ -701,7 +701,7 @@ fn generate_punctuation_data(entities: bool) -> Result<()> {
     } else {
         let input = fs::read_to_string(root.join("data/punctuation-categories.tsv"))?;
         let mut body = String::from(
-            "// Unicode 17.0.0 general categories (P/S only).\npub(crate) const CATEGORIES: &[(u32,u32,&str)] = &[\n",
+            "// Unicode 17.0.0 general categories (P/S/M/Cf).\npub(crate) const CATEGORIES: &[(u32,u32,&str)] = &[\n",
         );
         for line in input
             .lines()
@@ -715,12 +715,22 @@ fn generate_punctuation_data(entities: bool) -> Result<()> {
             )?;
         }
         body.push_str("];\n");
+        body.push_str("pub(crate) const LATIN_LETTERS: &[(u32,u32)] = &[\n");
+        let input = fs::read_to_string(root.join("data/punctuation-latin.tsv"))?;
+        for line in input
+            .lines()
+            .filter(|s| !s.starts_with('#') && !s.is_empty())
+        {
+            let fields: Vec<_> = line.split('\t').collect();
+            writeln!(body, "    (0x{},0x{}),", fields[0], fields[1])?;
+        }
+        body.push_str("];\n");
         ("crates/gukhanmun-core/src/punctuation_categories.rs", body)
     };
     let description = if entities {
         "Generated WHATWG HTML character reference table."
     } else {
-        "Generated Unicode punctuation and symbol categories."
+        "Generated Unicode punctuation context categories and Latin letters."
     };
     let header = LICENSE_HEADER.replacen(
         "Generated Unihan kHangul fallback reading tables.",

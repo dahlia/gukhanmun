@@ -5,4 +5,6 @@ links:
 ---
  -  Added the `punctuation` option for built-in and custom output profiles,
     including HTML character references. Resolved styles are available as a
-    copied, deeply frozen `options.punctuation` view.  [[#27], [#28]]
+    copied, deeply frozen `options.punctuation` view.  Technical guards include
+    Unicode Latin letters, and contextual spaces do not detach combining marks
+    or format controls.  [[#27], [#28]]

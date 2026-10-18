@@ -277,10 +277,18 @@ fn alnum(c: char) -> bool {
     c.is_ascii_alphanumeric() || ('０'..='９').contains(&c) || latin(c)
 }
 fn latin(c: char) -> bool {
-    c.is_ascii_alphabetic() || ('Ａ'..='Ｚ').contains(&c) || ('ａ'..='ｚ').contains(&c)
+    if c.is_ascii_alphabetic() {
+        return true;
+    }
+    let table = super::punctuation_categories::LATIN_LETTERS;
+    let i = table.partition_point(|&(start, _)| start <= c as u32);
+    i > 0 && c as u32 <= table[i - 1].1
 }
 fn digit(c: char) -> bool {
     c.is_ascii_digit() || ('０'..='９').contains(&c)
+}
+fn continuation(c: char) -> bool {
+    matches!(category(c), "Mn" | "Mc" | "Me" | "Cf")
 }
 fn spacing(c: char) -> Option<bool> {
     if c.is_whitespace()
@@ -295,6 +303,7 @@ fn spacing(c: char) -> Option<bool> {
     match category(c) {
         "Ps" | "Pi" => Some(true),
         "Pe" | "Pf" => Some(false),
+        "Mn" | "Mc" | "Me" | "Cf" => None,
         cat if cat.starts_with('P') || cat.starts_with('S') => None,
         _ => Some(true),
     }
@@ -606,7 +615,13 @@ impl<S: ScopeData, C: PunctuationTextCodec> PunctuationNormalizer<S, C> {
                     Self::emit_text(out, unit.raw.repeat(repeats));
                 }
             }
-            self.previous = unit.decoded.chars().last();
+            // Attached marks retain the last base for technical guards, so
+            // decomposed Latin letters behave like their precomposed forms.
+            for c in unit.decoded.chars() {
+                if !continuation(c) {
+                    self.previous = Some(c);
+                }
+            }
             self.period_run = role == Some(1);
         }
     }

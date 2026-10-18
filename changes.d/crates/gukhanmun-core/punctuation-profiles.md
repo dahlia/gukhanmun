@@ -5,4 +5,6 @@ links:
 ---
  -  Added opt-in output punctuation profiles, including custom marks and
     contextual spacing, through `PunctuationProfile` and the post-annotation
-    `PunctuationNormalizer`.  [[#27], [#28]]
+    `PunctuationNormalizer`.  Technical guards include Unicode Latin letters,
+    and contextual spaces do not detach combining marks or format controls.
+    [[#27], [#28]]

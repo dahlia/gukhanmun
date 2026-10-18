@@ -110,6 +110,8 @@ export function registerSuite(name: string, binding: Binding): void {
     test("universal inputs, HTML references, and streamed chunks", async () => {
       for (const punctuation of ["modern", "traditional", "traditional-vertical"] as const) {
         const g = await load({ punctuation });
+        const western = "café, world IMF, école cafe\u0301, world";
+        assert.equal(g.convert(western), western);
         const source = "가&#12290;  나、「다」";
         const expected = g.convert(source, "html");
         assert.equal(await streamAll(g.stream("html"), Array.from(source)), expected);
@@ -117,6 +119,8 @@ export function registerSuite(name: string, binding: Binding): void {
       }
       const g = await load({ punctuation: "modern" });
       assert.equal(g.convert("가&#12290;나", "html"), "가. 나");
+      assert.equal(g.convert("가。\uFE0F나"), "가.\uFE0F나");
+      assert.equal(g.convert("가。&#xFE0F;나", "html"), "가.&#xFE0F;나");
       assert.equal(g.convert("가&#12290;나"), "가&#12290;나");
       assert.equal(
         g.convert("1,000 3.14 Hello, world example.com"),
