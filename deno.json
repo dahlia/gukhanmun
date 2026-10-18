@@ -26,7 +26,8 @@
       "tests/js/",
       "packages/loanwords-fst/",
       "packages/loanwords-cdb/",
-      "scripts/loanwords/"
+      "scripts/loanwords/",
+      "scripts/dictionaries/"
     ]
   },
   "fmt": {
@@ -43,7 +44,8 @@
       "tests/js/",
       "packages/loanwords-fst/",
       "packages/loanwords-cdb/",
-      "scripts/loanwords/"
+      "scripts/loanwords/",
+      "scripts/dictionaries/"
     ],
     "exclude": [
       "**/*.md"

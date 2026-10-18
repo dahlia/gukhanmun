@@ -1,0 +1,151 @@
+name: update dictionary data
+
+on:
+  schedule:
+  - cron: '43 4 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dictionary-data-update
+  cancel-in-progress: false
+
+jobs:
+  select:
+    if: github.repository == 'dahlia/gukhanmun' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      branch: ${{ steps.target.outputs.branch }}
+      oid: ${{ steps.target.outputs.oid }}
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+      with:
+        cache: false
+    - name: Pin the newest maintenance line and check compatibility before login
+      id: target
+      run: mise run dicts-target
+    - name: Read committed collection skip state without executing target code
+      env:
+        TARGET_OID: ${{ steps.target.outputs.oid }}
+      run: |
+        git worktree add --detach "$RUNNER_TEMP/dictionary-target" "$TARGET_OID"
+        mise run dicts-state -- "$RUNNER_TEMP/dictionary-target" "$RUNNER_TEMP/dictionary-state.json"
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: dictionary-state
+        path: ${{ runner.temp }}/dictionary-state.json
+        retention-days: 1
+        if-no-files-found: error
+
+  collect:
+    needs: select
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+      with:
+        cache: false
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: dictionary-state
+        path: ${{ runner.temp }}/dictionary-state
+    - name: Collect public dumps with fresh in-memory account sessions
+      env:
+        NIKL_USERNAME: ${{ secrets.NIKL_USERNAME }}
+        NIKL_PASSWORD: ${{ secrets.NIKL_PASSWORD }}
+      run: mise exec -- python -B scripts/dictionaries/collect.py collect "$RUNNER_TEMP/dictionary-source" --state "$RUNNER_TEMP/dictionary-state/dictionary-state.json"
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: dictionary-source
+        path: ${{ runner.temp }}/dictionary-source/
+        retention-days: 1
+        if-no-files-found: error
+
+  prepare:
+    needs: [select, collect]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GUKHANMUN_DICTS_TARGET: ${{ needs.select.outputs.branch }}
+      MISE_JOBS: '1'
+      RUST_TEST_THREADS: '1'
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+      with:
+        cache: false
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: dictionary-source
+        path: ${{ runner.temp }}/dictionary-source
+    - name: Set isolated target paths
+      run: |
+        printf '%s\n' \
+          "GUKHANMUN_DICTS_ROOT=$RUNNER_TEMP/dictionary-target" \
+          "GUKHANMUN_DICTS_RESULT=$RUNNER_TEMP/dictionary-result.json" \
+          "MISE_TRUSTED_CONFIG_PATHS=$RUNNER_TEMP/dictionary-target" >> "$GITHUB_ENV"
+    - name: Check out the pinned target without executing proposal code
+      env:
+        TARGET_OID: ${{ needs.select.outputs.oid }}
+      run: git worktree add --detach "$GUKHANMUN_DICTS_ROOT" "$TARGET_OID"
+    - name: Validate and extract with target policies, without account credentials
+      id: update
+      run: mise exec -- deno run -A scripts/dictionaries/update.ts "$RUNNER_TEMP/dictionary-source"
+    - name: Verify the complete target before publication
+      if: steps.update.outputs.status == 'updated'
+      run: mise -C "$GUKHANMUN_DICTS_ROOT" run ci
+    - name: Bind allowlisted files to the complete tested tree
+      run: mise exec -- deno run -A scripts/dictionaries/publish.ts bundle "$RUNNER_TEMP/dictionary-update"
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: dictionary-update
+        path: ${{ runner.temp }}/dictionary-update/
+        retention-days: 1
+        if-no-files-found: error
+
+  publish:
+    needs: [select, prepare]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+      with:
+        cache: false
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: dictionary-update
+        path: ${{ runner.temp }}/dictionary-update
+    - name: Set isolated publisher path
+      run: printf '%s\n' "GUKHANMUN_DICTS_ROOT=$RUNNER_TEMP/dictionary-target" >> "$GITHUB_ENV"
+    - name: Rebuild and publish only the validated maintenance tree
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TARGET_OID: ${{ needs.select.outputs.oid }}
+      run: |
+        mise exec -- deno run -A scripts/dictionaries/publish.ts validate "$RUNNER_TEMP/dictionary-update"
+        git worktree add --detach "$GUKHANMUN_DICTS_ROOT" "$TARGET_OID"
+        mise exec -- deno run -A scripts/dictionaries/publish.ts publish "$RUNNER_TEMP/dictionary-update"

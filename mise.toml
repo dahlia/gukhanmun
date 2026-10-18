@@ -4,6 +4,7 @@
 "github:rhysd/actionlint" = "1.7.12"
 dasel = "3.11"
 node = "26"
+python = "3.15"
 "github:pnpm/pnpm" = "11"
 deno = "2"
 bun = "1"
@@ -69,6 +70,7 @@ depends = [
   "loanwords-verify",
   "loanwords-check",
   "loanwords-update-test",
+  "dicts-test",
 ]
 
 [tasks.rust-init]
@@ -156,7 +158,7 @@ run = [
   "hongdown --write",
   "hongdown --no-line-width --write scripts/loanwords/update-pr.md scripts/loanwords/conflicts-pr.md",
   "mise fmt",
-  "deno fmt packages/ scripts/loanwords/",
+  "deno fmt packages/ scripts/loanwords/ scripts/dictionaries/",
   "sacho sync --force",
   "sacho fmt",
 ]
@@ -204,6 +206,9 @@ run = [
   "deno check tests/js/loanwords.test.ts",
   "deno check scripts/loanwords/update.ts",
   "deno check scripts/loanwords/publish.ts",
+  "deno check scripts/dictionaries/targets.ts",
+  "deno check scripts/dictionaries/update.ts",
+  "deno check scripts/dictionaries/publish.ts",
 ]
 
 [tasks.js-lint]
@@ -277,7 +282,8 @@ shell = "nu -c"
 depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-stdict"
-cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb --rules $"($manifest_dir)/data/rules.tsv" $"($manifest_dir)/data/stdict.tsv"
+let metadata = (open $"($manifest_dir)/data/metadata.json" | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
+cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb ...$metadata --rules $"($manifest_dir)/data/rules.tsv" $"($manifest_dir)/data/stdict.tsv"
 """
 
 [tasks.opendict-fst-data]
@@ -307,8 +313,9 @@ shell = "nu -c"
 depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-opendict"
+let metadata = (open $"($manifest_dir)/data/metadata.json" | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
 for category in [general north-korean dialect archaic] {
-  cargo run --release -p gukhanmun-mkdict -- --validate --format cdb --output $"packages/opendict-cdb/($category).cdb" $"($manifest_dir)/data/($category).tsv"
+  cargo run --release -p gukhanmun-mkdict -- --validate --format cdb --output $"packages/opendict-cdb/($category).cdb" ...$metadata --metadata $"category=($category)" $"($manifest_dir)/data/($category).tsv"
   # Store gzip-compressed so every binary stays under the JSR 20 MiB per-file
   # limit; the byte loaders inflate transparently.  -n keeps the output
   # reproducible by omitting the name and timestamp.
@@ -480,7 +487,10 @@ description = "Regenerate stdict candidates and positional forms from a pinned d
 usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
 shell = "nu -c"
 depends = ["rust-init"]
-run = 'cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output crates/gukhanmun-stdict/data/stdict.tsv --suffix-output crates/gukhanmun-stdict/data/suffix.tsv'
+run = """
+let output = ($env.GUKHANMUN_DICTS_OUTPUT_DIR? | default "crates/gukhanmun-stdict/data")
+cargo run --locked -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output $"($output)/stdict.tsv" --suffix-output $"($output)/suffix.tsv"
+"""
 
 [tasks.stdict-extract-check]
 description = "Check stdict extraction against a pinned dump without modifying files"
@@ -494,7 +504,10 @@ description = "Regenerate Open Korean Dictionary candidates from a pinned dump"
 usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
 shell = "nu -c"
 depends = ["rust-init"]
-run = 'cargo run -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output crates/gukhanmun-opendict/data/general.tsv --north-korean-output crates/gukhanmun-opendict/data/north-korean.tsv --dialect-output crates/gukhanmun-opendict/data/dialect.tsv --archaic-output crates/gukhanmun-opendict/data/archaic.tsv'
+run = """
+let output = ($env.GUKHANMUN_DICTS_OUTPUT_DIR? | default "crates/gukhanmun-opendict/data")
+cargo run --locked -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output $"($output)/general.tsv" --north-korean-output $"($output)/north-korean.tsv" --dialect-output $"($output)/dialect.tsv" --archaic-output $"($output)/archaic.tsv"
+"""
 
 [tasks.opendict-extract-check]
 description = "Check Open Korean Dictionary candidates from a pinned dump"
@@ -606,4 +619,42 @@ run = [
   "cargo test -p gukhanmun --test punctuation",
   "cargo test -p gukhanmun --test fixtures punctuation",
   "cargo test -p gukhanmun-cli --test cli punctuation",
+]
+
+[tasks.dicts-state]
+description = "Read validated dictionary skip state from a pinned local target"
+usage = 'arg "<root>"; arg "<output>"'
+shell = "nu -c"
+run = 'python -B scripts/dictionaries/collect.py state $env.usage_root $env.usage_output'
+
+[tasks.dicts-collect]
+description = "Log in to NIKL and collect complete current JSON dumps"
+usage = 'arg "<output>"'
+shell = "nu -c"
+run = 'python -B scripts/dictionaries/collect.py collect $env.usage_output'
+
+[tasks.dicts-collect-local]
+description = "Explicitly load local account variables and collect current dumps"
+usage = 'arg "<output>"'
+shell = "nu -c"
+run = 'deno run --env-file=.env -A scripts/dictionaries/local.ts $env.usage_output'
+
+[tasks.dicts-update]
+description = "Validate and apply an already collected dictionary update offline"
+usage = 'arg "<input>"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = 'deno run -A scripts/dictionaries/update.ts $env.usage_input'
+
+[tasks.dicts-target]
+description = "Select only the newest compatible maintenance line"
+usage = 'arg "[remote]" default="origin"'
+shell = "nu -c"
+run = 'deno run -A scripts/dictionaries/targets.ts $env.usage_remote'
+
+[tasks.dicts-test]
+description = "Verify dictionary collection and publication without credentials"
+run = [
+  "python -B -m unittest discover -s scripts/dictionaries -p \"*_test.py\"",
+  "deno test -A scripts/dictionaries/",
 ]

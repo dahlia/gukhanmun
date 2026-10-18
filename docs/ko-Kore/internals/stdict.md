@@ -17,12 +17,11 @@ title: 《標準國語大辭典》
 스냅숏
 ------
 
-| 필드           | 값                                                                 |
-| -------------- | ------------------------------------------------------------------ |
-| 出處 壓縮 파일 | *전체 내려받기\_표준국어대사전\_JSON\_20260606.zip*                |
-| 덤프 날짜      | 2026-06-06                                                         |
-| SHA-256        | `7082b9665ed1e01b563e4b5924fb241e455d945b35507910ac53453d7bb91dee` |
-| TSV 項目       | 260,690                                                            |
+현재 《標準國語大辭典》 데이터는 *crates/gukhanmun-stdict/data/* 디렉터리의 TSV
+파일에 保存됩니다. 같은 디렉터리의 *metadata.json*은 生成된 바이너리에 들어가는
+出處 識別子, 덤프 날짜, 라이선스를 記錄합니다. 週刊 更新 작업으로 收集한
+스냅숏에는 壓縮 파일의 체크섬, 原本 項目 數, 出力 파일별 해시를 담은
+*source.json*도 있습니다. 出處 表示는 *NOTICE.md*를 參考하세요.
 
 
 再生成
@@ -31,8 +30,8 @@ title: 《標準國語大辭典》
 내려받은 壓縮 파일을 便한 곳에 두고 다음을 實行합니다:
 
 ~~~~ sh
-mise run stdict-extract -- ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260606.zip
-mise run stdict-extract-check -- ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260606.zip
+mise run stdict-extract -- /path/to/stdict.zip
+mise run stdict-extract-check -- /path/to/stdict.zip
 ~~~~
 
 抽出器는 辭典 키 順으로 整列된 決定的 UTF-8 TSV를 씁니다.  그러면

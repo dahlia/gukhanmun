@@ -29,6 +29,9 @@ fn main() -> Result<()> {
 
     println!("cargo:rerun-if-changed={}", input.display());
     println!("cargo:rerun-if-changed={}", rules.display());
+    let metadata = manifest_dir.join("data/metadata.json");
+    println!("cargo:rerun-if-changed={}", metadata.display());
+    let provenance: BTreeMap<String, String> = serde_json::from_slice(&std::fs::read(metadata)?)?;
     build_dictionary(
         &[input],
         output,
@@ -37,14 +40,7 @@ fn main() -> Result<()> {
             merge: MergePolicy::Error,
             validate: true,
             max_key_bytes: gukhanmun_mkdict::DEFAULT_MAX_KEY_BYTES,
-            metadata: BTreeMap::from([
-                ("source".to_owned(), "stdict-json-20260606".to_owned()),
-                (
-                    "license".to_owned(),
-                    "National Institute of Korean Language".to_owned(),
-                ),
-                ("build_date".to_owned(), "2026-06-06T00:00:00Z".to_owned()),
-            ]),
+            metadata: provenance,
             rules: vec![rules],
             allow_unmatched_rules: false,
         },

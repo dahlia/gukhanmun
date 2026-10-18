@@ -67,6 +67,11 @@ fn build_category(
     let input = manifest_dir.join("data").join(input_name);
     let output = out_dir.join(output_name);
     println!("cargo:rerun-if-changed={}", input.display());
+    let metadata = manifest_dir.join("data/metadata.json");
+    println!("cargo:rerun-if-changed={}", metadata.display());
+    let mut provenance: BTreeMap<String, String> =
+        serde_json::from_slice(&std::fs::read(metadata)?)?;
+    provenance.insert("category".to_owned(), category.to_owned());
     build_dictionary(
         &[input],
         output,
@@ -75,12 +80,7 @@ fn build_category(
             merge: MergePolicy::Error,
             validate: true,
             max_key_bytes: gukhanmun_mkdict::DEFAULT_MAX_KEY_BYTES,
-            metadata: BTreeMap::from([
-                ("source".to_owned(), "opendict-json-20260603".to_owned()),
-                ("license".to_owned(), "CC-BY-SA-2.0-KR".to_owned()),
-                ("category".to_owned(), category.to_owned()),
-                ("build_date".to_owned(), "2026-06-03T00:00:00Z".to_owned()),
-            ]),
+            metadata: provenance,
             rules: Vec::new(),
             allow_unmatched_rules: false,
         },
