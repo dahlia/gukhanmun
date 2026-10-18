@@ -57,6 +57,10 @@ To be released.
     stable release series that ships the dictionary, with a separate PR keeping
     *main* current. Before the dictionary's first stable release, updates target
     *main* only. [[#18], [#26]]
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-10-04.  [[#29], [#30]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-10-12.  [[#29], [#30]]
 
 [#11]: https://github.com/dahlia/gukhanmun/issues/11
 [#12]: https://github.com/dahlia/gukhanmun/pull/12
@@ -70,6 +74,8 @@ To be released.
 [#26]: https://github.com/dahlia/gukhanmun/pull/26
 [#27]: https://github.com/dahlia/gukhanmun/issues/27
 [#28]: https://github.com/dahlia/gukhanmun/pull/28
+[#29]: https://github.com/dahlia/gukhanmun/issues/29
+[#30]: https://github.com/dahlia/gukhanmun/pull/30
 
 ### gukhanmun-cdb
 
@@ -108,6 +114,10 @@ To be released.
     [[#19], [#22]]
  -  Dictionary-wide homophone marking includes selected suffix readings.
     [[#19], [#22]]
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-10-04.  [[#29], [#30]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-10-12.  [[#29], [#30]]
 
 ### gukhanmun-core
 
@@ -235,6 +245,8 @@ To be released.
     snapshots with `mise run opendict-extract -- /path/to/pinned-dump.zip` and
     `mise run opendict-extract-check -- /path/to/pinned-dump.zip`.
     [[#21], [#24]]
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-10-04.  [[#29], [#30]]
 
 ### gukhanmun-stdict
 
@@ -243,6 +255,8 @@ To be released.
     Candidate-specific suffixes now survive raw FST/CDB loading. Use
     `mise run stdict-extract` to regenerate and `mise run stdict-extract-check`
     to check a source dump without modifying outputs.  [[#19], [#22]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-10-12.  [[#29], [#30]]
 
 ### gukhanmun-wasm
 
@@ -310,6 +324,8 @@ To be released.
     readings within each category, preserving existing default choices and
     category priority. Source identifiers remain in the extraction TSVs.
     [[#21], [#24]]
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-10-04.  [[#29], [#30]]
 
 ### @gukhanmun/opendict-fst
 
@@ -317,18 +333,24 @@ To be released.
     readings within each category, preserving existing default choices and
     category priority. Source identifiers remain in the extraction TSVs.
     [[#21], [#24]]
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-10-04.  [[#29], [#30]]
 
 ### @gukhanmun/stdict-cdb
 
  -  Bundle v2 data retaining competing readings and positional forms, with all
     previous default readings preserved. Requires a binding that reads
     dictionary format v2.  [[#19], [#22]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-10-12.  [[#29], [#30]]
 
 ### @gukhanmun/stdict-fst
 
  -  Bundle v2 data retaining competing readings and positional forms, with all
     previous default readings preserved. Requires a binding that reads
     dictionary format v2.  [[#19], [#22]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-10-12.  [[#29], [#30]]
 
 ### @gukhanmun/types
 

@@ -1,0 +1,35 @@
+{
+  "archive_bytes": 68707495,
+  "archive_date": "2026-10-12",
+  "archive_filename": "전체 내려받기_표준국어대사전_JSON_20261012.zip",
+  "archive_member_key": "1610293",
+  "archive_sha256": "67c98e66e2c1dd6cf74b3c2aa323cc85ae1aafc404246ea11f2f5b4946e57cc6",
+  "dictionary": "stdict",
+  "duplicate_record_count": 0,
+  "link_key": "1610293",
+  "record_count": 436587,
+  "shard_count": 88,
+  "source_url": "https://stdict.korean.go.kr/common/download.do",
+  "terminal_endpoint": 436587,
+  "unique_record_count": 436587,
+  "version": 1,
+  "inputs_sha256": "4c440d2a69da42f3b8d36f283134497945795ad1e6fc7ac54339d36d3fcd42da",
+  "outputs": {
+    "stdict.tsv": {
+      "sha256": "98237b0a64333c3e85d19032be06ca183aac0f0d43b1636c2a19a846d46d5c0e",
+      "rows": 262096,
+      "keys": 260701,
+      "added": 33,
+      "removed": 22,
+      "changed": 5
+    },
+    "suffix.tsv": {
+      "sha256": "d39f8a1c9cebf7944ec3b15aff9390117cf86ff2535d3b5f34437db6540e4336",
+      "rows": 2,
+      "keys": 2,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    }
+  }
+}

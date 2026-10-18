@@ -10,7 +10,7 @@ Korean Language.
 
  -  Source: National Institute of Korean Language,
     [*Standard Korean Language Dictionary*]
- -  Snapshot: *전체 내려받기\_표준국어대사전\_JSON\_20260606.zip*
+ -  Snapshot: *전체 내려받기\_표준국어대사전\_JSON\_20261012.zip*
  -  Data license: [Creative Commons Attribution-ShareAlike 2.0 Korea]
     (CC BY-SA 2.0 KR), as stated in the
     [*Standard Korean Language Dictionary* copyright policy]
@@ -31,7 +31,7 @@ The bundled dictionary data is derived from the *Open Korean Dictionary*
 (우리말샘) JSON dump published by the National Institute of Korean Language.
 
  -  Source: National Institute of Korean Language, [*Open Korean Dictionary*]
- -  Snapshot: *전체 내려받기\_우리말샘\_json\_20260603.zip*
+ -  Snapshot: *전체 내려받기\_우리말샘\_json\_20261004.zip*
  -  Data license: [Creative Commons Attribution-ShareAlike 2.0 Korea]
     (CC BY-SA 2.0 KR), as stated in the
     [*Open Korean Dictionary* copyright policy]

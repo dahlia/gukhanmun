@@ -251,7 +251,7 @@ general	芭蕉	파초		[["바쇼",null],["파초",null]]	Preserve the effective 
 general	花山	화산		[["가잔",null],["화산",null]]	Preserve the effective default from the pinned 2026-06-03 snapshot.
 general	范文瀾	판원란		[["범문란",null],["판원란",null]]	Preserve the effective default from the pinned 2026-06-03 snapshot.
 general	茶漬	차즈케		[["오차쓰케",null],["차즈케",null]]	Preserve the effective default from the pinned 2026-06-03 snapshot.
-general	草履	초리		[["조리",null],["초리",null]]	Preserve the effective default from the pinned 2026-06-03 snapshot.
+general	草履	초리		[["조리",null],["쪼리",null],["초리",null]]	Preserve the selected 초리 reading after reviewing new 쪼리 source 1719674 in the 2026-10-04 snapshot.
 general	荷造	하조		[["니즈쿠리",null],["하조",null]]	Preserve the effective default from the pinned 2026-06-03 snapshot.
 general	菁華	청화		[["정화",null],["청화",null]]	Preserve the effective default from the pinned 2026-06-03 snapshot.
 general	菖蒲	창포		[["쇼부",null],["장포",null],["창포",null]]	Preserve the effective default from the pinned 2026-06-03 snapshot.
