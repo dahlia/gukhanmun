@@ -95,6 +95,8 @@ async function fixture(): Promise<string> {
   await Deno.mkdir(`${root}/${data}`, { recursive: true });
   await Deno.writeTextFile(`${root}/${data}/decisions.json`, '{"format_version":1,"decisions":[]}');
   await Deno.copyFile(`${project}/sacho.toml`, `${root}/sacho.toml`);
+  // Resolve formatter versions from the target, without relying on global tools.
+  await Deno.copyFile(`${project}/mise.toml`, `${root}/mise.toml`);
   await Deno.mkdir(`${root}/changes.d`, { recursive: true });
   await Deno.writeTextFile(`${root}/changes.d/next`, "99.0.0\n");
   await Deno.writeTextFile(
@@ -296,7 +298,6 @@ Deno.test("trusted controller regenerates a separate maintenance layout and reje
       `${project}/scripts/loanwords/update.ts`,
       `${controller}/scripts/loanwords/update.ts`,
     );
-    await Deno.copyFile(`${project}/mise.toml`, `${root}/mise.toml`);
     await Deno.mkdir(`${root}/crates/gukhanmun-dict-extract`, { recursive: true });
     await Deno.writeTextFile(
       `${root}/crates/gukhanmun-dict-extract/Cargo.toml`,
