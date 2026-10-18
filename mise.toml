@@ -328,7 +328,10 @@ depends = [
   "loanwords-cdb-data",
   "js-install",
 ]
-run = "pnpm -r run build"
+# Serialize package lifecycles, including the docs' nested dependency builds.
+# Parallel bundlers exhaust smaller runners; concurrent prebuilds also start
+# independent rust-init processes that can conflict on Windows.
+run = "pnpm -r --workspace-concurrency=1 run build"
 
 [tasks.js-test]
 description = "Run JavaScript integration tests on Node.js, Deno, and Bun"
