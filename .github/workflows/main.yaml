@@ -664,16 +664,16 @@ jobs:
         mkdir -p "dist/$asset"
         cp "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}" "dist/$asset/"
         cp "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}" "dist/$asset/"
-        cp LICENSE README.*.md "dist/$asset/"
+        cp LICENSE NOTICE.md README.*.md "dist/$asset/"
 
         if [[ "${{ matrix.archive }}" == "zip" ]]; then
           (cd "dist/$asset" && 7z a "../$asset.zip" \
-            LICENSE README.*.md \
+            LICENSE NOTICE.md README.*.md \
             "gukhanmun${{ matrix.exe }}" \
             "gukhanmun-mkdict${{ matrix.exe }}")
         else
           tar -cjf "dist/$asset.tar.bz2" -C "dist/$asset" \
-            LICENSE README.*.md \
+            LICENSE NOTICE.md README.*.md \
             "gukhanmun${{ matrix.exe }}" \
             "gukhanmun-mkdict${{ matrix.exe }}"
         fi

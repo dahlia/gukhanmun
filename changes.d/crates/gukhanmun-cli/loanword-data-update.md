@@ -6,6 +6,9 @@ links:
  -  Added `--loanwords` to load the bundled NIKL loanword examples before
     preset dictionaries. User dictionaries retain priority; the option
     conflicts with `--no-bundled-dictionaries`. [[#18], [#26]]
+ -  Included *NOTICE.md* in CLI binary archives to retain attribution for
+    bundled dictionary data, including the NIKL loanword examples.
+    [[#18], [#26]]
  -  Changed weekly data updates to target the maintenance branch of the newest
     stable release series that ships the dictionary, with a separate PR keeping
     *main* current. Before the dictionary's first stable release, updates target
