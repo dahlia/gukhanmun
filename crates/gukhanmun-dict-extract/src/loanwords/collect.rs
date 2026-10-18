@@ -256,13 +256,65 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::{
-        io::Write,
-        net::TcpListener,
+        io::{self, Write},
+        net::{TcpListener, TcpStream},
         sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
         },
+        time::Instant,
     };
+    fn accept_with_timeout(listener: &TcpListener, timeout: Duration) -> io::Result<TcpStream> {
+        listener.set_nonblocking(true)?;
+        let start = Instant::now();
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    // Accepted sockets do not inherit blocking mode consistently across OSes.
+                    stream.set_nonblocking(false)?;
+                    stream.set_read_timeout(Some(timeout))?;
+                    stream.set_write_timeout(Some(timeout))?;
+                    return Ok(stream);
+                }
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                    ) =>
+                {
+                    if start.elapsed() >= timeout {
+                        return Err(io::Error::new(
+                            io::ErrorKind::TimedOut,
+                            "mock server did not receive a connection",
+                        ));
+                    }
+                    thread::sleep(Duration::from_millis(1));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+    fn accept(listener: &TcpListener) -> TcpStream {
+        accept_with_timeout(listener, Duration::from_secs(5)).unwrap()
+    }
+
+    #[test]
+    fn mock_server_waits_are_bounded_without_a_request() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let server = thread::spawn(move || {
+            accept_with_timeout(&listener, Duration::from_millis(50)).unwrap_err()
+        });
+        assert_eq!(server.join().unwrap().kind(), io::ErrorKind::TimedOut);
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let _silent_client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let mut stream = accept_with_timeout(&listener, Duration::from_millis(50)).unwrap();
+        let error = stream.read(&mut [0; 1]).unwrap_err();
+        assert!(matches!(
+            error.kind(),
+            io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+        ));
+    }
     fn page() -> String {
         json!({"resultCode":"00","resultMsg":"OK","pageNo":1,"numOfRows":1,"totalCount":1,"items":[{"example_no":"synthetic-1","srclang_mark":"香港","korean_mark":"홍콩","regltn_code":"0003"}]}).to_string()
     }
@@ -281,7 +333,7 @@ mod tests {
         let count = hits.clone();
         let handle = thread::spawn(move || {
             for (status, headers, body) in replies {
-                let (mut stream, _) = listener.accept().unwrap();
+                let mut stream = accept(&listener);
                 let mut request = [0; 8192];
                 let n = stream.read(&mut request).unwrap();
                 assert!(
@@ -299,7 +351,8 @@ mod tests {
             rows: 1,
             delay: Duration::ZERO,
             max_retry_after: Duration::ZERO,
-            timeout: Duration::from_millis(100),
+            // Ordinary requests need scheduling headroom on loaded CI runners.
+            timeout: Duration::from_secs(5),
             ..Limits::default()
         }
     }
@@ -346,7 +399,7 @@ mod tests {
         let url = format!("http://{}", listener.local_addr().unwrap());
         let h = thread::spawn(move || {
             for body in [None, Some(page()), Some(page())] {
-                let (mut stream, _) = listener.accept().unwrap();
+                let mut stream = accept(&listener);
                 let mut request = [0; 8192];
                 let _ = stream.read(&mut request).unwrap();
                 if let Some(body) = body {
@@ -378,7 +431,7 @@ mod tests {
             let h = thread::spawn(move || {
                 let requests = if exhausted_on_retry { 1 } else { 3 };
                 for number in 0..requests {
-                    let (mut stream, _) = listener.accept().unwrap();
+                    let mut stream = accept(&listener);
                     let mut request = [0; 8192];
                     assert!(stream.read(&mut request).unwrap() > 0);
                     let declared = if number == 0 {
@@ -530,7 +583,12 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let h = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            // The 10ms client deadline may expire before a connection is established.
+            let mut stream = match accept_with_timeout(&listener, Duration::from_secs(5)) {
+                Ok(stream) => stream,
+                Err(error) if error.kind() == io::ErrorKind::TimedOut => return,
+                Err(error) => panic!("mock server failed: {error}"),
+            };
             let mut bytes = [0; 8192];
             let _ = stream.read(&mut bytes);
             thread::sleep(Duration::from_millis(60));
