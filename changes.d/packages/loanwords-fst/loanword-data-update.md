@@ -5,3 +5,7 @@ links:
 ---
  -  Added `@gukhanmun/loanwords-fst` to load the bundled NIKL loanword examples
     through `loanwordsFst()` in the WASM and native bindings. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]

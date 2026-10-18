@@ -13,47 +13,128 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  collect:
+  select:
     if: github.repository == 'dahlia/gukhanmun' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     outputs:
-      status: ${{ steps.collect.outputs.status }}
+      targets: ${{ steps.select.outputs.targets }}
+      primary: ${{ steps.select.outputs.primary }}
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
-        ref: refs/heads/main
+        ref: ${{ github.sha }}
+        fetch-depth: 0
         persist-credentials: false
     - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
       with:
-        cache: true
-    - name: Build collector without API credentials
+        cache: false
+    - name: Select the latest released maintenance series and main
+      id: select
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: mise exec -- deno run -A scripts/loanwords/targets.ts
+
+  collect:
+    needs: select
+    if: github.repository == 'dahlia/gukhanmun' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+      with:
+        cache: false
+    - name: Build the trusted main collector without API credentials
       run: mise run loanwords-tools
-    - name: Collect and validate complete source
-      id: collect
+    - name: Collect one complete source for every target
       env:
         NIKL_LOANWORD_API_KEY: ${{ secrets.NIKL_LOANWORD_API_KEY }}
         GUKHANMUN_LOANWORDS_BIN: ${{ github.workspace }}/target/loanwords-tools/debug/gukhanmun-loanwords
-        GUKHANMUN_LOANWORDS_RESULT: ${{ runner.temp }}/loanword-result.json
-      run: |
-        set -euo pipefail
-        mise run loanwords-update
-        mise exec -- deno run -A scripts/loanwords/publish.ts bundle "$RUNNER_TEMP/loanword-update"
-    - name: Verify successful updates offline
-      if: steps.collect.outputs.status == 'updated'
-      run: mise run ci
+      run: mise exec -- deno run -A scripts/loanwords/update.ts collect "$RUNNER_TEMP/loanword-source.json"
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
-        name: loanword-update
+        name: loanword-source
+        path: ${{ runner.temp }}/loanword-source.json
+        retention-days: 7
+        if-no-files-found: error
+
+  prepare:
+    needs: [select, collect]
+    if: github.repository == 'dahlia/gukhanmun' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.select.outputs.targets) }}
+    env:
+      GUKHANMUN_LOANWORDS_TARGET: ${{ matrix.target.branch }}
+      GUKHANMUN_LOANWORDS_PRIMARY: ${{ needs.select.outputs.primary }}
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+      with:
+        cache: false
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: loanword-source
+        path: ${{ runner.temp }}/loanword-source
+    - name: Set isolated target paths
+      run: |
+        printf '%s\n' "GUKHANMUN_LOANWORDS_ROOT=$RUNNER_TEMP/loanword-target" >> "$GITHUB_ENV"
+    - name: Build the pinned target extractor without credentials
+      env:
+        TARGET_OID: ${{ matrix.target.oid }}
+      run: |
+        set -euo pipefail
+        git worktree add --detach "$GUKHANMUN_LOANWORDS_ROOT" "$TARGET_OID"
+        mise -C "$GUKHANMUN_LOANWORDS_ROOT" run loanwords-tools
+    - name: Read the prior proposal without executing its code
+      run: mise exec -- deno run -A scripts/loanwords/publish.ts candidate "$RUNNER_TEMP/loanword-candidate.json"
+    - name: Extract and regenerate each target's changelog offline
+      id: update
+      env:
+        GUKHANMUN_LOANWORDS_RESULT: ${{ runner.temp }}/loanword-result.json
+        GUKHANMUN_LOANWORDS_PRIOR_CANDIDATE: ${{ runner.temp }}/loanword-candidate.json
+        GUKHANMUN_LOANWORDS_BIN: ${{ runner.temp }}/loanword-target/target/loanwords-tools/debug/gukhanmun-loanwords
+      run: mise exec -- deno run -A scripts/loanwords/update.ts update "$RUNNER_TEMP/loanword-source/loanword-source.json"
+    - name: Verify the complete target offline
+      if: steps.update.outputs.status == 'updated'
+      env:
+        MISE_JOBS: '1'
+        RUST_TEST_THREADS: '1'
+      run: mise -C "$GUKHANMUN_LOANWORDS_ROOT" run ci
+    - name: Bind validated files to the tested target tree
+      env:
+        GUKHANMUN_LOANWORDS_RESULT: ${{ runner.temp }}/loanword-result.json
+      run: mise exec -- deno run -A scripts/loanwords/publish.ts bundle "$RUNNER_TEMP/loanword-update"
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: loanword-update-${{ matrix.target.branch }}
         path: ${{ runner.temp }}/loanword-update/
         retention-days: 7
         if-no-files-found: error
 
   publish:
-    needs: collect
-    if: github.repository == 'dahlia/gukhanmun' && github.ref == 'refs/heads/main'
+    needs: [select, prepare]
+    if: >-
+      always() && !cancelled() && needs.select.result == 'success' &&
+      (needs.prepare.result == 'success' || needs.prepare.result == 'failure') &&
+      github.repository == 'dahlia/gukhanmun' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.select.outputs.targets) }}
     permissions:
       contents: write
       pull-requests: write
@@ -61,15 +142,23 @@ jobs:
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
+        ref: ${{ github.sha }}
         fetch-depth: 0
     - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
       with:
-        cache: true
+        cache: false
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
       with:
-        name: loanword-update
+        name: loanword-update-${{ matrix.target.branch }}
         path: ${{ runner.temp }}/loanword-update/
-    - name: Publish validated update PR
+    - name: Set isolated target path
+      run: printf '%s\n' "GUKHANMUN_LOANWORDS_ROOT=$RUNNER_TEMP/loanword-target" >> "$GITHUB_ENV"
+    - name: Publish the validated target PR
       env:
         GH_TOKEN: ${{ github.token }}
-      run: mise exec -- deno run -A scripts/loanwords/publish.ts publish "$RUNNER_TEMP/loanword-update"
+        TARGET_OID: ${{ matrix.target.oid }}
+      run: |
+        set -euo pipefail
+        mise exec -- deno run -A scripts/loanwords/publish.ts validate "$RUNNER_TEMP/loanword-update"
+        git worktree add --detach "$GUKHANMUN_LOANWORDS_ROOT" "$TARGET_OID"
+        mise exec -- deno run -A scripts/loanwords/publish.ts publish "$RUNNER_TEMP/loanword-update"

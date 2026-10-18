@@ -209,9 +209,10 @@ async function transaction(
         );
       }
       if (
-        !await run("hongdown", ["-w", ...fragments], root) ||
-        !await run("sacho", ["sync", "--force"], root) ||
-        !await run("sacho", ["fmt"], root) || !await run("sacho", ["check"], root)
+        !await run("mise", ["exec", "--", "hongdown", "-w", ...fragments], root) ||
+        !await run("mise", ["exec", "--", "sacho", "sync", "--force"], root) ||
+        !await run("mise", ["exec", "--", "sacho", "fmt"], root) ||
+        !await run("mise", ["exec", "--", "sacho", "check"], root)
       ) {
         throw new Error("changelog regeneration failed");
       }
@@ -253,7 +254,12 @@ export interface UpdateResult {
   fingerprint: string;
 }
 /** Regenerates/checks a pinned corpus or validates a complete live/offline update. */
-export async function update(root: string, mode: string, source?: string): Promise<UpdateResult> {
+export async function update(
+  root: string,
+  mode: string,
+  source?: string,
+  priorCandidate?: string,
+): Promise<UpdateResult> {
   const temp = await Deno.makeTempDir({ prefix: "gukhanmun-loanwords-" });
   try {
     const oldBytes = await optional(`${root}/${data}/snapshot.json`);
@@ -319,15 +325,39 @@ export async function update(root: string, mode: string, source?: string): Promi
       await transaction(root, new Map([[`${data}/pending-update.json`, pending]]), null);
       return { status: "pending", fingerprint: await hash(pending) };
     }
-    if (oldBytes) {
-      const old = parseSource(decoder.decode(oldBytes));
-      if (old.records_sha256 === current.records_sha256) {
-        if (typeof old.collected_at !== "string" || typeof old.collector_version !== "string") {
-          throw new Error("invalid pinned collection metadata");
+    let previous = oldBytes ? parseSource(decoder.decode(oldBytes)) : null;
+    if (
+      mode === "update" && previous?.records_sha256 !== current.records_sha256 && priorCandidate
+    ) {
+      const bytes = await optional(priorCandidate);
+      let candidate: SourceSnapshot | null = null;
+      if (bytes) {
+        try {
+          candidate = parseSource(decoder.decode(bytes));
+        } catch {
+          // Corrupt unmerged proposals are rebuilt from the newly collected source.
         }
-        current.collected_at = old.collected_at;
-        current.collector_version = old.collector_version;
       }
+      if (
+        candidate && candidate.records_sha256 === current.records_sha256 && await cli([
+          "audit",
+          "--snapshot",
+          priorCandidate,
+          "--output",
+          `${temp}/candidate.tsv`,
+          "--report",
+          `${temp}/candidate-audit.json`,
+        ])
+      ) previous = candidate;
+    }
+    if (previous && previous.records_sha256 === current.records_sha256) {
+      if (
+        typeof previous.collected_at !== "string" || typeof previous.collector_version !== "string"
+      ) {
+        throw new Error("invalid prior collection metadata");
+      }
+      current.collected_at = previous.collected_at;
+      current.collector_version = previous.collector_version;
     }
     await Deno.writeFile(incoming, snapshotBytes(current));
     // Refresh the report's snapshot hash after retaining prior collection metadata.
@@ -372,13 +402,46 @@ export async function update(root: string, mode: string, source?: string): Promi
 }
 async function main(): Promise<void> {
   const [mode = "check", source] = Deno.args;
+  if (mode === "collect") {
+    if (!source) throw new Error("external source destination required");
+    if (!await cli(["collect", "--rows", "1000", "--output", source])) {
+      throw new Error("source collection failed");
+    }
+    const text = await Deno.readTextFile(source);
+    if (redactDiagnostics(text) !== text) {
+      await Deno.remove(source);
+      throw new Error("credential-bearing source refused");
+    }
+    return;
+  }
   if (!["check", "regenerate", "update"].includes(mode)) {
     throw new Error("unknown loanword operation");
   }
-  const result = await update(project, mode, source);
+  const root = Deno.env.get("GUKHANMUN_LOANWORDS_ROOT") ?? project;
+  if (root !== project) {
+    for (
+      const path of [
+        "mise.toml",
+        "sacho.toml",
+        `${data}/decisions.json`,
+        "crates/gukhanmun-dict-extract/Cargo.toml",
+      ]
+    ) {
+      if (!(await Deno.stat(`${root}/${path}`)).isFile) {
+        throw new Error("unsupported target layout");
+      }
+    }
+  }
+  const result = await update(
+    root,
+    mode,
+    source,
+    Deno.env.get("GUKHANMUN_LOANWORDS_PRIOR_CANDIDATE"),
+  );
   console.log(JSON.stringify(result));
   const resultFile = Deno.env.get("GUKHANMUN_LOANWORDS_RESULT");
-  if (resultFile) await Deno.writeTextFile(resultFile, JSON.stringify(result));
+  // Offline verification must not overwrite the proposed update's publication outcome.
+  if (resultFile && mode === "update") await Deno.writeTextFile(resultFile, JSON.stringify(result));
   const output = Deno.env.get("GITHUB_OUTPUT");
   if (output) {
     await Deno.writeTextFile(

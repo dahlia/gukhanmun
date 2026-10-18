@@ -46,6 +46,10 @@ To be released.
     `Builder::bundled_loanwords()` to compose loanword examples after user
     dictionaries and before preset dictionaries. Both presets leave it disabled
     by default. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
 
 [#11]: https://github.com/dahlia/gukhanmun/issues/11
 [#12]: https://github.com/dahlia/gukhanmun/pull/12
@@ -71,6 +75,10 @@ To be released.
  -  Added `--loanwords` to load the bundled NIKL loanword examples before
     preset dictionaries. User dictionaries retain priority; the option
     conflicts with `--no-bundled-dictionaries`. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로/로` and combinations such as `으로는`. Conversion
     keeps the source particle and falls back to the dictionary default when
@@ -149,6 +157,10 @@ To be released.
  -  Added a separately selectable, offline dictionary from NIKL loanword
     spelling examples with source provenance and explicit choices for competing
     readings. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
 
 ### gukhanmun-markdown
 
@@ -213,11 +225,19 @@ To be released.
 
  -  Added `@gukhanmun/loanwords-cdb` to load the bundled NIKL loanword examples
     through `loanwordsCdb()` in the WASM and native bindings. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
 
 ### @gukhanmun/loanwords-fst
 
  -  Added `@gukhanmun/loanwords-fst` to load the bundled NIKL loanword examples
     through `loanwordsFst()` in the WASM and native bindings. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
 
 ### @gukhanmun/napi
 

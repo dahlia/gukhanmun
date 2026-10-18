@@ -1,3 +1,3 @@
-Update the pinned NIKL loanword examples and regenerate the dictionary after two matching complete sweeps. The fixed changelog fragments and materialized changelog are included. Offline regeneration and `mise run ci` passed in the collection job.
+Update the NIKL loanword dictionary from two complete source fetches with matching records. The PR includes fragments under *changes.d/* and the regenerated *CHANGES.md* for its base branch. Regeneration and `mise run ci` passed offline.
 
 https://github.com/dahlia/gukhanmun/issues/18

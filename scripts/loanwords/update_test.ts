@@ -286,3 +286,109 @@ Deno.test("source numbers survive regeneration, pending evidence and strict vali
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("trusted controller regenerates a separate maintenance layout and rejects unknown source versions", async () => {
+  const root = await fixture();
+  const controller = await Deno.makeTempDir({ prefix: "loanword-controller-test-" });
+  try {
+    await Deno.mkdir(`${controller}/scripts/loanwords`, { recursive: true });
+    await Deno.copyFile(
+      `${project}/scripts/loanwords/update.ts`,
+      `${controller}/scripts/loanwords/update.ts`,
+    );
+    await Deno.copyFile(`${project}/mise.toml`, `${root}/mise.toml`);
+    await Deno.mkdir(`${root}/crates/gukhanmun-dict-extract`, { recursive: true });
+    await Deno.writeTextFile(
+      `${root}/crates/gukhanmun-dict-extract/Cargo.toml`,
+      "# synthetic target layout\n",
+    );
+    const source = await snapshot(root, ["홍콩"]);
+    const invoke = (mode = "update") =>
+      new Deno.Command(Deno.execPath(), {
+        args: ["run", "-A", `${controller}/scripts/loanwords/update.ts`, mode, source],
+        env: {
+          GUKHANMUN_LOANWORDS_ROOT: root,
+          GUKHANMUN_LOANWORDS_BIN: `${project}/target/loanwords-tools/debug/gukhanmun-loanwords${
+            Deno.build.os === "windows" ? ".exe" : ""
+          }`,
+          GUKHANMUN_LOANWORDS_RESULT: `${controller}/result.json`,
+          GITHUB_OUTPUT: `${controller}/output`,
+        },
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+    const outcome = await invoke();
+    assert.ok(outcome.success, new TextDecoder().decode(outcome.stderr));
+    assert.ok((await invoke("check")).success);
+    assert.equal(
+      JSON.parse(await Deno.readTextFile(`${controller}/result.json`)).status,
+      "updated",
+    );
+    const changes = await Deno.readTextFile(`${root}/CHANGES.md`);
+    assert.ok(changes.includes("99.0.0"));
+    assert.ok(changes.includes("Updated the NIKL loanword examples snapshot"));
+    const before = await Deno.readTextFile(`${root}/${data}/snapshot.json`);
+    const incoming = JSON.parse(await Deno.readTextFile(source));
+    await Deno.writeTextFile(source, JSON.stringify({ ...incoming, format_version: 99 }));
+    assert.equal((await invoke()).success, false);
+    assert.equal(await Deno.readTextFile(`${root}/${data}/snapshot.json`), before);
+    assert.equal(await Deno.readTextFile(`${root}/CHANGES.md`), changes);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+    await Deno.remove(controller, { recursive: true });
+  }
+});
+
+Deno.test("unmerged identical proposals retain validated collection metadata before regeneration", async () => {
+  const root = await fixture();
+  try {
+    await update(root, "update", await snapshot(root, ["홍콩"]));
+    const paths = [
+      ...["snapshot.json", "loanwords.tsv", "report.json", "metadata.json"].map((file) =>
+        `${data}/${file}`
+      ),
+      "CHANGES.md",
+      ...sections.map((section) => `changes.d/${section}/loanword-data-update.md`),
+    ];
+    const capture = async () =>
+      new Map(
+        await Promise.all(
+          paths.map(async (path) => [path, await Deno.readFile(`${root}/${path}`)] as const),
+        ),
+      );
+    const base = await capture();
+    const source = await snapshot(root, ["홍콩", "홍콩", "일본"]);
+    const original = JSON.parse(await Deno.readTextFile(source));
+    await Deno.writeTextFile(
+      source,
+      JSON.stringify({ ...original, collected_at: "unix:100", collector_version: "0.3.0" }),
+    );
+    const first = await update(root, "update", source);
+    const proposed = await capture();
+    const candidate = `${root}/prior-candidate.json`;
+    await Deno.writeFile(candidate, proposed.get(`${data}/snapshot.json`)!);
+    const restore = async () => {
+      for (const [path, bytes] of base) await Deno.writeFile(`${root}/${path}`, bytes);
+    };
+    await restore();
+    await Deno.writeTextFile(
+      source,
+      JSON.stringify({ ...original, collected_at: "unix:200", collector_version: "0.4.0" }),
+    );
+    const repeated = await update(root, "update", source, candidate);
+    assert.equal(repeated.fingerprint, first.fingerprint);
+    assert.equal(repeated.status, "updated"); // Still differs from the unmerged base.
+    for (const [path, bytes] of await capture()) assert.deepEqual(bytes, proposed.get(path), path);
+    await restore();
+    const forged = JSON.parse(await Deno.readTextFile(candidate));
+    forged.records[0].fields.korean_mark = "위조"; // Retains the real hash claim but changes content.
+    await Deno.writeTextFile(candidate, JSON.stringify(forged));
+    await update(root, "update", source, candidate);
+    assert.equal(
+      JSON.parse(await Deno.readTextFile(`${root}/${data}/snapshot.json`)).collected_at,
+      "unix:200",
+    );
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

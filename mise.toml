@@ -581,7 +581,7 @@ run = "cargo build --locked --target-dir target/loanwords-tools -p gukhanmun-dic
 [tasks.loanwords-update-test]
 description = "Exercise offline weekly update transactions and fragment idempotence"
 depends = ["loanwords-tools"]
-run = "deno test -A scripts/loanwords/update_test.ts scripts/loanwords/publish_test.ts"
+run = "deno test -A scripts/loanwords/update_test.ts scripts/loanwords/publish_test.ts scripts/loanwords/targets_test.ts"
 
 [tasks.loanwords-test-data]
 description = "Build a synthetic user override for cross-runtime loanword tests"

@@ -15,34 +15,77 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 /** Transfers only verified data paths between the read-only and publishing jobs. */
-import { generationFingerprint, hash, updatePaths } from "./update.ts";
-const encoder = new TextEncoder();
+import { hash, updatePaths } from "./update.ts";
+import { botBranch, targets, validTarget } from "./targets.ts";
 const decoder = new TextDecoder();
 const repository = "dahlia/gukhanmun";
-const branch = "automation/loanword-data";
 const bot = "41898282+github-actions[bot]@users.noreply.github.com";
 const data = "crates/gukhanmun-loanwords/data";
 interface Manifest {
   base: string;
+  tree: string;
+  target: string;
+  primary: string;
+  controller: string;
   status: "updated" | "pending" | "unchanged";
   fingerprint: string;
   files: { path: string; file: string | null; sha256: string | null }[];
 }
-async function command(cmd: string, args: string[], optional = false): Promise<string> {
-  const r = await new Deno.Command(cmd, { args, stdout: "piped", stderr: "piped" }).output();
+async function command(
+  cmd: string,
+  args: string[],
+  optional = false,
+  cwd?: string,
+): Promise<string> {
+  const r = await new Deno.Command(cmd, { args, cwd, stdout: "piped", stderr: "piped" }).output();
   if (!r.success && !optional) throw new Error(`${cmd} operation failed`);
-  return decoder.decode(r.stdout).trim();
+  const output = decoder.decode(r.stdout);
+  return args.includes("-z") ? output : output.trim();
 }
 async function get(path: string): Promise<Uint8Array | null> {
   try {
-    if ((await Deno.lstat(path)).isSymlink) throw new Error("symlink artifact refused");
+    if (!(await Deno.lstat(path)).isFile) throw new Error("non-regular artifact refused");
     return await Deno.readFile(path);
   } catch (e) {
     if (e instanceof Deno.errors.NotFound) return null;
     throw e;
   }
 }
+/** Copies a prior proposal's snapshot to private staging for validated metadata reuse. */
+export async function candidate(
+  destination: string,
+  target: string,
+  execute: typeof command = command,
+): Promise<void> {
+  const branch = botBranch(target);
+  try {
+    await Deno.remove(destination);
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) throw error;
+  }
+  const remote = await execute("git", ["ls-remote", "origin", `refs/heads/${branch}`]);
+  const oid = remote.split(/\s/)[0];
+  if (!oid) return;
+  if (!/^[a-f0-9]{40,64}$/.test(oid)) throw new Error("invalid candidate object");
+  await execute("git", ["fetch", "origin", `refs/heads/${branch}`]);
+  const snapshot = await execute("git", ["show", `${oid}:${data}/snapshot.json`], true);
+  if (snapshot) await Deno.writeTextFile(destination, snapshot + "\n");
+}
 async function bundle(directory: string): Promise<void> {
+  const root = Deno.env.get("GUKHANMUN_LOANWORDS_ROOT") ?? Deno.cwd();
+  const execute = (cmd: string, args: string[], optional = false) =>
+    command(cmd, args, optional, root);
+  for (
+    const args of [
+      ["diff", "--name-only", "--no-renames", "-z", "HEAD"],
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+    ]
+  ) {
+    const paths = (await execute("git", args)).split("\0").filter(Boolean);
+    if (paths.some((p) => !updatePaths.includes(p))) {
+      throw new Error("tested tree has non-update changes");
+    }
+  }
   const resultFile = Deno.env.get("GUKHANMUN_LOANWORDS_RESULT");
   if (!resultFile) throw new Error("update result required");
   const { status, fingerprint } = JSON.parse(await Deno.readTextFile(resultFile));
@@ -52,15 +95,19 @@ async function bundle(directory: string): Promise<void> {
   ) throw new Error("invalid update outcome");
   await Deno.mkdir(directory, { recursive: true });
   const manifest: Manifest = {
-    base: await command("git", ["rev-parse", "HEAD"]),
+    base: await execute("git", ["rev-parse", "HEAD"]),
+    tree: "",
+    target: Deno.env.get("GUKHANMUN_LOANWORDS_TARGET") ?? "",
+    primary: Deno.env.get("GUKHANMUN_LOANWORDS_PRIMARY") ?? "",
+    controller: Deno.env.get("GITHUB_SHA") ?? "",
     status: status as Manifest["status"],
     fingerprint: fingerprint!,
     files: [],
   };
   let index = 0;
   for (const path of updatePaths) {
-    const changed = await command("git", ["diff", "--name-only", "HEAD", "--", path]);
-    const untracked = await command("git", [
+    const changed = await execute("git", ["diff", "--name-only", "HEAD", "--", path]);
+    const untracked = await execute("git", [
       "ls-files",
       "--others",
       "--exclude-standard",
@@ -68,7 +115,7 @@ async function bundle(directory: string): Promise<void> {
       path,
     ]);
     if (!changed && !untracked) continue;
-    const bytes = await get(path);
+    const bytes = await get(`${root}/${path}`);
     if (bytes !== null) {
       const text = decoder.decode(bytes);
       const key = Deno.env.get("NIKL_LOANWORD_API_KEY");
@@ -81,6 +128,15 @@ async function bundle(directory: string): Promise<void> {
       manifest.files.push({ path, file, sha256: await hash(bytes) });
     } else manifest.files.push({ path, file: null, sha256: null });
   }
+  await execute("git", ["read-tree", manifest.base]);
+  if (manifest.files.length) {
+    await execute("git", [
+      "add",
+      "--",
+      ...manifest.files.map((f) => f.path),
+    ]);
+  }
+  manifest.tree = await execute("git", ["write-tree"]);
   await Deno.writeTextFile(`${directory}/manifest.json`, JSON.stringify(manifest));
 }
 /** Verifies an artifact before any repository write or publication. */
@@ -89,7 +145,9 @@ export async function validate(directory: string): Promise<Manifest> {
   if (!raw || raw.length > 128 * 1024) throw new Error("invalid artifact manifest");
   const m: Manifest = JSON.parse(decoder.decode(raw));
   if (
-    !/^[a-f0-9]{40,64}$/.test(m.base) || !/^[a-f0-9]{64}$/.test(m.fingerprint) ||
+    !/^[a-f0-9]{40,64}$/.test(m.base) || !/^[a-f0-9]{40,64}$/.test(m.tree) ||
+    !/^[a-f0-9]{40,64}$/.test(m.controller) || !validTarget(m.target) || !validTarget(m.primary) ||
+    !/^[a-f0-9]{64}$/.test(m.fingerprint) ||
     !["updated", "pending", "unchanged"].includes(m.status) || !Array.isArray(m.files) ||
     m.files.length > updatePaths.length
   ) throw new Error("invalid update manifest");
@@ -113,7 +171,9 @@ export async function validate(directory: string): Promise<Manifest> {
     }
     blobs.add(f.file);
     const stat = await Deno.lstat(`${directory}/${f.file}`);
-    if (((stat.mode ?? 0) & 0o111) !== 0) throw new Error("executable artifact refused");
+    if (!stat.isFile || ((stat.mode ?? 0) & 0o111) !== 0) {
+      throw new Error("non-regular or executable artifact refused");
+    }
     const bytes = await get(`${directory}/${f.file}`);
     if (!bytes || bytes.length > 256 * 1024 * 1024 || await hash(bytes) !== f.sha256) {
       throw new Error("artifact checksum mismatch");
@@ -160,7 +220,7 @@ async function reconcilePr(
     await execute("gh", ["pr", "ready", String(pr.number), "--repo", repository]);
   }
 }
-/** Applies a validated artifact and maintains the single trusted bot PR. */
+/** Applies a validated artifact and maintains the trusted bot PR for its target. */
 export async function publish(
   directory: string,
   execute: typeof command = command,
@@ -171,10 +231,15 @@ export async function publish(
     Deno.env.get("GITHUB_REF") !== "refs/heads/main"
   ) throw new Error("publication is restricted to trusted main workflow runs");
   const m = await validate(directory);
-  await execute("git", ["fetch", "origin", "main"]);
-  if (await execute("git", ["rev-parse", "origin/main"]) !== m.base) {
-    throw new Error("main advanced during collection; rerun the workflow");
+  if (m.controller !== Deno.env.get("GITHUB_SHA")) throw new Error("artifact controller mismatch");
+  const selected = await targets(execute);
+  if (selected[0].branch !== m.primary || !selected.some((t) => t.branch === m.target)) {
+    throw new Error("update target selection changed; rerun the workflow");
   }
+  if (selected.find((t) => t.branch === m.target)!.oid !== m.base) {
+    throw new Error(`${m.target} advanced during collection; rerun the workflow`);
+  }
+  const branch = botBranch(m.target);
   const remote = await execute("git", ["ls-remote", "origin", `refs/heads/${branch}`]);
   const old = remote.split(/\s/)[0];
   if (old) {
@@ -189,35 +254,17 @@ export async function publish(
   const prs = JSON.parse(
     await execute("gh", [
       "api",
-      `repos/${repository}/pulls?head=dahlia:${branch}&base=main&state=open&per_page=100`,
+      `repos/${repository}/pulls?head=dahlia:${branch}&state=open&per_page=100`,
     ]),
   );
   if (prs.length > 1) throw new Error("multiple update PRs require maintainer review");
   const pr = prs[0];
+  if (pr && pr.base?.ref !== m.target) throw new Error("existing update PR has the wrong base");
   if (m.status === "unchanged") {
     if (pr) await execute("gh", ["pr", "close", String(pr.number), "--repo", repository]);
     return;
   }
-  if (old) {
-    const pending = await execute("git", ["show", `${old}:${data}/pending-update.json`], true);
-    const oldFingerprint = m.status === "pending" && pending
-      ? await hash(encoder.encode(pending + "\n"))
-      : !pending
-      ? await generationFingerprint(
-        JSON.parse(await execute("git", ["show", `${old}:${data}/snapshot.json`])),
-        JSON.parse(await execute("git", ["show", `${old}:${data}/report.json`])),
-      )
-      : "";
-    if (pr && oldFingerprint === m.fingerprint) {
-      await setStatus(old, m.status === "pending" ? "failure" : "success", execute);
-      // A prior push may have succeeded before PR metadata reconciliation failed.
-      if (pr.draft !== (m.status === "pending")) {
-        await reconcilePr(pr, m.status, directory, execute);
-      }
-      return;
-    }
-  }
-  await execute("git", ["switch", "--create", branch, m.base]);
+  await execute("git", ["switch", "--detach", m.base]);
   for (const f of m.files) {
     if (f.file === null) {
       try {
@@ -240,7 +287,18 @@ export async function publish(
   }
   await execute("git", ["config", "user.name", "github-actions[bot]"]);
   await execute("git", ["config", "user.email", bot]);
-  await execute("git", ["add", "--", ...m.files.map((f) => f.path)]);
+  await execute("git", ["read-tree", m.base]);
+  if (m.files.length) await execute("git", ["add", "--", ...m.files.map((f) => f.path)]);
+  const tree = await execute("git", ["write-tree"]);
+  if (tree !== m.tree) throw new Error("published tree differs from tested tree");
+  if (
+    old && pr && await execute("git", ["rev-parse", `${old}^{tree}`]) === tree &&
+    await execute("git", ["show", "-s", "--format=%P", old]) === m.base
+  ) {
+    await setStatus(old, m.status === "pending" ? "failure" : "success", execute);
+    if (pr.draft !== (m.status === "pending")) await reconcilePr(pr, m.status, directory, execute);
+    return;
+  }
   if (!await execute("git", ["diff", "--cached", "--name-only"])) return;
   await execute("git", [
     "-c",
@@ -253,13 +311,16 @@ export async function publish(
     "-m",
     "https://github.com/dahlia/gukhanmun/issues/18",
   ]);
+  const oid = await execute("git", ["rev-parse", "HEAD"]);
+  if (await execute("git", ["rev-parse", `${oid}^{tree}`]) !== m.tree) {
+    throw new Error("committed tree differs from tested tree");
+  }
   await execute("git", [
     "push",
     `--force-with-lease=refs/heads/${branch}:${old}`,
     "origin",
     `HEAD:refs/heads/${branch}`,
   ]);
-  const oid = await execute("git", ["rev-parse", "HEAD"]);
   await setStatus(oid, m.status === "pending" ? "failure" : "success", execute);
   if (pr) {
     await reconcilePr(pr, m.status, directory, execute);
@@ -275,7 +336,7 @@ export async function publish(
       "--repo",
       repository,
       "--base",
-      "main",
+      m.target,
       "--head",
       branch,
       "--title",
@@ -290,10 +351,14 @@ if (import.meta.main) {
   const [mode, directory] = Deno.args;
   try {
     if (!directory) throw new Error("artifact directory required");
-    if (mode === "bundle") await bundle(directory);
+    if (mode === "candidate") {
+      await candidate(directory, Deno.env.get("GUKHANMUN_LOANWORDS_TARGET") ?? "");
+    } else if (mode === "bundle") await bundle(directory);
     else if (mode === "validate") await validate(directory);
-    else if (mode === "publish") await publish(directory);
-    else throw new Error("unknown publication operation");
+    else if (mode === "publish") {
+      const root = Deno.env.get("GUKHANMUN_LOANWORDS_ROOT") ?? Deno.cwd();
+      await publish(directory, (cmd, args, optional) => command(cmd, args, optional, root), root);
+    } else throw new Error("unknown publication operation");
   } catch (e) {
     console.error(e instanceof Error ? e.message : "publication failed");
     Deno.exit(1);
