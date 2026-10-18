@@ -770,7 +770,7 @@ jobs:
         set -euo pipefail
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
         mise run js-install
-        pnpm -r run build
+        pnpm -r --workspace-concurrency=1 run build
     - name: Pack npm packages
       shell: bash
       run: |
