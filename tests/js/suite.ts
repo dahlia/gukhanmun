@@ -119,6 +119,7 @@ export function registerSuite(name: string, binding: Binding): void {
       }
       const g = await load({ punctuation: "modern" });
       assert.equal(g.convert("가&#12290;나", "html"), "가. 나");
+      assert.equal(g.convert("가。 <form>나</form>", "html"), "가.<form>나</form>");
       assert.equal(g.convert("가。\uFE0F나"), "가.\uFE0F나");
       assert.equal(g.convert("가。&#xFE0F;나", "html"), "가.&#xFE0F;나");
       assert.equal(g.convert("가&#12290;나"), "가&#12290;나");

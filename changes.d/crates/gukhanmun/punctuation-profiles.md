@@ -7,4 +7,6 @@ links:
     and `traditional-vertical` output profiles and custom role styles. The
     default preserves punctuation across plain text, HTML, and Markdown.
     Technical guards include Unicode Latin letters, and contextual spaces do
-    not detach combining marks or format controls.  [[#27], [#28]]
+    not detach combining marks or format controls.  HTML block, list, and table
+    elements trim contextual spaces without changing annotation windows.
+    [[#27], [#28]]

@@ -6,4 +6,6 @@ links:
  -  Added the `punctuationJson` option and `punctuation_profile_json()`
     resolved view for output punctuation profiles, including custom role
     styles.  Technical guards include Unicode Latin letters, and contextual
-    spaces do not detach combining marks or format controls.  [[#27], [#28]]
+    spaces do not detach combining marks or format controls.  HTML block, list,
+    and table elements trim contextual spaces without changing annotation
+    windows.  [[#27], [#28]]

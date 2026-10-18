@@ -29,7 +29,9 @@ To be released.
     and `traditional-vertical` output profiles and custom role styles. The
     default preserves punctuation across plain text, HTML, and Markdown.
     Technical guards include Unicode Latin letters, and contextual spaces do
-    not detach combining marks or format controls.  [[#27], [#28]]
+    not detach combining marks or format controls.  HTML block, list, and table
+    elements trim contextual spaces without changing annotation windows.
+    [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로`/`로` and combinations such as `으로는`.
     Conversion keeps the source particle and falls back to the dictionary
@@ -92,7 +94,8 @@ To be released.
  -  Added `--punctuation` and `--punctuation-profile` to normalize punctuation
     with a built-in profile or custom JSON configuration.  Technical guards
     include Unicode Latin letters, and contextual spaces do not detach
-    combining marks or format controls.  [[#27], [#28]]
+    combining marks or format controls.  HTML block, list, and table elements
+    trim contextual spaces without changing annotation windows.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로`/`로` and combinations such as `으로는`.
     Conversion keeps the source particle and falls back to the dictionary
@@ -168,7 +171,8 @@ To be released.
  -  Added `HtmlPunctuationTextCodec` for punctuation normalization across
     literal and HTML character reference spellings, with original spelling
     retained for untouched references. Opt-in reader options protect unmatched
-    end tags.  [[#27], [#28]]
+    end tags.  HTML block, list, and table elements trim contextual spaces
+    without changing annotation windows.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로`/`로` and combinations such as `으로는`.
     Conversion keeps the source particle and falls back to the dictionary
@@ -216,7 +220,9 @@ To be released.
  -  Added the `punctuationJson` option and `punctuationProfileJson()` resolved
     view for output punctuation profiles, including custom role styles.
     Technical guards include Unicode Latin letters, and contextual spaces do
-    not detach combining marks or format controls.  [[#27], [#28]]
+    not detach combining marks or format controls.  HTML block, list, and table
+    elements trim contextual spaces without changing annotation windows.
+    [[#27], [#28]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
@@ -250,7 +256,9 @@ To be released.
  -  Added the `punctuationJson` option and `punctuation_profile_json()`
     resolved view for output punctuation profiles, including custom role
     styles.  Technical guards include Unicode Latin letters, and contextual
-    spaces do not detach combining marks or format controls.  [[#27], [#28]]
+    spaces do not detach combining marks or format controls.  HTML block, list,
+    and table elements trim contextual spaces without changing annotation
+    windows.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
@@ -288,7 +296,8 @@ To be released.
     including HTML character references. Resolved styles are available as a
     copied, deeply frozen `options.punctuation` view.  Technical guards include
     Unicode Latin letters, and contextual spaces do not detach combining marks
-    or format controls.  [[#27], [#28]]
+    or format controls.  HTML block, list, and table elements trim contextual
+    spaces without changing annotation windows.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]
@@ -344,7 +353,8 @@ To be released.
     including HTML character references. Resolved styles are available as a
     copied, deeply frozen `options.punctuation` view.  Technical guards include
     Unicode Latin letters, and contextual spaces do not detach combining marks
-    or format controls.  [[#27], [#28]]
+    or format controls.  HTML block, list, and table elements trim contextual
+    spaces without changing annotation windows.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]

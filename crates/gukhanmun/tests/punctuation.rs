@@ -229,6 +229,81 @@ fn custom_validation() {
 }
 #[cfg(feature = "html")]
 #[test]
+fn punctuation_html_block_spacing_keeps_annotation_boundaries_unchanged() {
+    use gukhanmun::ScopeData;
+    let modern = converter(P::modern());
+    let preserve = converter(P::preserve());
+    for tag in [
+        "html",
+        "body",
+        "caption",
+        "center",
+        "colgroup",
+        "details",
+        "dialog",
+        "dir",
+        "fieldset",
+        "form",
+        "hgroup",
+        "legend",
+        "listing",
+        "menu",
+        "optgroup",
+        "option",
+        "plaintext",
+        "search",
+        "summary",
+        "tbody",
+        "tfoot",
+        "thead",
+        "xmp",
+        "FORM",
+    ] {
+        let input = format!("가。 <{tag}>나。 </{tag}>다");
+        let expected = format!("가.<{tag}>나.</{tag}>다");
+        assert_eq!(
+            modern.convert_html_fragment_to_string(&input).unwrap(),
+            expected,
+            "{tag}"
+        );
+        assert_eq!(
+            preserve.convert_html_fragment_to_string(&input).unwrap(),
+            input,
+            "{tag}"
+        );
+        let tokens = gukhanmun::html::read_html_fragment(&format!("<{tag}>나</{tag}>"));
+        let data = tokens
+            .iter()
+            .find_map(|t| match t {
+                InputToken::Open(scope) => Some(scope.data()),
+                _ => None,
+            })
+            .unwrap();
+        assert!(
+            !data.is_block_boundary(),
+            "{tag} must retain its annotation window policy"
+        );
+        assert_eq!(
+            data.punctuation_boundary(),
+            gukhanmun::PunctuationBoundary::Block
+        );
+    }
+    assert_eq!(
+        modern
+            .convert_html_fragment_to_string("가。 <col>나")
+            .unwrap(),
+        "가.<col>나"
+    );
+    for input in ["가。<widget>나</widget>", "가。 <widget>나</widget>"] {
+        assert_eq!(
+            modern.convert_html_fragment_to_string(input).unwrap(),
+            input.replacen('。', ".", 1)
+        );
+    }
+}
+
+#[cfg(feature = "html")]
+#[test]
 fn html_entities_and_structural_spaces() {
     let c = converter(P::modern());
     for (input, expected) in [

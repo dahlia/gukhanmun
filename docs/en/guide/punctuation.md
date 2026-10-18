@@ -130,7 +130,9 @@ spaces normalize just like literal characters. Decoding happens once:
 Attributes, code, foreign-language scopes, and other preserved regions are not
 normalized. Nested `lang="ko"` scopes can re-enable normalization according to
 the reader's effective language policy. Ruby and unknown inline elements form
-spacing barriers. Newly
+spacing barriers. Known block, list, and table elements trim contextual spaces;
+this punctuation boundary classification does not change annotation windows or
+inspect CSS. Newly
 generated HTML `;`, `#`, `!`, `?`, and `/` use numeric references to avoid
 recombining adjacent source text into a different character reference or markup.
 

@@ -6,4 +6,5 @@ links:
  -  Added `HtmlPunctuationTextCodec` for punctuation normalization across
     literal and HTML character reference spellings, with original spelling
     retained for untouched references. Opt-in reader options protect unmatched
-    end tags.  [[#27], [#28]]
+    end tags.  HTML block, list, and table elements trim contextual spaces
+    without changing annotation windows.  [[#27], [#28]]

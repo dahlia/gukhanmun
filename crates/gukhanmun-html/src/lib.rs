@@ -73,7 +73,40 @@ impl ScopeData for HtmlScopeData {
         use gukhanmun_core::PunctuationBoundary as B;
         if self.tag_name == "br" {
             B::LineBreak
-        } else if self.block_boundary || matches!(self.tag_name.as_str(), "pre" | "hr") {
+        } else if self.block_boundary
+            || matches!(
+                self.tag_name.as_str(),
+                "html"
+                    | "body"
+                    | "caption"
+                    | "center"
+                    | "col"
+                    | "colgroup"
+                    | "details"
+                    | "dialog"
+                    | "dir"
+                    | "fieldset"
+                    | "form"
+                    | "hgroup"
+                    | "hr"
+                    | "legend"
+                    | "listing"
+                    | "menu"
+                    | "optgroup"
+                    | "option"
+                    | "plaintext"
+                    | "pre"
+                    | "search"
+                    | "summary"
+                    | "tbody"
+                    | "tfoot"
+                    | "thead"
+                    | "xmp"
+            )
+        {
+            // Default block/list/table layout from the HTML rendering rules.
+            // Keep these spacing boundaries independent of annotation-context
+            // blocks so existing homophone and first-occurrence windows stay put.
             B::Block
         } else if self.preserve {
             B::Opaque

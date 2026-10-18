@@ -7,4 +7,5 @@ links:
     including HTML character references. Resolved styles are available as a
     copied, deeply frozen `options.punctuation` view.  Technical guards include
     Unicode Latin letters, and contextual spaces do not detach combining marks
-    or format controls.  [[#27], [#28]]
+    or format controls.  HTML block, list, and table elements trim contextual
+    spaces without changing annotation windows.  [[#27], [#28]]

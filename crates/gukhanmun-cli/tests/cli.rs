@@ -1609,6 +1609,7 @@ fn punctuation_profiles_across_cli_formats() {
     for (format, input, expected) in [
         ("text/plain", "가、나。", "가, 나."),
         ("text/html", "<p>가&#12290;나</p>", "<p>가. 나</p>"),
+        ("text/html", "가。 <form>나</form>", "가.<form>나</form>"),
     ] {
         Command::cargo_bin("gukhanmun")
             .unwrap()
