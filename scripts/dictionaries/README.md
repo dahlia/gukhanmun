@@ -78,6 +78,12 @@ are regenerated with the data.
 Publication and verification
 ----------------------------
 
+Store `NIKL_USERNAME` and `NIKL_PASSWORD` only as secrets in the
+`dictionary-collection` GitHub environment. Configure that environment to allow
+only the `main` branch, with no tag policies. Remove any repository-level copies
+so a modified workflow on another ref cannot read the account credentials.
+The workflow's ref condition alone does not enforce this boundary.
+
 Collection receives account secrets only for its collection step. Preparation
 runs the pinned maintenance branch's code with no account or write credentials.
 Only successful preparation and full `mise run ci` permit publication. Archives
