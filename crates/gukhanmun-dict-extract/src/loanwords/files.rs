@@ -181,6 +181,9 @@ pub struct ExtractionPaths {
 /// Check mode never writes. TSV publishes before its independently hashed report;
 /// a report failure returns `IncompletePair`, and check rejects that stale pair.
 /// Audit-only mode writes only a failure-distinguished audit document to `report`.
+/// Successful extraction removes any previous failure diagnostic after publishing
+/// both artifacts; a cleanup failure returns `Io`. Check and audit-only modes
+/// preserve that diagnostic.
 pub fn process_files(paths: &ExtractionPaths, check: bool, audit_only: bool) -> Result<(), Error> {
     let mut inputs = vec![paths.snapshot.as_path()];
     inputs.extend(paths.decisions.as_deref());
@@ -249,6 +252,13 @@ pub fn process_files(paths: &ExtractionPaths, check: bool, audit_only: bool) -> 
     } else {
         atomic(&paths.tsv, &extraction.tsv)?;
         atomic(&paths.report, &report).map_err(|_| Error::IncompletePair)?;
+        if let Some(path) = &paths.diagnostic {
+            match fs::remove_file(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
     }
     Ok(())
 }

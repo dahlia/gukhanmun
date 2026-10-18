@@ -338,6 +338,7 @@ fn file_atomic_failures_check_and_pair_hashes() {
         fs::set_permissions(&p.tsv, fs::Permissions::from_mode(0o640)).unwrap();
     }
     process_files(&p, false, false).unwrap();
+    assert!(!p.diagnostic.as_ref().unwrap().exists());
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -368,6 +369,34 @@ fn file_atomic_failures_check_and_pair_hashes() {
             .unwrap()
             .contains("香港")
     );
+}
+#[test]
+fn failure_diagnostic_lifecycle() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = conflict();
+    let mut p = paths(dir.path(), &s, &decisions(&s));
+    let diagnostic = p.diagnostic.as_ref().unwrap().clone();
+    process_files(&p, false, false).unwrap();
+    process_files(&p, false, false).unwrap();
+    fs::write(&diagnostic, b"previous failure").unwrap();
+    process_files(&p, true, false).unwrap();
+    assert_eq!(fs::read(&diagnostic).unwrap(), b"previous failure");
+    process_files(&p, false, true).unwrap();
+    process_files(&p, true, true).unwrap();
+    assert_eq!(fs::read(&diagnostic).unwrap(), b"previous failure");
+    let report = p.report.clone();
+    p.report = dir.path().join("missing-parent/report.json");
+    assert!(matches!(
+        process_files(&p, false, false),
+        Err(Error::IncompletePair)
+    ));
+    assert_eq!(fs::read(&diagnostic).unwrap(), b"previous failure");
+    p.report = report;
+    fs::remove_file(&diagnostic).unwrap();
+    fs::create_dir(&diagnostic).unwrap();
+    assert!(matches!(process_files(&p, false, false), Err(Error::Io)));
+    assert!(diagnostic.is_dir());
+    process_files(&p, true, false).unwrap();
 }
 #[test]
 fn all_collisions_fail_before_diagnostics_or_publication() {

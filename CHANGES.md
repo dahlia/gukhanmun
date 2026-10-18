@@ -127,6 +127,9 @@ To be released.
     configurations are rejected before authentication. Partial response bodies
     count toward the collection byte limit even when the request is retried.
     [[#18], [#26]]
+ -  Fixed stale failure diagnostics that remained after successful loanword
+    extraction. Diagnostics are removed after both the TSV and report are
+    published; check and audit-only modes preserve them. [[#18], [#26]]
 
 ### gukhanmun-fst
 
