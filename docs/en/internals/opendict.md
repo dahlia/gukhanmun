@@ -20,36 +20,16 @@ general (一般語), North Korean (北韓語), dialect (方言), and archaic (�
 Snapshot
 --------
 
-| Field          | Value                                                              |
-| -------------- | ------------------------------------------------------------------ |
-| Source archive | *전체 내려받기\_우리말샘\_json\_20260603.zip*                      |
-| Dump date      | 2026-06-03                                                         |
-| SHA-256        | `345cfae71f3710cc483975a9af04773985aaaa4ba7ca4855a4bb93f390f63e8e` |
-| Data license   | CC BY-SA 2.0 KR                                                    |
+The committed TSV files under *crates/gukhanmun-opendict/data/* describe the
+current dictionary. *metadata.json* in that directory records the source
+identifier, dump date, and license used in generated binaries. Snapshots
+collected by the weekly updater also have a *source.json* with the archive
+checksum, record counts, and per-output hashes. See *NOTICE.md* for attribution.
 
-| Category     | Source label | TSV file           |    Keys | Candidates | Multi-candidate keys | SHA-256                                                            |
-| ------------ | ------------ | ------------------ | ------: | ---------: | -------------------: | ------------------------------------------------------------------ |
-| General      | 일반어       | *general.tsv*      | 350,330 |    352,435 |                2,060 | `87f74d8507a72d38c69c6a4a15f03c00b06f78bc2bf92f03ec41750310d1d53f` |
-| North Korean | 북한어       | *north-korean.tsv* |  34,093 |     34,112 |                   19 | `2250764e8b0fe0726532a7e83877bd839ad4707adb81182f5009691621017462` |
-| Dialect      | 방언         | *dialect.tsv*      |   5,714 |      5,726 |                   12 | `65c4bdd63028c2a8ab16f99aa695e81b065266219b2153866af8cf0fe7e52862` |
-| Archaic      | 옛말         | *archaic.tsv*      |      16 |         16 |                    0 | `637713ceeaa69ce122f65eba5d89c42bbcdc34de7b6c58066dff029dc33e4549` |
-
-Running the previous extractor on this archive reproduces the four earlier
-snapshots byte for byte. The candidate migration preserves every category's
-key set, selected initial/suffix reading, and annotation marks through both
-FST and CDB. There are 350 compatibility pins: 349 general and one North
-Korean (`齘齒 → 계치`). The other 18 North Korean conflicts use lexical
-defaults, including `綠色 → 녹색`, without synthesizing or normalizing North
-Korean spellings.
-
-The source contains two positional pairs in the general category:
-`年代 → 연대/년대` (sense IDs 226781 and 416516) and `年度 → 연도/년도`
-(113662, 227189, and 1516768). The suffix spellings `년대` and `년도` also
-remain standalone candidates and stay the selected defaults, so these pairs
-introduce no default output change. The other three categories contain no
-positional pairs. For single hanja, `便` keeps its pinned default `편`
-alongside `변`; the conversion engine in `gukhanmun-core` continues to handle
-positional sound-law behavior.
+The June 3, 2026 candidate migration preserved the earlier snapshot's key
+sets, selected readings, and annotation marks. Its compatibility decisions
+remain in *defaults.tsv*. Updates do not rewrite these decisions automatically;
+a changed candidate signature requires maintainer review.
 
 
 Regeneration
@@ -59,8 +39,8 @@ Place the downloaded zip or extracted shard directory wherever convenient,
 then run:
 
 ~~~~ sh
-mise run opendict-extract -- ~/Downloads/전체\ 내려받기_우리말샘_json_20260603.zip
-mise run opendict-extract-check -- ~/Downloads/전체\ 내려받기_우리말샘_json_20260603.zip
+mise run opendict-extract -- /path/to/opendict.zip
+mise run opendict-extract-check -- /path/to/opendict.zip
 ~~~~
 
 The extractor accepts a single JSON file, the official zip archive, or a

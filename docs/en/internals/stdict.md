@@ -18,15 +18,11 @@ the canonical TSV file at *crates/gukhanmun-stdict/data/stdict.tsv*.
 Snapshot
 --------
 
-| Field           | Value                                                              |
-| --------------- | ------------------------------------------------------------------ |
-| Source archive  | *전체 내려받기\_표준국어대사전\_JSON\_20260606.zip*                |
-| Dump date       | 2026-06-06                                                         |
-| SHA-256         | `7082b9665ed1e01b563e4b5924fb241e455d945b35507910ac53453d7bb91dee` |
-| Dictionary keys | 260,690                                                            |
-
-The snapshot retains 262,084 candidate rows across 260,690 keys. 1,375 keys
-have competing readings. All previous effective defaults remain unchanged.
+The committed TSV files under *crates/gukhanmun-stdict/data/* describe the
+current dictionary. *metadata.json* in that directory records the source
+identifier, dump date, and license used in generated binaries. Snapshots
+collected by the weekly updater also have a *source.json* with the archive
+checksum, record counts, and per-output hashes. See *NOTICE.md* for attribution.
 
 
 Regeneration
@@ -35,8 +31,8 @@ Regeneration
 Place the downloaded zip wherever convenient, then run:
 
 ~~~~ sh
-mise run stdict-extract -- ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260606.zip
-mise run stdict-extract-check -- ~/Downloads/전체\ 내려받기_표준국어대사전_JSON_20260606.zip
+mise run stdict-extract -- /path/to/stdict.zip
+mise run stdict-extract-check -- /path/to/stdict.zip
 ~~~~
 
 The extractor writes deterministic UTF-8 TSV sorted by dictionary key.  The

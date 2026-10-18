@@ -94,7 +94,7 @@ Data attribution
 ----------------
 
 The bundled dictionary data is derived from the National Institute of Korean
-Language's *Open Korean Dictionary* (우리말샘) JSON dump dated 2026-06-03. See
+Language's *Open Korean Dictionary* (우리말샘) JSON dump. See
 *ATTRIBUTION.md* for source and license details.
 
 

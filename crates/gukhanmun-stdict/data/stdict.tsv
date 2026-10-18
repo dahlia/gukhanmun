@@ -1738,7 +1738,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 七甲山	칠갑산	false	false			492805
 七略	칠략	false	false			489254
 七疝	칠산	false	false			341045
-七百義冢	칠백의총	false	false			340016
+七百義塚	칠백의총	false	false			340016
 七祀	칠사	false	false			492989
 七祈求	칠기구	false	false			341339
 七福	칠복	false	false			340255
@@ -7476,6 +7476,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 中錨	중묘	false	false			486725
 中鍼	중침	false	false			312344
 中鑛	중광	false	false			487468
+中長年	중장년	false	false			536216
 中長期	중장기	false	false			535722
 中長距離	중장거리	false	false			307468
 中門	중문	false	false			310052,485103
@@ -22133,6 +22134,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 元祖	원조	false	false			472922
 元穀	원곡	false	false			258444
 元等	원등	false	false			464975
+元筍	원순	false	false			252633
 元素	원소	false	false			469907
 元素名	원소명	false	false			258141
 元素族	원소족	false	false			251999
@@ -22149,7 +22151,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 元興曲	원흥곡	false	false			259597
 元舞	원무	false	false			250995
 元良	원량	false	false			252591
-元荀	원순	false	false			252633
 元蔘	원삼	false	false			258607
 元號	원호	false	false			254019
 元血	원혈	false	false			253080
@@ -22918,6 +22919,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 光屈折	광굴절	false	false			33341
 光州	광주	false	false			29783
 光州廣域市	광주광역시	false	false			29843
+光州特別市	광주특별시	false	false			536220
 光州線	광주선	false	false			517450
 光差	광차	false	false			398431
 光年	광년	false	false			398416
@@ -24798,6 +24800,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 全北平野	전북평야	false	false			293532
 全北特別自治道	전북특별자치도	false	false			534952
 全南	전남	false	false			284026
+全南光州統合特別市	전남광주통합특별시	false	false			536219
 全南平野	전남평야	false	false			284284
 全卵粉	전난분	false	false			284025
 全卷	전권	false	false			286482
@@ -58400,6 +58403,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 多指症	다지증	false	false			73954
 多搖	다요	false	false			73847
 多收穫	다수확	false	false			72940
+多收穫王	다수확왕	false	false			410895
 多收穫種	다수확종	false	false			72943
 多故	다고	false	false			72581
 多故하다	다고하다	false	false			72582
@@ -58408,7 +58412,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 多數決	다수결	false	false			410815
 多數派	다수파	false	false			410894
 多數票	다수표	false	false			72795
-多數穫王	다수확왕	false	false			410895
 多數者	다수자	false	false			72792
 多數黨	다수당	false	false			72789
 多數하다	다수하다	false	false			72065
@@ -66884,6 +66887,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 孶息	자식	false	false			279805
 孶息하다	자식하다	false	false			279806
 孶畜	자축	false	false			286955
+孶畜하다	자축하다	false	false			286956
 孶育	자육	false	false			471876
 孶育하다	자육하다	false	false			274727
 學	학	false	false			364277,368716
@@ -72001,7 +72005,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 寬大之典	관대지전	false	false			33311
 寬大性	관대성	false	false			30803
 寬大長者	관대장자	false	false			30804
-寬大하다	관대하다	false	false			397822,397823
+寬大하다	관대하다	false	false			397822
 寬大히	관대히	false	false			31186
 寬宥	관유	false	false			398968
 寬宥하다	관유하다	false	false			31800
@@ -72031,6 +72035,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 寬裕하다	관유하다	false	false			31745
 寬解	관해	false	false			33485
 寬貸	관대	false	false			31189
+寬貸하다	관대하다	false	false			397823
 寬闊	관활	false	false			32285
 寬闊하다	관활하다	false	false			398226
 寬限	관한	false	false			33185
@@ -81910,6 +81915,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 廢倉	폐창	false	false			358386
 廢倉하다	폐창하다	false	false			358387
 廢倫	폐륜	false	false			355988
+廢倫하다	폐륜하다	false	false			353427
 廢儲	폐저	false	false			358134
 廢儲하다	폐저하다	false	false			358135
 廢兵	폐병	false	false			357666
@@ -84157,6 +84163,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 彌滿	미만	false	false			128260
 彌滿하다	미만하다	false	false			128261
 彌漫	미만	false	false			128260
+彌漫性	미만성	false	false			128263
 彌漫하다	미만하다	false	false			128261
 彌烏邪馬國	미오야마국	false	false			427299
 彌留	미류	false	false			129024
@@ -98852,8 +98859,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 捲音	권음	false	false			41041
 捶殺	추살	false	false			333709
 捶殺하다	추살하다	false	false			333710
-捶苔	추태	false	false			336157
-捶苔하다	추태하다	false	false			336158
+捶笞	추태	false	false			336157
+捶笞하다	추태하다	false	false			336158
 捷利	첩리	false	false			329215
 捷利하다	첩리하다	false	false			329216
 捷勁	첩경	false	false			328896
@@ -106892,6 +106899,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 新元	신원	false	false			208843
 新元史	신원사	false	false			452214
 新元素	신원소	false	false			207409
+新光寺	신광사	false	false			536215
 新免	신면	false	false			207373
 新入	신입	false	false			451766
 新入射	신입사	false	false			207822
@@ -120524,11 +120532,11 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 椄枝하다	접지하다	false	false			296211
 椄穗	접수	false	false			287975
 椄穗하다	접수하다	false	false			287976
+椄筍	접순	false	false			289280
+椄筍하다	접순하다	false	false			289281
 椄臺	접대	false	false			293154
 椄芽	접아	false	false			290193
 椄苗	접묘	false	false			287413
-椄荀	접순	false	false			289280
-椄荀하다	접순하다	false	false			289281
 椄蠟	접랍	false	false			293860
 椄가지	접가지	false	false			289341
 椄가지하다	접가지하다	false	false			289342
@@ -127829,7 +127837,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 氣序	기서	false	false			50386
 氣序流易	기서유역	false	false			50636
 氣度	기도	false	false			47844
-氣廮	기영	false	false			405281
 氣弱	기약	false	false			48780
 氣弱하다	기약하다	false	false			402304
 氣心痛	기심통	false	false			49689
@@ -127907,6 +127914,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 氣癖	기벽	false	false			49521
 氣癧	기력	false	false			49359
 氣癩	기라	false	false			47425
+氣癭	기영	false	false			405281
 氣發理乘	기발이승	false	false			50068
 氣盛	기성	false	false			50373
 氣盛차다	기성차다	false	false			50505
@@ -140454,7 +140462,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 瀦宅	저택	false	false			284216
 瀦宅하다	저택하다	false	false			284217
 瀦水	저수	false	false			283907
-瀰漫性	미만성	false	false			128263
 瀼泄	양설	false	false			227632
 瀾汗	난한	false	false			61100
 瀾滄江	란창강	false	false			419303
@@ -169695,7 +169702,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 筋學	근학	false	false			45466
 筋小胞體	근소포체	false	false			403162
 筋度	근도	false	false			401473
-筋廮	근영	false	false			44252
 筋弛緩劑	근이완제	false	false			44269
 筋強剛	근강강	false	false			44750
 筋形質	근형질	false	false			402204
@@ -169718,6 +169724,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 筋痿	근위	false	false			45691
 筋瘈	근계	false	false			404273
 筋癧	근력	false	false			44425
+筋癭	근영	false	false			44252
 筋硬症	근경증	false	false			46044
 筋硬直	근경직	false	false			400935
 筋節	근절	false	false			401816
@@ -175275,6 +175282,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 統合	통합	false	false			496095
 統合力	통합력	false	false			350623
 統合性	통합성	false	false			350624
+統合特別市	통합특별시	false	false			536221
 統合的	통합적	false	false			518350
 統合軍	통합군	false	false			350379
 統合驛	통합역	false	false			350625
@@ -181655,6 +181663,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 聯亘	연긍	false	false			236193
 聯亘하다	연긍하다	false	false			236194
 聯作	연작	false	false			234142
+聯作하다	연작하다	false	false			234143
 聯借	연차	false	false			236673
 聯借하다	연차하다	false	false			236674
 聯動	연동	false	false			230448
@@ -186388,7 +186397,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 自社路線	자사노선	false	false			279526
 自祝	자축	false	false			479649
 自祝宴	자축연	false	false			286958
-自祝하다	자축하다	false	false			282697,286956
+自祝하다	자축하다	false	false			282697
 自禁	자금	false	false			273058
 自禁하다	자금하다	false	false			273059
 自科	자과	false	false			273935
@@ -190987,7 +190996,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 菌傘	균산	false	false			43840
 菌學	균학	false	false			401389
 菌帽	균모	false	false			44046
-菌廮	균영	false	false			44830
 菌株	균주	false	false			401409
 菌核	균핵	false	false			401391
 菌核病	균핵병	false	false			43436
@@ -190997,6 +191005,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 菌狀	균상	false	false			400170
 菌環	균환	false	false			44105
 菌症	균증	false	false			45042
+菌癭	균영	false	false			44830
 菌細胞	균세포	false	false			400171
 菌絲	균사	false	false			403562
 菌絲束	균사속	false	false			43838
@@ -192424,7 +192433,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 葡萄빛	포돗빛	false	false			358664
 葡萄송이	포도송이	false	false			354357
 葡萄알菌	포도알균	false	false			354365
-葡萄잎바구미	포도잎바구미	false	false			354369
+葡萄잎바구미	포돗잎바구미	false	false			354369
 葡萄차	포도차	false	false			358414
 董	동	false	false			89032
 董仲舒	동중서	false	false			412301
@@ -196504,7 +196513,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 血尿	혈뇨	false	false			369387
 血屬	혈속	false	false			377207
 血崩	혈붕	false	false			505828
-血廮	혈영	false	false			371148
 血心	혈심	false	false			369931
 血心痛	혈심통	false	false			370227
 血心苦篤	혈심고독	false	false			369933
@@ -196593,6 +196601,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 血癊	혈음	false	false			371730
 血癖	혈벽	false	false			376896
 血癥	혈징	false	false			372326
+血癭	혈영	false	false			371148
 血盟	혈맹	false	false			374278
 血盟하다	혈맹하다	false	false			374279
 血相	혈상	false	false			376908
@@ -199844,7 +199853,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 要約되다	요약되다	false	false			463905
 要約하다	요약하다	false	false			248097
 要素	요소	false	false			243111
-要素派	요소파	false	false			246747
+要素波	요소파	false	false			246747
 要素값	요솟값	false	false			463405
 要結	요결	false	false			463245
 要綱	요강	false	false			244442
@@ -218218,7 +218227,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 連休	연휴	false	false			234462
 連作	연작	false	false			234129
 連作詩	연작시	false	false			518285
-連作하다	연작하다	false	false			234139,234143
+連作하다	연작하다	false	false			234139
 連信	연신	false	false			235037
 連信하다	연신하다	false	false			463331
 連借	연차	false	false			236670
@@ -227170,7 +227179,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 銀粒	은립	false	false			467059
 銀粧刀	은장도	false	false			259758
 銀紙	은지	false	false			261801
-銀紙畵	은지화	false	false			534919
+銀紙畫	은지화	false	false			534919
 銀細工	은세공	false	false			262300
 銀絲	은사	false	false			467137
 銀經	은경	false	false			260211
@@ -229325,7 +229334,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 長信宮	장신궁	false	false			277901
 長兄	장형	false	false			281870
 長兄父母	장형부모	false	false			474715
-長光刀	장광도	false	false			279270
 長公主	장공주	false	false			278960
 長兵	장병	false	false			283561
 長刀	장도	false	false			281684
@@ -229454,6 +229462,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 長幕物	장막물	false	false			282005
 長平鎭	장평진	false	false			281750
 長年	장년	false	false			282300
+長年層	장년층	false	false			536218
+長年期	장년기	false	false			536217
 長幼	장유	false	false			476053
 長幼有序	장유유서	false	false			476073
 長庚	장경	false	false			277439
@@ -230617,8 +230627,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 開放化	개방화	false	false			11013
 開放化되다	개방화되다	false	false			9987
 開放化하다	개방화하다	false	false			9988
+開放型	개방형	false	false			10956
 開放式	개방식	false	false			9795
-開放形	개방형	false	false			10956
 開放性	개방성	false	false			388660
 開放的	개방적	false	false			10539
 開放系	개방계	false	false			9944
@@ -247590,7 +247600,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 魯桑	노상	false	false			67580
 魯漫主義	노만주의	false	false			67538
 魯男子	노남자	false	false			67721
-魯省	노성	false	false			67126
+魯省	노성	false	false	0		67126
+魯省	루성	false	false	30		418163
 魯縞	노호	false	false			67549
 魯莽	노무	false	false			68484
 魯莽하다	노무하다	false	false			409343
@@ -247783,7 +247794,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 鰈魚臇	접어전	false	false			290225
 鰈魚醢	접어해	false	false			290506
 鰉魚	황어	false	false			518047
-鰊卵醢	연란해	false	false			229961
 鰋魚	언어	false	false			224756
 鰌魚	추어	false	false			336801
 鰍湯	추탕	false	false			336143
@@ -247820,6 +247830,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 鰮粕	온박	false	false			244234
 鰮魚	온어	false	false			236905
 鰱卵	연란	false	false			229960
+鰱卵醢	연란해	false	false			229961
 鰱魚	연어	false	false			244493
 鰱魚目	연어목	false	false			237714
 鰱魚科	연어과	false	false			244494
@@ -252711,7 +252722,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 곱돌湯罐	곱돌탕관	false	false			27986
 곱돌火爐	곱돌화로	false	false			27987
 곱사松魚	곱사송어	false	false			394488
-곱사鰊魚	곱사연어	false	false			394489
+곱사鰱魚	곱사연어	false	false			394489
 곱살門	곱살문	false	false			27681
 곱삿病	곱삿병	false	false			27684
 곱셈標	곱셈표	false	false			29305
@@ -253487,7 +253498,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 꿍꿍이酬酌	꿍꿍이수작	false	false			57028
 꿍꿍이酬酌하다	꿍꿍이수작하다	false	false			57029
 꿩科	꿩과	false	false			406576
-꿩綱태	꿩망태	false	false			57432
+꿩網태	꿩망태	false	false			57432
 꿸中枋	꿸중방	false	false			57596
 끄실狀	끄실상	false	false			404726
 끈氣	끈기	false	false			56170
@@ -253586,6 +253597,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 나무水菊	나무수국	false	false			404938
 나무汁	나무즙	false	false			406267
 나무牌	나무패	false	false			57587
+나무筍	나무순	false	false			57713
 나무蘆薈	나무노회	false	false			58569
 나무象嵌	나무상감	false	false			58646
 나무質	나무질	false	false			58944
@@ -255291,7 +255303,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 뜬鬼神	뜬귀신	false	false			100737
 뜬龍	뜬용	false	false			99438
 뜰層階	뜰층계	false	false			97752
-뜰綱	뜰망	false	false			98261
+뜰網	뜰망	false	false			98261
 뜰아랫房	뜰아랫방	false	false			97749
 뜸幕	뜸막	false	false			418873
 뜸桶	뜸통	false	false			99712,414684
@@ -256527,7 +256539,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 바큇살菌	바큇살균	false	false			510702
 바큇살菌症	바큇살균증	false	false			510703
 바탕漆	바탕칠	false	false			130184
-바탕畵面	바탕화면	false	false			534087
+바탕畫面	바탕화면	false	false			534087
 바탕色	바탕색	false	false			130169
 바탕音	바탕음	false	false			130182
 박主	박주	false	false			131414
@@ -259981,7 +259993,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 잣薄饊	잣박산	false	false			282878
 잣軟絲	잣연사	false	false			283194
 잣饊子	잣산자	false	false			282880
-잣나무茯岺	잣나무복령	false	false			282259
+잣나무茯苓	잣나무복령	false	false			282259
 장三	장삼	false	false			282315
 장八	장팔	false	false			475320
 장門	장문	false	false			276076

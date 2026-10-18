@@ -158,6 +158,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 三段매듭	삼단매듭	false	false			191674
 三池淵	삼지연	false	false			189482
 三池淵郡	삼지연군	false	false			189483
+三泉	삼천	false	false			1414936
 三泉郡	삼천군	false	false			572350
 三焦兪	삼초유	false	false			425131
 三用受信機	삼용수신기	false	false			190151
@@ -11115,6 +11116,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 新語造成	신어조성	false	false			209815
 新貨幣	신화페	false	false			538088
 新資窠	신자과	false	false			212121
+新院	신원	false	false			1414939
 新院郡	신원군	false	false			574668
 新陽郡	신양군	false	false			209601
 新面目	신면목	false	false			47106
@@ -20621,6 +20623,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 芻蕘者	추요자	false	false			410118
 芽胞果	아포과	false	false			218765
 芽菜類	아채류	false	false			502018
+苔灘	태탄	false	false			1414938
 苔灘郡	태탄군	false	false			303562
 苔癬動物	태선동물	false	false			303747
 苛烈悽絕하다	가렬처절하다	false	false			73805

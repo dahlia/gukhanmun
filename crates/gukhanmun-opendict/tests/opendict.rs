@@ -253,10 +253,23 @@ fn bundled_dictionaries_are_partitioned_by_category() {
     let dialect = gukhanmun_opendict::dialect();
     let archaic = gukhanmun_opendict::archaic();
 
-    assert_eq!(general.entry_count(), 350_330);
-    assert_eq!(north_korean.entry_count(), 34_093);
-    assert_eq!(dialect.entry_count(), 5_714);
-    assert_eq!(archaic.entry_count(), 16);
+    for (dictionary, tsv) in [
+        (general, include_str!("../data/general.tsv")),
+        (north_korean, include_str!("../data/north-korean.tsv")),
+        (dialect, include_str!("../data/dialect.tsv")),
+        (archaic, include_str!("../data/archaic.tsv")),
+    ] {
+        let keys: std::collections::BTreeSet<_> = tsv
+            .lines()
+            .skip(1)
+            .map(|line| line.split('\t').next().unwrap())
+            .collect();
+        assert_eq!(dictionary.entry_count(), keys.len() as u64);
+        assert_eq!(
+            dictionary.max_word_chars(),
+            keys.iter().map(|key| key.chars().count()).max()
+        );
+    }
 
     assert_eq!(general.lookup("歷史").unwrap().unwrap().reading(), "역사");
     assert_eq!(general.lookup("來日").unwrap().unwrap().reading(), "내일");
@@ -274,7 +287,6 @@ fn bundled_dictionaries_are_partitioned_by_category() {
         north_korean.lookup("勞動").unwrap().unwrap().reading(),
         "로동"
     );
-    assert_eq!(north_korean.max_word_chars(), Some(17));
 
     assert_eq!(
         dialect.lookup("一家방답").unwrap().unwrap().reading(),
