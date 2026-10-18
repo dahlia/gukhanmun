@@ -1,0 +1,230 @@
+{
+  "format_version": 1,
+  "decisions": [
+    {
+      "key": "吳",
+      "chosen": "오",
+      "expected": [
+        {
+          "reading": "구레",
+          "sources": [
+            {
+              "id": "62585",
+              "sha256": "d1c023a69ef11ddca818e570f0535b626a404e81c4f591a9cdeb0d592642c2f7"
+            }
+          ]
+        },
+        {
+          "reading": "오",
+          "sources": [
+            {
+              "id": "64462",
+              "sha256": "e9a341e28f93f7bb2ec94b2f0f6c5b3bce1a41bc7204a39f91529f5bdb6df2b6"
+            }
+          ]
+        }
+      ],
+      "rationale": "Prefer the historical Chinese states over the Japanese municipality in this context-free default; retain both source readings.",
+      "references": [
+        "https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003"
+      ]
+    },
+    {
+      "key": "大和",
+      "chosen": "야마토",
+      "expected": [
+        {
+          "reading": "다허",
+          "sources": [
+            {
+              "id": "63788",
+              "sha256": "539f04ec1cf1658aff14e8ac1d1e4cc980ac20f6264bd325fb6da8d6a9de1bbc"
+            }
+          ]
+        },
+        {
+          "reading": "야마토",
+          "sources": [
+            {
+              "id": "62344",
+              "sha256": "556bbfc996833a9e1d8eb2616906d6b3420a6d01936af98a505781b0834709f7"
+            }
+          ]
+        }
+      ],
+      "rationale": "Select the Japanese city reading by default; retain the separate Chinese archaeological-site reading.",
+      "references": [
+        "https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003"
+      ]
+    },
+    {
+      "key": "岡山",
+      "chosen": "오카야마",
+      "expected": [
+        {
+          "reading": "강산",
+          "sources": [
+            {
+              "id": "63410",
+              "sha256": "468f88bd0a387fe362c06f5d46d1256d00a8c726f7728c2412469a19628e13ea"
+            }
+          ]
+        },
+        {
+          "reading": "오카야마",
+          "sources": [
+            {
+              "id": "62250",
+              "sha256": "a5dd54d078803c1a88d263861dc3cad9227f4f77778ac2363858a09697568375"
+            }
+          ]
+        }
+      ],
+      "rationale": "Select the Japanese prefectural-seat reading by default; retain the separate Taiwan city reading.",
+      "references": [
+        "https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003"
+      ]
+    },
+    {
+      "key": "東北",
+      "chosen": "둥베이",
+      "expected": [
+        {
+          "reading": "도호쿠",
+          "sources": [
+            {
+              "id": "62360",
+              "sha256": "726b3b5aa59090f368a6a26df094b621813ef756cde75d06a627661dba5d79ff"
+            }
+          ]
+        },
+        {
+          "reading": "둥베이",
+          "sources": [
+            {
+              "id": "63828",
+              "sha256": "f0ac4140e2f34ea008d111f6f14a1329f164f50f67a05e2788a58dd6162402b5"
+            }
+          ]
+        }
+      ],
+      "rationale": "Select northeastern China by default; retain the distinct Japanese regional reading.",
+      "references": [
+        "https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003"
+      ]
+    },
+    {
+      "key": "淸",
+      "chosen": "청",
+      "expected": [
+        {
+          "reading": "청",
+          "sources": [
+            {
+              "id": "64852",
+              "sha256": "a210005bf03630b3df2b4da41698f393972b4cadd6f8683c2a65533c5157d4bc"
+            }
+          ]
+        },
+        {
+          "reading": "칭",
+          "sources": [
+            {
+              "id": "64853",
+              "sha256": "4e5ab358d2b5cb9c59ebd52c88a99a188159461ea639b8184e35775f8a4da9dd"
+            }
+          ]
+        }
+      ],
+      "rationale": "Select the historical Qing dynasty reading by default; retain the modern Qinghai abbreviation.",
+      "references": [
+        "https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003"
+      ]
+    },
+    {
+      "key": "香港",
+      "chosen": "홍콩",
+      "expected": [
+        {
+          "reading": "샹강",
+          "sources": [
+            {
+              "id": "65012",
+              "sha256": "dbbba70ffafbb270dbc7096b8dabd232195e76087ad00fb445d6b10056297dca"
+            }
+          ]
+        },
+        {
+          "reading": "홍콩",
+          "sources": [
+            {
+              "id": "65013",
+              "sha256": "8e55afc324e0e6097271d3f57da78336ce3447b024578977ddf487cf86f4388d"
+            }
+          ]
+        }
+      ],
+      "rationale": "Prefer the conventional Korean name requested in issue 18. The direct source spelling supplies this reading; retain the pronunciation-annotated alternative.",
+      "references": [
+        "https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003",
+        "https://github.com/dahlia/gukhanmun/issues/18#issuecomment-6234407988"
+      ]
+    },
+    {
+      "key": "高砂",
+      "chosen": "다카사고",
+      "expected": [
+        {
+          "reading": "가오사",
+          "sources": [
+            {
+              "id": "63490",
+              "sha256": "a8d58966cb771e87fd822a4d8d256427d92001f345830bfe4453fbb8bb998d53"
+            }
+          ]
+        },
+        {
+          "reading": "다카사고",
+          "sources": [
+            {
+              "id": "62265",
+              "sha256": "171d8c7a03bb7d63c44e0af62c6c5bc7ee4f74bc6dc4d564977b738e91ad7e50"
+            }
+          ]
+        }
+      ],
+      "rationale": "Select the Japanese municipality reading by default; retain the separate alternative name for Taiwan.",
+      "references": [
+        "https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003"
+      ]
+    },
+    {
+      "key": "黔中",
+      "chosen": "검중",
+      "expected": [
+        {
+          "reading": "검중",
+          "sources": [
+            {
+              "id": "63454",
+              "sha256": "971babb971e70326e12162886ce56ceb876f40473540d0d65e284db1fe45ca6d"
+            }
+          ]
+        },
+        {
+          "reading": "첸중",
+          "sources": [
+            {
+              "id": "63455",
+              "sha256": "0646012123c87a827433fbd713cd1ce01431ba9e9265cdab9160b31fcca7164a"
+            }
+          ]
+        }
+      ],
+      "rationale": "Select the pre-Republican historical place-name reading by default; retain the Republican-era administrative reading.",
+      "references": [
+        "https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003"
+      ]
+    }
+  ]
+}

@@ -469,7 +469,9 @@ export interface GukhanmunOptions {
    * Korean Language Dictionary*, add `@gukhanmun/stdict-fst` or
    * `@gukhanmun/stdict-cdb` explicitly.  To use Open Korean Dictionary
    * categories, add `@gukhanmun/opendict-fst` or
-   * `@gukhanmun/opendict-cdb` explicitly.
+   * `@gukhanmun/opendict-cdb` explicitly. For NIKL loanword examples, load
+   * `@gukhanmun/loanwords-fst` or `@gukhanmun/loanwords-cdb`. Put user
+   * dictionaries first, then loanwords, then the preset dictionaries.
    *
    * @see {@link DictionarySource}
    */

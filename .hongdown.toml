@@ -11,4 +11,5 @@ exclude = [
   "DESIGN.md",
   "README.md",
   "tests/fixtures/**",
+  "scripts/loanwords/*-pr.md",
 ]

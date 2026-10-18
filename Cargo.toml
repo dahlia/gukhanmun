@@ -4,6 +4,7 @@ members = [
     "crates/gukhanmun-cli",
     "crates/gukhanmun-cdb",
     "crates/gukhanmun-core",
+    "crates/gukhanmun-loanwords",
     "crates/gukhanmun-dict-extract",
     "crates/gukhanmun-fst",
     "crates/gukhanmun-html",
@@ -20,6 +21,7 @@ default-members = [
     "crates/gukhanmun-cli",
     "crates/gukhanmun-cdb",
     "crates/gukhanmun-core",
+    "crates/gukhanmun-loanwords",
     "crates/gukhanmun-dict-extract",
     "crates/gukhanmun-fst",
     "crates/gukhanmun-html",
@@ -42,6 +44,7 @@ repository = "https://github.com/dahlia/gukhanmun"
 [workspace.dependencies]
 gukhanmun = { version = "0.3.0", path = "crates/gukhanmun", default-features = false }
 gukhanmun-cdb = { version = "0.3.0", path = "crates/gukhanmun-cdb" }
+gukhanmun-loanwords = { version = "0.3.0", path = "crates/gukhanmun-loanwords" }
 gukhanmun-core = { version = "0.3.0", path = "crates/gukhanmun-core" }
 gukhanmun-dict-extract = { version = "0.3.0", path = "crates/gukhanmun-dict-extract" }
 gukhanmun-fst = { version = "0.3.0", path = "crates/gukhanmun-fst" }

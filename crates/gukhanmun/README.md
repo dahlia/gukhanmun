@@ -22,8 +22,9 @@ Installation
 gukhanmun = "0.1"
 ~~~~
 
-All features are enabled by default. To trim the dependency tree, disable them
-selectively:
+The `html`, `markdown`, `fst`, `cdb`, `stdict`, and `opendict` features are
+enabled by default. To trim the dependency tree, disable the defaults and
+select only the features you need:
 
 ~~~~ toml
 [dependencies]
@@ -31,7 +32,9 @@ gukhanmun = { version = "0.1", default-features = false, features = ["html"] }
 ~~~~
 
 Available features: `html`, `markdown`, `fst`, `cdb`, `stdict` (implies
-`fst`), and `opendict` (implies `fst`). The `stdict` feature embeds the South
+`fst`), `opendict` (implies `fst`), and `loanwords` (implies `fst`). The
+`loanwords` feature is opt-in; enable it explicitly to use
+`Builder::bundled_loanwords()`. The `stdict` feature embeds the South
 Korean *Standard Korean Dictionary*, and `opendict` embeds *Open Korean
 Dictionary* (우리말샘) category data.
 
@@ -100,13 +103,34 @@ Relation to the other workspace crates
 --------------------------------------
 
 `gukhanmun` re-exports public items from `gukhanmun-core`, `gukhanmun-html`,
-`gukhanmun-markdown`, `gukhanmun-fst`, `gukhanmun-cdb`, `gukhanmun-stdict`, and
-`gukhanmun-opendict` under feature gates. Code that needs only a subset of the
-pipeline can depend on those crates directly. The full workspace is documented
-in *DESIGN.md* at the repository root.
+`gukhanmun-markdown`, `gukhanmun-fst`, `gukhanmun-cdb`, `gukhanmun-stdict`,
+`gukhanmun-opendict`, and `gukhanmun-loanwords` under feature gates. Code that
+needs only a subset of the pipeline can depend on those crates directly. The
+full workspace is documented in *DESIGN.md* at the repository root.
 
 
 License
 -------
 
 GPL-3.0-only. See *LICENSE* at the repository root.
+
+
+Bundled loanword examples
+-------------------------
+
+Enable the `loanwords` feature and call `Builder::bundled_loanwords()` to use
+the bundled NIKL loanword spelling examples. This dictionary takes priority
+over preset dictionaries, while user dictionaries remain first. Both presets
+leave it disabled by default; `no_bundled_dictionaries()` disables every family
+and `no_bundled_loanwords()` disables this one. The source snapshot and explicit
+choices for competing readings are maintained in `gukhanmun-loanwords`.
+
+~~~~ rust
+# #[cfg(all(feature = "loanwords", feature = "stdict"))] {
+use gukhanmun::{Builder, ContextWindow};
+let converter = Builder::new().bundled_loanwords()
+    .homophone_window(ContextWindow::Off).build()?;
+assert_eq!(converter.convert_text_to_string("香港")?, "홍콩");
+# }
+# Ok::<(), gukhanmun::Error>(())
+~~~~

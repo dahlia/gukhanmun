@@ -1579,3 +1579,27 @@ fn build_dictionary_fixture_with_format(
     .unwrap();
     output
 }
+
+#[test]
+fn loanwords_are_explicit_and_conflict_with_disabling_all_bundled_data() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .arg("--loanwords")
+        .write_stdin("香港")
+        .assert()
+        .success()
+        .stdout("홍콩");
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--loanwords", "--no-bundled-dictionaries"])
+        .write_stdin("香港")
+        .assert()
+        .failure();
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--preset", "ko-kp"])
+        .write_stdin("香港")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("홍콩").not());
+}

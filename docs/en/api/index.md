@@ -19,6 +19,7 @@ You can find the Rust API references from Docs.rs:
  -  [gukhanmun-unihan]
  -  [gukhanmun-stdict]
  -  [gukhanmun-opendict]
+ -  [gukhanmun-loanwords]
  -  [gukhanmun-mkdict]
  -  [gukhanmun-cdb]
  -  [gukhanmun-fst]
@@ -30,6 +31,7 @@ You can find the Rust API references from Docs.rs:
 [gukhanmun-unihan]: https://docs.rs/gukhanmun-unihan/
 [gukhanmun-stdict]: https://docs.rs/gukhanmun-stdict/
 [gukhanmun-opendict]: https://docs.rs/gukhanmun-opendict/
+[gukhanmun-loanwords]: https://docs.rs/gukhanmun-loanwords/
 [gukhanmun-mkdict]: https://docs.rs/gukhanmun-mkdict/
 [gukhanmun-cdb]: https://docs.rs/gukhanmun-cdb/
 [gukhanmun-fst]: https://docs.rs/gukhanmun-fst/
@@ -49,3 +51,5 @@ You can find the JavaScript API references from the below pages:
  -  [@gukhanmun/stdict-fst](js/modules/_gukhanmun_stdict-fst)
  -  [@gukhanmun/opendict-cdb](js/modules/_gukhanmun_opendict-cdb)
  -  [@gukhanmun/opendict-fst](js/modules/_gukhanmun_opendict-fst)
+ -  [@gukhanmun/loanwords-cdb](js/modules/_gukhanmun_loanwords-cdb.md)
+ -  [@gukhanmun/loanwords-fst](js/modules/_gukhanmun_loanwords-fst.md)

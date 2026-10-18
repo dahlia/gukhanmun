@@ -5,7 +5,9 @@
     "packages/stdict-fst",
     "packages/stdict-cdb",
     "packages/opendict-fst",
-    "packages/opendict-cdb"
+    "packages/opendict-cdb",
+    "packages/loanwords-fst",
+    "packages/loanwords-cdb"
   ],
   "nodeModulesDir": "none",
   "lint": {
@@ -21,7 +23,10 @@
       "packages/stdict-cdb/",
       "packages/opendict-fst/",
       "packages/opendict-cdb/",
-      "tests/js/"
+      "tests/js/",
+      "packages/loanwords-fst/",
+      "packages/loanwords-cdb/",
+      "scripts/loanwords/"
     ]
   },
   "fmt": {
@@ -35,7 +40,10 @@
       "packages/stdict-cdb/",
       "packages/opendict-fst/",
       "packages/opendict-cdb/",
-      "tests/js/"
+      "tests/js/",
+      "packages/loanwords-fst/",
+      "packages/loanwords-cdb/",
+      "scripts/loanwords/"
     ],
     "exclude": [
       "**/*.md"

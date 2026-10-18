@@ -55,3 +55,52 @@ fn ko_kp_preset_disables_initial_sound_law_and_includes_north_korean_opendict() 
 fn preset_default_is_ko_kr() {
     assert_eq!(Preset::default(), Preset::KoKr);
 }
+
+#[cfg(all(feature = "loanwords", feature = "stdict", feature = "opendict"))]
+#[test]
+fn explicit_loanwords_have_priority_but_user_dictionaries_win() {
+    use gukhanmun::{Builder, ContextWindow, MapDictionary, Preset};
+    let selected = Builder::new()
+        .bundled_loanwords()
+        .homophone_window(ContextWindow::Off)
+        .build()
+        .unwrap();
+    assert_eq!(selected.convert_text_to_string("香港").unwrap(), "홍콩");
+    let mut user = MapDictionary::new();
+    user.insert("香港", "사용자");
+    let selected = Builder::new()
+        .bundled_loanwords()
+        .push_dictionary(user)
+        .homophone_window(ContextWindow::Off)
+        .build()
+        .unwrap();
+    assert_eq!(selected.convert_text_to_string("香港").unwrap(), "사용자");
+    let north = Builder::with_preset(Preset::KoKp)
+        .homophone_window(ContextWindow::Off)
+        .build()
+        .unwrap();
+    assert_ne!(north.convert_text_to_string("香港").unwrap(), "홍콩");
+    let disabled = Builder::new()
+        .bundled_loanwords()
+        .no_bundled_dictionaries()
+        .homophone_window(ContextWindow::Off)
+        .build()
+        .unwrap();
+    assert_ne!(disabled.convert_text_to_string("香港").unwrap(), "홍콩");
+    let disabled = Builder::new()
+        .bundled_loanwords()
+        .no_bundled_loanwords()
+        .homophone_window(ContextWindow::Off)
+        .build()
+        .unwrap();
+    assert_ne!(disabled.convert_text_to_string("香港").unwrap(), "홍콩");
+}
+
+#[cfg(not(feature = "loanwords"))]
+#[test]
+fn explicit_loanwords_without_the_feature_returns_config_error() {
+    assert!(matches!(
+        gukhanmun::Builder::new().bundled_loanwords().build(),
+        Err(gukhanmun::Error::Config(_))
+    ));
+}

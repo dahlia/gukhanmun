@@ -68,3 +68,13 @@ License
 -------
 
 GPL-3.0-only. See *LICENSE* at the repository root.
+
+
+Loanword spelling examples
+--------------------------
+
+Pass `--loanwords` to load the bundled NIKL loanword examples before preset
+dictionaries, for example to convert `香港` to `홍콩`. The option is explicit
+for both `ko-kr` and `ko-kp`; it conflicts with `--no-bundled-dictionaries`.
+User dictionaries still take priority. Collection is a separate maintainer
+operation; normal conversion needs neither a network connection nor an API key.

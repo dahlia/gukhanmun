@@ -23,6 +23,7 @@ Rust API 參照는 Docs.rs에서 찾을 수 있습니다:
  -  [gukhanmun-unihan]
  -  [gukhanmun-stdict]
  -  [gukhanmun-opendict]
+ -  [gukhanmun-loanwords]
  -  [gukhanmun-mkdict]
  -  [gukhanmun-cdb]
  -  [gukhanmun-fst]
@@ -34,6 +35,7 @@ Rust API 參照는 Docs.rs에서 찾을 수 있습니다:
 [gukhanmun-unihan]: https://docs.rs/gukhanmun-unihan/
 [gukhanmun-stdict]: https://docs.rs/gukhanmun-stdict/
 [gukhanmun-opendict]: https://docs.rs/gukhanmun-opendict/
+[gukhanmun-loanwords]: https://docs.rs/gukhanmun-loanwords/
 [gukhanmun-mkdict]: https://docs.rs/gukhanmun-mkdict/
 [gukhanmun-cdb]: https://docs.rs/gukhanmun-cdb/
 [gukhanmun-fst]: https://docs.rs/gukhanmun-fst/
@@ -53,3 +55,5 @@ JavaScript API 參照는 아래 페이지에서 찾을 수 있습니다:
  -  [@gukhanmun/stdict-fst](../../en/api/js/modules/_gukhanmun_stdict-fst.md)
  -  [@gukhanmun/opendict-cdb](../../en/api/js/modules/_gukhanmun_opendict-cdb.md)
  -  [@gukhanmun/opendict-fst](../../en/api/js/modules/_gukhanmun_opendict-fst.md)
+ -  [@gukhanmun/loanwords-cdb](../../en/api/js/modules/_gukhanmun_loanwords-cdb.md)
+ -  [@gukhanmun/loanwords-fst](../../en/api/js/modules/_gukhanmun_loanwords-fst.md)

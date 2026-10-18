@@ -1,0 +1,25 @@
+[package]
+name = "gukhanmun-loanwords"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license-file = "LICENSE"
+homepage.workspace = true
+repository.workspace = true
+description = "Bundled NIKL loanword spelling examples for Gukhanmun."
+exclude = ["data/snapshot.json", "data/report.json", "data/pending-update.json"]
+
+[dependencies]
+gukhanmun-fst.workspace = true
+
+[build-dependencies]
+anyhow = "1.0.102"
+gukhanmun-mkdict.workspace = true
+serde_json = "1.0.149"
+
+[dev-dependencies]
+gukhanmun-core.workspace = true
+gukhanmun-cdb.workspace = true
+gukhanmun-mkdict.workspace = true
+serde_json = "1.0.149"
+tempfile = "3.27.0"

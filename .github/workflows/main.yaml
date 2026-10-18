@@ -15,6 +15,7 @@ jobs:
   ci:
     name: ci (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -664,16 +665,16 @@ jobs:
         mkdir -p "dist/$asset"
         cp "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}" "dist/$asset/"
         cp "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}" "dist/$asset/"
-        cp LICENSE README.*.md "dist/$asset/"
+        cp LICENSE NOTICE.md README.*.md "dist/$asset/"
 
         if [[ "${{ matrix.archive }}" == "zip" ]]; then
           (cd "dist/$asset" && 7z a "../$asset.zip" \
-            LICENSE README.*.md \
+            LICENSE NOTICE.md README.*.md \
             "gukhanmun${{ matrix.exe }}" \
             "gukhanmun-mkdict${{ matrix.exe }}")
         else
           tar -cjf "dist/$asset.tar.bz2" -C "dist/$asset" \
-            LICENSE README.*.md \
+            LICENSE NOTICE.md README.*.md \
             "gukhanmun${{ matrix.exe }}" \
             "gukhanmun-mkdict${{ matrix.exe }}"
         fi
@@ -736,6 +737,8 @@ jobs:
         mise run stdict-cdb-data
         mise run opendict-fst-data
         mise run opendict-cdb-data
+        mise run loanwords-fst-data
+        mise run loanwords-cdb-data
     - name: Sync JS manifest versions
       shell: bash
       env:
@@ -768,7 +771,7 @@ jobs:
         set -euo pipefail
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then set -x; fi
         mise run js-install
-        pnpm -r run build
+        pnpm -r --workspace-concurrency=1 run build
     - name: Pack npm packages
       shell: bash
       run: |

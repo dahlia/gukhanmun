@@ -42,15 +42,25 @@ To be released.
     suffix reading, including custom `MapDictionary` suffixes.  [[#19], [#22]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
+ -  Added the `loanwords` feature, `loanwords` module and
+    `Builder::bundled_loanwords()` to compose loanword examples after user
+    dictionaries and before preset dictionaries. Both presets leave it disabled
+    by default. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
 
 [#11]: https://github.com/dahlia/gukhanmun/issues/11
 [#12]: https://github.com/dahlia/gukhanmun/pull/12
+[#18]: https://github.com/dahlia/gukhanmun/issues/18
 [#19]: https://github.com/dahlia/gukhanmun/issues/19
 [#20]: https://github.com/dahlia/gukhanmun/issues/20
 [#21]: https://github.com/dahlia/gukhanmun/issues/21
 [#22]: https://github.com/dahlia/gukhanmun/pull/22
 [#24]: https://github.com/dahlia/gukhanmun/pull/24
 [#25]: https://github.com/dahlia/gukhanmun/pull/25
+[#26]: https://github.com/dahlia/gukhanmun/pull/26
 
 ### gukhanmun-cdb
 
@@ -62,6 +72,16 @@ To be released.
  -  Added `--hanja-variant-set` for selecting `as-dictionary`, `shinjitai`,
     `kanxi`, `simplified`, or `asahimoji` whenever the selected rendering mode
     emits hanja.  [[#11], [#12]]
+ -  Added `--loanwords` to load the bundled NIKL loanword examples before
+    preset dictionaries. User dictionaries retain priority; the option
+    conflicts with `--no-bundled-dictionaries`. [[#18], [#26]]
+ -  Included *NOTICE.md* in CLI binary archives to retain attribution for
+    bundled dictionary data, including the NIKL loanword examples.
+    [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로/로` and combinations such as `으로는`. Conversion
     keeps the source particle and falls back to the dictionary default when
@@ -106,6 +126,22 @@ To be released.
     rendering and policy middlewares use the same lexical identity.
     [[#11], [#12]]
 
+### gukhanmun-dict-extract
+
+ -  Added loanword collection and deterministic extraction with explicit
+    editorial decisions, provenance reports and complete matching sweeps.
+    Enable `loanwords-cli` for offline commands or `loanwords-collect` for
+    HTTPS collection using `NIKL_LOANWORD_API_KEY`. [[#18], [#26]]
+ -  Loanword output preflight rejects filesystem aliases before publication,
+    and generated reports can be checked beyond the offline input size limit.
+    Encoded service keys are decoded once, and unsafe Trace logging
+    configurations are rejected before authentication. Partial response bodies
+    count toward the collection byte limit even when the request is retried.
+    [[#18], [#26]]
+ -  Fixed stale failure diagnostics that remained after successful loanword
+    extraction. Diagnostics are removed after both the TSV and report are
+    published; check and audit-only modes preserve them. [[#18], [#26]]
+
 ### gukhanmun-fst
 
  -  Added v2 candidate payloads and `lookup().candidates()`, preserving v1
@@ -118,6 +154,16 @@ To be released.
     keeps the source particle and falls back to the dictionary default when
     evidence is uncertain or no reading fits; explicit dictionary overrides
     stay authoritative. [[#20], [#25]]
+
+### gukhanmun-loanwords
+
+ -  Added a separately selectable, offline dictionary from NIKL loanword
+    spelling examples with source provenance and explicit choices for competing
+    readings. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
 
 ### gukhanmun-markdown
 
@@ -177,6 +223,24 @@ To be released.
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
+
+### @gukhanmun/loanwords-cdb
+
+ -  Added `@gukhanmun/loanwords-cdb` to load the bundled NIKL loanword examples
+    through `loanwordsCdb()` in the WASM and native bindings. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
+
+### @gukhanmun/loanwords-fst
+
+ -  Added `@gukhanmun/loanwords-fst` to load the bundled NIKL loanword examples
+    through `loanwordsFst()` in the WASM and native bindings. [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
 
 ### @gukhanmun/napi
 
