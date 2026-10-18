@@ -288,6 +288,43 @@ fn markdown_rendered_semantics() {
     assert!(!html(&output).contains("<br"), "{output}");
 }
 
+#[cfg(feature = "markdown")]
+#[test]
+fn markdown_reference_links_keep_destinations_and_titles() {
+    use gukhanmun::markdown::MarkdownVariant;
+    fn html(source: &str) -> String {
+        let mut output = String::new();
+        pulldown_cmark::html::push_html(&mut output, pulldown_cmark::Parser::new(source));
+        output
+    }
+    for (label, modern, traditional) in [
+        ("Node.js", "Node.js", "Node.js"),
+        ("앞。뒤", "앞. 뒤", "앞。뒤"),
+        ("*Node.js*", "<em>Node.js</em>", "<em>Node.js</em>"),
+        ("A&B", "A&B", "A&B"),
+    ] {
+        for (profile, expected_label) in [(P::modern(), modern), (P::traditional(), traditional)] {
+            let c = converter(profile);
+            for suffix in ["", "[]", "[target]"] {
+                let id = if suffix == "[target]" {
+                    "target"
+                } else {
+                    label
+                };
+                let input = format!(
+                    "[{label}]{suffix}\n\n[{id}]: https://example.com/docs \"Reference title\"\n"
+                );
+                let output = c
+                    .convert_markdown_to_string(&input, MarkdownVariant::CommonMark)
+                    .unwrap();
+                let expected =
+                    format!("[{expected_label}](https://example.com/docs \"Reference title\")");
+                assert_eq!(html(&output), html(&expected), "{input}: {output}");
+            }
+        }
+    }
+}
+
 #[test]
 fn punctuation_uses_annotations_as_content_without_rewriting_readings() {
     let mut d = gukhanmun::MapDictionary::new();
