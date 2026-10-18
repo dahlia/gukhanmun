@@ -53,6 +53,7 @@ impl Preset {
     pub fn options(self) -> ConversionOptions {
         match self {
             Preset::KoKr => ConversionOptions {
+                punctuation: gukhanmun_core::PunctuationProfile::preserve(),
                 rendering: RenderOptions::default(),
                 engine: EngineOptions {
                     segmentation: SegmentationStrategy::default(),
@@ -66,6 +67,7 @@ impl Preset {
                 recovery: Recovery::Strict,
             },
             Preset::KoKp => ConversionOptions {
+                punctuation: gukhanmun_core::PunctuationProfile::preserve(),
                 rendering: RenderOptions::default(),
                 engine: EngineOptions {
                     segmentation: SegmentationStrategy::default(),
@@ -103,6 +105,9 @@ impl Preset {
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct ConversionOptions {
+    /// Independent output punctuation profile, defaulting to preservation.
+    pub punctuation: gukhanmun_core::PunctuationProfile,
+
     /// How annotations are turned into concrete text or markup.
     pub rendering: RenderOptions,
 

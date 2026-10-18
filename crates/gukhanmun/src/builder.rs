@@ -23,16 +23,9 @@ use gukhanmun_core::{
     HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken,
     NumeralStrategy, OutputToken, PlainScopeData, Recovery, RedundantParenCollapser, RenderMode,
     RenderOptions, RenderedToken, ScopeData, SegmentationStrategy, UserDirectives,
-    apply_user_directives, apply_user_directives_iter, collapse_redundant_parens,
-    filter_first_occurrences, mark_homophones_with_detection, process_tokens_iter_with_options,
-    read_plain_text, render_tokens_iter, write_plain_text,
+    apply_user_directives_iter, read_plain_text, render_tokens_iter, write_plain_text,
 };
 
-#[cfg(any(
-    not(feature = "opendict"),
-    not(feature = "stdict"),
-    not(feature = "loanwords")
-))]
 use crate::error::Error;
 use crate::error::Result;
 use crate::options::{ConversionOptions, Preset};
@@ -43,7 +36,9 @@ use gukhanmun_html::{
     write_html_fragment,
 };
 #[cfg(feature = "markdown")]
-use gukhanmun_markdown::{MarkdownScopeData, MarkdownVariant, read_markdown_iter, write_markdown};
+use gukhanmun_markdown::{
+    MarkdownScopeData, MarkdownVariant, read_markdown_iter, write_markdown_with_options,
+};
 
 /// Rendering configuration accepted by [`Builder::rendering`].
 ///
@@ -367,11 +362,22 @@ impl<'a> Builder<'a> {
         self
     }
 
+    /// Selects an output punctuation profile independently of the language preset.
+    /// Invalid custom marks are rejected by [`Self::build`].
+    pub fn punctuation(mut self, profile: gukhanmun_core::PunctuationProfile) -> Self {
+        self.options.punctuation = profile;
+        self
+    }
+
     /// Finalizes the configuration into a [`Converter`].
     ///
     /// Returns [`crate::Error::Config`] if the configuration requests a bundled
     /// dictionary whose feature was disabled at compile time.
     pub fn build(self) -> Result<Converter<'a>> {
+        self.options
+            .punctuation
+            .validate()
+            .map_err(|e| Error::Config(e.to_string()))?;
         let Self {
             options,
             hanja_variant_set_override: _,
@@ -431,6 +437,10 @@ impl<'a> Builder<'a> {
         #[cfg(not(any(feature = "opendict", feature = "stdict", feature = "loanwords")))]
         let dictionaries = dictionaries;
 
+        #[cfg(feature = "html")]
+        let html_reader_options = html_reader_options.preserve_unmatched_end_tags(
+            options.punctuation != gukhanmun_core::PunctuationProfile::preserve(),
+        );
         let chain = ChainDictionary::from_iter(dictionaries);
         Ok(Converter {
             options,
@@ -482,6 +492,15 @@ impl<'a> Converter<'a> {
         &self.html_reader_options
     }
 
+    /// Returns the writer options required to serialize normalized Markdown.
+    #[cfg(feature = "markdown")]
+    pub fn markdown_write_options(&self) -> gukhanmun_markdown::MarkdownWriteOptions {
+        gukhanmun_markdown::MarkdownWriteOptions {
+            protect_text_syntax: self.options.punctuation
+                != gukhanmun_core::PunctuationProfile::preserve(),
+        }
+    }
+
     /// Converts a plain-text input and returns the result as a `String`.
     pub fn convert_text_to_string(&self, input: &str) -> Result<String> {
         let input_tokens = read_plain_text(input);
@@ -501,7 +520,10 @@ impl<'a> Converter<'a> {
             try_read_html_fragment_iter_with_options(input, &self.html_reader_options),
             self.options.recovery,
         )?;
-        let rendered = self.run_buffered(input_tokens);
+        let rendered = self.convert_tokens_with_codec(
+            input_tokens,
+            gukhanmun_html::HtmlPunctuationTextCodec::new(),
+        );
         Ok(write_html_fragment(rendered))
     }
 
@@ -520,7 +542,10 @@ impl<'a> Converter<'a> {
     ) -> Result<String> {
         let input_tokens = gukhanmun_markdown::read_markdown(input, variant);
         let rendered = self.run_buffered(input_tokens);
-        Ok(write_markdown(rendered)?)
+        Ok(write_markdown_with_options(
+            rendered,
+            self.markdown_write_options(),
+        )?)
     }
 
     /// Streams plain text through the conversion pipeline as a lazy iterator
@@ -558,7 +583,10 @@ impl<'a> Converter<'a> {
             try_read_html_fragment_iter_with_options(input, &self.html_reader_options),
             self.options.recovery,
         )?;
-        Ok(self.convert_tokens(input_tokens))
+        Ok(self.convert_tokens_with_codec(
+            input_tokens,
+            gukhanmun_html::HtmlPunctuationTextCodec::new(),
+        ))
     }
 
     /// Streams a Markdown input through the conversion pipeline as a lazy
@@ -600,6 +628,22 @@ impl<'a> Converter<'a> {
         I: IntoIterator<Item = InputToken<S>> + 'b,
         I::IntoIter: 'b,
     {
+        self.convert_tokens_with_codec(input, gukhanmun_core::LiteralTextCodec)
+    }
+
+    /// Converts tokens with a format-owned punctuation codec. HTML callers must
+    /// also use safe reader options to keep unmatched tags opaque.
+    pub fn convert_tokens_with_codec<'b, S, I, C>(
+        &'b self,
+        input: I,
+        codec: C,
+    ) -> impl Iterator<Item = RenderedToken<S>> + 'b
+    where
+        C: gukhanmun_core::PunctuationTextCodec + 'b,
+        S: ScopeData + 'b,
+        I: IntoIterator<Item = InputToken<S>> + 'b,
+        I::IntoIter: 'b,
+    {
         let engine_iter = EngineIter {
             upstream: input.into_iter(),
             engine: Some(Engine::<S, _>::with_options(
@@ -633,7 +677,13 @@ impl<'a> Converter<'a> {
             FirstOccurrenceFilter::finish,
         );
         let directives_iter = apply_user_directives_iter(first_occurrence_iter, &self.directives);
-        render_tokens_iter(directives_iter, self.options.rendering)
+        let punctuation_iter = MiddlewareIter::new(
+            directives_iter,
+            gukhanmun_core::PunctuationNormalizer::with_codec(self.options.punctuation, codec),
+            gukhanmun_core::PunctuationNormalizer::push_token,
+            gukhanmun_core::PunctuationNormalizer::finish,
+        );
+        render_tokens_iter(punctuation_iter, self.options.rendering)
     }
 
     fn run_buffered<S>(
@@ -643,20 +693,7 @@ impl<'a> Converter<'a> {
     where
         S: ScopeData,
     {
-        let output_tokens =
-            process_tokens_iter_with_options(input_tokens, &self.dictionary, self.options.engine);
-        let output_tokens =
-            collapse_redundant_parens(output_tokens, self.options.collapse_redundant_parens);
-        let output_tokens = mark_homophones_with_detection(
-            output_tokens,
-            &self.dictionary,
-            self.options.homophone_window,
-            self.options.homophone_detection,
-        );
-        let output_tokens =
-            filter_first_occurrences(output_tokens, self.options.first_occurrence_window);
-        let output_tokens = apply_user_directives(output_tokens, &self.directives);
-        render_tokens_iter(output_tokens, self.options.rendering).collect()
+        self.convert_tokens(input_tokens).collect()
     }
 }
 

@@ -165,6 +165,14 @@ struct ConversionArgs {
 #[derive(Debug, Args)]
 #[command(next_help_heading = "Rendering policy")]
 struct RenderingPolicyArgs {
+    /// Output punctuation preset, independent of the language preset.
+    #[arg(long, value_parser=["preserve","modern","traditional","traditional-vertical"], conflicts_with="punctuation_profile")]
+    punctuation: Option<String>,
+
+    /// JSON punctuation profile, with optional base and per-role overrides.
+    #[arg(long, value_name = "PATH", conflicts_with = "punctuation")]
+    punctuation_profile: Option<PathBuf>,
+
     /// Controls how hanja annotations appear in the output.  hangul-only
     /// (default for most presets) emits hangul, adding parenthesized hanja only
     /// when disambiguation requires it.  hangul-hanja-parens always emits
@@ -557,6 +565,16 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
 
     if let Some(disambiguation) = cli.rendering.disambiguation {
         builder = builder.homophone_window(disambiguation.into());
+    }
+    if let Some(name) = &cli.rendering.punctuation {
+        builder = builder.punctuation(gukhanmun::PunctuationProfile::preset(name)?);
+    }
+    if let Some(path) = &cli.rendering.punctuation_profile {
+        let input = std::fs::read_to_string(path)
+            .with_context(|| format!("failed to read punctuation profile {}", path.display()))?;
+        let config: gukhanmun::PunctuationConfig =
+            serde_json::from_str(&input).context("invalid punctuation profile JSON")?;
+        builder = builder.punctuation(config.resolve()?);
     }
     if let Some(detection) = cli.rendering.homophone_detection {
         builder = builder.homophone_detection(detection.into());
@@ -1027,6 +1045,7 @@ fn convert_plain_document(
             options.rendering,
             converter.directives(),
             options.collapse_redundant_parens,
+            options.punctuation,
         );
     }
     // Plain text has no block or section scopes.  For homophone correctness,
@@ -1062,6 +1081,7 @@ fn convert_plain_stream_without_homophone_lookahead<D>(
     rendering: RenderOptions,
     directives: &UserDirectives<'_>,
     collapse_parens: bool,
+    punctuation: gukhanmun::PunctuationProfile,
 ) -> Result<()>
 where
     D: HanjaDictionary + ?Sized,
@@ -1072,6 +1092,7 @@ where
     // bypassed entirely rather than driven as a per-token pass-through.
     let mut collapser =
         collapse_parens.then(|| RedundantParenCollapser::<PlainScopeData>::new(true));
+    let mut normalizer = gukhanmun::PunctuationNormalizer::new(punctuation);
     let mut bytes = [0; 8192];
     let mut pending = Vec::new();
 
@@ -1095,7 +1116,11 @@ where
         if !directives.is_empty() {
             output_tokens = apply_user_directives(output_tokens, directives);
         }
-        write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
+        let normalized = output_tokens
+            .into_iter()
+            .flat_map(|t| normalizer.push_token(t))
+            .collect();
+        write_plain_stream_chunk(&mut output, normalized, rendering)?;
     }
     let mut output_tokens = Vec::new();
     flush_utf8_tail_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| Ok(()))?;
@@ -1110,7 +1135,12 @@ where
     if !directives.is_empty() {
         output_tokens = apply_user_directives(output_tokens, directives);
     }
-    write_plain_stream_chunk(&mut output, output_tokens, rendering)?;
+    let mut normalized: Vec<_> = output_tokens
+        .into_iter()
+        .flat_map(|t| normalizer.push_token(t))
+        .collect();
+    normalized.extend(normalizer.finish());
+    write_plain_stream_chunk(&mut output, normalized, rendering)?;
     output.flush().context("failed to flush output")
 }
 
@@ -1253,6 +1283,10 @@ fn convert_html_document(
         options.homophone_detection,
     );
     let mut first_occurrences = FirstOccurrenceFilter::new(options.first_occurrence_window);
+    let mut normalizer = gukhanmun::PunctuationNormalizer::with_codec(
+        options.punctuation,
+        gukhanmun::html::HtmlPunctuationTextCodec::new(),
+    );
     let mut renderer = Renderer::new(options.rendering);
     let mut writer = HtmlFragmentWriter::new(output);
     let mut bytes = [0; 8192];
@@ -1273,6 +1307,7 @@ fn convert_html_document(
                 homophones: &mut homophones,
                 first_occurrences: &mut first_occurrences,
                 directives: converter.directives(),
+                normalizer: &mut normalizer,
                 renderer: &mut renderer,
                 writer: &mut writer,
                 recovery: options.recovery,
@@ -1291,6 +1326,7 @@ fn convert_html_document(
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
             directives: converter.directives(),
+            normalizer: &mut normalizer,
             renderer: &mut renderer,
             writer: &mut writer,
             recovery: options.recovery,
@@ -1307,6 +1343,7 @@ fn convert_html_document(
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
             directives: converter.directives(),
+            normalizer: &mut normalizer,
             renderer: &mut renderer,
             writer: &mut writer,
             recovery: options.recovery,
@@ -1323,6 +1360,7 @@ fn convert_html_document(
         &mut homophones,
         &mut first_occurrences,
         converter.directives(),
+        &mut normalizer,
         &mut renderer,
         &mut writer,
     )?;
@@ -1332,6 +1370,7 @@ fn convert_html_document(
             &mut homophones,
             &mut first_occurrences,
             converter.directives(),
+            &mut normalizer,
             &mut renderer,
             &mut writer,
         )?;
@@ -1341,6 +1380,7 @@ fn convert_html_document(
         homophone_tail,
         &mut first_occurrences,
         converter.directives(),
+        &mut normalizer,
         &mut renderer,
         &mut writer,
     )?;
@@ -1348,9 +1388,15 @@ fn convert_html_document(
     write_html_rendered_tokens(
         first_occurrence_tail,
         converter.directives(),
+        &mut normalizer,
         &mut renderer,
         &mut writer,
     )?;
+    for token in normalizer.finish() {
+        writer
+            .write_token(renderer.push_token(token))
+            .context("failed to write output")?;
+    }
     writer.finish().context("failed to flush output")?;
     Ok(())
 }
@@ -1365,6 +1411,10 @@ where
     homophones: &'p mut HomophoneMarker<'d, HtmlScopeData>,
     first_occurrences: &'p mut FirstOccurrenceFilter<HtmlScopeData>,
     directives: &'p UserDirectives<'d>,
+    normalizer: &'p mut gukhanmun::PunctuationNormalizer<
+        HtmlScopeData,
+        gukhanmun::html::HtmlPunctuationTextCodec,
+    >,
     renderer: &'p mut Renderer<HtmlScopeData>,
     writer: &'p mut HtmlFragmentWriter<W>,
     recovery: Recovery,
@@ -1392,6 +1442,7 @@ where
                 self.homophones,
                 self.first_occurrences,
                 self.directives,
+                self.normalizer,
                 self.renderer,
                 self.writer,
             )?;
@@ -1419,6 +1470,10 @@ fn process_html_output_tokens<W>(
     homophones: &mut HomophoneMarker<'_, HtmlScopeData>,
     first_occurrences: &mut FirstOccurrenceFilter<HtmlScopeData>,
     directives: &UserDirectives<'_>,
+    normalizer: &mut gukhanmun::PunctuationNormalizer<
+        HtmlScopeData,
+        gukhanmun::html::HtmlPunctuationTextCodec,
+    >,
     renderer: &mut Renderer<HtmlScopeData>,
     writer: &mut HtmlFragmentWriter<W>,
 ) -> Result<()>
@@ -1431,6 +1486,7 @@ where
             tokens,
             first_occurrences,
             directives,
+            normalizer,
             renderer,
             writer,
         )?;
@@ -1442,6 +1498,10 @@ fn process_html_first_occurrence_tokens<W>(
     output_tokens: Vec<OutputToken<HtmlScopeData>>,
     first_occurrences: &mut FirstOccurrenceFilter<HtmlScopeData>,
     directives: &UserDirectives<'_>,
+    normalizer: &mut gukhanmun::PunctuationNormalizer<
+        HtmlScopeData,
+        gukhanmun::html::HtmlPunctuationTextCodec,
+    >,
     renderer: &mut Renderer<HtmlScopeData>,
     writer: &mut HtmlFragmentWriter<W>,
 ) -> Result<()>
@@ -1450,7 +1510,7 @@ where
 {
     for token in output_tokens {
         let tokens = first_occurrences.push_token(token);
-        write_html_rendered_tokens(tokens, directives, renderer, writer)?;
+        write_html_rendered_tokens(tokens, directives, normalizer, renderer, writer)?;
     }
     Ok(())
 }
@@ -1458,6 +1518,10 @@ where
 fn write_html_rendered_tokens<W>(
     output_tokens: Vec<OutputToken<HtmlScopeData>>,
     directives: &UserDirectives<'_>,
+    normalizer: &mut gukhanmun::PunctuationNormalizer<
+        HtmlScopeData,
+        gukhanmun::html::HtmlPunctuationTextCodec,
+    >,
     renderer: &mut Renderer<HtmlScopeData>,
     writer: &mut HtmlFragmentWriter<W>,
 ) -> Result<()>
@@ -1465,12 +1529,101 @@ where
     W: Write,
 {
     for token in output_tokens {
-        let rendered: RenderedToken<_> = renderer.push_token(directives.apply(token));
-        writer
-            .write_token(rendered)
-            .context("failed to write output")?;
+        for normalized in normalizer.push_token(directives.apply(token)) {
+            let rendered: RenderedToken<_> = renderer.push_token(normalized);
+            writer
+                .write_token(rendered)
+                .context("failed to write output")?;
+        }
     }
     Ok(())
+}
+
+// Hongdown collects visible heading text and drops inline HTML there. Protect
+// those spans while formatting the whole document so links and references keep
+// their shared context, then restore the exact HTML. Markers are absent from
+// both source spelling and decoded text and never reach the final output.
+fn format_converted_markdown(
+    input: &str,
+    variant: MarkdownVariant,
+    protect: bool,
+) -> Result<String> {
+    let format = |source: &str| {
+        hongdown::format(source, &markdown_format_options())
+            .context("failed to format Markdown output")
+    };
+    if !protect {
+        return format(input);
+    }
+    let options = match variant {
+        MarkdownVariant::CommonMark => pulldown_cmark::Options::empty(),
+        MarkdownVariant::Gfm => {
+            pulldown_cmark::Options::ENABLE_TABLES
+                | pulldown_cmark::Options::ENABLE_FOOTNOTES
+                | pulldown_cmark::Options::ENABLE_STRIKETHROUGH
+                | pulldown_cmark::Options::ENABLE_TASKLISTS
+                | pulldown_cmark::Options::ENABLE_GFM
+        }
+    };
+    let mut used: std::collections::BTreeSet<char> = input.chars().collect();
+    let mut ranges = Vec::new();
+    let mut heading = false;
+    for (event, range) in pulldown_cmark::Parser::new_ext(input, options).into_offset_iter() {
+        match event {
+            pulldown_cmark::Event::Start(pulldown_cmark::Tag::Heading { .. }) => heading = true,
+            pulldown_cmark::Event::End(pulldown_cmark::TagEnd::Heading(_)) => heading = false,
+            pulldown_cmark::Event::InlineHtml(_) if heading => ranges.push(range),
+            pulldown_cmark::Event::Text(text) => used.extend(text.chars()),
+            _ => {}
+        }
+    }
+    if ranges.is_empty() {
+        return format(input);
+    }
+    let mut candidates = (0xe000..=0xf8ff)
+        .chain(0xf0000..=0xffffd)
+        .chain(0x100000..=0x10fffd)
+        .filter_map(char::from_u32)
+        .filter(|c| !used.contains(c));
+    let mut by_tag = std::collections::BTreeMap::new();
+    let mut by_marker = std::collections::BTreeMap::new();
+    let mut expected = std::collections::BTreeMap::<char, usize>::new();
+    let mut protected = String::with_capacity(input.len());
+    let mut cursor = 0;
+    for range in ranges {
+        let tag = &input[range.clone()];
+        let marker = if let Some(&marker) = by_tag.get(tag) {
+            marker
+        } else {
+            let Some(marker) = candidates.next() else {
+                return Ok(input.to_owned());
+            };
+            by_tag.insert(tag, marker);
+            by_marker.insert(marker, tag);
+            marker
+        };
+        protected.push_str(&input[cursor..range.start]);
+        protected.push(marker);
+        cursor = range.end;
+        *expected.entry(marker).or_default() += 1;
+    }
+    protected.push_str(&input[cursor..]);
+    let formatted = format(&protected)?;
+    let mut restored = String::with_capacity(formatted.len());
+    let mut seen = std::collections::BTreeMap::<char, usize>::new();
+    for c in formatted.chars() {
+        if let Some(tag) = by_marker.get(&c) {
+            restored.push_str(tag);
+            *seen.entry(c).or_default() += 1;
+        } else {
+            restored.push(c);
+        }
+    }
+    // A formatter change must not leak markers or silently discard content.
+    if seen != expected {
+        return Ok(input.to_owned());
+    }
+    Ok(restored)
 }
 
 fn markdown_format_options() -> hongdown::Options {
@@ -1519,8 +1672,11 @@ fn convert_markdown_document(
     let converted_body = converter
         .convert_markdown_to_string(body, variant)
         .map_err(|error| anyhow::anyhow!("failed to convert Markdown: {error}"))?;
-    let converted_body = hongdown::format(&converted_body, &markdown_format_options())
-        .context("failed to format Markdown output")?;
+    let converted_body = format_converted_markdown(
+        &converted_body,
+        variant,
+        converter.markdown_write_options().protect_text_syntax,
+    )?;
 
     if let Some((raw, inner)) = front_matter {
         if frontmatter_selectors.is_empty() {

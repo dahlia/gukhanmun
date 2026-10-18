@@ -142,3 +142,16 @@ pub trait SnapshotScope {
 }
 
 impl SnapshotScope for PlainScopeData {}
+
+/// Mixed punctuation and Korean text, shared by normalization properties.
+pub fn arb_punctuation_text() -> impl proptest::strategy::Strategy<Value = String> {
+    use proptest::prelude::*;
+    proptest::collection::vec(
+        prop_oneof![
+            arb_hangul_only_string(),
+            "[,，、︐︑.．。︒〈〉「」《》『』︿﹀﹁﹂︽︾﹃﹄ abcABC012０１\\n\\t]{0,40}"
+        ],
+        0..12,
+    )
+    .prop_map(|parts| parts.concat())
+}

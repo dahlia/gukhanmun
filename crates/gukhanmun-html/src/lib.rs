@@ -19,6 +19,10 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod entities;
+mod punctuation;
+pub use punctuation::HtmlPunctuationTextCodec;
+
 use std::io::{self, Write};
 
 use gukhanmun_core::{
@@ -65,6 +69,39 @@ impl HtmlScopeData {
 }
 
 impl ScopeData for HtmlScopeData {
+    fn punctuation_boundary(&self) -> gukhanmun_core::PunctuationBoundary {
+        use gukhanmun_core::PunctuationBoundary as B;
+        if self.tag_name == "br" {
+            B::LineBreak
+        } else if self.block_boundary || matches!(self.tag_name.as_str(), "pre" | "hr") {
+            B::Block
+        } else if self.preserve {
+            B::Opaque
+        } else if matches!(
+            self.tag_name.as_str(),
+            "a" | "em"
+                | "strong"
+                | "span"
+                | "b"
+                | "i"
+                | "q"
+                | "cite"
+                | "abbr"
+                | "sub"
+                | "sup"
+                | "s"
+                | "u"
+                | "small"
+                | "mark"
+                | "del"
+                | "ins"
+        ) {
+            B::Transparent
+        } else {
+            B::Opaque
+        }
+    }
+
     fn is_preserve(&self) -> bool {
         self.preserve
     }
@@ -112,6 +149,7 @@ type PreservePredicate<'a> = dyn Fn(&HtmlElementInfo<'_>) -> bool + 'a;
 #[derive(Default)]
 pub struct HtmlReaderOptions<'a> {
     preserve_when: Option<Box<PreservePredicate<'a>>>,
+    preserve_unmatched_end_tags: bool,
 }
 
 impl<'a> HtmlReaderOptions<'a> {
@@ -119,7 +157,15 @@ impl<'a> HtmlReaderOptions<'a> {
     pub fn new() -> Self {
         Self {
             preserve_when: None,
+            preserve_unmatched_end_tags: false,
         }
+    }
+
+    /// Preserves unmatched end tags as opaque markup instead of text.
+    /// Enable this when running punctuation normalization with the HTML codec.
+    pub fn preserve_unmatched_end_tags(mut self, preserve: bool) -> Self {
+        self.preserve_unmatched_end_tags = preserve;
+        self
     }
 
     /// Attaches a predicate that flags elements for preservation.
@@ -200,6 +246,10 @@ enum HtmlReaderOptionsSource<'r, 'o> {
 }
 
 impl HtmlReaderOptionsSource<'_, '_> {
+    fn preserve_unmatched_end_tags(&self) -> bool {
+        matches!(self,Self::Borrowed(options) if options.preserve_unmatched_end_tags)
+    }
+
     fn evaluate(&self, info: &HtmlElementInfo<'_>) -> bool {
         match self {
             Self::Default => false,
@@ -555,7 +605,11 @@ impl<'r, 'o> HtmlFragmentReader<'r, 'o> {
             .rposition(|context| context.tag_name == tag_name)
         else {
             let text = self.drain_to(end_position + 1);
-            push_text(output, text);
+            if self.options.preserve_unmatched_end_tags() {
+                output.push(Ok(InputToken::Verbatim(text)));
+            } else {
+                push_text(output, text);
+            }
             return true;
         };
 

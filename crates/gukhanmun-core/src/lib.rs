@@ -30,6 +30,9 @@ extern crate alloc;
 mod candidates;
 mod fallback;
 mod particles;
+mod punctuation;
+mod punctuation_categories;
+pub use punctuation::*;
 
 pub use candidates::{
     CandidateError, CandidateMatch, CandidateRecord, ReadingCandidate, ReadingCandidates,
@@ -177,6 +180,16 @@ pub trait ScopeData: Clone + 'static {
     /// Returns whether this scope resets block-oriented stateful stages.
     fn is_block_boundary(&self) -> bool {
         false
+    }
+
+    /// Returns the punctuation lookahead policy. External adapters default to
+    /// opaque inline boundaries and explicit block boundaries.
+    fn punctuation_boundary(&self) -> PunctuationBoundary {
+        if self.is_block_boundary() {
+            PunctuationBoundary::Block
+        } else {
+            PunctuationBoundary::Opaque
+        }
     }
 
     /// Returns whether this scope resets section-oriented stateful stages.
@@ -1007,6 +1020,9 @@ pub fn is_initial_sound_law_pair(initial: &str, suffix: &str) -> bool {
 pub struct PlainScopeData;
 
 impl ScopeData for PlainScopeData {
+    fn punctuation_boundary(&self) -> PunctuationBoundary {
+        PunctuationBoundary::Transparent
+    }
     fn is_preserve(&self) -> bool {
         false
     }

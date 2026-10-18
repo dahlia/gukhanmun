@@ -9,6 +9,7 @@ repository.workspace = true
 description = "Umbrella library: hanja-to-hangul conversion engine with format adapters and dictionaries."
 
 [features]
+serde = ["gukhanmun-core/serde"]
 default = ["html", "markdown", "stdict", "opendict", "fst", "cdb"]
 html = ["dep:gukhanmun-html"]
 markdown = ["dep:gukhanmun-markdown"]
@@ -30,6 +31,9 @@ gukhanmun-stdict = { workspace = true, optional = true }
 thiserror = { version = "2.0.18", default-features = false }
 
 [dev-dependencies]
+gukhanmun-core = { workspace = true, features = ["serde"] }
+serde_json = "1.0.150"
+pulldown-cmark = { version = "0.13.3", default-features = false, features = ["html"] }
 libtest-mimic = "0.8.2"
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "0.9.12"

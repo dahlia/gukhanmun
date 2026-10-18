@@ -106,6 +106,111 @@ const dictionaryBackends: readonly (readonly [
 export function registerSuite(name: string, binding: Binding): void {
   const { load, GukhanmunError } = binding;
 
+  describe(`${name}: punctuation profiles`, () => {
+    test("universal inputs, HTML references, and streamed chunks", async () => {
+      for (const punctuation of ["modern", "traditional", "traditional-vertical"] as const) {
+        const g = await load({ punctuation });
+        const source = "가&#12290;  나、「다」";
+        const expected = g.convert(source, "html");
+        assert.equal(await streamAll(g.stream("html"), Array.from(source)), expected);
+        assert.equal(g.convert(g.convert("가。 나、〈다〉")), g.convert("가。 나、〈다〉"));
+      }
+      const g = await load({ punctuation: "modern" });
+      assert.equal(g.convert("가&#12290;나", "html"), "가. 나");
+      assert.equal(g.convert("가&#12290;나"), "가&#12290;나");
+      assert.equal(
+        g.convert("1,000 3.14 Hello, world example.com"),
+        "1,000 3.14 Hello, world example.com",
+      );
+    });
+    test("normalized Markdown keeps emphasis, breaks and inline HTML boundaries", async () => {
+      const g = await load({ punctuation: "modern" });
+      assert.ok(g.convert("*끝。* 다음", "markdown").includes("<em>끝&#46;</em> 다음"));
+      assert.ok(g.convert("**\\\n끝** 다음", "markdown").includes("<strong><br />"));
+      assert.ok(g.convert("앞 <em>가。</em>나", "markdown").includes("</em> 나"));
+      assert.ok(
+        g.convert("~~끝。~~ 다음", { format: "markdown", gfm: true }).includes(
+          "<del>끝&#46;</del> 다음",
+        ),
+      );
+    });
+    test("HTML recovery and effective nested language policies", async () => {
+      const g = await load({ punctuation: "modern" });
+      assert.equal(
+        g.convert("<div lang=en><span lang=ko>韓國。文化</span></div>", "html"),
+        "<div lang=en><span lang=ko>한국. 문화</span></div>",
+      );
+      assert.equal(
+        g.convert("<span lang=en>keep<span lang=ko>가。  </span> tail。</span>", "html"),
+        "<span lang=en>keep<span lang=ko>가.  </span> tail。</span>",
+      );
+      for (const [mark, entity] of [["!", "&#33;"], ["?", "&#63;"], ["/", "&#47;"]] as const) {
+        const custom = await load({
+          punctuation: { period: { mark, after: "remove" } },
+          recovery: "lenient",
+        });
+        assert.equal(custom.convert("<。--hello-->VISIBLE", "html"), `<${entity}--hello-->VISIBLE`);
+      }
+    });
+    test("Markdown serialization respects preserved inline HTML text", async () => {
+      const modern = await load({ punctuation: "modern" }), preserve = await load();
+      for (
+        const source of [
+          "앞 <script>alert(1);</script> 뒤",
+          "앞 <script>let x=2**3**2;</script> 뒤",
+          "앞 <style>.x { color: red; }</style> 뒤",
+          "앞 <code>a&b</code> 뒤",
+        ]
+      ) {
+        assert.equal(modern.convert(source, "markdown"), preserve.convert(source, "markdown"));
+      }
+    });
+    test("decoded Markdown entity line endings remain text", async () => {
+      const g = await load({ punctuation: "modern" });
+      assert.ok(
+        g.convert("**&#10;[글](dest)** 다음", "markdown").includes(
+          "<strong>&#10;[글](dest)</strong> 다음",
+        ),
+      );
+    });
+    test("inheritance, null, undefined and detached frozen resolved styles", async () => {
+      const custom = { base: "modern" as const, comma: undefined, period: null };
+      const g = await load({ punctuation: custom });
+      assert.equal(g.convert("가、나。 다"), "가, 나。 다");
+      assert.equal(g.options.punctuation.period, null);
+      assert.deepEqual(g.options.punctuation.comma, { mark: ",", after: "single" });
+      assert.ok(Object.isFrozen(g.options.punctuation));
+      assert.ok(Object.isFrozen(g.options.punctuation.comma));
+      assert.deepEqual((await load()).options.punctuation, {
+        comma: null,
+        period: null,
+        single: null,
+        double: null,
+      });
+    });
+    test("custom Unicode scalar marks and invalid options", async () => {
+      const g = await load({ punctuation: { period: { mark: "💬", after: "remove" } } });
+      assert.equal(g.convert("가。 나"), "가💬나");
+      for (
+        const punctuation of [
+          "bogus",
+          null,
+          { typo: true },
+          { period: { mark: "xx", after: "single" } },
+          { period: { mark: "\ud800", after: "single" } },
+          { period: { mark: "&", after: "single" } },
+          { single: { open: "〉", close: "〈" } },
+          { period: { mark: ";", after: "bogus" } },
+        ]
+      ) {
+        await assert.rejects(
+          () => load({ punctuation } as unknown as GukhanmunOptions),
+          (error: unknown) => error instanceof GukhanmunError && error.code === "invalid-input",
+        );
+      }
+    });
+  });
+
   // ── Fixture parity without a dictionary ──────────────────────────────────
   // These fixtures use use_bundled_stdict = false (Unihan fallback only), so
   // the JS load() with no dictionary matches the Rust fixture directly.

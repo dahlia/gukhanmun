@@ -820,7 +820,9 @@ dependencies = [
  "gukhanmun-opendict",
  "gukhanmun-stdict",
  "libtest-mimic",
+ "pulldown-cmark",
  "serde",
+ "serde_json",
  "thiserror",
  "toml",
 ]
@@ -853,6 +855,7 @@ dependencies = [
  "noyalib",
  "predicates",
  "proptest",
+ "pulldown-cmark",
  "serde_json",
  "tempfile",
  "tracing",
@@ -865,6 +868,7 @@ version = "0.3.0"
 dependencies = [
  "insta",
  "proptest",
+ "serde",
  "serde_json",
  "thiserror",
  "tracing",
@@ -1031,6 +1035,7 @@ name = "gukhanmun-unihan"
 version = "0.3.0"
 dependencies = [
  "proptest",
+ "serde_json",
  "sha2",
  "zip",
 ]
@@ -1043,6 +1048,7 @@ dependencies = [
  "js-sys",
  "serde",
  "serde-wasm-bindgen",
+ "serde_json",
  "tracing",
  "wasm-bindgen",
 ]
@@ -1646,8 +1652,15 @@ checksum = "7c3a14896dfa883796f1cb410461aef38810ea05f2b2c33c5aded3649095fdad"
 dependencies = [
  "bitflags",
  "memchr",
+ "pulldown-cmark-escape",
  "unicase",
 ]
+
+[[package]]
+name = "pulldown-cmark-escape"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "pulldown-cmark-to-cmark"

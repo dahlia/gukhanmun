@@ -358,6 +358,49 @@ export interface Directives {
 
 // ── Conversion options ─────────────────────────────────────────────────────
 
+/** Policy for ordinary spaces following an eligible stop. */
+export type SpaceAfter = "preserve" | "remove" | "single";
+/** Built-in output style; input recognition is independent of this choice. */
+export type PunctuationPreset = "preserve" | "modern" | "traditional" | "traditional-vertical";
+/** A single Unicode scalar and its following U+0020 policy. */
+export interface StopStyle {
+  /** One Unicode scalar, validated by the shared profile resolver. */
+  readonly mark: string;
+  /** Policy applied only to U+0020 following this stop. */
+  readonly after: SpaceAfter;
+}
+/** Opening and closing Unicode punctuation scalars. */
+export interface DelimiterStyle {
+  /** Opening scalar with Unicode category Ps or Pi. */
+  readonly open: string;
+  /** Closing scalar with Unicode category Pe or Pf. */
+  readonly close: string;
+}
+/** Partial overrides; omitted roles inherit, null preserves the role. */
+export interface CustomPunctuationProfile {
+  /** Inherited preset, defaulting to preserve. */
+  readonly base?: PunctuationPreset;
+  /** Comma style; omitted inherits, null preserves. */
+  readonly comma?: StopStyle | null;
+  /** Period style; omitted inherits, null preserves. */
+  readonly period?: StopStyle | null;
+  /** Single delimiters; omitted inherits, null preserves. */
+  readonly single?: DelimiterStyle | null;
+  /** Double delimiters; omitted inherits, null preserves. */
+  readonly double?: DelimiterStyle | null;
+}
+/** Fully resolved styles, copied and deeply frozen by each binding. */
+export interface ResolvedPunctuationProfile {
+  /** Comma style, or null for preservation. */
+  readonly comma: StopStyle | null;
+  /** Period style, or null for preservation. */
+  readonly period: StopStyle | null;
+  /** Single delimiters, or null for preservation. */
+  readonly single: DelimiterStyle | null;
+  /** Double delimiters, or null for preservation. */
+  readonly double: DelimiterStyle | null;
+}
+
 /**
  * Full set of options passed to {@link GukhanmunFactory.load} (or the
  * top-level `load` function) to configure a {@link Gukhanmun} instance.
@@ -367,6 +410,9 @@ export interface Directives {
  * given, `"ko-kr"` is implicitly used.
  */
 export interface GukhanmunOptions {
+  /** Independent output punctuation policy. Defaults to preserve. */
+  readonly punctuation?: PunctuationPreset | CustomPunctuationProfile;
+
   /**
    * Named configuration preset.  Defaults to `"ko-kr"`.
    *
@@ -563,9 +609,9 @@ export interface Gukhanmun {
     Required<
       Omit<
         GukhanmunOptions,
-        "dictionaries" | "directives" | "html" | "originalGloss"
+        "dictionaries" | "directives" | "html" | "originalGloss" | "punctuation"
       >
-    >
+    > & { readonly punctuation: ResolvedPunctuationProfile }
   >;
 }
 

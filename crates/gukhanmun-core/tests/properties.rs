@@ -134,3 +134,28 @@ proptest! {
         }
     }
 }
+
+fn normalize_chunks(
+    chunks: impl IntoIterator<Item = String>,
+    profile: gukhanmun_core::PunctuationProfile,
+) -> String {
+    let mut n = gukhanmun_core::PunctuationNormalizer::<PlainScopeData>::new(profile);
+    let mut tokens = Vec::new();
+    for s in chunks {
+        tokens.extend(n.push_token(gukhanmun_core::OutputToken::Text(s)));
+    }
+    tokens.extend(n.finish());
+    write_plain_text(render_tokens(tokens, RenderMode::HangulOnly))
+}
+proptest! {
+    #[test]
+    fn punctuation_is_chunk_invariant_and_idempotent(
+        input in common::arb_punctuation_text(), sizes in proptest::collection::vec(1usize..32,0..20)
+    ) {
+        for p in [gukhanmun_core::PunctuationProfile::preserve(),gukhanmun_core::PunctuationProfile::modern(),gukhanmun_core::PunctuationProfile::traditional(),gukhanmun_core::PunctuationProfile::traditional_vertical()] {
+            let once=normalize_chunks([input.clone()],p);
+            prop_assert_eq!(normalize_chunks(chunk_by_sizes(&input,&sizes),p),once.clone());
+            prop_assert_eq!(normalize_chunks([once.clone()],p),once);
+        }
+    }
+}

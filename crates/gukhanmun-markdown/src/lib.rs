@@ -53,6 +53,48 @@ impl MarkdownScopeData {
 }
 
 impl ScopeData for MarkdownScopeData {
+    fn punctuation_boundary(&self) -> gukhanmun_core::PunctuationBoundary {
+        use gukhanmun_core::PunctuationBoundary as B;
+        match &self.node {
+            MarkdownNode::Leaf(LeafNode::SoftBreak | LeafNode::HardBreak) => B::LineBreak,
+            MarkdownNode::InlineHtmlElement { end_tag_name, .. }
+                if end_tag_name.eq_ignore_ascii_case("br") =>
+            {
+                B::LineBreak
+            }
+            _ if self.block_boundary => B::Block,
+            MarkdownNode::Container(Tag::Image { .. }) => B::Preserve,
+            _ if self.preserve => B::Opaque,
+            MarkdownNode::Container(
+                Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Link { .. },
+            ) => B::Transparent,
+            MarkdownNode::InlineHtmlElement { end_tag_name, .. }
+                if matches!(
+                    end_tag_name.to_ascii_lowercase().as_str(),
+                    "a" | "em"
+                        | "strong"
+                        | "span"
+                        | "b"
+                        | "i"
+                        | "q"
+                        | "cite"
+                        | "abbr"
+                        | "sub"
+                        | "sup"
+                        | "s"
+                        | "u"
+                        | "small"
+                        | "mark"
+                        | "del"
+                        | "ins"
+                ) =>
+            {
+                B::Transparent
+            }
+            _ => B::Opaque,
+        }
+    }
+
     fn is_preserve(&self) -> bool {
         self.preserve
     }
@@ -148,6 +190,157 @@ pub fn write_markdown(
     let mut output = String::new();
     write_markdown_to_fmt(tokens, &mut output)?;
     Ok(output)
+}
+
+/// Markdown writer policy. Defaults preserve the existing serializer behavior.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct MarkdownWriteOptions {
+    /// Protect ordinary text from becoming Markdown syntax after normalization.
+    /// ASCII punctuation is represented as numeric references. Inline emphasis
+    /// uses local HTML tags where entity serialization cannot prove flanking.
+    pub protect_text_syntax: bool,
+}
+/// Writes normalized Markdown without allowing text to become structural syntax.
+/// Code, raw HTML, image descriptions and unchanged autolinks retain their own
+/// serialization policy. Link destinations and titles are never transformed.
+pub fn write_markdown_with_options(
+    tokens: impl IntoIterator<Item = RenderedToken<MarkdownScopeData>>,
+    options: MarkdownWriteOptions,
+) -> Result<String, MarkdownError> {
+    if !options.protect_text_syntax {
+        return write_markdown(tokens);
+    }
+    let mut source = RenderedEvents {
+        tokens: tokens.into_iter(),
+        stack: Vec::new(),
+    };
+    let mut events = Vec::new();
+    let mut preserved = Vec::new();
+    while let Some(event) = source.next() {
+        // Breaks are preserving leaf scopes, but their serialization policy
+        // belongs to the parent. Text uses the reader's effective scope flag.
+        let data = if matches!(event, Event::SoftBreak | Event::HardBreak) {
+            source.stack.iter().rev().nth(1)
+        } else {
+            source.stack.last()
+        };
+        preserved.push(data.is_some_and(|d| d.is_preserve()));
+        events.push(event);
+    }
+    let events = protect_events(events, &preserved);
+    let mut out = String::new();
+    pulldown_cmark_to_cmark::cmark(events.into_iter(), &mut out)?;
+    Ok(out)
+}
+fn protect_events(mut events: Vec<Event<'static>>, preserved: &[bool]) -> Vec<Event<'static>> {
+    // An autolink serializer derives its destination from its label. Lower only
+    // changed labels to inline links before escaping the displayed text.
+    let mut untouched_autolinks = std::collections::BTreeSet::new();
+    for i in 0..events.len() {
+        if let Event::Start(Tag::Link {
+            link_type: LinkType::Autolink | LinkType::Email,
+            dest_url,
+            ..
+        }) = &events[i]
+        {
+            let mut label = String::new();
+            let mut end = i + 1;
+            while end < events.len() && !matches!(events[end], Event::End(TagEnd::Link)) {
+                if let Event::Text(t) = &events[end] {
+                    label.push_str(t)
+                }
+                end += 1;
+            }
+            if label == dest_url.as_ref()
+                || dest_url.strip_prefix("mailto:") == Some(label.as_str())
+            {
+                untouched_autolinks.insert(i);
+            } else if let Event::Start(Tag::Link { link_type, .. }) = &mut events[i] {
+                *link_type = LinkType::Inline;
+            }
+        }
+    }
+    // Force only code/image/autolink container policies through descendants.
+    // The second flag records whether this start was lowered to HTML, so an
+    // effective language override cannot change how its closing event is emitted.
+    let mut stack = Vec::<(bool, bool)>::new();
+    let mut out = Vec::new();
+    let mut raw_emphasis_depth = 0usize;
+    for (i, event) in events.iter().enumerate() {
+        match event {
+            Event::Start(tag) => {
+                let forced = stack.last().is_some_and(|f| f.0)
+                    || matches!(tag, Tag::CodeBlock(_) | Tag::Image { .. })
+                    || untouched_autolinks.contains(&i);
+                let preserve = forced || preserved[i];
+                let markup = match tag {
+                    Tag::Emphasis => Some("<em>"),
+                    Tag::Strong => Some("<strong>"),
+                    Tag::Strikethrough => Some("<del>"),
+                    _ => None,
+                };
+                stack.push((forced, !preserve && markup.is_some()));
+                if !preserve && let Some(markup) = markup {
+                    raw_emphasis_depth += 1;
+                    out.push(Event::InlineHtml(markup.into()));
+                } else {
+                    out.push(event.clone());
+                }
+            }
+            Event::End(tag) => {
+                let lowered = stack.pop().is_some_and(|f| f.1);
+                let markup = match tag {
+                    TagEnd::Emphasis => Some("</em>"),
+                    TagEnd::Strong => Some("</strong>"),
+                    TagEnd::Strikethrough => Some("</del>"),
+                    _ => None,
+                };
+                if lowered && let Some(markup) = markup {
+                    raw_emphasis_depth -= 1;
+                    out.push(Event::InlineHtml(markup.into()));
+                } else {
+                    out.push(event.clone());
+                }
+            }
+            Event::HardBreak
+                if raw_emphasis_depth > 0
+                    && !stack.last().is_some_and(|f| f.0)
+                    && !preserved[i] =>
+            {
+                // Keep an opening emphasis tag from being the only tag before
+                // a line break, which would start a CommonMark HTML block.
+                // A real SoftBreak event lets the serializer indent list lines.
+                out.push(Event::InlineHtml("<br />".into()));
+                out.push(Event::SoftBreak);
+            }
+            Event::Text(text) if !stack.last().is_some_and(|f| f.0) && !preserved[i] => {
+                let before_softbreak = events[i + 1..]
+                    .iter()
+                    .find(|e| !matches!(e, Event::End(_)))
+                    .is_some_and(|e| matches!(e, Event::SoftBreak));
+                let trailing = text.len() - text.trim_end_matches(' ').len();
+                let mut plain = String::new();
+                for (offset, c) in text.char_indices() {
+                    if c.is_ascii_punctuation()
+                        || matches!(c, '\r' | '\n')
+                        || (c == ' ' && before_softbreak && offset >= text.len() - trailing)
+                    {
+                        if !plain.is_empty() {
+                            out.push(Event::Text(std::mem::take(&mut plain).into()));
+                        }
+                        out.push(Event::InlineHtml(format!("&#{};", c as u32).into()));
+                    } else {
+                        plain.push(c)
+                    }
+                }
+                if !plain.is_empty() {
+                    out.push(Event::Text(plain.into()));
+                }
+            }
+            _ => out.push(event.clone()),
+        }
+    }
+    out
 }
 
 /// Writes rendered Markdown tokens to a [`fmt::Write`] sink.

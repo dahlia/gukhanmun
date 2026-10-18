@@ -53,6 +53,25 @@ cargo run -p gukhanmun-unihan -- \
 The download is cached next to the output path between runs.
 
 
+Punctuation data
+----------------
+
+`mise run generate-unihan` also regenerates the Unicode 17.0 punctuation and
+symbol category ranges from the vendored *data/punctuation-categories.tsv*
+projection. Its comments record the original UnicodeData URL and SHA-256.
+
+`mise run generate-html-entities` regenerates the HTML text reference table
+from *data/html-entities.json*, the WHATWG snapshot retrieved on 2026-10-18.
+The generator verifies its pinned SHA-256 before reading it. This operation is
+offline; `mise run generate-html-entities-check` checks reproducibility.
+
+Upstream data and licensing: [Unicode data]
+and [WHATWG HTML].
+
+[Unicode data]: https://www.unicode.org/license.txt
+[WHATWG HTML]: https://html.spec.whatwg.org/multipage/acknowledgements.html#licensing
+
+
 License
 -------
 

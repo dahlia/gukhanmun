@@ -25,6 +25,10 @@ To be released.
     in rendered output independently of the rendering mode.  A separately
     selected variant set remains in effect when the rendering mode changes,
     while complete `RenderOptions` replace both settings.  [[#11], [#12]]
+ -  Added `Builder::punctuation()` with `preserve`, `modern`, `traditional`,
+    and `traditional-vertical` output profiles and custom role styles. The
+    default preserves punctuation across plain text, HTML, and Markdown.
+    [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로/로` and combinations such as `으로는`. Conversion
     keeps the source particle and falls back to the dictionary default when
@@ -61,6 +65,8 @@ To be released.
 [#24]: https://github.com/dahlia/gukhanmun/pull/24
 [#25]: https://github.com/dahlia/gukhanmun/pull/25
 [#26]: https://github.com/dahlia/gukhanmun/pull/26
+[#27]: https://github.com/dahlia/gukhanmun/issues/27
+[#28]: https://github.com/dahlia/gukhanmun/pull/28
 
 ### gukhanmun-cdb
 
@@ -82,6 +88,8 @@ To be released.
     stable release series that ships the dictionary, with a separate PR keeping
     *main* current. Before the dictionary's first stable release, updates target
     *main* only. [[#18], [#26]]
+ -  Added `--punctuation` and `--punctuation-profile` to normalize punctuation
+    with a built-in profile or custom JSON configuration.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로/로` and combinations such as `으로는`. Conversion
     keeps the source particle and falls back to the dictionary default when
@@ -125,6 +133,9 @@ To be released.
     dictionary match and the source hanja for a fallback annotation, so
     rendering and policy middlewares use the same lexical identity.
     [[#11], [#12]]
+ -  Added opt-in output punctuation profiles, including custom marks and
+    contextual spacing, through `PunctuationProfile` and the post-annotation
+    `PunctuationNormalizer`.  [[#27], [#28]]
 
 ### gukhanmun-dict-extract
 
@@ -149,6 +160,10 @@ To be released.
 
 ### gukhanmun-html
 
+ -  Added `HtmlPunctuationTextCodec` for punctuation normalization across
+    literal and HTML character reference spellings, with original spelling
+    retained for untouched references. Opt-in reader options protect unmatched
+    end tags.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로/로` and combinations such as `으로는`. Conversion
     keeps the source particle and falls back to the dictionary default when
@@ -167,6 +182,9 @@ To be released.
 
 ### gukhanmun-markdown
 
+ -  Added `MarkdownWriteOptions` and `write_markdown_with_options()` to
+    preserve Markdown structure when punctuation normalization changes text.
+    [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
     particle, including `으로/로` and combinations such as `으로는`. Conversion
     keeps the source particle and falls back to the dictionary default when
@@ -190,6 +208,9 @@ To be released.
     stay authoritative. [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
+ -  Added the `punctuationJson` option and `punctuationProfileJson()` resolved
+    view for output punctuation profiles, including custom role styles.
+    [[#27], [#28]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
@@ -220,6 +241,9 @@ To be released.
     stay authoritative. [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
+ -  Added the `punctuationJson` option and `punctuation_profile_json()`
+    resolved view for output punctuation profiles, including custom role
+    styles.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
@@ -253,6 +277,9 @@ To be released.
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
     spelling emitted by the Node-API binding.  [[#11], [#12]]
+ -  Added the `punctuation` option for built-in and custom output profiles,
+    including HTML character references. Resolved styles are available as a
+    copied, deeply frozen `options.punctuation` view.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]
@@ -287,6 +314,9 @@ To be released.
 
 ### @gukhanmun/types
 
+ -  Added punctuation profile types and `GukhanmunOptions.punctuation`, with a
+    resolved profile available through `Gukhanmun.options.punctuation`.
+    [[#27], [#28]]
  -  Added the `HanjaVariantSet` type and the `hanjaVariantSet` field on
     `GukhanmunOptions` for the shared JavaScript API.  [[#11], [#12]]
 
@@ -301,6 +331,9 @@ To be released.
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
     spelling emitted by the WebAssembly binding.  [[#11], [#12]]
+ -  Added the `punctuation` option for built-in and custom output profiles,
+    including HTML character references. Resolved styles are available as a
+    copied, deeply frozen `options.punctuation` view.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]
