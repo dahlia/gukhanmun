@@ -45,6 +45,7 @@ use gukhanmun::{
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct JsOptions {
+    punctuation_json: Option<String>,
     preset: Option<String>,
     rendering: Option<String>,
     original_gloss: Option<String>,
@@ -158,6 +159,14 @@ impl NapiGukhanmun {
 
         let preset = parse_preset(opts.preset.as_deref().unwrap_or("ko-kr"))?;
         let mut builder = Builder::with_preset(preset).no_bundled_dictionaries();
+        if let Some(json) = opts.punctuation_json.as_deref() {
+            let config: gukhanmun::PunctuationConfig = serde_json::from_str(json)
+                .map_err(|e| napi_err("invalid-input", &e.to_string()))?;
+            let profile = config
+                .resolve()
+                .map_err(|e| napi_err("invalid-input", &e.to_string()))?;
+            builder = builder.punctuation(profile);
+        }
 
         if let Some(r) = &opts.rendering {
             let mode = parse_render_mode(r, opts.original_gloss.as_deref())?;
@@ -256,6 +265,13 @@ impl NapiGukhanmun {
         let converter = builder.build().map_err(|e| map_gukhanmun_error(&e))?;
 
         Ok(NapiGukhanmun { converter })
+    }
+
+    /// Returns the resolved punctuation profile for the public immutable view.
+    #[napi]
+    pub fn punctuation_profile_json(&self) -> String {
+        serde_json::to_string(&self.converter.options().punctuation)
+            .expect("a validated punctuation profile is JSON serializable")
     }
 
     /// Converts `source` in one shot.

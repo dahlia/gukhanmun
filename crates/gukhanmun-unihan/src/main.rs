@@ -60,6 +60,10 @@ const LICENSE_HEADER: &str = "\
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn main() -> Result<()> {
+    if env::args().any(|arg| arg == "--html-entities") {
+        return generate_punctuation_data(true);
+    }
+    generate_punctuation_data(false)?;
     let check = env::args().skip(1).any(|arg| arg == "--check");
     let workspace_root = workspace_root()?;
     let zip_path = unihan_zip_path(&workspace_root);
@@ -659,6 +663,90 @@ fn escape_rust_string(s: &str) -> String {
         }
     }
     escaped
+}
+
+// Both snapshots are vendored, so these generators are offline and reproducible.
+fn generate_punctuation_data(entities: bool) -> Result<()> {
+    let root = workspace_root()?;
+    let check = env::args().any(|arg| arg == "--check");
+    let (path, body) = if entities {
+        let bytes = fs::read(root.join("data/html-entities.json"))?;
+        let actual = format!("{:x}", Sha256::digest(&bytes));
+        if actual != "d741d877ac77c4194c4ad526b5b4a19aef8dfe411ab840a466891cdbb9f362e6" {
+            return Err("HTML entities snapshot checksum mismatch".into());
+        }
+        let table: BTreeMap<String, serde_json::Value> = serde_json::from_slice(&bytes)?;
+        let mut body = String::from(
+            "// WHATWG entities.json, retrieved 2026-10-18.\n// https://html.spec.whatwg.org/entities.json\npub(crate) const ENTITIES: &[(&str, &str)] = &[\n",
+        );
+        let max_name_len = table
+            .keys()
+            .map(|name| name.len() - 1)
+            .max()
+            .unwrap_or_default();
+        for (name, value) in table {
+            writeln!(
+                body,
+                "    ({:?}, {:?}),",
+                name.trim_start_matches('&'),
+                value["characters"].as_str().ok_or("missing characters")?
+            )?;
+        }
+        body.push_str("];\n");
+        writeln!(
+            body,
+            "pub(crate) const MAX_NAME_LEN: usize = {max_name_len};"
+        )?;
+        ("crates/gukhanmun-html/src/entities.rs", body)
+    } else {
+        let input = fs::read_to_string(root.join("data/punctuation-categories.tsv"))?;
+        let mut body = String::from(
+            "// Unicode 17.0.0 general categories (P/S/M/Cf).\npub(crate) const CATEGORIES: &[(u32,u32,&str)] = &[\n",
+        );
+        for line in input
+            .lines()
+            .filter(|s| !s.starts_with('#') && !s.is_empty())
+        {
+            let fields: Vec<_> = line.split('\t').collect();
+            writeln!(
+                body,
+                "    (0x{},0x{},{:?}),",
+                fields[0], fields[1], fields[2]
+            )?;
+        }
+        body.push_str("];\n");
+        body.push_str("pub(crate) const LATIN_LETTERS: &[(u32,u32)] = &[\n");
+        let input = fs::read_to_string(root.join("data/punctuation-latin.tsv"))?;
+        for line in input
+            .lines()
+            .filter(|s| !s.starts_with('#') && !s.is_empty())
+        {
+            let fields: Vec<_> = line.split('\t').collect();
+            writeln!(body, "    (0x{},0x{}),", fields[0], fields[1])?;
+        }
+        body.push_str("];\n");
+        ("crates/gukhanmun-core/src/punctuation_categories.rs", body)
+    };
+    let description = if entities {
+        "Generated WHATWG HTML character reference table."
+    } else {
+        "Generated Unicode punctuation context categories and Latin letters."
+    };
+    let header = LICENSE_HEADER.replacen(
+        "Generated Unihan kHangul fallback reading tables.",
+        description,
+        1,
+    );
+    let generated = format_rust_source(&format!("{header}\n{body}"))?;
+    let path = root.join(path);
+    if check {
+        if fs::read_to_string(&path)? != generated {
+            return Err(format!("{} is stale", path.display()).into());
+        }
+    } else {
+        fs::write(path, generated)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

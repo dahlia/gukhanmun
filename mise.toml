@@ -587,3 +587,23 @@ run = "deno test -A scripts/loanwords/update_test.ts scripts/loanwords/publish_t
 description = "Build a synthetic user override for cross-runtime loanword tests"
 depends = ["rust-init"]
 run = "cargo run --locked --release -p gukhanmun-mkdict -- --format fst --output target/loanword-user.gukfst tests/fixtures/loanwords/user.tsv"
+
+[tasks.generate-html-entities]
+description = "Regenerate HTML character reference table from the vendored snapshot"
+depends = ["rust-init"]
+run = "cargo run -p gukhanmun-unihan -- --html-entities"
+
+[tasks.generate-html-entities-check]
+description = "Check the offline HTML character reference table"
+depends = ["rust-init"]
+run = "cargo run -p gukhanmun-unihan -- --html-entities --check"
+
+[tasks.test-punctuation]
+description = "Run punctuation properties, format regressions, fixtures, and CLI coverage"
+depends = ["rust-init"]
+run = [
+  "cargo test -p gukhanmun-core --test properties punctuation",
+  "cargo test -p gukhanmun --test punctuation",
+  "cargo test -p gukhanmun --test fixtures punctuation",
+  "cargo test -p gukhanmun-cli --test cli punctuation",
+]

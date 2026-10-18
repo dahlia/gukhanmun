@@ -94,6 +94,9 @@ pub struct Fixture {
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Sidecar {
+    /// Output punctuation config using the shared CLI/binding schema.
+    #[serde(default)]
+    pub punctuation: Option<gukhanmun_core::PunctuationConfig>,
     /// Human-readable description; ignored by the runner but useful when the
     /// fixture diverges from a Seonbi original or otherwise needs context.
     #[serde(default)]
@@ -520,6 +523,9 @@ pub fn run_fixture(fixture: &Fixture) -> RunResult {
         Some(preset) => Builder::with_preset(preset.into_preset()),
         None => Builder::new(),
     };
+    if let Some(config) = sidecar.and_then(|s| s.punctuation.as_ref()) {
+        builder = builder.punctuation(config.resolve().map_err(|e| e.to_string())?);
+    }
     let use_bundled = sidecar.and_then(|s| s.use_bundled_stdict).unwrap_or(false);
     if !use_bundled {
         builder = builder.no_bundled_dictionaries();

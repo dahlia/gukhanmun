@@ -1603,3 +1603,190 @@ fn loanwords_are_explicit_and_conflict_with_disabling_all_bundled_data() {
         .success()
         .stdout(predicate::str::contains("홍콩").not());
 }
+
+#[test]
+fn punctuation_profiles_across_cli_formats() {
+    for (format, input, expected) in [
+        ("text/plain", "가、나。", "가, 나."),
+        ("text/html", "<p>가&#12290;나</p>", "<p>가. 나</p>"),
+        ("text/html", "가。 <form>나</form>", "가.<form>나</form>"),
+    ] {
+        Command::cargo_bin("gukhanmun")
+            .unwrap()
+            .args([
+                "--format",
+                format,
+                "--punctuation",
+                "modern",
+                "--disambiguation",
+                "off",
+            ])
+            .write_stdin(input)
+            .assert()
+            .success()
+            .stdout(expected);
+    }
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--punctuation", "traditional"])
+        .write_stdin("가, 나. 〈다〉")
+        .assert()
+        .success()
+        .stdout("가、나。「다」");
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("punctuation.json");
+    std::fs::write(&path, r#"{"base":"modern","period":null}"#).unwrap();
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .arg("--punctuation-profile")
+        .arg(&path)
+        .write_stdin("가、나。 다")
+        .assert()
+        .success()
+        .stdout("가, 나。 다");
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--punctuation", "modern", "--punctuation-profile"])
+        .arg(path)
+        .assert()
+        .failure();
+}
+
+#[test]
+fn punctuation_survives_cli_chunks_and_markdown_formatting() {
+    let prefix = "가".repeat(2730);
+    let input = format!("{prefix}。 다음、 끝");
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--punctuation", "modern", "--disambiguation", "off"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .stdout(format!("{prefix}. 다음, 끝"));
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown", "--punctuation", "traditional"])
+        .write_stdin("*끝。* 다음\n")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("<em>끝。</em>다음"));
+}
+
+#[test]
+fn punctuation_markdown_hard_break_inside_emphasis_survives_hongdown() {
+    let output = Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown", "--punctuation", "modern"])
+        .write_stdin("**\\\n끝** 다음")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.starts_with("<strong><br"), "{text}");
+    assert!(text.contains("끝</strong> 다음"), "{text}");
+}
+
+#[test]
+fn punctuation_markdown_preserves_inline_raw_text_through_hongdown() {
+    for source in [
+        "앞 <script>alert(1);</script> 뒤",
+        "앞 <style>.x { color: red; }</style> 뒤",
+    ] {
+        let output = Command::cargo_bin("gukhanmun")
+            .unwrap()
+            .args(["--format", "text/markdown", "--punctuation", "modern"])
+            .write_stdin(source)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), source);
+    }
+}
+
+#[test]
+fn punctuation_markdown_entity_line_endings_survive_hongdown() {
+    let output = Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown", "--punctuation", "modern"])
+        .write_stdin("**&#10;[글](dest)** 다음")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        text.contains("<strong>&#10;[글](dest)</strong> 다음"),
+        "{text}"
+    );
+}
+
+#[test]
+fn punctuation_headings_keep_inline_structure_through_hongdown() {
+    fn html(source: &str) -> String {
+        let mut html = String::new();
+        pulldown_cmark::html::push_html(
+            &mut html,
+            pulldown_cmark::Parser::new_ext(source, pulldown_cmark::Options::ENABLE_STRIKETHROUGH),
+        );
+        html
+    }
+    for (profile, source, expected) in [
+        ("modern", "# *가。* 다음", "# <em>가.</em> 다음"),
+        ("traditional", "# *가。* 다음", "# <em>가。</em>다음"),
+        ("modern", "# **가。** 다음", "# <strong>가.</strong> 다음"),
+        (
+            "traditional",
+            "# **가。** 다음",
+            "# <strong>가。</strong>다음",
+        ),
+        ("modern", "# ~~가。~~ 다음", "# <del>가.</del> 다음"),
+        (
+            "traditional",
+            "# [*가。*](d) 다음",
+            "# [<em>가。</em>](d)다음",
+        ),
+        (
+            "modern",
+            "# \u{e000} *가。* 다음",
+            "# \u{e000} <em>가.</em> 다음",
+        ),
+    ] {
+        let output = Command::cargo_bin("gukhanmun")
+            .unwrap()
+            .args([
+                "--format",
+                "text/markdown; variant=GFM",
+                "--punctuation",
+                profile,
+            ])
+            .write_stdin(source)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(html(&text), html(expected), "{source}: {text}");
+    }
+}
+#[test]
+fn punctuation_heading_protection_keeps_document_reference_context() {
+    let input = "앞 [링크][target]\n\n# *가。* 다음\n\n뒤 [링크][target]\n\n[target]: https://example.com\n";
+    let output = Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", "text/markdown", "--punctuation", "traditional"])
+        .write_stdin(input)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    let mut html = String::new();
+    pulldown_cmark::html::push_html(&mut html, pulldown_cmark::Parser::new(&text));
+    assert!(html.contains("<h1><em>가。</em>다음</h1>"), "{text}");
+    assert_eq!(
+        html.matches("href=\"https://example.com\"").count(),
+        2,
+        "{text}"
+    );
+}

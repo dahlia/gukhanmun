@@ -9,6 +9,7 @@ repository.workspace = true
 description = "Generates gukhanmun-core fallback readings from Unicode Unihan data."
 
 [dependencies]
+serde_json = "1.0.150"
 sha2 = "0.10.9"
 zip = { version = "6.0.0", default-features = false, features = ["deflate"] }
 

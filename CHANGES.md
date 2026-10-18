@@ -25,16 +25,23 @@ To be released.
     in rendered output independently of the rendering mode.  A separately
     selected variant set remains in effect when the rendering mode changes,
     while complete `RenderOptions` replace both settings.  [[#11], [#12]]
+ -  Added `Builder::punctuation()` with `preserve`, `modern`, `traditional`,
+    and `traditional-vertical` output profiles and custom role styles. The
+    default preserves punctuation across plain text, HTML, and Markdown.
+    Technical guards include Unicode Latin letters, and contextual spaces do
+    not detach combining marks or format controls.  HTML block, list, and table
+    elements trim contextual spaces without changing annotation windows.
+    [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Changed `Engine` streaming boundaries: a sole non-block root `Close` with
     pending text is emitted at the next token, `flush()`, or `finish()`.
     `finish()` supplies EOF evidence while `flush()` stays conservative;
     particle lookahead retains four extra source scalars beyond the dictionary
-    tail allowance. [[#20], [#25]]
+    tail allowance.  [[#20], [#25]]
  -  Added candidate-aware dictionary APIs and deterministic default reading
     selection while preserving existing bundled defaults. Higher-priority
     dictionaries replace all readings for a key.  [[#19], [#22]]
@@ -61,6 +68,8 @@ To be released.
 [#24]: https://github.com/dahlia/gukhanmun/pull/24
 [#25]: https://github.com/dahlia/gukhanmun/pull/25
 [#26]: https://github.com/dahlia/gukhanmun/pull/26
+[#27]: https://github.com/dahlia/gukhanmun/issues/27
+[#28]: https://github.com/dahlia/gukhanmun/pull/28
 
 ### gukhanmun-cdb
 
@@ -82,11 +91,16 @@ To be released.
     stable release series that ships the dictionary, with a separate PR keeping
     *main* current. Before the dictionary's first stable release, updates target
     *main* only. [[#18], [#26]]
+ -  Added `--punctuation` and `--punctuation-profile` to normalize punctuation
+    with a built-in profile or custom JSON configuration.  Technical guards
+    include Unicode Latin letters, and contextual spaces do not detach
+    combining marks or format controls.  HTML block, list, and table elements
+    trim contextual spaces without changing annotation windows.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
@@ -104,15 +118,15 @@ To be released.
  -  Dictionary-wide homophone marking indexes only selected candidates and
     includes their suffix readings.  [[#19], [#22]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Changed `Engine` streaming boundaries: a sole non-block root `Close` with
     pending text is emitted at the next token, `flush()`, or `finish()`.
     `finish()` supplies EOF evidence while `flush()` stays conservative;
     particle lookahead retains four extra source scalars beyond the dictionary
-    tail allowance. [[#20], [#25]]
+    tail allowance.  [[#20], [#25]]
  -  Added dictionary-guided recognition of Unicode z-variants,
     traditional/simplified forms, CJK compatibility ideographs, Joyo kanji
     old/new forms, and Asahi variants.  Ambiguous variant relations are
@@ -125,6 +139,11 @@ To be released.
     dictionary match and the source hanja for a fallback annotation, so
     rendering and policy middlewares use the same lexical identity.
     [[#11], [#12]]
+ -  Added opt-in output punctuation profiles, including custom marks and
+    contextual spacing, through `PunctuationProfile` and the post-annotation
+    `PunctuationNormalizer`.  Technical guards include Unicode Latin letters,
+    and contextual spaces do not detach combining marks or format controls.
+    [[#27], [#28]]
 
 ### gukhanmun-dict-extract
 
@@ -149,11 +168,16 @@ To be released.
 
 ### gukhanmun-html
 
+ -  Added `HtmlPunctuationTextCodec` for punctuation normalization across
+    literal and HTML character reference spellings, with original spelling
+    retained for untouched references. Opt-in reader options protect unmatched
+    end tags.  HTML block, list, and table elements trim contextual spaces
+    without changing annotation windows.  [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
 
 ### gukhanmun-loanwords
 
@@ -167,11 +191,14 @@ To be released.
 
 ### gukhanmun-markdown
 
+ -  Added `MarkdownWriteOptions` and `write_markdown_with_options()` to
+    preserve Markdown structure when punctuation normalization changes text.
+    [[#27], [#28]]
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
 
 ### gukhanmun-mkdict
 
@@ -184,12 +211,18 @@ To be released.
 ### gukhanmun-napi
 
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
+ -  Added the `punctuationJson` option and `punctuationProfileJson()` resolved
+    view for output punctuation profiles, including custom role styles.
+    Technical guards include Unicode Latin letters, and contextual spaces do
+    not detach combining marks or format controls.  HTML block, list, and table
+    elements trim contextual spaces without changing annotation windows.
+    [[#27], [#28]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
@@ -214,12 +247,18 @@ To be released.
 ### gukhanmun-wasm
 
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
+ -  Added the `punctuationJson` option and `punctuation_profile_json()`
+    resolved view for output punctuation profiles, including custom role
+    styles.  Technical guards include Unicode Latin letters, and contextual
+    spaces do not detach combining marks or format controls.  HTML block, list,
+    and table elements trim contextual spaces without changing annotation
+    windows.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB dictionaries without changing the JavaScript
     options, and include selected suffixes in dictionary-wide homophone marking.
     [[#19], [#22]]
@@ -245,14 +284,20 @@ To be released.
 ### @gukhanmun/napi
 
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
     spelling emitted by the Node-API binding.  [[#11], [#12]]
+ -  Added the `punctuation` option for built-in and custom output profiles,
+    including HTML character references. Resolved styles are available as a
+    copied, deeply frozen `options.punctuation` view.  Technical guards include
+    Unicode Latin letters, and contextual spaces do not detach combining marks
+    or format controls.  HTML block, list, and table elements trim contextual
+    spaces without changing annotation windows.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]
@@ -287,20 +332,29 @@ To be released.
 
 ### @gukhanmun/types
 
+ -  Added punctuation profile types and `GukhanmunOptions.punctuation`, with a
+    resolved profile available through `Gukhanmun.options.punctuation`.
+    [[#27], [#28]]
  -  Added the `HanjaVariantSet` type and the `hanjaVariantSet` field on
     `GukhanmunOptions` for the shared JavaScript API.  [[#11], [#12]]
 
 ### @gukhanmun/wasm
 
  -  Added automatic reading selection from a fully delimited following Korean
-    particle, including `으로/로` and combinations such as `으로는`. Conversion
-    keeps the source particle and falls back to the dictionary default when
-    evidence is uncertain or no reading fits; explicit dictionary overrides
-    stay authoritative. [[#20], [#25]]
+    particle, including `으로`/`로` and combinations such as `으로는`.
+    Conversion keeps the source particle and falls back to the dictionary
+    default when evidence is uncertain or no reading fits; explicit dictionary
+    overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `hanjaVariantSet` converter option for selecting the hanja
     spelling emitted by the WebAssembly binding.  [[#11], [#12]]
+ -  Added the `punctuation` option for built-in and custom output profiles,
+    including HTML character references. Resolved styles are available as a
+    copied, deeply frozen `options.punctuation` view.  Technical guards include
+    Unicode Latin letters, and contextual spaces do not detach combining marks
+    or format controls.  HTML block, list, and table elements trim contextual
+    spaces without changing annotation windows.  [[#27], [#28]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]

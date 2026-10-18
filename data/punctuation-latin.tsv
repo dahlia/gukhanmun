@@ -1,0 +1,41 @@
+# Unicode 17.0.0 Latin-script letters (Script=Latin and General_Category=L*)
+# Sources: https://www.unicode.org/Public/17.0.0/ucd/Scripts.txt
+#          https://www.unicode.org/Public/17.0.0/ucd/UnicodeData.txt
+# Scripts.txt SHA-256: 9f5e50d3abaee7d6ce09480f325c706f485ae3240912527e651954d2d6b035bf
+# UnicodeData.txt SHA-256: 2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c
+41	5A
+61	7A
+AA	AA
+BA	BA
+C0	D6
+D8	F6
+F8	2B8
+2E0	2E4
+1D00	1D25
+1D2C	1D5C
+1D62	1D65
+1D6B	1D77
+1D79	1DBE
+1E00	1EFF
+2071	2071
+207F	207F
+2090	209C
+212A	212B
+2132	2132
+214E	214E
+2183	2184
+2C60	2C7F
+A722	A787
+A78B	A7DC
+A7F1	A7FF
+AB30	AB5A
+AB5C	AB64
+AB66	AB69
+FB00	FB06
+FF21	FF3A
+FF41	FF5A
+10780	10785
+10787	107B0
+107B2	107BA
+1DF00	1DF1E
+1DF25	1DF2A

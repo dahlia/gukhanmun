@@ -108,6 +108,15 @@ pub use gukhanmun_core::{
     select_default_reading, write_plain_text,
 };
 
+#[cfg(feature = "serde")]
+pub use gukhanmun_core::{CustomPunctuationProfile, PunctuationConfig};
+pub use gukhanmun_core::{
+    DelimiterStyle, LiteralTextCodec, PunctuationBoundary, PunctuationConfigError, PunctuationIter,
+    PunctuationNormalizer, PunctuationProfile, PunctuationTextCodec, PunctuationTextUnit,
+    SpaceAfter, StopStyle, normalize_punctuation, normalize_punctuation_iter,
+    normalize_punctuation_iter_with_codec,
+};
+
 /// HTML adapter (re-export of [`gukhanmun_html`]).
 #[cfg(feature = "html")]
 pub mod html {

@@ -50,11 +50,14 @@ import type {
   Preset,
   Recovery,
   RenderMode,
+  ResolvedPunctuationProfile,
   Segmentation,
 } from "@gukhanmun/types";
 
 export type {
   ContextWindow,
+  CustomPunctuationProfile,
+  DelimiterStyle,
   DictionaryEntry,
   DictionarySource,
   Directives,
@@ -70,15 +73,20 @@ export type {
   NumeralStrategy,
   OriginalGloss,
   Preset,
+  PunctuationPreset,
   Recovery,
   RenderMode,
+  ResolvedPunctuationProfile,
   Segmentation,
+  SpaceAfter,
+  StopStyle,
 } from "@gukhanmun/types";
 
 // ── Internal types matching wasm-bindgen exports ─────────────────────────────
 
 /** Low-level handle returned by `new WasmGukhanmun(...)`. */
 interface WasmHandleInternal {
+  punctuation_profile_json(): string;
   /** One-shot convert. */
   convert(source: string, format: unknown): string;
   /** Opens a streaming handle. */
@@ -325,6 +333,7 @@ async function resolveDictionary(
 
 /** Resolved default options stored on the `Gukhanmun` instance. */
 interface ResolvedOptions {
+  readonly punctuation: ResolvedPunctuationProfile;
   readonly preset: Preset;
   readonly rendering: RenderMode;
   readonly hanjaVariantSet: HanjaVariantSet;
@@ -426,6 +435,7 @@ function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
   const preset = opts.preset ?? "ko-kr";
   const koKp = preset === "ko-kp";
   return {
+    punctuation: { comma: null, period: null, single: null, double: null },
     preset,
     rendering: opts.rendering ?? "hangul-only",
     hanjaVariantSet: opts.hanjaVariantSet ?? "as-dictionary",
@@ -476,7 +486,10 @@ export async function load(options: GukhanmunOptions = {}): Promise<Gukhanmun> {
     throw liftError(e);
   }
 
-  return new GukhanmunImpl(handle, resolved);
+  const punctuation = JSON.parse(handle.punctuation_profile_json()) as ResolvedPunctuationProfile;
+  for (const style of Object.values(punctuation)) if (style != null) Object.freeze(style);
+  Object.freeze(punctuation);
+  return new GukhanmunImpl(handle, { ...resolved, punctuation });
 }
 
 // ── Options serialisation ────────────────────────────────────────────────────
@@ -487,6 +500,7 @@ function buildRawOptions(
   resolved: ResolvedOptions,
 ): Record<string, unknown> {
   const raw: Record<string, unknown> = {
+    punctuationJson: punctuationJson(opts.punctuation),
     preset: resolved.preset,
     rendering: resolved.rendering,
     hanjaVariantSet: resolved.hanjaVariantSet,
@@ -516,4 +530,24 @@ function buildRawOptions(
     };
   }
   return raw;
+}
+
+/** Reject ill-formed UTF-16 before a native boundary could replace surrogates. */
+function punctuationJson(value: GukhanmunOptions["punctuation"]): string {
+  try {
+    return JSON.stringify(value === undefined ? "preserve" : value, (_key, v: unknown) => {
+      if (
+        typeof v === "string" && Array.from(v).some((c) => {
+          const code = c.codePointAt(0)!;
+          return code >= 0xd800 && code <= 0xdfff;
+        })
+      ) throw new Error("Punctuation strings must contain Unicode scalars");
+      return v;
+    });
+  } catch (error) {
+    throw new GukhanmunError(
+      "invalid-input",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 }

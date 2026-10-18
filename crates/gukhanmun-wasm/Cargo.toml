@@ -12,9 +12,11 @@ description = "WebAssembly binding for Gukhanmun via wasm-bindgen."
 crate-type = ["cdylib"]
 
 [dependencies]
-gukhanmun = { workspace = true, features = ["html", "fst", "cdb", "markdown"] }
+gukhanmun = { workspace = true, features = ["serde", "html", "fst", "cdb", "markdown"] }
 js-sys = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 tracing = { version = "0.1", features = ["release_max_level_off"] }
 wasm-bindgen = "0.2"
+
+serde_json = "1.0.150"

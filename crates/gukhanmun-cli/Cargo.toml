@@ -17,9 +17,10 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
+pulldown-cmark = { version = "0.13.3", default-features = false }
 anyhow = "1.0.102"
 clap = { version = "4.6.1", features = ["derive"] }
-gukhanmun = { workspace = true, features = ["html", "markdown", "stdict", "opendict", "loanwords", "fst", "cdb"] }
+gukhanmun = { workspace = true, features = ["serde", "html", "markdown", "stdict", "opendict", "loanwords", "fst", "cdb"] }
 hongdown = "0.3.11"
 jsonpath-rust = "1.0.4"
 noyalib = "0.0.5"
@@ -28,6 +29,7 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 [dev-dependencies]
+pulldown-cmark = { version = "0.13.3", default-features = false, features = ["html"] }
 assert_cmd = "2.2.2"
 gukhanmun-mkdict.workspace = true
 predicates = "3.1.3"

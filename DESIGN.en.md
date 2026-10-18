@@ -31,14 +31,15 @@ derived from the South Korean *Standard Korean Language Dictionary*
 (標準國語大辭典). It is usable from Rust, from Node.js via [Node-API], from
 browsers and Deno via WebAssembly, and from a command line.
 
-The library deliberately does not provide broader Korean typographic
-adjustments such as smart quotes, dashes, ellipses, or citation marks; those
-remain Seonbi's job. It does not provide a fully HTML5-conformant parser; the
-HTML scanner is fragment-oriented and recovers from minor malformations but is
-not a substitute for html5ever. It does not roundtrip Markdown byte-for-byte;
-semantic preservation is the contract, and original-form preservation is best
-effort. It does not translate between languages or transliterate beyond the
-hanja-to-hangul mapping.
+The library provides opt-in output profiles for commas, periods, and explicit
+citation delimiters. The default preserves punctuation. Broader typographic
+adjustments such as inferring quotes from ASCII substitutes, dashes, and
+ellipses remain Seonbi's job. It does not provide a fully HTML5-conformant
+parser; the HTML scanner is fragment-oriented and recovers from minor
+malformations but is not a substitute for html5ever. It does not roundtrip
+Markdown byte-for-byte; semantic preservation is the contract, and
+original-form preservation is best effort. It does not translate between
+languages or transliterate beyond the hanja-to-hangul mapping.
 
 [Node-API]: https://nodejs.org/api/n-api.html
 
@@ -102,9 +103,10 @@ A reader parses bytes into a stream of input tokens. The engine reads input
 tokens and emits output tokens, with the difference that output tokens may
 include *annotation* tokens carrying both an original hanja form and its hangul
 reading. Middlewares walk the output stream and adjust the flags on those
-annotations. The renderer expands each annotation into concrete text or markup
-according to the flags and the chosen rendering mode. The writer serializes the
-final stream into the output format.
+annotations. The optional punctuation middleware then normalizes ordinary text
+without changing annotation payloads. The renderer expands each annotation into
+concrete text or markup according to the flags and the chosen rendering mode.
+The writer serializes the final stream into the output format.
 
 ### Intermediate representation
 
@@ -183,6 +185,15 @@ pub trait ScopeData: Clone + 'static {
 
     /// Does this scope mark a boundary at which per-block middlewares reset?
     fn is_block_boundary(&self) -> bool { false }
+
+    /// How may punctuation and space lookahead interact with this scope?
+    fn punctuation_boundary(&self) -> PunctuationBoundary {
+        if self.is_block_boundary() {
+            PunctuationBoundary::Block
+        } else {
+            PunctuationBoundary::Opaque
+        }
+    }
 }
 ~~~~
 
@@ -555,14 +566,14 @@ the runtime binary.
 
 After resolving a complete key and its candidate set, the engine chooses the
 first candidate compatible with an immediately following Korean particle.
-`을/를`, `은/는`, `이/가`, and `과/와` distinguish consonant and vowel endings;
-`으로/로` also handles the rieul exception. The finite grammar additionally
-accepts `으로는`, `으로도`, `으로만`, `로는`, `로도`, `로만`, `과는`, `과도`,
-`과만`, `와는`, `와도`, and `와만`. The source particle is never rewritten.
-The entire suffix needs a witness: whitespace, EOF, a block boundary reported
-by the reader, or one of `.,!?:;)]}。、！？，：；）】」』`. Unsupported
-combinations, copulas such as `이다`, and lexical prefixes such as `이름`
-supply no evidence.
+`을`/`를`, `은`/`는`, `이`/`가`, and `과`/`와` distinguish consonant and vowel
+endings; `으로`/`로` also handles the rieul exception. The finite grammar
+additionally accepts `으로는`, `으로도`, `으로만`, `로는`, `로도`, `로만`,
+`과는`, `과도`, `과만`, `와는`, `와도`, and `와만`. The source particle is
+never rewritten. The entire suffix needs a witness: whitespace, EOF, a block
+boundary reported by the reader, or one of `.,!?:;)]}。、！？，：；）】」』`.
+Unsupported combinations, copulas such as `이다`, and lexical prefixes such as
+`이름` supply no evidence.
 
 Endings use the final precomposed hangul syllable. Unknown endings stay
 eligible, and a custom candidate remains eligible if either its initial or
@@ -584,7 +595,7 @@ scalars for particle lookahead in its tail, never in the dictionary lookup
 bound.
 
 The following examples assume a controlled dictionary containing `東京` but no
-longer `東京이` key. The bundled dictionary has `東京이 → 동경이`, which takes
+longer `東京이` key. The bundled dictionary has `東京이` → `동경이`, which takes
 precedence and makes `東京이다` become `동경이다`.
 
 The engine does not connect particle evidence across inline tokens. Markdown
@@ -694,6 +705,58 @@ text depending on the active renderer). The rule predicate may be a literal
 string set, a glob, or an arbitrary closure for Rust callers; JavaScript
 callers expose only the literal-set form to avoid the cost of per-token
 cross-boundary calls.
+
+### Punctuation normalization
+
+Punctuation profiles describe output, independently of hanja rendering,
+character variants, and language presets. Every profile recognizes the same
+fixed input roles: comma, period, and the opening and closing members of single
+and double citation delimiters. There is no input-style detection or bracket
+repair. `preserve` bypasses normalization by default; custom profiles may leave
+individual roles unchanged. If a custom profile emits a character outside the
+recognized input alphabet, a later conversion does not recognize that character
+as the role it came from. Idempotence
+does not imply reversibility between arbitrary profiles. The punctuation guide
+in *docs/en/guide/punctuation.md* provides the profile and API reference.
+
+`PunctuationNormalizer` runs after annotation policies and before rendering. It
+rewrites only ordinary `OutputToken::Text`, leaving `Annotated` payloads and
+`Verbatim` tokens intact. This placement keeps reading selection independent of
+the output profile and prevents generated ruby, annotation parentheses, and
+readings from becoming normalization input. HTML entity decoding belongs to
+this stage too; it does not feed decoded hanja back into the engine.
+
+Space handling needs structural lookahead. Only U+0020 is normalized; other
+whitespace remains unchanged. `ScopeData::punctuation_boundary()` distinguishes
+transparent inline scopes, block boundaries, explicit line breaks, opaque
+boundaries, and punctuation-preserved subtrees. Space lookahead can cross
+transparent scopes and places a space at their common enclosing scope. Block
+and line-break boundaries trim a pending contextual space; opaque boundaries
+retain existing spaces without adding one. Unknown scopes default to opaque
+unless they already declare a block boundary. Technical guards for numbers,
+URLs, and Latin text reset at every structural or annotation boundary, even
+when space lookahead can cross it. Unicode Latin-script letters share guard
+context across combining marks. Marks and format controls are ambiguous spacing
+witnesses, so they do not cause a new space to detach a continuation from a
+stop.
+
+Preservation has two separate meanings. `is_preserve()` is the adapter's
+already-resolved answer for the current scope, so a Korean child can override
+an inherited foreign language. Middleware must not OR that flag with every
+ancestor. The punctuation-specific `Preserve` boundary instead protects an
+entire subtree, such as a Markdown image label, independently of hanja
+conversion. Adapters retain responsibility for inherited code and raw-text
+preservation. Writers must keep this effective preservation information until
+serialization, even when lowering scopes into another event representation.
+
+A single normalizer instance persists across all input batches for a document.
+Upstream stages
+must finish and drain before its `finish()` runs; an I/O flush is not EOF.
+Adjacent text chunks share context, so chunk boundaries must not change output.
+Space lookahead crosses at most 256 structural events and falls back to keeping
+existing spaces when that limit is reached. This is not a constant-memory
+promise: unfinished HTML numeric references and runs of differently spelled
+encoded spaces can still require unbounded buffering.
 
 ### Custom middlewares
 
@@ -813,6 +876,30 @@ codebase that knows what `lang` means, and the only place that knows the
 preserved-tag list. The engine receives the consequences as `is_preserve()` and
 does not reproduce either rule.
 
+Punctuation processing uses an adapter-owned `PunctuationTextCodec`: each unit
+keeps its raw source spelling and a once-decoded value for classification and
+context. Unchanged units retain their spelling. `&amp;period;` is not decoded
+twice, and `&lt;script&gt;` never becomes markup. Plain text and already-decoded
+Markdown use the literal codec. The core stays independent of HTML tables;
+WHATWG character-reference data and Unicode punctuation categories are pinned,
+vendored inputs with offline regeneration checks. Recognition follows decoded
+Unicode values rather than entity names: WHATWG `&lang;`/`&rang;` denote
+mathematical delimiters U+27E8/U+27E9, outside the citation delimiter input set,
+whereas U+2329/U+232A and their canonical equivalents U+3008/U+3009 are
+recognized.
+
+Safe output depends on adjacent source text as well as the replacement
+character. Generated HTML `;` and `#` use numeric references so they cannot
+complete a neighboring character reference. In `&notin。`, the parser recognizes
+the legacy `&not` and renders `¬in。`. Replacing `。` with a literal `;` would
+serialize as `&notin;`, rendering `∉` instead of the intended `¬in;`. Generated
+`!`, `?`, and `/` also use numeric references to avoid forming markup after a
+recovered literal `<`. Unmatched end tags need separate protection: escaping
+them as ordinary text would change existing HTML semantics. The
+punctuation-enabled facade therefore asks the reader to preserve them as
+`Verbatim`. Low-level pipelines must select both these reader options and the
+HTML codec, including for rootless fragments.
+
 ### Markdown
 
 The Markdown adapter is a thin layer over `pulldown-cmark`. Each
@@ -834,6 +921,26 @@ work of CommonMark conformance is large and well-handled by `pulldown-cmark`,
 and because the event-stream API is a near-perfect match for our IR. The
 alternative was `markdown-rs`, which is more recent and produces an AST rather
 than an event stream; we preferred event streams for the streaming property.
+
+With punctuation normalization enabled,
+`MarkdownWriteOptions::protect_text_syntax` prevents transformed text from
+becoming new Markdown syntax. The writer escapes ordinary ASCII punctuation
+with numeric references and protects text newlines and spaces that could become
+hard breaks. It lowers emphasis, strong emphasis, and strikethrough to local
+HTML, because changing adjacent punctuation or spaces can invalidate Markdown
+delimiter flanking. Changed autolink labels become ordinary links while
+retaining their original destinations. Code, raw HTML, and effectively
+preserved text must bypass these escapes; raw-text elements such as `script` do
+not decode character references.
+
+The writer preserves the structure represented by `pulldown-cmark`, while source
+spelling may change. Hosting-site extensions such as implicit bare-URL,
+mention, and issue-reference linking are outside that contract; explicit links
+retain their destinations. Downstream formatters also need integration tests:
+the Hongdown formatter can strip inline HTML from headings, so the CLI protects
+those spans while formatting the whole document and restores them afterward. If
+restoration cannot be verified, it retains the converted Markdown without the
+formatting pass.
 
 ### Plain text
 

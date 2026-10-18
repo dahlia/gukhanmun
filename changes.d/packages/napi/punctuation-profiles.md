@@ -1,0 +1,11 @@
+---
+links:
+  '#27': https://github.com/dahlia/gukhanmun/issues/27
+  '#28': https://github.com/dahlia/gukhanmun/pull/28
+---
+ -  Added the `punctuation` option for built-in and custom output profiles,
+    including HTML character references. Resolved styles are available as a
+    copied, deeply frozen `options.punctuation` view.  Technical guards include
+    Unicode Latin letters, and contextual spaces do not detach combining marks
+    or format controls.  HTML block, list, and table elements trim contextual
+    spaces without changing annotation windows.  [[#27], [#28]]
