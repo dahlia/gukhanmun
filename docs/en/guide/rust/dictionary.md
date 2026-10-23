@@ -9,8 +9,9 @@ Dictionaries
 
 Gukhanmun looks up hanja readings from one or more `HanjaDictionary`
 implementations.  The `gukhanmun` crate ships with FST and CDB backends and
-the bundled *Standard Korean Dictionary*, plus the *Open Korean Dictionary*
-(우리말샘) North Korean dictionary used by the `ko-kp` preset.
+the bundled *Standard Korean Dictionary*, *Loanword spelling examples*, and
+the *Open Korean Dictionary* (우리말샘) North Korean dictionary used by the
+`ko-kp` preset.
 
 
 Using the bundled dictionary
@@ -51,6 +52,34 @@ let converter = Builder::with_preset(Preset::KoKp)
     .no_bundled_opendict()
     .build()?;
 ~~~~
+
+
+Loanword spelling examples
+--------------------------
+
+The `gukhanmun-loanwords` crate bundles the National Institute of Korean
+Language's *Loanword spelling examples* as an offline FST dictionary. The
+`loanwords` feature is enabled by default, and `Preset::KoKr` includes this
+dictionary automatically:
+
+~~~~ rust
+use gukhanmun::{Builder, Preset};
+
+let converter = Builder::with_preset(Preset::KoKr)
+    .build()?;
+assert_eq!(converter.convert_text_to_string("香港")?, "홍콩");
+~~~~
+
+`Preset::KoKp` leaves this dictionary off; call `.bundled_loanwords()` to enable
+it explicitly. User dictionaries take priority, followed by loanword examples,
+then the preset's other dictionaries. `.no_bundled_loanwords()` disables only
+this dictionary; `.no_bundled_dictionaries()` disables it along with the other
+bundled dictionaries.
+
+For direct use through `HanjaDictionary`, add the `gukhanmun-loanwords` crate
+and call `gukhanmun_loanwords::dictionary()`. With the umbrella crate's
+`loanwords` feature, the same function is available as
+`gukhanmun::loanwords::dictionary()`.
 
 
 Loading a dictionary from a file

@@ -73,6 +73,32 @@ const g = await load({
 ~~~~
 
 
+《外來語 表記 用例》 패키지
+---------------------------
+
+`@gukhanmun/loanwords-fst`와 `@gukhanmun/loanwords-cdb`는 國立國語院
+《外來語 表記 用例》 辭典을 提供합니다. `"ko-kr"`과 `"ko-kp"` 모두 明示的으로
+불러와야 하며, 프리셋은 이 辭典을 自動으로 追加하지 않습니다. 使用者 定義
+辭典 뒤, stdict나 opendict 앞에 놓습니다:
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+import { loanwordsFst } from "@gukhanmun/loanwords-fst";
+import { stdictFst } from "@gukhanmun/stdict-fst";
+
+const g = await load({
+  preset: "ko-kr",
+  dictionaries: [await loanwordsFst(), await stdictFst()],
+});
+g.convert("香港"); // "홍콩"
+~~~~
+
+CDB 形式을 쓰려면 `@gukhanmun/loanwords-cdb`에서 `loanwordsCdb`를 가져옵니다.
+두 로더 모두 `Promise<FileDictionarySource>`를 返還하고 `@gukhanmun/wasm`과
+`@gukhanmun/napi`에서 쓸 수 있습니다. 패키지를 設置하는 것만으로는 變換이
+달라지지 않으며, 로더의 結果를 `dictionaries`에 넣어야 합니다.
+
+
 使用者 定義 辭典
 ----------------
 

@@ -10,7 +10,7 @@ description = "Umbrella library: hanja-to-hangul conversion engine with format a
 
 [features]
 serde = ["gukhanmun-core/serde"]
-default = ["html", "markdown", "stdict", "opendict", "fst", "cdb"]
+default = ["html", "markdown", "stdict", "opendict", "loanwords", "fst", "cdb"]
 html = ["dep:gukhanmun-html"]
 markdown = ["dep:gukhanmun-markdown"]
 fst = ["dep:gukhanmun-fst"]

@@ -26,7 +26,7 @@ use gukhanmun::{
     write_plain_text,
 };
 
-#[cfg(feature = "stdict")]
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn default_ko_kr_converts_bundled_word() {
     let converter = Builder::new().build().expect("default builder");
@@ -34,7 +34,7 @@ fn default_ko_kr_converts_bundled_word() {
     assert_eq!(output, "학교");
 }
 
-#[cfg(feature = "stdict")]
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn default_ko_kr_marks_homonyms_with_hanja() {
     // Default detection is context-local: a homophone is glossed only when a
@@ -47,7 +47,7 @@ fn default_ko_kr_marks_homonyms_with_hanja() {
     assert_eq!(output, "천지(天地)와 천지(天池)");
 }
 
-#[cfg(feature = "stdict")]
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn default_ko_kr_leaves_standalone_homophone_unglossed() {
     // `天地` has dictionary-wide reading-mates (`天池`, `淺智`, ...) but none
@@ -58,7 +58,7 @@ fn default_ko_kr_leaves_standalone_homophone_unglossed() {
     assert_eq!(output, "천지");
 }
 
-#[cfg(feature = "stdict")]
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn dictionary_wide_glosses_standalone_homophone() {
     use gukhanmun::HomophoneDetection;
@@ -73,7 +73,7 @@ fn dictionary_wide_glosses_standalone_homophone() {
     assert_eq!(output, "천지(天地)");
 }
 
-#[cfg(feature = "stdict")]
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn default_ko_kr_leaves_uncollided_word_unglossed() {
     // `言語` (언어) is glossed by no curated require-hanja rule, and no other
@@ -86,7 +86,7 @@ fn default_ko_kr_leaves_uncollided_word_unglossed() {
     );
 }
 
-#[cfg(feature = "stdict")]
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn bundled_initial_sound_law_follows_position() {
     // Hangul-only rendering with homophone marking disabled keeps the
@@ -123,7 +123,7 @@ fn bundled_initial_sound_law_follows_position() {
     assert_eq!(convert("論理"), "논리");
 }
 
-#[cfg(feature = "stdict")]
+#[cfg(all(feature = "stdict", feature = "opendict"))]
 #[test]
 fn ko_kp_keeps_original_sound_everywhere() {
     let converter = Builder::with_preset(Preset::KoKp)
@@ -295,6 +295,7 @@ fn full_rendering_options_replace_a_prior_variant_set_override() {
 fn numeral_strategy_smart_converts_year() {
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .numerals(NumeralStrategy::Smart)
         .build()
         .expect("builder");
@@ -313,6 +314,7 @@ fn user_directive_can_force_hanja() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .directive("學校", DirectiveAction::RequireHanja)
         .build()
@@ -328,6 +330,7 @@ fn streaming_iter_matches_buffered_string() {
     user.insert("大韓", "대한");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .build()
@@ -346,6 +349,7 @@ fn streaming_iter_is_lazy_for_unconsumed_tokens() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .build()
@@ -366,6 +370,7 @@ fn streaming_iter_does_not_drain_upstream_ahead_of_demand() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .first_occurrence_window(ContextWindow::Off)

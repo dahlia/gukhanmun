@@ -8,8 +8,9 @@ description: |-
 ====
 
 Gukhanmun은 하나 以上의 `HanjaDictionary` 具顯에서 漢字 讀音을 찾습니다.
-`gukhanmun` 크레이트는 FST와 CDB 백엔드, 內藏 《標準國語大辭典》, 그리고
-`ko-kp` 프리셋에서 쓰는 《우리말샘》 北韓語 辭典과 함께 配布됩니다.
+`gukhanmun` 크레이트는 FST와 CDB 백엔드, 內藏 《標準國語大辭典》,
+《外來語 表記 用例》, 그리고 `ko-kp` 프리셋에서 쓰는 《우리말샘》 北韓語
+辭典과 함께 配布됩니다.
 
 
 內藏 辭典 使用
@@ -46,6 +47,33 @@ let converter = Builder::with_preset(Preset::KoKp)
     .no_bundled_opendict()
     .build()?;
 ~~~~
+
+
+《外來語 表記 用例》
+--------------------
+
+`gukhanmun-loanwords` 크레이트는 國立國語院 《外來語 表記 用例》를 오프라인
+FST 辭典으로 提供합니다. `loanwords` 피처는 基本으로 켜져 있으며,
+`Preset::KoKr`는 이 辭典을 自動으로 包含합니다:
+
+~~~~ rust
+use gukhanmun::{Builder, Preset};
+
+let converter = Builder::with_preset(Preset::KoKr)
+    .build()?;
+assert_eq!(converter.convert_text_to_string("香港")?, "홍콩");
+~~~~
+
+`Preset::KoKp`는 이 辭典을 基本으로 끄며, `.bundled_loanwords()`로 明示的으로
+켤 수 있습니다. 使用者 定義 辭典, 外來語 表記 用例, 프리셋의 다른 辭典 順으로
+優先합니다.
+`no_bundled_loanwords()`는 이 辭典만 끄고, `no_bundled_dictionaries()`는 다른
+內藏 辭典과 함께 끕니다.
+
+`HanjaDictionary`로 直接 使用하려면 `gukhanmun-loanwords` 크레이트를 追加하고
+`gukhanmun_loanwords::dictionary()`를 呼出합니다. 우산 크레이트의 `loanwords`
+피처를 켜면 `gukhanmun::loanwords::dictionary()`로도 같은 函數를 使用할 수
+있습니다.
 
 
 파일에서 辭典 불러오기

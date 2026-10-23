@@ -1581,7 +1581,32 @@ fn build_dictionary_fixture_with_format(
 }
 
 #[test]
-fn loanwords_are_explicit_and_conflict_with_disabling_all_bundled_data() {
+fn loanwords_follow_presets_and_can_be_overridden() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .write_stdin("香港")
+        .assert()
+        .success()
+        .stdout("홍콩");
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .arg("--no-loanwords")
+        .write_stdin("香港")
+        .assert()
+        .success()
+        .stdout("샹강");
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--preset", "ko-kp", "--loanwords"])
+        .write_stdin("香港")
+        .assert()
+        .success()
+        .stdout("홍콩");
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--loanwords", "--no-loanwords"])
+        .assert()
+        .failure();
     Command::cargo_bin("gukhanmun")
         .unwrap()
         .arg("--loanwords")

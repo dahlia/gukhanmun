@@ -51,8 +51,12 @@ To be released.
     preserving existing default choices and dictionary priority. [[#21], [#24]]
  -  Added the `loanwords` feature, `loanwords` module and
     `Builder::bundled_loanwords()` to compose loanword examples after user
-    dictionaries and before preset dictionaries. Both presets leave it disabled
-    by default. [[#18], [#26]]
+    dictionaries and before preset dictionaries. The `loanwords` feature is
+    enabled by default; `ko-kr` includes the dictionary automatically, while
+    `ko-kp` leaves it disabled. Use `Builder::no_bundled_loanwords()` to
+    disable only this dictionary. Builds without default features must enable
+    `loanwords` or call `Builder::no_bundled_loanwords()` for `ko-kr`; otherwise
+    `build()` returns `Error::Config`. [[#18], [#26], [#31]]
  -  Changed weekly data updates to target the maintenance branch of the newest
     stable release series that ships the dictionary, with a separate PR keeping
     *main* current. Before the dictionary's first stable release, updates target
@@ -76,6 +80,7 @@ To be released.
 [#28]: https://github.com/dahlia/gukhanmun/pull/28
 [#29]: https://github.com/dahlia/gukhanmun/issues/29
 [#30]: https://github.com/dahlia/gukhanmun/pull/30
+[#31]: https://github.com/dahlia/gukhanmun/pull/31
 
 ### gukhanmun-cdb
 
@@ -87,16 +92,6 @@ To be released.
  -  Added `--hanja-variant-set` for selecting `as-dictionary`, `shinjitai`,
     `kanxi`, `simplified`, or `asahimoji` whenever the selected rendering mode
     emits hanja.  [[#11], [#12]]
- -  Added `--loanwords` to load the bundled NIKL loanword examples before
-    preset dictionaries. User dictionaries retain priority; the option
-    conflicts with `--no-bundled-dictionaries`. [[#18], [#26]]
- -  Included *NOTICE.md* in CLI binary archives to retain attribution for
-    bundled dictionary data, including the NIKL loanword examples.
-    [[#18], [#26]]
- -  Changed weekly data updates to target the maintenance branch of the newest
-    stable release series that ships the dictionary, with a separate PR keeping
-    *main* current. Before the dictionary's first stable release, updates target
-    *main* only. [[#18], [#26]]
  -  Added `--punctuation` and `--punctuation-profile` to normalize punctuation
     with a built-in profile or custom JSON configuration.  Technical guards
     include Unicode Latin letters, and contextual spaces do not detach
@@ -109,6 +104,18 @@ To be released.
     overrides stay authoritative.  [[#20], [#25]]
  -  Added competing readings to the bundled *Open Korean Dictionary* data,
     preserving existing default choices and dictionary priority. [[#21], [#24]]
+ -  Enabled the bundled NIKL loanword examples by default for `ko-kr`,
+    before the preset dictionary and after user dictionaries. Use
+    `--no-loanwords` to disable them, or `--loanwords` to enable them for
+    `ko-kp`. `--no-bundled-dictionaries` disables all bundled dictionaries.
+    [[#18], [#26], [#31]]
+ -  Included *NOTICE.md* in CLI binary archives to retain attribution for
+    bundled dictionary data, including the NIKL loanword examples.
+    [[#18], [#26]]
+ -  Changed weekly data updates to target the maintenance branch of the newest
+    stable release series that ships the dictionary, with a separate PR keeping
+    *main* current. Before the dictionary's first stable release, updates target
+    *main* only. [[#18], [#26]]
  -  Load candidate-bearing FST/CDB v2 dictionaries through existing dictionary
     options, retaining bundled default readings and positional forms.
     [[#19], [#22]]

@@ -15,12 +15,16 @@ description: |-
 
 `Builder::with_preset(preset)`은 一貫된 基本값 集合을 構成합니다:
 
-| 프리셋         | 辭典        | 頭音法則 | 同音異義 窓               |
-| -------------- | ----------- | -------- | ------------------------- |
-| `Preset::KoKr` | 內藏 stdict | `true`   | `ContextWindow::PerBlock` |
-| `Preset::KoKp` | 없음        | `false`  | `ContextWindow::Off`      |
+| 프리셋         | 辭典                           | 頭音法則 | 同音異義 窓               |
+| -------------- | ------------------------------ | -------- | ------------------------- |
+| `Preset::KoKr` | 內藏 外來語 表記 用例 + stdict | `true`   | `ContextWindow::PerBlock` |
+| `Preset::KoKp` | 內藏 《우리말샘》 北韓語       | `false`  | `ContextWindow::Off`      |
 
 아래의 個別 옵션들은 프리셋을 덮어씁니다.
+
+基本 피처에서 `Preset::KoKr`는 外來語 表記 用例를 켜고, `Preset::KoKp`는
+끕니다. [`.bundled_loanwords()`나 `.no_bundled_loanwords()`로 이 選擇을
+바꿉니다](./dictionary.md#外來語-表記-用例).
 
 
 分割 戰略

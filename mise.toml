@@ -64,6 +64,7 @@ description = "Run the full CI verification gate"
 depends = [
   "check",
   "test",
+  "docs-test",
   "doc",
   "js-build",
   "js-test",
@@ -477,6 +478,10 @@ depends = [
   "js-install",
 ]
 run = "pnpm --filter @gukhanmun/docs run build"
+
+[tasks.docs-test]
+description = "Test generated playground examples"
+run = "node --test docs/theme/codegen.test.ts"
 
 [tasks.docs-fonts]
 description = "Subset Noto Sans/Serif KR to the glyphs used by the docs hero animation"

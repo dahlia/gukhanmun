@@ -27,8 +27,9 @@ import type {
 
 // Identifiers for every built-in dictionary the playground can toggle: the
 // Standard Korean Language Dictionary plus the four Open Korean Dictionary
-// (우리말샘) categories.
+// (우리말샘) categories, and NIKL loanword examples.
 export type DictId =
+  | "loanwords"
   | "stdict"
   | "opendict-general"
   | "opendict-north-korean"
@@ -41,6 +42,7 @@ export type DictId =
 // documented intent that `north_korean()` be prioritized above the South
 // Korean dictionary.
 export const DICT_ORDER: DictId[] = [
+  "loanwords",
   "opendict-north-korean",
   "opendict-general",
   "opendict-dialect",
@@ -61,6 +63,12 @@ interface DictMeta {
 // (`gukhanmun::stdict`, `gukhanmun::opendict`) so an example needs only the one
 // dependency rather than the individual dictionary crates.
 const DICT_META: Record<DictId, DictMeta> = {
+  "loanwords": {
+    jsPackage: "@gukhanmun/loanwords-fst",
+    jsLoader: "loanwordsFst",
+    rustExpr: "gukhanmun::loanwords::dictionary()",
+    cliFile: "loanwords.fst",
+  },
   "stdict": {
     jsPackage: "@gukhanmun/stdict-fst",
     jsLoader: "stdictFst",
@@ -253,10 +261,11 @@ export function generateRust(cfg: CodegenConfig): string {
     );
   } else {
     lines.push(`let converter = Builder::new()`);
-    // Dictionaries: stdict is the default bundle, so {stdict} needs nothing.
+    // The ko-kr default bundles loanwords before stdict.
     const dicts = enabledDicts(cfg);
-    const onlyStdict = dicts.length === 1 && dicts[0] === "stdict";
-    if (!onlyStdict) {
+    const defaultDicts = dicts.length === 2 && dicts[0] === "loanwords" &&
+      dicts[1] === "stdict";
+    if (!defaultDicts) {
       lines.push(`    .no_bundled_dictionaries()`);
       for (const id of dicts) {
         lines.push(`    .push_dictionary(${DICT_META[id].rustExpr})`);
@@ -536,20 +545,23 @@ export function generateCli(cfg: CodegenConfig): string {
     }
 
     // Dictionaries: the CLI bundles only via presets, so anything other than
-    // the default {stdict} uses --no-bundled-dictionaries + --dictionary files.
+    // the default {loanwords, stdict} uses --no-bundled-dictionaries + files.
     // The CLI gives *later* --dictionary flags higher priority (the opposite of
     // the Rust/JS APIs), so emit DICT_ORDER reversed to preserve the same
     // priority (highest-priority dictionary last).
     const dicts = enabledDicts(cfg);
-    const onlyStdict = dicts.length === 1 && dicts[0] === "stdict";
-    if (!onlyStdict) {
+    const defaultDicts = dicts.length === 2 && dicts[0] === "loanwords" &&
+      dicts[1] === "stdict";
+    if (!defaultDicts) {
       args.push(`--no-bundled-dictionaries`);
       for (const id of [...dicts].reverse()) {
         args.push(`--dictionary ${DICT_META[id].cliFile}`);
       }
       if (dicts.length) {
-        dictComment = `# dictionary FST files ship in the ` +
-          `@gukhanmun/stdict-fst and @gukhanmun/opendict-fst packages`;
+        const packages = [
+          ...new Set(dicts.map((id) => DICT_META[id].jsPackage)),
+        ];
+        dictComment = `# dictionary FST files ship in: ${packages.join(", ")}`;
       }
     }
   }

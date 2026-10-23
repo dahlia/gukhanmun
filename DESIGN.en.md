@@ -26,10 +26,11 @@ or as preserved (code blocks and the like) pass through untouched. It streams
 input and output where possible, with buffering bounded by the size of
 contiguous conversion spans that contain hanja and by opt-in cross-context
 disambiguation. It accepts pluggable dictionaries that may be in-memory,
-mmap-backed, or otherwise opaque to the engine. It ships a default dictionary
-derived from the South Korean *Standard Korean Language Dictionary*
-(標準國語大辭典). It is usable from Rust, from Node.js via [Node-API], from
-browsers and Deno via WebAssembly, and from a command line.
+mmap-backed, or otherwise opaque to the engine. It ships default dictionaries
+derived from the National Institute of Korean Language's *Loanword spelling
+examples* and *Standard Korean Language Dictionary* (標準國語大辭典). It is
+usable from Rust, from Node.js via [Node-API], from browsers and Deno via
+WebAssembly, and from a command line.
 
 The library provides opt-in output profiles for commas, periods, and explicit
 citation delimiters. The default preserves punctuation. Broader typographic
@@ -985,9 +986,10 @@ The Rust source is organized as a Cargo workspace with the following layout:
      -  *gukhanmun-napi/*: Node-API bindings via `napi-rs`.
 
 The umbrella crate's feature flags compose the others. Default features enable
-HTML, Markdown, and the bundled stdict. CDB and FST are individually
-selectable. Disabling everything yields a Rust-API-only build with just the
-engine and `UnihanCharDict`, suitable for embedded targets.
+HTML, Markdown, the CDB and FST backends, and the bundled loanwords, stdict,
+and opendict dictionaries. Each feature is individually selectable. Disabling
+everything yields a Rust-API-only build with just the engine and
+`UnihanCharDict`, suitable for embedded targets.
 
 ### JavaScript packages
 
@@ -1248,29 +1250,33 @@ that exceeds it fails the build.
 Presets
 -------
 
-| Option               | `ko-kr`           | `ko-kp`           |
-| -------------------- | ----------------- | ----------------- |
-| `rendering`          | `hangul-only`     | `hangul-only`     |
-| `disambiguation`     | `per-block`       | `off`             |
-| `segmentation`       | `lattice`         | `lattice`         |
-| `initialSoundLaw`    | `true`            | `false`           |
-| `numerals`           | `hangul-phonetic` | `hangul-phonetic` |
-| `dictionary.bundled` | `"stdict-ko-kr"`  | `false`           |
-| `firstOccurrence`    | (none)            | (none)            |
+| Option               | `ko-kr`                | `ko-kp`                 |
+| -------------------- | ---------------------- | ----------------------- |
+| `rendering`          | `hangul-only`          | `hangul-only`           |
+| `disambiguation`     | `per-block`            | `off`                   |
+| `segmentation`       | `lattice`              | `lattice`               |
+| `initialSoundLaw`    | `true`                 | `false`                 |
+| `numerals`           | `hangul-phonetic`      | `hangul-phonetic`       |
+| `dictionary.bundled` | `loanwords` + `stdict` | `opendict` North Korean |
+| `firstOccurrence`    | (none)                 | (none)                  |
 
 The `ko-kr` preset matches the orthographic and lexical conventions of South
 Korea: dictionary-driven readings, lattice segmentation, the initial sound law
 applied to fallback fragments, and per-block homophone disambiguation that
 emits hanja in parentheses when the reading is ambiguous within a paragraph.
-The `ko-kp` preset matches the North Korean convention of writing Sino-Korean
-words in hangul without the initial sound law applied (래일, 류행, 녀자), with
-no bundled dictionary because the South Korean stdict's readings would be
-incorrect for `ko-KP`.
+Its bundled loanword spelling examples take priority over stdict, while user
+dictionaries take priority over both. The `ko-kp` preset matches the North
+Korean convention of writing Sino-Korean words in hangul without the initial
+sound law applied (래일, 류행, 녀자). It includes the *Open Korean Dictionary*
+North Korean category, with loanword examples disabled by default. JavaScript
+presets configure the linguistic options but require callers to load dictionary
+packages explicitly.
 
 The CLI exposes both as `--preset ko-kr` and `--preset ko-kp`. Individual
 options remain settable to override the preset, for example
-`--preset ko-kr --no-stdict` disables the bundled dictionary while keeping the
-other South Korean defaults.
+`--preset ko-kr --no-loanwords` disables loanword examples while keeping
+stdict and the other South Korean defaults. `--preset ko-kp --loanwords`
+enables loanword examples explicitly.
 
 
 Initial sound law table

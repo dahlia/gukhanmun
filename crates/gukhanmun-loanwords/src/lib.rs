@@ -27,7 +27,7 @@ static DICTIONARY: OnceLock<FstDictionary> = OnceLock::new();
 ///
 /// Built offline from the pinned TSV, including all source candidates and explicit
 /// preferred readings. Compose user dictionaries before this dictionary and preset
-/// dictionaries after it. Neither Korean preset enables it implicitly.
+/// dictionaries after it. The `ko-kr` preset enables it by default; `ko-kp` does not.
 pub fn dictionary() -> &'static FstDictionary {
     DICTIONARY.get_or_init(|| {
         FstDictionary::from_static_bytes(BYTES).expect("validated embedded loanword dictionary")

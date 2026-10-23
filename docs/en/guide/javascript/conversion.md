@@ -29,6 +29,10 @@ const g = await load({ preset: "ko-kp", dictionaries: [] });
 Unlike the Rust crate, the JavaScript packages never include the bundled
 dictionary automatically; always pass it via `dictionaries`.
 
+The loanword spelling examples dictionary is also opt-in for both presets.
+[Load it explicitly](./dictionary.md#loanword-spelling-examples-packages)
+before stdict or opendict in the `dictionaries` array.
+
 
 Segmentation strategy
 ---------------------

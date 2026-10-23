@@ -15,16 +15,20 @@ Preset
 
 `--preset` selects a preconfigured combination of defaults:
 
-| Preset            | Dictionary     | Initial sound law | Homophone window | Use case                 |
-| ----------------- | -------------- | ----------------- | ---------------- | ------------------------ |
-| `ko-kr` (default) | Bundled stdict | Enabled           | Per-block        | South Korean orthography |
-| `ko-kp`           | None           | Disabled          | Off              | North Korean orthography |
+| Preset            | Dictionary                    | Initial sound law | Homophone window | Use case                 |
+| ----------------- | ----------------------------- | ----------------- | ---------------- | ------------------------ |
+| `ko-kr` (default) | Bundled loanwords + stdict    | Enabled           | Per-block        | South Korean orthography |
+| `ko-kp`           | Bundled opendict North Korean | Disabled          | Off              | North Korean orthography |
 
 ~~~~ sh
 gukhanmun --preset ko-kp input.txt
 ~~~~
 
 Individual flags below override the preset's defaults.
+
+`ko-kr` includes loanword spelling examples by default; `ko-kp` leaves them
+off. Use `--loanwords` or `--no-loanwords` to
+[override this choice](./dictionary.md#loanword-spelling-examples).
 
 
 Segmentation strategy

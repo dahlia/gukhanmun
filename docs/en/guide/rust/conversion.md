@@ -15,12 +15,17 @@ Preset
 
 `Builder::with_preset(preset)` configures a coherent set of defaults:
 
-| Preset         | Dictionary     | Initial sound law | Homophone window          |
-| -------------- | -------------- | ----------------- | ------------------------- |
-| `Preset::KoKr` | Bundled stdict | `true`            | `ContextWindow::PerBlock` |
-| `Preset::KoKp` | None           | `false`           | `ContextWindow::Off`      |
+| Preset         | Dictionary                    | Initial sound law | Homophone window          |
+| -------------- | ----------------------------- | ----------------- | ------------------------- |
+| `Preset::KoKr` | Bundled loanwords + stdict    | `true`            | `ContextWindow::PerBlock` |
+| `Preset::KoKp` | Bundled opendict North Korean | `false`           | `ContextWindow::Off`      |
 
 Individual options below override the preset.
+
+With the default features, `Preset::KoKr` includes loanword spelling examples;
+`Preset::KoKp` leaves them off. Use `.bundled_loanwords()` or
+`.no_bundled_loanwords()` to
+[override this choice](./dictionary.md#loanword-spelling-examples).
 
 
 Segmentation strategy

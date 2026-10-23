@@ -26,6 +26,7 @@ fn html_buffered_converts_text_inside_paragraph() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .build()
@@ -43,6 +44,7 @@ fn html_streaming_iter_matches_buffered() {
     user.insert("大韓", "대한");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .build()
@@ -66,6 +68,7 @@ fn html_preserve_when_skips_marked_elements() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .html_preserve_when(|info| info.raw_attributes.contains("class=\"no-convert\""))
@@ -85,6 +88,7 @@ fn html_ruby_rendering_emits_ruby_tags() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .rendering(RenderMode::Ruby(RubyBase::OnHangul))

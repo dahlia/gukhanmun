@@ -22,9 +22,9 @@ Installation
 gukhanmun = "0.1"
 ~~~~
 
-The `html`, `markdown`, `fst`, `cdb`, `stdict`, and `opendict` features are
-enabled by default. To trim the dependency tree, disable the defaults and
-select only the features you need:
+The `html`, `markdown`, `fst`, `cdb`, `stdict`, `opendict`, and `loanwords`
+features are enabled by default. To trim the dependency tree, disable the
+defaults and select only the features you need:
 
 ~~~~ toml
 [dependencies]
@@ -33,10 +33,9 @@ gukhanmun = { version = "0.1", default-features = false, features = ["html"] }
 
 Available features: `html`, `markdown`, `fst`, `cdb`, `stdict` (implies
 `fst`), `opendict` (implies `fst`), and `loanwords` (implies `fst`). The
-`loanwords` feature is opt-in; enable it explicitly to use
-`Builder::bundled_loanwords()`. The `stdict` feature embeds the South
-Korean *Standard Korean Dictionary*, and `opendict` embeds *Open Korean
-Dictionary* (우리말샘) category data.
+`loanwords` feature embeds the NIKL loanword spelling examples. The `stdict`
+feature embeds the South Korean *Standard Korean Dictionary*, and `opendict`
+embeds *Open Korean Dictionary* (우리말샘) category data.
 
 
 Usage
@@ -90,13 +89,14 @@ Presets
 -------
 
 `Preset::KoKr` (the default) loads the bundled *Standard Korean Language
-Dictionary* and applies the initial sound law. `Preset::KoKp` loads the bundled
-*Open Korean Dictionary* North Korean category and disables the initial sound
-law, following North Korean orthographic conventions where Sino-Korean words
-are written without the initial sound law (래일, 류행, 녀자). Use
-`Builder::no_bundled_dictionaries()` to disable every bundled dictionary, or
-`Builder::no_bundled_stdict()` / `Builder::no_bundled_opendict()` to disable
-one bundled dictionary family.
+Dictionary* and NIKL loanword examples, and applies the initial sound law.
+`Preset::KoKp` loads the bundled *Open Korean Dictionary* North Korean category
+and disables the initial sound law, following North Korean orthographic
+conventions where Sino-Korean words are written without the initial sound law
+(래일, 류행, 녀자). Use `Builder::no_bundled_dictionaries()` to disable every
+bundled dictionary, or
+`Builder::no_bundled_stdict()`/`Builder::no_bundled_opendict()`/
+`Builder::no_bundled_loanwords()` to disable one bundled dictionary family.
 
 
 Relation to the other workspace crates
@@ -118,17 +118,18 @@ GPL-3.0-only. See *LICENSE* at the repository root.
 Bundled loanword examples
 -------------------------
 
-Enable the `loanwords` feature and call `Builder::bundled_loanwords()` to use
-the bundled NIKL loanword spelling examples. This dictionary takes priority
-over preset dictionaries, while user dictionaries remain first. Both presets
-leave it disabled by default; `no_bundled_dictionaries()` disables every family
-and `no_bundled_loanwords()` disables this one. The source snapshot and explicit
+The bundled NIKL loanword spelling examples are enabled by default for
+`Preset::KoKr`, but remain opt-in for `Preset::KoKp` through
+`Builder::bundled_loanwords()`. This dictionary takes priority over the other
+preset dictionaries, while user dictionaries remain first.
+`no_bundled_dictionaries()` disables every family and
+`no_bundled_loanwords()` disables this one. The source snapshot and explicit
 choices for competing readings are maintained in `gukhanmun-loanwords`.
 
 ~~~~ rust
 # #[cfg(all(feature = "loanwords", feature = "stdict"))] {
 use gukhanmun::{Builder, ContextWindow};
-let converter = Builder::new().bundled_loanwords()
+let converter = Builder::new()
     .homophone_window(ContextWindow::Off).build()?;
 assert_eq!(converter.convert_text_to_string("香港")?, "홍콩");
 # }
