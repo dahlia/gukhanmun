@@ -124,12 +124,19 @@ depends = ["rust-init", "changelog-check"]
 # tracks the version actually applied even when <version> is a bump level such
 # as "patch" or "minor".  Run this on a clean tree; cargo-release refuses to
 # bump when there are uncommitted changes.
+# --no-confirm keeps the task non-interactive: without it cargo-release asks
+# "? [y/N]" before applying the bump, and a harness without a TTY answers "no"
+# and exits successfully, which used to leave the task a silent no-op.
 run = """
 let previous_head = (git rev-parse HEAD | str trim)
-cargo release --workspace --no-publish --no-tag --no-push --execute $env.usage_version
+cargo release --workspace --no-publish --no-tag --no-push --no-confirm --execute $env.usage_version
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
-# cargo-release also exits successfully when the maintainer declines the bump.
-if (git rev-parse HEAD | str trim) == $previous_head { exit 0 }
+# cargo-release also exits successfully when it declines to bump; fail loudly
+# instead of reporting success for a bump that never happened.
+if (git rev-parse HEAD | str trim) == $previous_head {
+  print "error: cargo-release did not create a version bump commit"
+  exit 1
+}
 $env.VERSION = (open Cargo.toml | get workspace.package.version)
 mise run js-sync-version
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
