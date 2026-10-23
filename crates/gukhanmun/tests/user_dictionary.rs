@@ -25,7 +25,7 @@ fn earlier_dictionaries_win_over_later_ones() {
     let mut low = MapDictionary::new();
     low.insert("學校", "학교");
     let converter = Builder::new()
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .push_dictionary(high)
         .push_dictionary(low)
         .build()
@@ -42,7 +42,7 @@ fn context_local_detection_emits_hanja_for_in_text_collision() {
     user.insert("家長", "가장");
     user.insert("假裝", "가장");
     let converter = Builder::new()
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .push_dictionary(user)
         .homophone_window(ContextWindow::PerDocument)
         .build()
@@ -63,7 +63,7 @@ fn context_local_detection_leaves_isolated_word_unglossed() {
     user.insert("家長", "가장");
     user.insert("假裝", "가장");
     let converter = Builder::new()
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .push_dictionary(user)
         .homophone_window(ContextWindow::PerDocument)
         .build()
@@ -81,7 +81,7 @@ fn dictionary_wide_detection_emits_hanja_without_in_text_collision() {
     user.insert("家長", "가장");
     user.insert("假裝", "가장");
     let converter = Builder::new()
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .push_dictionary(user)
         .homophone_window(ContextWindow::PerDocument)
         .homophone_detection(HomophoneDetection::DictionaryWide)
@@ -107,7 +107,7 @@ fn user_directive_skip_annotation_collapses_to_plain_hangul() {
         },
     );
     let converter = Builder::new()
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .push_dictionary(user)
         .directive("學校", DirectiveAction::SkipAnnotation)
         .build()
@@ -141,7 +141,7 @@ fn candidate_sets_survive_builder_boxes_and_user_override() {
         .unwrap(),
     );
     let converter = Builder::new()
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .push_dictionary(dictionary.clone())
         .build()
         .unwrap();
@@ -167,7 +167,7 @@ fn candidate_sets_survive_builder_boxes_and_user_override() {
     let mut user = MapDictionary::new();
     user.insert("東京", "동경");
     let converter = Builder::new()
-        .no_bundled_stdict()
+        .no_bundled_dictionaries()
         .push_dictionary(user)
         .push_dictionary(dictionary)
         .build()
