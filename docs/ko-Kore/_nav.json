@@ -18,5 +18,10 @@
     "text": "內部 構造",
     "link": "/internals/design",
     "activeMatch": "/internals/"
+  },
+  {
+    "text": "後援",
+    "link": "/sponsorship",
+    "activeMatch": "/sponsorship"
   }
 ]

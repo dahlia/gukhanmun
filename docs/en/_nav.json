@@ -18,5 +18,10 @@
     "text": "Internals",
     "link": "/internals/design",
     "activeMatch": "/internals/"
+  },
+  {
+    "text": "Sponsorship",
+    "link": "/sponsorship",
+    "activeMatch": "/sponsorship"
   }
 ]

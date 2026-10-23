@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import "./index.css";
+import { HomeSponsorship } from "./Sponsorship";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   copyToClipboard,
@@ -115,5 +116,10 @@ function EnvSwitcher() {
 }
 
 export function Layout() {
-  return <OriginalLayout afterNavMenu={<EnvSwitcher />} />;
+  return (
+    <OriginalLayout
+      afterNavMenu={<EnvSwitcher />}
+      afterFeatures={<HomeSponsorship />}
+    />
+  );
 }

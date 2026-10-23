@@ -104,6 +104,10 @@ function frontmatterSelectors(relPosix: string, frontmatter: string): string[] {
       "$.hero.actions[*].text",
       "$.features[*].title",
       "$.features[*].details",
+      "$.sponsorship.title",
+      "$.sponsorship.description",
+      "$.sponsorship.details",
+      "$.sponsorship.acknowledgement",
     ];
   }
   const selectors: string[] = [];

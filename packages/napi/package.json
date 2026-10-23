@@ -37,7 +37,16 @@
     "email": "hong@minhee.org",
     "url": "https://hongminhee.org/"
   },
-  "funding": "https://github.com/sponsors/dahlia",
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/dahlia"
+    },
+    {
+      "type": "opencollective",
+      "url": "https://opencollective.com/gukhanmun"
+    }
+  ],
   "engines": {
     "node": ">=20",
     "bun": ">=1.0",

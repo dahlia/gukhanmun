@@ -12,6 +12,7 @@ Gukhanmun
 [![GitHub Actions][GitHub Actions badge]][GitHub Actions]
 [![License: GPL-3.0-only][GPL badge]][GPL]
 [![GitHub Sponsors][GitHub Sponsors badge]][GitHub Sponsors]
+[![Open Collective][Open Collective badge]][Open Collective]
 
 *다른 言語: [English](README.en.md) (英語).*
 
@@ -33,6 +34,8 @@ Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變
 [GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 [GitHub Sponsors badge]: https://img.shields.io/github/sponsors/dahlia?logo=githubsponsors
 [GitHub Sponsors]: https://github.com/sponsors/dahlia
+[Open Collective badge]: https://img.shields.io/badge/Open%20Collective-Support-7FADF2?logo=opencollective
+[Open Collective]: https://opencollective.com/gukhanmun
 [Seonbi]: https://github.com/dahlia/seonbi
 
 
@@ -250,6 +253,13 @@ npm/JSR 패키지 構成
 [*DESIGN.md*](./DESIGN.ko-Kore.md)에서 全體 構造를 살펴볼 수 있습니다:
 中間 表現·래티스 分割 算法·辭典 트레이트 設計·미들웨어 體系·形式 어댑터 內部
 構造.
+
+
+後援
+----
+
+Gukhanmun의 持續的인 開發과 維持 補修를 [GitHub Sponsors] 또는
+[Open Collective]를 통해 後援할 수 있습니다.
 
 
 라이선스

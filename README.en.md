@@ -12,6 +12,7 @@ Gukhanmun
 [![GitHub Actions][GitHub Actions badge]][GitHub Actions]
 [![License: GPL-3.0-only][GPL badge]][GPL]
 [![GitHub Sponsors][GitHub Sponsors badge]][GitHub Sponsors]
+[![Open Collective][Open Collective badge]][Open Collective]
 
 *Also available: [韓國語](README.ko-Kore.md) (Korean).*
 
@@ -35,6 +36,8 @@ package, and a native Node-API addon.
 [GPL]: https://www.gnu.org/licenses/gpl-3.0.html
 [GitHub Sponsors badge]: https://img.shields.io/github/sponsors/dahlia?logo=githubsponsors
 [GitHub Sponsors]: https://github.com/sponsors/dahlia
+[Open Collective badge]: https://img.shields.io/badge/Open%20Collective-Support-7FADF2?logo=opencollective
+[Open Collective]: https://opencollective.com/gukhanmun
 [Seonbi]: https://github.com/dahlia/seonbi
 
 
@@ -253,6 +256,13 @@ Design documentation
 [*DESIGN.md*](./DESIGN.en.md) covers the full architecture: intermediate
 representation, lattice segmentation algorithm, dictionary trait design,
 middleware system, and format adapter internals.
+
+
+Support the project
+-------------------
+
+You can support Gukhanmun's ongoing development and maintenance through
+[GitHub Sponsors] or [Open Collective].
 
 
 License

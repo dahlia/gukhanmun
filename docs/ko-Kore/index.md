@@ -47,5 +47,11 @@ features:
   details: JavaScript의 <code>TransformStream</code> 境界面이나 Rust의 이터레이터 API로, 任意의 큰 文書를 청크 單位로 處理합니다.
   icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>'
   link: ./guide/javascript/streaming
+sponsorship:
+  title: Gukhanmun을 後援해 주세요
+  description: 韓國語 텍스트를 더 쉽게 읽을 수 있도록 돕는 自由·오픈 소스 道具의 持續的인 開發과 維持 補修에 힘을 보태 주세요.
+  details: 後援에 對하여
+  acknowledgement: FOSS for All Microgrants 2026 支援 對象으로 選定되었습니다. FOSS for All과 寄附者 여러분께 感謝드립니다.
+
 ---
 
