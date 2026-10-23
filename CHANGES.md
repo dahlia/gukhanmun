@@ -13,11 +13,13 @@ See CONTRIBUTING.md for the changelog and release workflow.
 
 <!-- sacho:unreleased:begin -->
 
+<!-- sacho:unreleased:end -->
+
 
 Version 0.3.0
 -------------
 
-To be released.
+Released on October 24, 2026.
 
 ### gukhanmun
 
@@ -389,8 +391,6 @@ To be released.
     [[#19], [#22]]
  -  Dictionary-wide homophone marking includes selected suffix readings.
     [[#19], [#22]]
-
-<!-- sacho:unreleased:end -->
 
 
 Version 0.2.0
