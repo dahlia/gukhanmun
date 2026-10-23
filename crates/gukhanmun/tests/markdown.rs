@@ -27,6 +27,7 @@ fn markdown_commonmark_buffered_converts_paragraph() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .build()
@@ -44,6 +45,7 @@ fn markdown_preserves_inline_code_verbatim() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .build()
@@ -60,6 +62,7 @@ fn markdown_gfm_table_round_trips() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .build()
@@ -78,6 +81,7 @@ fn markdown_streaming_iter_matches_buffered() {
     user.insert("學校", "학교");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .build()

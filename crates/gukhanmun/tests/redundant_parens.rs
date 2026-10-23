@@ -31,6 +31,7 @@ fn convert_mode(records: &[(&str, &str)], mode: RenderMode, input: &str) -> Stri
     }
     Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(dict)
         .homophone_window(ContextWindow::Off)
         .rendering(mode)
@@ -100,6 +101,7 @@ fn definition_gloss_passes_through() {
 fn disabled_keeps_the_redundant_parenthetical() {
     let output = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary({
             let mut dict = MapDictionary::new();
             dict.insert("庫間", "곳간");
@@ -123,6 +125,7 @@ fn first_occurrence_filter_preserves_repeated_explicit_glosses() {
     dict.insert("庫間", "곳간");
     let output = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(dict)
         .homophone_window(ContextWindow::Off)
         .first_occurrence_window(ContextWindow::PerDocument)
@@ -142,6 +145,7 @@ fn streaming_across_chunk_boundaries_matches_one_shot() {
     dict.insert("庫間", "곳간");
     let converter = Builder::new()
         .no_bundled_stdict()
+        .no_bundled_loanwords()
         .push_dictionary(dict)
         .homophone_window(ContextWindow::Off)
         .build()
