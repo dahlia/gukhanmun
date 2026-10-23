@@ -73,7 +73,10 @@ Gukhanmun supports two binary dictionary formats:
 | CDB    | *.gukcdb* | $O(1)$                 | Simpler layout; easier to audit by hand             |
 
 Later `-d` arguments take priority over earlier ones and over every bundled
-dictionary. The first match in that priority order wins.
+dictionary for matches of the same text and length. With
+`--segmentation lattice` (the default), overlapping matches of different
+lengths are compared by dictionary coverage, so a longer bundled match can beat
+a shorter user match.
 
 
 Building a custom dictionary
