@@ -13,6 +13,12 @@ See CONTRIBUTING.md for the changelog and release workflow.
 
 <!-- sacho:unreleased:begin -->
 
+
+Version 0.4.0
+-------------
+
+To be released.
+
 <!-- sacho:unreleased:end -->
 
 
