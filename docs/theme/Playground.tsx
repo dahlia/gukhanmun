@@ -403,7 +403,7 @@ export function Playground() {
 
   const gRef = useRef<Gukhanmun | null>(null);
   // Per-dictionary byte cache; populated lazily the first time a dictionary is
-  // enabled (or eagerly for the default-on loanword and stdict during the mount effect).
+  // enabled after the WASM module is ready.
   const dictBytesRef = useRef<Map<DictId, Uint8Array>>(new Map());
 
   async function ensureDictBytes(id: DictId): Promise<Uint8Array> {
@@ -467,20 +467,14 @@ export function Playground() {
     };
   }
 
-  // Load the WASM module and dictionary bytes once on mount.
+  // Load only the WASM module on mount. Dictionary failures must leave the
+  // controls available so users can choose a configuration without that asset.
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
       try {
-        // Prime the cached WASM module while the default-on loanword and stdict bytes
-        // download, so first paint has its dictionary ready.  Other dictionary
-        // categories load lazily when the user enables them.
-        const [{ load }] = await Promise.all([
-          import("@gukhanmun/wasm"),
-          ensureDictBytes("stdict"),
-          ensureDictBytes("loanwords"),
-        ]);
+        const { load } = await import("@gukhanmun/wasm");
         if (cancelled) return;
 
         await load({});
@@ -504,6 +498,12 @@ export function Playground() {
   useEffect(() => {
     if (status !== "ready") return;
     let cancelled = false;
+
+    // A failed or pending rebuild must not convert with an older configuration
+    // or clear its dictionary error when the input changes.
+    gRef.current = null;
+    setOutput("");
+    setErrorMsg(null);
 
     void (async () => {
       try {
