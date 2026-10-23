@@ -29,6 +29,10 @@ const g = await load({ preset: "ko-kp", dictionaries: [] });
 Rust 크레이트와 달리, JavaScript 패키지는 內藏 辭典을 결코 自動으로 包含하지
 않습니다; 恒常 `dictionaries`를 通해 넘깁니다.
 
+外來語 表記 用例도 두 프리셋 모두 明示的으로 選擇해야 합니다.
+[`dictionaries` 配列에서 直接 불러와](./dictionary.md#外來語-表記-用例-패키지)
+stdict나 opendict 앞에 놓습니다.
+
 
 分割 戰略
 ---------

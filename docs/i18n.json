@@ -185,6 +185,11 @@
     "ko-Kore": "辭典",
     "ko-KR": "사전"
   },
+  "pgLoanwords": {
+    "en": "NIKL loanword examples",
+    "ko-Kore": "國立國語院 外來語 表記 用例",
+    "ko-KR": "국립국어원 외래어 표기 용례"
+  },
   "pgOpendictGroup": {
     "en": "Open Korean Dictionary (우리말샘)",
     "ko-Kore": "《우리말샘》",

@@ -10,8 +10,10 @@ The runtime package excludes the full source snapshot and bulky audit report.
 assert_eq!(gukhanmun_loanwords::dictionary().lookup("香港").unwrap().unwrap().reading(), "홍콩");
 ~~~~
 
-Use `Builder::bundled_loanwords()` in the umbrella crate or `--loanwords`
-in the CLI. Both Korean presets leave this dictionary disabled by default.
+The umbrella crate and CLI enable this dictionary by default for `ko-kr`,
+while `ko-kp` leaves it disabled. Use `Builder::no_bundled_loanwords()` or
+`--no-loanwords` to disable it, and `Builder::bundled_loanwords()` or
+`--loanwords` to enable it for `ko-kp`.
 User dictionaries take priority, then loanwords, then the preset dictionaries.
 JavaScript callers load `@gukhanmun/loanwords-fst` or
 `@gukhanmun/loanwords-cdb` after user dictionaries and before the preset

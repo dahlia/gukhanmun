@@ -32,6 +32,7 @@ fn ko_kr_preset_defaults_match_design_table() {
     assert_eq!(options.first_occurrence_window, ContextWindow::Off);
     assert_eq!(options.recovery, Recovery::Strict);
     assert!(Preset::KoKr.includes_bundled_stdict());
+    assert!(Preset::KoKr.includes_bundled_loanwords());
     assert!(!Preset::KoKr.includes_bundled_opendict_north_korean());
 }
 
@@ -48,6 +49,7 @@ fn ko_kp_preset_disables_initial_sound_law_and_includes_north_korean_opendict() 
     assert_eq!(options.first_occurrence_window, ContextWindow::Off);
     assert_eq!(options.recovery, Recovery::Strict);
     assert!(!Preset::KoKp.includes_bundled_stdict());
+    assert!(!Preset::KoKp.includes_bundled_loanwords());
     assert!(Preset::KoKp.includes_bundled_opendict_north_korean());
 }
 
@@ -58,10 +60,9 @@ fn preset_default_is_ko_kr() {
 
 #[cfg(all(feature = "loanwords", feature = "stdict", feature = "opendict"))]
 #[test]
-fn explicit_loanwords_have_priority_but_user_dictionaries_win() {
+fn ko_kr_defaults_to_loanwords_but_user_dictionaries_win() {
     use gukhanmun::{Builder, ContextWindow, MapDictionary, Preset};
     let selected = Builder::new()
-        .bundled_loanwords()
         .homophone_window(ContextWindow::Off)
         .build()
         .unwrap();
@@ -69,7 +70,6 @@ fn explicit_loanwords_have_priority_but_user_dictionaries_win() {
     let mut user = MapDictionary::new();
     user.insert("香港", "사용자");
     let selected = Builder::new()
-        .bundled_loanwords()
         .push_dictionary(user)
         .homophone_window(ContextWindow::Off)
         .build()
@@ -81,26 +81,52 @@ fn explicit_loanwords_have_priority_but_user_dictionaries_win() {
         .unwrap();
     assert_ne!(north.convert_text_to_string("香港").unwrap(), "홍콩");
     let disabled = Builder::new()
-        .bundled_loanwords()
         .no_bundled_dictionaries()
         .homophone_window(ContextWindow::Off)
         .build()
         .unwrap();
     assert_ne!(disabled.convert_text_to_string("香港").unwrap(), "홍콩");
     let disabled = Builder::new()
-        .bundled_loanwords()
         .no_bundled_loanwords()
         .homophone_window(ContextWindow::Off)
         .build()
         .unwrap();
-    assert_ne!(disabled.convert_text_to_string("香港").unwrap(), "홍콩");
+    assert_eq!(disabled.convert_text_to_string("香港").unwrap(), "샹강");
+
+    let loanwords_only = Builder::new().no_bundled_stdict().build().unwrap();
+    assert_eq!(
+        loanwords_only.convert_text_to_string("香港").unwrap(),
+        "홍콩"
+    );
+
+    let north_enabled = Builder::with_preset(Preset::KoKp)
+        .bundled_loanwords()
+        .homophone_window(ContextWindow::Off)
+        .build()
+        .unwrap();
+    assert_eq!(
+        north_enabled.convert_text_to_string("香港").unwrap(),
+        "홍콩"
+    );
 }
 
 #[cfg(not(feature = "loanwords"))]
 #[test]
 fn explicit_loanwords_without_the_feature_returns_config_error() {
     assert!(matches!(
-        gukhanmun::Builder::new().bundled_loanwords().build(),
+        gukhanmun::Builder::new()
+            .no_bundled_dictionaries()
+            .bundled_loanwords()
+            .build(),
         Err(gukhanmun::Error::Config(_))
     ));
+}
+
+#[cfg(all(not(feature = "loanwords"), feature = "stdict"))]
+#[test]
+fn ko_kr_without_loanwords_feature_requires_opt_out() {
+    use gukhanmun::{Builder, Error};
+    assert!(matches!(Builder::new().build(), Err(Error::Config(_))));
+    let converter = Builder::new().no_bundled_loanwords().build().unwrap();
+    assert_eq!(converter.convert_text_to_string("香港").unwrap(), "샹강");
 }

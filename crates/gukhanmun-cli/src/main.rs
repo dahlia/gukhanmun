@@ -98,7 +98,8 @@ struct IoArgs {
 #[command(next_help_heading = "Language and dictionaries")]
 struct LanguageArgs {
     /// Language variant preset.  ko-kr (default) enables the bundled Standard
-    /// Korean Dictionary (標準國語大辭典) and the initial sound law (頭音法則).  ko-kp enables
+    /// Korean Dictionary (標準國語大辭典), NIKL loanword examples, and the initial
+    /// sound law (頭音法則). ko-kp leaves loanwords disabled and enables
     /// the bundled Open Korean Dictionary 북한어 category and disables the
     /// initial sound law, targeting North Korean orthography.
     #[arg(short, long, value_enum, default_value_t = Preset::KoKr)]
@@ -114,9 +115,13 @@ struct LanguageArgs {
     #[arg(short = 'S', long)]
     no_bundled_dictionaries: bool,
 
-    /// Enable NIKL loanword examples ahead of preset dictionaries.
-    #[arg(long, conflicts_with = "no_bundled_dictionaries")]
+    /// Enable NIKL loanword examples (default for ko-kr, opt-in for ko-kp).
+    #[arg(long, conflicts_with_all = ["no_bundled_dictionaries", "no_loanwords"])]
     loanwords: bool,
+
+    /// Disable only NIKL loanword examples, retaining other preset dictionaries.
+    #[arg(long)]
+    no_loanwords: bool,
 }
 
 #[derive(Debug, Args)]
@@ -595,6 +600,9 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
     }
     if cli.language.loanwords {
         builder = builder.bundled_loanwords();
+    }
+    if cli.language.no_loanwords {
+        builder = builder.no_bundled_loanwords();
     }
     if cli.language.no_bundled_dictionaries {
         builder = builder.no_bundled_dictionaries();

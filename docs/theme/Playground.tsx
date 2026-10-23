@@ -132,6 +132,7 @@ const DEFAULTS: Record<FormatKey, string> = {
 // FST package so a category's binary is only downloaded once the user enables
 // it; `ensureDictBytes` memoizes the result per id.
 const DICT_LOADERS: Record<DictId, () => Promise<Uint8Array>> = {
+  "loanwords": async () => (await import("@gukhanmun/loanwords-fst")).loanwordsFstBytes(),
   "stdict": async () => (await import("@gukhanmun/stdict-fst")).stdictFstBytes(),
   "opendict-general": async () =>
     (await import("@gukhanmun/opendict-fst")).opendictGeneralFstBytes(),
@@ -151,7 +152,7 @@ const DICT_LOADERS: Record<DictId, () => Promise<Uint8Array>> = {
 //
 // Unlike the JS/TS bindings (where a preset never auto-selects a bundled
 // dictionary), the playground applies each preset's bundled set exclusively:
-// ko-kr enables only stdict, ko-kp only the 북한어 category.
+// ko-kr enables loanwords and stdict, ko-kp only the 북한어 category.
 //
 // originalGloss is intentionally not part of a preset: it only applies under
 // the "original" rendering mode, which neither preset uses.  Input format and
@@ -182,6 +183,7 @@ const PRESET_CONFIGS: Record<Preset, PresetConfig> = {
     firstOccurrenceWindow: "off",
     recovery: "strict",
     dicts: {
+      "loanwords": true,
       "stdict": true,
       "opendict-general": false,
       "opendict-north-korean": false,
@@ -200,6 +202,7 @@ const PRESET_CONFIGS: Record<Preset, PresetConfig> = {
     firstOccurrenceWindow: "off",
     recovery: "strict",
     dicts: {
+      "loanwords": false,
       "stdict": false,
       "opendict-general": false,
       "opendict-north-korean": true,
@@ -308,6 +311,7 @@ export function Playground() {
 
   // Engine options (baked into the Gukhanmun instance at load() time).
   const [enabledDicts, setEnabledDicts] = useState<Record<DictId, boolean>>({
+    "loanwords": true,
     "stdict": true,
     "opendict-general": false,
     "opendict-north-korean": false,
@@ -399,7 +403,7 @@ export function Playground() {
 
   const gRef = useRef<Gukhanmun | null>(null);
   // Per-dictionary byte cache; populated lazily the first time a dictionary is
-  // enabled (or eagerly for the default-on stdict during the mount effect).
+  // enabled (or eagerly for the default-on loanword and stdict during the mount effect).
   const dictBytesRef = useRef<Map<DictId, Uint8Array>>(new Map());
 
   async function ensureDictBytes(id: DictId): Promise<Uint8Array> {
@@ -469,12 +473,13 @@ export function Playground() {
 
     void (async () => {
       try {
-        // Prime the cached WASM module while the default-on stdict bytes
+        // Prime the cached WASM module while the default-on loanword and stdict bytes
         // download, so first paint has its dictionary ready.  Other dictionary
         // categories load lazily when the user enables them.
         const [{ load }] = await Promise.all([
           import("@gukhanmun/wasm"),
           ensureDictBytes("stdict"),
+          ensureDictBytes("loanwords"),
         ]);
         if (cancelled) return;
 
@@ -814,6 +819,11 @@ export function Playground() {
               {t("pgDictionaries")}
             </span>
             <div className="playground-dicts-body">
+              <Toggle
+                label={t("pgLoanwords")}
+                checked={enabledDicts["loanwords"]}
+                onChange={(v) => toggleDict("loanwords", v)}
+              />
               <Toggle
                 label={t("pgStdict")}
                 checked={enabledDicts["stdict"]}

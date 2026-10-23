@@ -151,7 +151,7 @@ impl<'a> Builder<'a> {
             options: preset.options(),
             hanja_variant_set_override: None,
             bundled_stdict: preset.includes_bundled_stdict(),
-            bundled_loanwords: false,
+            bundled_loanwords: preset.includes_bundled_loanwords(),
             bundled_opendict_north_korean: preset.includes_bundled_opendict_north_korean(),
             dictionaries: Vec::new(),
             directives: UserDirectives::new(),
@@ -289,8 +289,9 @@ impl<'a> Builder<'a> {
     }
 
     /// Enables bundled loanwords ahead of preset dictionaries, after user dictionaries.
-    /// Both presets leave this off by default. Requires the `loanwords` feature;
-    /// otherwise `build` returns an invalid-options error.
+    /// Enabled by default for [`Preset::KoKr`], disabled for [`Preset::KoKp`].
+    /// Requires the `loanwords` feature; otherwise [`Builder::build`] returns
+    /// [`crate::Error::Config`].
     pub fn bundled_loanwords(mut self) -> Self {
         self.bundled_loanwords = true;
         self

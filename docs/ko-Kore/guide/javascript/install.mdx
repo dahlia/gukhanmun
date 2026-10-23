@@ -102,6 +102,35 @@ JavaScript 패키지는 《標準國語大辭典》을 內藏하지 않습니다
 />
 
 
+《外來語 表記 用例》
+--------------------
+
+國立國語院 《外來語 表記 用例》를 FST나 CDB 形式으로 設置합니다:
+
+<PackageManagerTabs
+  command={{
+    npm: "npm add @gukhanmun/loanwords-fst",
+    yarn: "yarn add @gukhanmun/loanwords-fst",
+    pnpm: "pnpm add @gukhanmun/loanwords-fst",
+    bun: "bun add @gukhanmun/loanwords-fst",
+    deno: "deno add jsr:@gukhanmun/loanwords-fst",
+  }}
+/>
+
+<PackageManagerTabs
+  command={{
+    npm: "npm add @gukhanmun/loanwords-cdb",
+    yarn: "yarn add @gukhanmun/loanwords-cdb",
+    pnpm: "pnpm add @gukhanmun/loanwords-cdb",
+    bun: "bun add @gukhanmun/loanwords-cdb",
+    deno: "deno add jsr:@gukhanmun/loanwords-cdb",
+  }}
+/>
+
+어느 프리셋도 이 패키지를 自動으로 불러오지 않습니다. 로더 使用法과 辭典
+優先順位는 [*辭典*](./dictionary.md#外來語-表記-用例-패키지)을 參照하십시오.
+
+
 NAPI 플랫폼 바이너리
 --------------------
 

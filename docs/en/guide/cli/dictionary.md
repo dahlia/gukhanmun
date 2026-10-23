@@ -8,9 +8,9 @@ Dictionaries
 ============
 
 Gukhanmun uses dictionaries to look up the hangul readings of hanja.  The
-`ko-kr` preset uses the bundled *Standard Korean Dictionary* (標準國語大辭典),
-and the `ko-kp` preset uses the bundled *Open Korean Dictionary* (우리말샘)
-North Korean category.
+`ko-kr` preset uses the bundled *Loanword spelling examples* and *Standard
+Korean Dictionary* (標準國語大辭典), and the `ko-kp` preset uses the bundled
+*Open Korean Dictionary* (우리말샘) North Korean category.
 
 
 Bundled dictionaries
@@ -35,6 +35,25 @@ gukhanmun --preset ko-kp input.txt
 ~~~~
 
 
+Loanword spelling examples
+--------------------------
+
+The `ko-kr` preset includes the National Institute of Korean Language's
+*Loanword spelling examples* dictionary by default. It supplies Korean
+spellings of foreign names written in hanja, such as `香港` → `홍콩`:
+
+~~~~ sh
+echo '香港' | gukhanmun
+# 홍콩
+~~~~
+
+Use `--no-loanwords` to disable only loanword examples while keeping the
+preset's other dictionaries. The `ko-kp` preset leaves loanword examples off;
+pass `--loanwords` to enable them explicitly. Custom dictionaries take priority,
+followed by loanword examples, then the preset's other dictionaries.
+`--loanwords` cannot be combined with `--no-bundled-dictionaries`.
+
+
 Custom dictionaries
 -------------------
 
@@ -53,8 +72,8 @@ Gukhanmun supports two binary dictionary formats:
 | FST    | *.gukfst* | $O(\text{key length})$ | Preferred for lattice segmentation; smaller on disk |
 | CDB    | *.gukcdb* | $O(1)$                 | Simpler layout; easier to audit by hand             |
 
-Dictionaries are tried in the order they appear on the command line, with the
-bundled dictionary consulted last.  The first match wins.
+Later `-d` arguments take priority over earlier ones and over every bundled
+dictionary. The first match in that priority order wins.
 
 
 Building a custom dictionary

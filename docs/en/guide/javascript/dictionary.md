@@ -72,6 +72,32 @@ const g = await load({
 ~~~~
 
 
+Loanword spelling examples packages
+-----------------------------------
+
+`@gukhanmun/loanwords-fst` and `@gukhanmun/loanwords-cdb` provide the National
+Institute of Korean Language's *Loanword spelling examples* dictionary. Both
+`"ko-kr"` and `"ko-kp"` require explicit loading; presets never add it for you.
+Place it after any user dictionaries and before stdict or opendict:
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+import { loanwordsFst } from "@gukhanmun/loanwords-fst";
+import { stdictFst } from "@gukhanmun/stdict-fst";
+
+const g = await load({
+  preset: "ko-kr",
+  dictionaries: [await loanwordsFst(), await stdictFst()],
+});
+g.convert("香港"); // "홍콩"
+~~~~
+
+For CDB format, import `loanwordsCdb` from `@gukhanmun/loanwords-cdb` instead.
+Both loaders return a `Promise<FileDictionarySource>` and work with
+`@gukhanmun/wasm` and `@gukhanmun/napi`. Installing the package alone does not
+change conversion; include its loader's result in `dictionaries`.
+
+
 Custom dictionaries
 -------------------
 

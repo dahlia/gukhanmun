@@ -24,10 +24,14 @@
 //!
 //! See the workspace's `DESIGN.md` for the architectural overview.
 //!
-//! # Quick start (default preset, bundled dictionary)
+//! # Quick start (default preset, bundled dictionaries)
+//!
+//! The default [`Preset::KoKr`] includes NIKL loanword examples ahead of the
+//! *Standard Korean Language Dictionary*. User dictionaries take priority over
+//! both. [`Preset::KoKp`] leaves loanwords disabled unless explicitly enabled.
 //!
 //! ```
-//! # #[cfg(feature = "stdict")] {
+//! # #[cfg(all(feature = "stdict", feature = "loanwords"))] {
 //! use gukhanmun::Builder;
 //!
 //! let converter = Builder::new().build()?;
@@ -55,21 +59,22 @@
 //! ```
 //! use gukhanmun::{Builder, Preset};
 //!
+//! # #[cfg(feature = "opendict")] {
 //! let converter = Builder::with_preset(Preset::KoKp).build()?;
 //! // The preset includes the bundled Open Korean Dictionary 북한어 category.
 //! assert_eq!(converter.convert_text_to_string("來日")?, "래일");
-//! # Ok::<(), gukhanmun::Error>(())
+//! # } Ok::<(), gukhanmun::Error>(())
 //! ```
 //!
 //! Use [`Builder::no_bundled_dictionaries`] to disable every bundled
-//! dictionary selected by a preset.  Use [`Builder::no_bundled_stdict`] or
-//! [`Builder::no_bundled_opendict`] when only one bundled dictionary family
-//! should be disabled.
+//! dictionary selected by a preset. Use [`Builder::no_bundled_stdict`],
+//! [`Builder::no_bundled_opendict`], or [`Builder::no_bundled_loanwords`] to
+//! disable one family.
 //!
 //! # HTML fragment conversion (`feature = "html"`)
 //!
 //! ```
-//! # #[cfg(all(feature = "html", feature = "stdict"))] {
+//! # #[cfg(all(feature = "html", feature = "stdict", feature = "loanwords"))] {
 //! use gukhanmun::Builder;
 //!
 //! let converter = Builder::new().build()?;

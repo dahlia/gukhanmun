@@ -26,7 +26,8 @@ Rust 라이브러리·命令줄 道具·WebAssembly 바인딩·[Node-API] 바인
 內에서 스트리밍으로 處理하며, 버퍼링은 漢字를 包含하는 連續된 變換 候補 範圍의
 크기와 選擇的 文脈間 同音異義 區別에 局限된다. 메모리 內 데이터·mmap 基盤·또는
 엔진에 不透明한 其他 形態의 結合 可能한 辭典을 받아들인다. 韓國
-國立國語院의 《標準國語大辭典》에서 抽出한 基本 辭典을 함께 提供한다. Rust에서,
+國立國語院의 《外來語 表記 用例》와 《標準國語大辭典》에서 抽出한 基本
+辭典을 함께 提供한다. Rust에서,
 Node-API를 通한 Node.js에서, WebAssembly를 通한 브라우저와 Deno에서, 그리고
 命令줄에서 使用 可能하다.
 
@@ -801,8 +802,9 @@ Rust 코드는 Cargo 워크스페이스로 다음과 같이 構成된다:
      -  *gukhanmun-wasm/*: `wasm-bindgen`을 通한 WebAssembly 바인딩.
      -  *gukhanmun-napi/*: `napi-rs`를 通한 Node-API 바인딩.
 
-우산 크레이트의 기능 플래그가 나머지를 組合한다. 基本 기능은 HTML·Markdown·內藏
-stdict를 活性化한다. CDB·FST는 個別 選擇 可能하다. 모두 꺼 두면 엔진과
+우산 크레이트의 기능 플래그가 나머지를 組合한다. 基本 기능은 HTML·Markdown,
+CDB·FST 백엔드, 內藏 loanwords·stdict·opendict 辭典을 活性化한다. 各 機能은
+個別 選擇 可能하다. 모두 꺼 두면 엔진과
 `UnihanCharDict`만 남는 Rust API 專用 빌드가 되며, 임베디드 환경에 適合하다.
 
 ### JavaScript 패키지
@@ -1043,26 +1045,29 @@ CI는 네 가지 모두를 stable·beta·워크스페이스의 MSRV(最低 支�
 프리셋
 ------
 
-| 옵션                 | `ko-kr`           | `ko-kp`           |
-| -------------------- | ----------------- | ----------------- |
-| `rendering`          | `hangul-only`     | `hangul-only`     |
-| `disambiguation`     | `per-block`       | `off`             |
-| `segmentation`       | `lattice`         | `lattice`         |
-| `initialSoundLaw`    | `true`            | `false`           |
-| `numerals`           | `hangul-phonetic` | `hangul-phonetic` |
-| `dictionary.bundled` | `"stdict-ko-kr"`  | `false`           |
-| `firstOccurrence`    | (없음)            | (없음)            |
+| 옵션                 | `ko-kr`                     | `ko-kp`             |
+| -------------------- | --------------------------- | ------------------- |
+| `rendering`          | `hangul-only`               | `hangul-only`       |
+| `disambiguation`     | `per-block`                 | `off`               |
+| `segmentation`       | `lattice`                   | `lattice`           |
+| `initialSoundLaw`    | `true`                      | `false`             |
+| `numerals`           | `hangul-phonetic`           | `hangul-phonetic`   |
+| `dictionary.bundled` | 外來語 表記 用例 + `stdict` | 《우리말샘》 北韓語 |
+| `firstOccurrence`    | (없음)                      | (없음)              |
 
 `ko-kr` 프리셋은 大韓民國의 正書法과 語彙 慣行에 맞춘다: 辭典 主導 讀音, 래티스
 分割, 폴백 區間에 適用되는 頭音法則, 段落 內에서 讀音이 曖昧할 때 漢字를 括弧로
-倂記하는 per-block 同音異義 區別. `ko-kp` 프리셋은 朝鮮民主主義人民共和國의
-慣行, 卽 頭音法則을 適用하지 않고 漢字語를 한글로 表記하는 慣行(래일, 류행,
-녀자)을 反映한다. 內藏 辭典을 가져오지 않는다, 大韓民國 《標準國語大辭典》의
-讀音은 `ko-KP`에서 不正確하기 때문이다.
+倂記하는 per-block 同音異義 區別. 內藏 外來語 表記 用例는 stdict보다 優先하고,
+使用者 定義 辭典은 둘보다 優先한다. `ko-kp` 프리셋은
+朝鮮民主主義人民共和國의 慣行, 卽 頭音法則을 適用하지 않고 漢字語를 한글로
+表記하는 慣行(래일, 류행, 녀자)을 反映한다. 《우리말샘》 北韓語 分類를
+包含하고, 外來語 表記 用例는 基本으로 끈다. JavaScript 프리셋은 言語 옵션을
+設定하지만, 辭典 패키지는 使用者가 明示的으로 불러와야 한다.
 
 CLI는 두 프리셋을 `--preset ko-kr`·`--preset ko-kp`로 露出한다. 個別 옵션은
-프리셋 위에서 덮어쓸 수 있다, 例를 들어 `--preset ko-kr --no-stdict`는 다른
-大韓民國 基本값은 維持하면서 內藏 辭典만 끈다.
+프리셋 위에서 덮어쓸 수 있다. 例를 들어 `--preset ko-kr --no-loanwords`는
+stdict와 다른 大韓民國 基本값은 維持하면서 外來語 表記 用例만 끈다.
+`--preset ko-kp --loanwords`는 外來語 表記 用例를 明示的으로 켠다.
 
 
 頭音法則 對照表

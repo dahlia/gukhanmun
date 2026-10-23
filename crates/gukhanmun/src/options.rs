@@ -31,15 +31,21 @@ use gukhanmun_core::{
 pub enum Preset {
     /// South Korean convention (한국어 / 韓國語).
     ///
-    /// Defaults: bundled *Standard Korean Language Dictionary* enabled, initial
-    /// sound law on, per-block homophone disambiguation.
+    /// Defaults: bundled NIKL loanword examples and *Standard Korean Language
+    /// Dictionary* enabled, initial sound law on, per-block homophone
+    /// disambiguation. Loanword readings take priority over the standard
+    /// dictionary, with user dictionaries taking priority over both.
+    ///
+    /// Building this preset requires the `loanwords` and `stdict` features
+    /// unless the caller disables the corresponding bundled dictionaries.
     #[default]
     KoKr,
 
     /// North Korean convention (조선말 / 朝鮮말).
     ///
     /// Defaults: bundled Open Korean Dictionary North Korean vocabulary
-    /// requested, initial sound law off, no homophone disambiguation (the
+    /// requested, bundled loanword examples disabled, initial sound law off,
+    /// no homophone disambiguation (the
     /// orthographic convention writes Sino-Korean words in hangul without
     /// parenthesized hanja).
     ///
@@ -86,6 +92,12 @@ impl Preset {
     /// Returns whether the bundled *Standard Korean Language Dictionary*
     /// should be included by default for this preset.
     pub fn includes_bundled_stdict(self) -> bool {
+        matches!(self, Preset::KoKr)
+    }
+
+    /// Returns whether bundled NIKL loanword examples should be included by
+    /// default, ahead of the preset dictionary but after user dictionaries.
+    pub fn includes_bundled_loanwords(self) -> bool {
         matches!(self, Preset::KoKr)
     }
 

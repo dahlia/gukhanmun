@@ -123,6 +123,13 @@ export default defineConfig({
           "dist",
           "index.js",
         ),
+        "@gukhanmun/loanwords-fst": path.join(
+          path.dirname(__dirname),
+          "packages",
+          "loanwords-fst",
+          "dist",
+          "index.js",
+        ),
         "@gukhanmun/opendict-fst": path.join(
           path.dirname(__dirname),
           "packages",

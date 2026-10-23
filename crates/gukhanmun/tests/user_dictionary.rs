@@ -194,7 +194,9 @@ fn candidate_sets_survive_builder_boxes_and_user_override() {
 fn bundled_particles_and_format_boundaries() {
     use gukhanmun::SegmentationStrategy;
     for strategy in [SegmentationStrategy::Eager, SegmentationStrategy::Lattice] {
+        // Isolate the standard dictionary candidate set from loanword overrides.
         let converter = Builder::new()
+            .no_bundled_loanwords()
             .segmentation(strategy)
             .homophone_window(ContextWindow::Off)
             .build()
