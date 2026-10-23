@@ -127,9 +127,10 @@ The source TSV keeps merged `target_code` IDs in `source_ids`, making candidate
 records traceable in the pinned JSON dump. Runtime binaries retain only
 readings, marks and relative preferences. They contain no definitions or source
 IDs. The existing priority bands are redirect 0, ordinary 10, prescribed
-saisiot 20, and foreign hanja spelling 30. Profiles and particle-based
-selection are not implemented. The *Open Korean Dictionary* extractor retains
-its existing single-reading policy.
+saisiot 20, and foreign hanja spelling 30. Reading profiles are still
+unimplemented. Conversion selects the recorded default for each key, narrowed
+by a following Korean particle when one is present. The *Open Korean
+Dictionary* extractor retains competing readings under the same rules.
 
 
 Annotation rules
