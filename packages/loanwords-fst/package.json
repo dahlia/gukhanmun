@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/loanwords-fst",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "NIKL loanword examples bundled as an FST binary for @gukhanmun/wasm and @gukhanmun/napi.",
   "type": "module",
   "exports": {
