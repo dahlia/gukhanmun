@@ -309,3 +309,86 @@ fn legacy_empty_values_are_lifted_losslessly_through_map_custom_box_and_chain() 
         "(漢字)"
     );
 }
+
+#[test]
+fn from_candidates_groups_repeated_keys_and_is_order_independent() {
+    let entries = vec![
+        ("東京", candidate("동경", None, 0, false)),
+        ("東京", candidate("도쿄", None, 10, false)),
+        ("年代", candidate("연대", Some("년대"), 0, false)),
+    ];
+    let dictionary = MapDictionary::from_candidates(entries.clone()).unwrap();
+    let reversed = MapDictionary::from_candidates(entries.into_iter().rev()).unwrap();
+    assert_eq!(dictionary, reversed);
+    assert_eq!(dictionary.len(), 2);
+    let candidates = dictionary.candidate_matches_at("東京").next().unwrap();
+    assert_eq!(candidates.candidates.as_slice().len(), 2);
+    assert_eq!(
+        select_default_reading(&candidates.candidates).reading,
+        "도쿄"
+    );
+    assert_eq!(
+        convert_plain_text("東京을", &dictionary, RenderMode::HangulOnly),
+        "동경을"
+    );
+    assert_eq!(
+        convert_plain_text("東京를", &dictionary, RenderMode::HangulOnly),
+        "도쿄를"
+    );
+    assert_eq!(
+        convert_plain_text("1990年代", &dictionary, RenderMode::HangulOnly),
+        "1990년대"
+    );
+    assert_eq!(
+        convert_plain_text("年代", &dictionary, RenderMode::HangulOnly),
+        "연대"
+    );
+}
+
+#[test]
+fn from_candidates_breaks_equal_preference_ties_by_reading_spelling() {
+    let entries = vec![
+        ("東京", candidate("동경", None, 0, false)),
+        ("東京", candidate("도쿄", None, 0, false)),
+    ];
+    for order in [entries.clone(), entries.into_iter().rev().collect()] {
+        let dictionary = MapDictionary::from_candidates(order).unwrap();
+        let candidates = dictionary.candidate_matches_at("東京").next().unwrap();
+        assert_eq!(
+            select_default_reading(&candidates.candidates).reading,
+            "도쿄"
+        );
+    }
+}
+
+#[test]
+fn from_candidates_rejects_empty_keys_and_readings() {
+    assert_eq!(
+        MapDictionary::from_candidates([("", candidate("한자", None, 0, false))]),
+        Err(CandidateError::EmptyKey)
+    );
+    assert_eq!(
+        MapDictionary::from_candidates([("漢字", candidate("", None, 0, false))]),
+        Err(CandidateError::EmptyReading)
+    );
+    assert_eq!(
+        MapDictionary::from_candidates([("漢字", candidate("한자", Some(""), 0, false))]),
+        Err(CandidateError::EmptyReading)
+    );
+    assert!(
+        MapDictionary::from_candidates(Vec::<(String, ReadingCandidate)>::new())
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn empty_map_dictionary_keeps_the_chain_word_bound() {
+    let empty = MapDictionary::new();
+    assert_eq!(empty.max_word_chars(), Some(0));
+    let mut populated = MapDictionary::new();
+    populated.insert("漢字", "한자");
+    let chain: ChainDictionary<_> = [empty, populated.clone()].into_iter().collect();
+    assert_eq!(chain.max_word_chars(), populated.max_word_chars());
+    assert_eq!(chain.max_word_chars(), Some(2));
+}

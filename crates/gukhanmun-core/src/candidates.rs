@@ -43,6 +43,9 @@ pub enum CandidateError {
     /// No candidate was provided.
     #[error("a dictionary key must have at least one candidate")]
     EmptySet,
+    /// A dictionary key is empty.
+    #[error("a dictionary key must not be empty")]
+    EmptyKey,
     /// A reading or explicitly present suffix is empty.
     #[error("candidate readings and explicit suffix readings must not be empty")]
     EmptyReading,

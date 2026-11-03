@@ -942,6 +942,42 @@ impl MapDictionary {
         self.entries.insert(hanja, candidates);
     }
 
+    /// Builds a dictionary from explicitly authored candidate entries.
+    ///
+    /// Repeated keys append candidates instead of replacing earlier readings, so
+    /// several readings for one headword are supplied as separate items.
+    /// Candidates are collected per key before validation, which means marks on
+    /// identical `(reading, suffix_reading)` pairs merge and preferences are
+    /// normalised exactly as [`ReadingCandidates::new`] does.
+    ///
+    /// List order does not select the default reading: the highest preference
+    /// wins, and ties are broken by reading spelling. Pass distinct preferences
+    /// when one of several readings should be the context-free default.
+    ///
+    /// Returns [`CandidateError::EmptyKey`] for an empty hanja key, which would
+    /// otherwise match at every offset with a zero-byte length, and
+    /// [`CandidateError::EmptyReading`] for an empty reading or an explicitly
+    /// empty suffix reading. An empty iterator yields an empty dictionary.
+    pub fn from_candidates<I, K>(entries: I) -> Result<Self, CandidateError>
+    where
+        I: IntoIterator<Item = (K, ReadingCandidate)>,
+        K: Into<String>,
+    {
+        let mut groups = BTreeMap::<String, Vec<ReadingCandidate>>::new();
+        for (hanja, candidate) in entries {
+            let hanja = hanja.into();
+            if hanja.is_empty() {
+                return Err(CandidateError::EmptyKey);
+            }
+            groups.entry(hanja).or_default().push(candidate);
+        }
+        let mut dictionary = Self::new();
+        for (hanja, candidates) in groups {
+            dictionary.insert_candidates(hanja, ReadingCandidates::new(candidates)?);
+        }
+        Ok(dictionary)
+    }
+
     /// Returns whether the dictionary has no entries.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
@@ -978,7 +1014,10 @@ impl HanjaDictionary for MapDictionary {
         )
     }
     fn max_word_chars(&self) -> Option<usize> {
-        self.max_word_chars
+        // An empty map bounds every key at zero. Reporting `None` instead would
+        // make `ChainDictionary::max_word_chars()` drop the bound contributed by
+        // the other dictionaries in the chain.
+        Some(self.max_word_chars.unwrap_or(0))
     }
     fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
         Some(Box::new(self.entries.iter().map(|(key, candidates)| {

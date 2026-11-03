@@ -495,7 +495,7 @@ OPTIONS:
 關係는 除外한다. 對象字가 여러 個인 Unicode 關係를 同値 類로 따라가지 않으므로,
 같은 簡化字를 通해서만 만나는 글字들은 서로 交換되지 않는다. 自體 매핑이 아닌
 簡化 關係는 그 原字가 다른 매핑의 對象字이더라도 方向 關係로 保存한다. 接頭辭는
-32글字, 直積 候補는 256個로 制限한다. 글字別 表記 集合은 各 照會 窓에서 한 번만
+32글字, 直積 候補는 256個로 制限한다. 글字別 表記 集合은 各 照會 窓에서 한 番만
 計算하며, 生成한 逆方向/對象字 인덱스로 모든 表 照會를 對數 時間에 處理한다.
 限度를 넘으면 그 接頭辭 길이의 擴張만 건너뛴다. 完全히 같은 重複을 除去한 뒤,
 完全한 辭典 一致가 正確히 하나만 남을 때에만 異體字 一致를 採擇한다. 讀音이
@@ -531,15 +531,15 @@ Gukhanmun에서는 미들웨어가 `OutputToken` 흐름에 對한 狀態 維持 
 `HomophoneMarker`는 흐름을 走査하면서, 有效 辭典 項目 集合이나 設定된 文脈 窓
 內에서 다른 漢字 表記와 한글 讀音을 共有하는 註解에 `homophone = true`를
 設定한다. 백엔드가 項目 列擧를 露出하면 `HanjaDictionary::entries()`로
-reading-to-hanja index를 한 번 만든다. 照會 專用 辭典은 `has_homophone()`으로
+reading-to-hanja index를 한 番 만든다. 照會 專用 辭典은 `has_homophone()`으로
 폴백(fallback)하며 文脈 內 표시도 계속 받는다. 窓은
 `per-block`(基本값)·`per-document`·`off` 셋 中 하나이다. per-block 窓은 다음
 「`is_block_boundary()`가 true를 返還하는 스코프」가 나올 때까지만 버퍼링하며,
 普通 한 段落이나 한 리스트 項目 程度이다. per-document 窓은 흐름 全體를
 버퍼링하므로 入力이 작거나 完全한 正確度가 應答 지연보다 重要할 때에만 적합하다.
 平文 텍스트에는 블록 스코프가 없으므로 `per-block`은 文書 全體 窓이 된다. 이는
-意圖한 契約이다. 1번째 줄에 `漢字`가 나오고 100번째 줄에 `翰字`가 나오면 두 줄
-모두 漢字 倂記로 렌더링되어야 하며, 스트리밍 라이터는 100번째 줄을 본 뒤 1번째
+意圖한 契約이다. 1番째 줄에 `漢字`가 나오고 100番째 줄에 `翰字`가 나오면 두 줄
+모두 漢字 倂記로 렌더링되어야 하며, 스트리밍 라이터는 100番째 줄을 본 뒤 1番째
 줄을 遡及 修正할 수 없다.
 
 `FirstOccurrenceFilter`는 設定된 文脈 內에서 첫 登場 以後의 註解들에 對하여
@@ -706,9 +706,9 @@ html5ever와 lol\_html도 檢討했다. html5ever는 Rust의 標準 HTML5 파서
 뿐, 어느 規則도 다시 따라 하지 않는다.
 
 句讀 記號 處理는 어댑터가 所有한 `PunctuationTextCodec`을 使用한다.
-各 單位는 原文 表記와 分類·文脈 判斷에 쓸 한 번 解讀한 값을 함께
+各 單位는 原文 表記와 分類·文脈 判斷에 쓸 한 番 解讀한 값을 함께
 保管한다. 바꾸지 않은 單位는 原文 表記를 維持한다. `&amp;period;`를
-두 번 解讀하지 않으며, `&lt;script&gt;`는 마크업이 되지 않는다.
+두 番 解讀하지 않으며, `&lt;script&gt;`는 마크업이 되지 않는다.
 平文과 이미 解讀된 Markdown은 literal codec을 쓴다. 코어는 HTML
 테이블에 依存하지 않으며, WHATWG 文字 參照와 Unicode 句讀 記號 分類
 데이터는 버전을 固定한 로컬 原本과 오프라인 再生成 檢査로 管理한다.
@@ -870,23 +870,35 @@ Unicode 스칼라 단위로 動作하기 때문이다. 바이트 單位 청크�
 
 ### 辭典 設定
 
-JavaScript의 辭典 設定은 파일 出處 또는 메모리 內 맵 中 하나를 받는다:
+JavaScript의 辭典 設定은 파일 出處 또는 實行 中에 計算한 項目 目錄 中 하나를
+받는다:
 
 ~~~~ ts
 export type DictionarySource = FileDictionarySource | MapDictionarySource;
 
 export interface FileDictionarySource {
   readonly data: BufferSource | string | URL;
-  readonly format: "cdb" | "fst" | "tsv";
+  readonly format: "cdb" | "fst";
 }
 
-export type MapDictionarySource =
-  ReadonlyMap<string, Omit<DictionaryEntry, "hanja">>;
+export interface MapDictionarySource {
+  readonly entries: readonly DictionaryEntry[];
+}
 ~~~~
 
-두 變種은 런타임에서는 `instanceof Map`으로, 컴파일 時點에서는 構造 타입으로
-區分된다. `Map` 形態는 코드 안에서 만드는 작은 用語集에 便利하고, 파일 形態는
-配布되는 辭典을 爲한 것이다.
+두 變種은 런타임에서는 `entries` 屬性의 有無(`"entries" in source`)로,
+컴파일 時點에서는 構造 타입으로 區分된다.  目錄 形態는 한 項目에 讀音 하나를
+담으므로 같은 `hanja` 키를 되풀이하면 한 標題語의 겨루는 讀音들이 된다.  이것이
+助詞 證據로 讀音을 고르게 하는 土臺이며, 키 하나에 讀音이 여럿이 되면
+`ReadonlyMap`으로는 表現할 수 없다.  目錄을 客體로 한 番 더 감싼 것은 #17의 讀音
+프로필 같은 出處 別 옵션 자리를 남겨 두기 爲해서다.  파일 形態는 配布되는 辭典을
+爲한 길로 남고, 豫約되어 있던 `"tsv"` 멤버는 없앴다.  메모리에만 있는 項目은
+`MapDictionarySource`로 넘긴다.
+
+두 變種 모두 配列 順序대로 `Builder::push_dictionary()`에 傳해지므로, 컴파일된
+辭典 앞에 놓인 項目 目錄은 自身이 지닌 키에 對해 그 辭典을 덮어쓴다.  바인딩에는
+텍스트 파서가 들어가지 않으며, 項目 目錄은 `gukhanmun-core`의 `MapDictionary`가
+된다.
 
 ### 레지스트리 對照表
 
@@ -1153,7 +1165,7 @@ CLI는 이 훅을 가장 자주 쓰는 두 가지 形態로 노출한다:
 `--html-preserve-class CLASS`와 `--html-preserve-attr KEY[=VALUE]`(各各 反復
 可能, OR 合成, `--format text/html`에서만 有效). format에 中立인
 skip 클로저를 `EngineOptions`에 두는 代案은 後續 릴리즈에서 다시 檢討한다. 現在
-同梱 어댑터들은 各自의 `ScopeData` 로 保存 規則을 充分히 表現할 수 있어 이번
+同梱 어댑터들은 各自의 `ScopeData` 로 保存 規則을 充分히 表現할 수 있어 이番
 範圍에서는 除外했다.
 
 
@@ -1166,7 +1178,7 @@ CDB-trie 데이터베이스는 各 項目의 接頭辭마다 한 個의 레코�
 | 오프셋 | 크기          | 필드                                                                       |
 | ------ | ------------- | -------------------------------------------------------------------------- |
 | 0      | 1             | `is_complete` (該當 接頭辭 自體가 項目이면 1)                              |
-| 1      | 1             | `mark` (비트필드: 0번 비트는 `require_hanja`, 1번 비트는 `require_hangul`) |
+| 1      | 1             | `mark` (비트필드: 0番 비트는 `require_hanja`, 1番 비트는 `require_hangul`) |
 | 2      | 2             | `reading_len` (little-endian; `is_complete = 0`이면 0)                     |
 | 4      | `reading_len` | 讀音 (UTF-8)                                                               |
 

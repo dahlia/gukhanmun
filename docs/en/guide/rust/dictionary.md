@@ -220,6 +220,28 @@ dictionary replaces the whole set for `東京`. Use `candidate_matches_at()` or
 expose only the selected default. FST/CDB `lookup().candidates()` exposes the
 same sets.
 
+When the readings arrive one per row, `MapDictionary::from_candidates()` groups
+repeated keys into the same candidate set, so a table of `(hanja, reading)` rows
+needs no manual grouping:
+
+~~~~ rust
+use gukhanmun::{MapDictionary, MatchMark, ReadingCandidate};
+
+let dictionary = MapDictionary::from_candidates([
+    ("東京", ReadingCandidate {
+        reading: "동경".into(), suffix_reading: None,
+        mark: MatchMark::default(), preference: 0,
+    }),
+    ("東京", ReadingCandidate {
+        reading: "도쿄".into(), suffix_reading: None,
+        mark: MatchMark::default(), preference: 10,
+    }),
+])?;
+~~~~
+
+Preferences are normalised per key exactly as `ReadingCandidates::new()` does,
+and an empty hanja key is rejected with `CandidateError::EmptyKey`.
+
 ### Particle evidence and limits
 
 The filter runs automatically after dictionary precedence and variant identity

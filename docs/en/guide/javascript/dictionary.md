@@ -8,7 +8,9 @@ Dictionaries
 ============
 
 Pass an array of `DictionarySource` objects in the `dictionaries` option.
-Dictionaries are probed in order; the first match wins.
+Dictionary sources are either compiled artifacts (`FileDictionarySource`) or
+entry lists computed at runtime (`MapDictionarySource`).  Dictionaries are
+probed in order; the first match wins.
 
 
 Standard Korean Dictionary packages
@@ -189,4 +191,76 @@ Building a custom dictionary
 The *.gukfst* and *.gukcdb* files loaded above are compiled artifacts, built
 from a plain text table with the `gukhanmun-mkdict` tool.  See
 [*Building a custom dictionary*](../cli/dictionary.md#building-a-custom-dictionary)
-in the CLI guide for how to author and compile dictionary sources.
+in the CLI guide for how to author and compile dictionary sources.  When the
+entries are computed at runtime rather than stored on disk, pass them directly
+as shown in the next section.
+
+
+Entries computed at runtime
+---------------------------
+
+A `MapDictionarySource` carries entries in memory.  Use it when a caller derives
+readings while building a document, in a browser, or in an edge runtime where
+neither a TSV file nor `gukhanmun-mkdict` is available:
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+import { stdictFst } from "@gukhanmun/stdict-fst";
+// ---cut-before---
+const converter = await load({
+  dictionaries: [
+    {
+      entries: [
+        { hanja: "高橋", reading: "다카하시" },
+        { hanja: "東京", reading: "도쿄", preference: 10 },
+        { hanja: "年代", reading: "연대", suffixReading: "년대" },
+      ],
+    },
+    await stdictFst(),
+  ],
+});
+~~~~
+
+The fields mirror the Rust `ReadingCandidate` type plus the hanja key:
+
+| Field           | Meaning                                                                |
+| --------------- | ---------------------------------------------------------------------- |
+| `hanja`         | The dictionary key                                                     |
+| `reading`       | The word-initial hangul reading                                        |
+| `suffixReading` | The reading used when the match is not word-initial, when it differs   |
+| `preference`    | Relative default preference within the key; larger wins, absent is `0` |
+| `requireHanja`  | Always show the original hanja alongside the reading                   |
+| `requireHangul` | Always show a hangul gloss alongside the original hanja                |
+
+Sources keep the precedence they have in `dictionaries`, so an entry list placed
+before a compiled dictionary overrides it for the keys it carries; placing it
+after the compiled dictionary leaves that dictionary in charge.
+
+Repeating a `hanja` key appends another reading instead of replacing the earlier
+one.  Several readings for one headword stay available to the engine, which then
+selects one from a following particle when the particle is decisive:
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({
+  dictionaries: [
+    {
+      entries: [
+        { hanja: "東京", reading: "동경" },
+        { hanja: "東京", reading: "도쿄", preference: 10 },
+      ],
+    },
+  ],
+});
+g.convert("東京");   // "도쿄": the higher preference
+g.convert("東京을"); // "동경을": the particle selects the other reading
+g.convert("東京를"); // "도쿄를"
+~~~~
+
+`preference` decides the context-free default.  List order never does: when two
+readings share a preference, the tie is broken by reading spelling, so set
+distinct preferences when the choice matters.
+
+An empty `entries` list contributes nothing, which makes `{ entries: [] }` a
+convenient placeholder for a document without overrides.

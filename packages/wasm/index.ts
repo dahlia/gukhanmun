@@ -70,6 +70,7 @@ export type {
   HanjaVariantSet,
   HomophoneDetection,
   HtmlOptions,
+  MapDictionarySource,
   NumeralStrategy,
   OriginalGloss,
   Preset,
@@ -254,9 +255,101 @@ function ensureWasm(): Promise<WasmGlue> {
 
 // ── Dictionary loading ───────────────────────────────────────────────────────
 
+/** A compiled-dictionary record passed to the WASM constructor. */
+interface RawBinaryDictInput {
+  format: string;
+  bytes: Uint8Array;
+}
+
+/**
+ * A runtime-dictionary record passed to the WASM constructor.  The entry list
+ * crosses the boundary as JSON so the Rust side can report coded
+ * `invalid-input` errors.
+ */
+interface RawEntryDictInput {
+  entriesJson: string;
+}
+
+/** One element of the ordered dictionary list sent to the WASM constructor. */
+type RawDictInput = RawBinaryDictInput | RawEntryDictInput;
+
+/** Rejects a source that is not an object before any property is read. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/** The entry fields {@link DictionaryEntry} declares, in serialisation order. */
+const DICTIONARY_ENTRY_FIELDS = [
+  "hanja",
+  "reading",
+  "suffixReading",
+  "preference",
+  "requireHanja",
+  "requireHangul",
+] as const;
+
+/**
+ * Encodes runtime dictionary entries for the WASM boundary.
+ *
+ * Each entry is copied field by field, so a class instance exposing its
+ * properties through getters serialises the same values it presents, and any
+ * extra property a caller carries is dropped rather than rejected.  The copy
+ * also keeps `NaN` and `±Infinity` preferences visible: `JSON.stringify` would
+ * erase them to `null`, which the Rust side reads as "absent".
+ */
+function encodeEntries(entries: unknown): string {
+  if (!Array.isArray(entries)) {
+    throw new GukhanmunError(
+      "invalid-input",
+      "Dictionary 'entries' must be an array",
+    );
+  }
+  const records: unknown[] = [];
+  for (const entry of entries as readonly unknown[]) {
+    if (!isRecord(entry)) {
+      // Let the Rust side report the shape of a non-object element.
+      records.push(entry);
+      continue;
+    }
+    const record: Record<string, unknown> = {};
+    for (const field of DICTIONARY_ENTRY_FIELDS) record[field] = entry[field];
+    const preference = record["preference"];
+    if (preference != null && !Number.isInteger(preference)) {
+      throw new GukhanmunError(
+        "invalid-input",
+        `Dictionary entry preference must be an integer, got ${String(preference)}`,
+      );
+    }
+    records.push(record);
+  }
+  try {
+    return JSON.stringify(records);
+  } catch (e) {
+    throw new GukhanmunError(
+      "invalid-input",
+      `Dictionary entries are not serialisable: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
 async function resolveDictionary(
   source: DictionarySource,
-): Promise<{ format: string; bytes: Uint8Array }> {
+): Promise<RawDictInput> {
+  if (typeof source !== "object" || source === null) {
+    throw new GukhanmunError(
+      "invalid-input",
+      "Each dictionary must be an object",
+    );
+  }
+  if ("entries" in source) {
+    if ("format" in source || "data" in source) {
+      throw new GukhanmunError(
+        "invalid-input",
+        "A dictionary must not combine 'entries' with 'format' or 'data'",
+      );
+    }
+    return { entriesJson: encodeEntries(source.entries) };
+  }
   if (source.data instanceof ArrayBuffer) {
     return { format: source.format, bytes: new Uint8Array(source.data) };
   }
@@ -456,9 +549,10 @@ function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
  * Creates a Gukhanmun converter with the given options.
  *
  * Initialises the WASM module on the first call (subsequent calls reuse the
- * cached module).  Dictionaries supplied via
- * `{@link GukhanmunOptions.dictionaries}` are fetched and passed to the Rust
- * engine as `FileDictionarySource` values.
+ * cached module).  Compiled dictionaries supplied via
+ * `{@link GukhanmunOptions.dictionaries}` are fetched, while
+ * `{@link MapDictionarySource}` entry lists are serialised and built in memory
+ * as Rust `MapDictionary` values.
  *
  * Note: unlike the Rust `ko-kr` preset, the JavaScript preset never includes a
  * bundled dictionary.  Pass `dictionaries: [await stdictFst()]` to include the
@@ -486,8 +580,12 @@ export async function load(options: GukhanmunOptions = {}): Promise<Gukhanmun> {
     throw liftError(e);
   }
 
-  const punctuation = JSON.parse(handle.punctuation_profile_json()) as ResolvedPunctuationProfile;
-  for (const style of Object.values(punctuation)) if (style != null) Object.freeze(style);
+  const punctuation = JSON.parse(
+    handle.punctuation_profile_json(),
+  ) as ResolvedPunctuationProfile;
+  for (const style of Object.values(punctuation)) {
+    if (style != null) Object.freeze(style);
+  }
   Object.freeze(punctuation);
   return new GukhanmunImpl(handle, { ...resolved, punctuation });
 }
@@ -535,15 +633,18 @@ function buildRawOptions(
 /** Reject ill-formed UTF-16 before a native boundary could replace surrogates. */
 function punctuationJson(value: GukhanmunOptions["punctuation"]): string {
   try {
-    return JSON.stringify(value === undefined ? "preserve" : value, (_key, v: unknown) => {
-      if (
-        typeof v === "string" && Array.from(v).some((c) => {
-          const code = c.codePointAt(0)!;
-          return code >= 0xd800 && code <= 0xdfff;
-        })
-      ) throw new Error("Punctuation strings must contain Unicode scalars");
-      return v;
-    });
+    return JSON.stringify(
+      value === undefined ? "preserve" : value,
+      (_key, v: unknown) => {
+        if (
+          typeof v === "string" && Array.from(v).some((c) => {
+            const code = c.codePointAt(0)!;
+            return code >= 0xd800 && code <= 0xdfff;
+          })
+        ) throw new Error("Punctuation strings must contain Unicode scalars");
+        return v;
+      },
+    );
   } catch (error) {
     throw new GukhanmunError(
       "invalid-input",

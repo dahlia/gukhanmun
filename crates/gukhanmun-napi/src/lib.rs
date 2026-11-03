@@ -36,8 +36,8 @@ use gukhanmun::html::HtmlElementInfo;
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
     Builder, ContextWindow, Converter, DirectiveAction, HanjaVariantSet, HomophoneDetection,
-    NumeralStrategy, OriginalGloss, Preset, Recovery, RenderMode, RenderOptions, RubyBase,
-    SegmentationStrategy,
+    MapDictionary, MatchMark, NumeralStrategy, OriginalGloss, Preset, ReadingCandidate, Recovery,
+    RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
 };
 
 // ── Option deserialization structs ──────────────────────────────────────────
@@ -91,13 +91,39 @@ enum JsPreserveAttr {
 
 // ── Dictionary input ─────────────────────────────────────────────────────────
 
-/// Raw dictionary record passed from JavaScript: `{ format: "fst"|"cdb", bytes: Uint8Array }`.
+/// Raw dictionary record passed from JavaScript.
+///
+/// A record carries exactly one of two shapes: a compiled artifact (`format`
+/// plus `bytes`) or a runtime-built entry list (`entries_json`). The TypeScript
+/// wrapper constructs the record, so the two shapes never mix.
 #[napi(object)]
 pub struct RawDictInput {
-    /// Dictionary format: `"fst"` or `"cdb"`.
-    pub format: String,
-    /// Raw binary data of the dictionary file.
-    pub bytes: Buffer,
+    /// Dictionary format: `"fst"` or `"cdb"` for a compiled artifact.
+    pub format: Option<String>,
+    /// Raw binary data of the compiled artifact.
+    pub bytes: Option<Buffer>,
+    /// JSON-encoded entry list for a runtime-built dictionary.
+    pub entries_json: Option<String>,
+}
+
+/// One entry of a runtime-built dictionary, as serialised by the wrapper.
+///
+/// Every optional field is `Option` so that an explicit JSON `null` means
+/// "absent", exactly like an omitted property. `#[serde(default)] bool` (the
+/// `gukhanmun-mkdict` JSONL shape) would reject `null` instead.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JsDictEntry {
+    hanja: String,
+    reading: String,
+    #[serde(default)]
+    suffix_reading: Option<String>,
+    #[serde(default)]
+    preference: Option<u32>,
+    #[serde(default)]
+    require_hanja: Option<bool>,
+    #[serde(default)]
+    require_hangul: Option<bool>,
 }
 
 // ── Format selector ──────────────────────────────────────────────────────────
@@ -240,8 +266,24 @@ impl NapiGukhanmun {
         }
 
         for dict in dictionaries.unwrap_or_default() {
-            let bytes = dict.bytes.as_ref();
-            match dict.format.as_str() {
+            if let Some(json) = dict.entries_json.as_deref() {
+                if dict.format.is_some() || dict.bytes.is_some() {
+                    return Err(napi_err(
+                        "invalid-input",
+                        "a dictionary must not combine `entries` with `format` or `bytes`",
+                    ));
+                }
+                builder = builder.push_dictionary(entry_dictionary(json)?);
+                continue;
+            }
+            let (Some(format), Some(bytes)) = (dict.format.as_deref(), dict.bytes.as_deref())
+            else {
+                return Err(napi_err(
+                    "invalid-input",
+                    "a dictionary must provide either `entries` or `format` with `bytes`",
+                ));
+            };
+            match format {
                 "fst" => {
                     let d = FstDictionary::from_bytes(bytes)
                         .map_err(|e| napi_err("dictionary-load", &e.to_string()))?;
@@ -358,6 +400,52 @@ fn convert_with_format(
                 .map_err(|e| map_gukhanmun_error(&e))
         }
     }
+}
+
+/// Builds a [`MapDictionary`] from the JSON-encoded entry list the wrapper sends
+/// for a `MapDictionarySource`.
+///
+/// This is the only place user-authored entries are validated, so messages name
+/// the offending entry by zero-based index. Grouping repeated keys and
+/// normalising preferences stay in [`MapDictionary::from_candidates`].
+fn entry_dictionary(json: &str) -> napi::Result<MapDictionary> {
+    let entries: Vec<JsDictEntry> = serde_json::from_str(json)
+        .map_err(|e| napi_err("invalid-input", &format!("invalid dictionary entries: {e}")))?;
+    let mut candidates = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.into_iter().enumerate() {
+        if entry.hanja.is_empty() {
+            return Err(napi_err(
+                "invalid-input",
+                &format!("dictionary entry {index} has an empty `hanja` key"),
+            ));
+        }
+        if entry.reading.is_empty() {
+            return Err(napi_err(
+                "invalid-input",
+                &format!("dictionary entry {index} has an empty `reading`"),
+            ));
+        }
+        if entry.suffix_reading.as_deref() == Some("") {
+            return Err(napi_err(
+                "invalid-input",
+                &format!("dictionary entry {index} has an empty `suffixReading`"),
+            ));
+        }
+        candidates.push((
+            entry.hanja,
+            ReadingCandidate {
+                reading: entry.reading,
+                suffix_reading: entry.suffix_reading,
+                mark: MatchMark {
+                    require_hanja: entry.require_hanja.unwrap_or(false),
+                    require_hangul: entry.require_hangul.unwrap_or(false),
+                },
+                preference: entry.preference.unwrap_or(0),
+            },
+        ));
+    }
+    MapDictionary::from_candidates(candidates)
+        .map_err(|e| napi_err("invalid-input", &e.to_string()))
 }
 
 fn parse_format_json(json: Option<&str>) -> napi::Result<StreamFormat> {
