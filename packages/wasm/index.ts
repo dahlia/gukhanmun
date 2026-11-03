@@ -305,7 +305,7 @@ function encodeEntries(entries: unknown): string {
     );
   }
   const records: unknown[] = [];
-  for (const entry of entries as readonly unknown[]) {
+  for (const [index, entry] of (entries as readonly unknown[]).entries()) {
     if (!isRecord(entry)) {
       // Let the Rust side report the shape of a non-object element.
       records.push(entry);
@@ -317,7 +317,7 @@ function encodeEntries(entries: unknown): string {
     if (preference != null && !Number.isInteger(preference)) {
       throw new GukhanmunError(
         "invalid-input",
-        `Dictionary entry preference must be an integer, got ${String(preference)}`,
+        `dictionary entry ${index} has a non-integer \`preference\`: ${String(preference)}`,
       );
     }
     records.push(record);

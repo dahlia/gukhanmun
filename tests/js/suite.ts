@@ -475,6 +475,14 @@ export function registerSuite(name: string, binding: Binding): void {
           ],
           1,
         ],
+        [
+          [
+            { hanja: "漢", reading: "한" },
+            { hanja: "漢", reading: "한", preference: 1.5 },
+          ],
+          1,
+        ],
+        [[{ hanja: "漢", reading: "한", preference: Number.NaN }], 0],
         [[{ hanja: "漢", reading: "한", suffixReading: "" }], 0],
       ];
       for (const [entries, index] of cases) {
