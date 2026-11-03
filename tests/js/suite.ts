@@ -463,6 +463,30 @@ export function registerSuite(name: string, binding: Binding): void {
         );
       }
     });
+
+    test("per-entry errors name the offending entry index", async () => {
+      const cases: readonly (readonly [unknown[], number])[] = [
+        [[{ hanja: "漢", reading: "한" }, { hanja: "漢" }], 1],
+        [[{ hanja: "漢", reading: "한" }, null], 1],
+        [
+          [
+            { hanja: "漢", reading: "한" },
+            { hanja: "漢", reading: "한", preference: -1 },
+          ],
+          1,
+        ],
+        [[{ hanja: "漢", reading: "한", suffixReading: "" }], 0],
+      ];
+      for (const [entries, index] of cases) {
+        await assert.rejects(
+          () => load({ dictionaries: [{ entries } as never] }),
+          (error: unknown) =>
+            error instanceof GukhanmunError &&
+            error.code === "invalid-input" &&
+            error.message.includes(`entry ${index}`),
+        );
+      }
+    });
   });
 
   // ── Render modes ─────────────────────────────────────────────────────────

@@ -405,14 +405,21 @@ fn convert_with_format(
 /// Builds a [`MapDictionary`] from the JSON-encoded entry list the wrapper sends
 /// for a `MapDictionarySource`.
 ///
-/// This is the only place user-authored entries are validated, so messages name
-/// the offending entry by zero-based index. Grouping repeated keys and
-/// normalising preferences stay in [`MapDictionary::from_candidates`].
+/// This is the only place user-authored entries are validated, so every
+/// per-entry error, including a deserialization failure, names the offending
+/// entry by zero-based index. Grouping repeated keys and normalising preferences
+/// stay in [`MapDictionary::from_candidates`].
 fn entry_dictionary(json: &str) -> napi::Result<MapDictionary> {
-    let entries: Vec<JsDictEntry> = serde_json::from_str(json)
+    let entries: Vec<serde_json::Value> = serde_json::from_str(json)
         .map_err(|e| napi_err("invalid-input", &format!("invalid dictionary entries: {e}")))?;
     let mut candidates = Vec::with_capacity(entries.len());
-    for (index, entry) in entries.into_iter().enumerate() {
+    for (index, value) in entries.into_iter().enumerate() {
+        let entry: JsDictEntry = serde_json::from_value(value).map_err(|e| {
+            napi_err(
+                "invalid-input",
+                &format!("dictionary entry {index} is invalid: {e}"),
+            )
+        })?;
         if entry.hanja.is_empty() {
             return Err(napi_err(
                 "invalid-input",
