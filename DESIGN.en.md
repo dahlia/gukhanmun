@@ -551,9 +551,12 @@ middleware that holds the glossary set and updates `require_hanja` on hits.
 Renderers
 ---------
 
-The renderer expands `Annotated` tokens into concrete `Text`, `Open`, and
-`Close` tokens according to its mode and the annotation's flags. Five renderers
-ship with the library.
+The renderer expands `Annotated` tokens into concrete `Annotated`, `Ruby`,
+`Open`, and `Close` tokens according to its mode and the annotation's flags.
+`Annotated` marks text the renderer generated from annotation data, as opposed
+to `Text`, which is source text that is already valid for the output format.
+Every writer serializes `Annotated` as literal text, so a dictionary reading can
+never become markup (GHSA-j87h-8h88-wm6g). Five renderers ship with the library.
 
 The `HangulOnly` renderer emits the hangul reading alone. If `require_hanja` or
 `homophone` is set, it emits `한글(한자)`. If `require_hangul` is set, the
@@ -663,7 +666,8 @@ than an event stream; we preferred event streams for the streaming property.
 ### Plain text
 
 The plain-text adapter wraps the entire input in a single scope and emits one
-`Text` token. The output is the concatenation of `Text` tokens. Ruby rendering
+`Text` token. The output is the concatenation of `Text` and `Annotated` tokens.
+Ruby rendering
 is not meaningful in plain text and falls back to parens.  The CLI can stream
 plain text before EOF only when no document-wide middleware can change already
 rendered output. In practice, the `ko-kp` preset streams because homophone

@@ -23,7 +23,7 @@ use gukhanmun_markdown::{
     read_markdown_iter, write_markdown, write_markdown_to_fmt,
 };
 use proptest::prelude::*;
-use pulldown_cmark::{Event, Options, Parser};
+use pulldown_cmark::{Event, Options, Parser, Tag};
 
 fn dictionary() -> MapDictionary {
     let mut dict = MapDictionary::new();
@@ -539,9 +539,7 @@ fn ruby_writer_escapes_hostile_dictionary_readings() {
 
     assert_eq!(
         events(&output),
-        events(
-            "<ruby>&lt;script&gt;alert(1)&lt;/script&gt;<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>\n"
-        )
+        events("<ruby>&lt;script>alert(1)&lt;/script><rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>\n")
     );
 }
 
@@ -1032,8 +1030,11 @@ fn markdown_writer_escapes_marker_spanning_annotation_runs() {
     )
     .unwrap();
     assert_no_markup(&output, MarkdownVariant::CommonMark);
+    // The numeral is an annotation, so its boundaries carry U+200B. That keeps
+    // the following `.` from completing an ordered-list marker; the character
+    // is invisible and does not change the rendered text.
     assert_eq!(
-        text_content(&output, MarkdownVariant::CommonMark),
+        text_content(&output, MarkdownVariant::CommonMark).replace('\u{200b}', ""),
         "1. 서론"
     );
 }
@@ -1075,6 +1076,340 @@ proptest! {
         prop_assert_eq!(
             text_content(&output, MarkdownVariant::CommonMark),
             raw
+        );
+    }
+}
+
+// ── GHSA-j87h-8h88-wm6g: annotation text must stay literal ───────────────────
+
+fn hostile_reading(reading: &str) -> MapDictionary {
+    let mut dict = MapDictionary::new();
+    dict.insert("漢字", reading);
+    dict
+}
+
+/// Parses `markdown` and fails if annotation-derived text formed any inline or
+/// block construct. Ruby markup from the adapter is the only inline HTML that
+/// may appear.
+fn assert_annotation_renders_as_text(markdown: &str, expected_text: &str) {
+    let parsed: Vec<Event<'_>> = Parser::new(markdown).collect();
+    for event in &parsed {
+        match event {
+            Event::Start(Tag::Link { .. })
+            | Event::Start(Tag::Image { .. })
+            | Event::Start(Tag::Emphasis)
+            | Event::Start(Tag::Strong)
+            | Event::Start(Tag::Strikethrough)
+            | Event::Start(Tag::CodeBlock(_))
+            | Event::Start(Tag::Heading { .. })
+            | Event::Start(Tag::List(_))
+            | Event::Code(_)
+            | Event::Html(_)
+            | Event::InlineMath(_)
+            | Event::DisplayMath(_) => {
+                panic!("annotation text formed markup in {markdown:?}: {event:?}");
+            }
+            Event::InlineHtml(html) => {
+                assert!(
+                    html.starts_with("<ruby>")
+                        || html.starts_with("</ruby>")
+                        || html.starts_with("<rp>")
+                        || html.starts_with("<rt>")
+                        || html.starts_with("</rt>")
+                        || html.starts_with("</rp>"),
+                    "unexpected inline HTML in {markdown:?}: {html:?}"
+                );
+            }
+            _ => {}
+        }
+    }
+    let text: String = parsed
+        .iter()
+        .filter_map(|event| match event {
+            Event::Text(text) => Some(text.as_ref()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        text.contains(expected_text),
+        "decoded text {text:?} does not contain {expected_text:?} (markdown: {markdown:?})"
+    );
+}
+
+#[test]
+fn markdown_readings_render_as_literal_text() {
+    for reading in [
+        "<script>alert(1)</script>",
+        "safe <img src=x onerror=alert(1)>",
+        "[x](javascript:alert(1))",
+        "*emphasis*",
+        "`code`",
+        "~~strike~~",
+        "# heading",
+        "1. item",
+        "a|b",
+        "\" onmouseover=\"x",
+        "{onclick=x}",
+        "$x$",
+        "a\nb",
+    ] {
+        let output = convert_markdown(
+            "漢字\n",
+            &hostile_reading(reading),
+            RenderMode::HangulOnly,
+            MarkdownVariant::CommonMark,
+        )
+        .unwrap();
+        let expected = reading.split('\n').next().unwrap();
+        assert_annotation_renders_as_text(&output, expected);
+    }
+}
+
+#[test]
+fn markdown_annotation_cannot_complete_a_source_tag() {
+    let output = convert_markdown(
+        "foo <漢字>\n",
+        &hostile_reading("img src=x onerror=alert(1)"),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    // The all-ASCII reading is isolated on both sides, so the stray `<` cannot
+    // be completed into a tag.
+    assert_annotation_renders_as_text(&output, "img src=x onerror=alert(1)");
+}
+
+#[test]
+fn markdown_empty_reading_cannot_complete_a_source_tag() {
+    let output = convert_markdown(
+        "foo <漢字img src=x onerror=alert(1)>\n",
+        &hostile_reading(""),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    // The zero width space keeps the stray `<` from starting a tag, so the
+    // decoded text is `<` + U+200B + the rest.
+    assert_annotation_renders_as_text(&output, "img src=x onerror=alert(1)>");
+}
+
+#[test]
+fn markdown_ruby_escapes_hostile_markdown_in_readings() {
+    let output = convert_markdown(
+        "漢字\n",
+        &hostile_reading("[x](javascript:alert(1))"),
+        RenderMode::Ruby(RubyBase::OnHangul),
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert_annotation_renders_as_text(&output, "[x](javascript:alert(1))");
+}
+
+#[test]
+fn markdown_link_label_keeps_the_original_link_only() {
+    let output = convert_markdown(
+        "[漢字](https://example.com)\n",
+        &hostile_reading("x](javascript:alert(1))[y"),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    let links: Vec<_> = Parser::new(&output)
+        .filter_map(|event| match event {
+            Event::Start(Tag::Link { dest_url, .. }) => Some(dest_url.to_string()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(links, ["https://example.com"]);
+}
+
+#[test]
+fn markdown_readings_cannot_form_gfm_autolinks() {
+    let reading =
+        "한자 https://evil.example/ and www.evil.example and WWW.evil.example and a@b.example";
+    let output = convert_markdown(
+        "漢字\n",
+        &hostile_reading(reading),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    // Some GFM parsers decode character references before looking for
+    // autolinks, so the encoder also inserts U+200B after every
+    // autolink-triggering character. Assert both halves of that contract.
+    assert!(
+        !output.contains("://"),
+        "autolink scheme survived: {output:?}"
+    );
+    assert!(!output.contains("www."), "www host survived: {output:?}");
+    assert!(!output.contains("a@b"), "e-mail survived: {output:?}");
+    assert!(
+        output.contains("&#8203;"),
+        "boundary was not inserted: {output:?}"
+    );
+
+    let decoded: String = Parser::new(&output)
+        .filter_map(|event| match event {
+            Event::Text(text) => Some(text.to_string()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(decoded.replace('\u{200b}', ""), reading);
+}
+
+#[test]
+fn markdown_self_closing_raw_text_elements_do_not_close_outside_foreign_content() {
+    let output = convert_markdown(
+        "Text <script/>漢字</script>\n",
+        &dictionary(),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert!(
+        output.contains("漢字"),
+        "script content must stay preserved: {output:?}"
+    );
+}
+
+#[test]
+fn markdown_self_closing_raw_text_inside_foreign_content_stays_preserved() {
+    // Same conservative choice as the HTML adapter: a raw-text tag with a
+    // trailing slash stays open, which preserves text instead of converting it.
+    let output = convert_markdown(
+        "<svg><style/>漢字</svg>\n",
+        &dictionary(),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+
+    assert!(
+        output.contains("漢字"),
+        "text after <style/> must stay preserved: {output:?}"
+    );
+}
+
+#[test]
+fn markdown_annotation_boundaries_cannot_complete_an_autolink() {
+    // A reading that is itself an autolink prefix must not be completed by the
+    // source text that follows it.
+    let output = convert_markdown(
+        "漢字.evil.example\n",
+        &hostile_reading("www"),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+    assert!(
+        output.contains("&#8203;"),
+        "trailing boundary separator missing: {output:?}"
+    );
+
+    let scheme = convert_markdown(
+        "漢字://evil.example\n",
+        &hostile_reading("http"),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+    assert!(
+        scheme.contains("&#8203;"),
+        "trailing boundary separator missing: {scheme:?}"
+    );
+
+    // A reading that starts with autolink punctuation must not continue a
+    // scheme from the source text before it.
+    let continuation = convert_markdown(
+        "http漢字evil.example\n",
+        &hostile_reading("://"),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+    assert!(
+        continuation.contains("&#8203;"),
+        "leading boundary separator missing: {continuation:?}"
+    );
+
+    // An all-ASCII reading can be a fragment of a trigger on both sides.
+    for (reading, input) in [
+        ("s", "http漢字://evil.example\n"),
+        ("ttp", "h漢字://evil.example\n"),
+        ("w.", "ww漢字evil.example\n"),
+    ] {
+        let output = convert_markdown(
+            input,
+            &hostile_reading(reading),
+            RenderMode::HangulOnly,
+            MarkdownVariant::CommonMark,
+        )
+        .unwrap();
+        assert!(
+            output.contains("&#8203;"),
+            "fragment boundary was not isolated: {output:?}"
+        );
+    }
+}
+
+#[test]
+fn markdown_annotation_boundaries_cannot_complete_an_email_autolink() {
+    // Source supplies `local@`; the reading supplies the domain.
+    let domain = convert_markdown(
+        "abc@漢字\n",
+        &hostile_reading("evil.example"),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+    assert!(
+        domain.contains("&#8203;"),
+        "email domain boundary was not isolated: {domain:?}"
+    );
+
+    // The reading supplies the local part; source supplies `@domain`.
+    let local = convert_markdown(
+        "漢字@evil.example\n",
+        &hostile_reading("한글 abc"),
+        RenderMode::HangulOnly,
+        MarkdownVariant::CommonMark,
+    )
+    .unwrap();
+    assert!(
+        local.contains("&#8203;"),
+        "email local-part boundary was not isolated: {local:?}"
+    );
+}
+
+#[test]
+fn markdown_html_elements_inside_foreign_content_restore_html_raw_text_rules() {
+    let mut dict = MapDictionary::new();
+    dict.insert("漢字", "가=1,alert(1)//");
+
+    for input in [
+        "<svg><b><script/>漢字</script></b></svg>\n",
+        "<svg><foreignObject><script/>漢字</script></foreignObject></svg>\n",
+        "<math><mi><script/>漢字</script></mi></math>\n",
+        "<svg><br><script/>漢字</script></svg>\n",
+        "<svg><b></b><script/>漢字</script></svg>\n",
+        "<svg><img src=x><style/>漢字</style></svg>\n",
+    ] {
+        let output = convert_markdown(
+            input,
+            &dict,
+            RenderMode::HangulOnly,
+            MarkdownVariant::CommonMark,
+        )
+        .unwrap();
+        assert!(
+            !output.contains("가=1"),
+            "reading escaped into script context for {input}: {output}"
         );
     }
 }

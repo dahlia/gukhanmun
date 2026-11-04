@@ -674,17 +674,49 @@ where
                     }
                     return Some(Event::Text(CowStr::from(encoded)));
                 }
+                RenderedToken::Annotated(text) => {
+                    // Annotation text is generated data, so it needs the
+                    // source-text encoding plus two annotation-only guards:
+                    // U+200B separators that stop GFM from completing a URL or
+                    // e-mail across a reading, and U+200B for an empty
+                    // reading, which would otherwise delete the boundary
+                    // before a tag.
+                    let at_line_start = self.at_line_start;
+                    self.at_line_start = false;
+                    if text.is_empty() {
+                        return Some(Event::Text(CowStr::from("&#8203;")));
+                    }
+                    let in_table = self
+                        .stack
+                        .iter()
+                        .any(|data| matches!(&data.node, MarkdownNode::Container(Tag::Table(_))));
+                    let mut encoded = encode_markdown_annotation(&text, at_line_start, in_table);
+                    if encoded.ends_with('!') && next_is_link_like(self.tokens.peek()) {
+                        encoded.pop();
+                        encoded.push_str("&#33;");
+                    }
+                    return Some(Event::Text(CowStr::from(encoded)));
+                }
                 RenderedToken::Verbatim(text) => {
                     self.at_line_start = false;
                     return Some(Event::InlineHtml(CowStr::from(text)));
                 }
                 RenderedToken::Ruby { base, rt } => {
                     self.at_line_start = false;
+                    // Ruby text is parsed as Markdown between the inline HTML
+                    // tags, so it needs the annotation encoding rather than
+                    // plain HTML escaping.
+                    let in_table = self
+                        .stack
+                        .iter()
+                        .any(|data| matches!(&data.node, MarkdownNode::Container(Tag::Table(_))));
+                    let base = encode_markdown_annotation(&base, false, in_table);
+                    let rt = encode_markdown_annotation(&rt, false, in_table);
                     let mut markup = String::with_capacity(base.len() + rt.len() + 45);
                     markup.push_str("<ruby>");
-                    push_escaped_html_text(&mut markup, &base);
+                    markup.push_str(&base);
                     markup.push_str("<rp>(</rp><rt>");
-                    push_escaped_html_text(&mut markup, &rt);
+                    markup.push_str(&rt);
                     markup.push_str("</rt><rp>)</rp></ruby>");
                     return Some(Event::InlineHtml(CowStr::from(markup)));
                 }
@@ -910,6 +942,57 @@ fn encode_markdown_text(
     output
 }
 
+/// Encodes annotation-derived text for Markdown output.
+///
+/// Annotation text is generated data, so it needs the same literal encoding as
+/// source text plus two guards that source text does not need:
+///
+/// 1.  GFM extended autolinks are recognised on the decoded text, so a reading
+///     that contains a URL, a `www.` host, or an e-mail address gets a U+200B
+///     separator before every character that could form the trigger.
+/// 2.  A reading boundary made of trigger characters is isolated the same way,
+///     because adjacent source text can complete a trigger that starts or ends
+///     inside the reading.
+///
+/// An empty reading becomes U+200B so it cannot delete the boundary before a
+/// tag.  Ordinary readings such as `한자` or `한자(漢字)` take none of these
+/// paths and keep their previous bytes.
+fn encode_markdown_annotation(text: &str, at_line_start: bool, in_table: bool) -> String {
+    if text.is_empty() {
+        return String::from("&#8203;");
+    }
+    let guarded = insert_autolink_guards(text);
+    encode_markdown_text(&guarded, at_line_start, in_table, false, false)
+        .replace('\u{200b}', "&#8203;")
+}
+
+/// Inserts U+200B at the positions where GFM could otherwise form an
+/// autolink.
+fn insert_autolink_guards(text: &str) -> String {
+    let lowercase = text.to_ascii_lowercase();
+    let autolink_prone = text.contains("://") || lowercase.contains("www.") || text.contains('@');
+    let mut output = String::with_capacity(text.len() + 8);
+    if text.starts_with(is_autolink_boundary) {
+        output.push('\u{200b}');
+    }
+    for ch in text.chars() {
+        if autolink_prone && matches!(ch, '.' | ':' | '/' | '@') {
+            output.push('\u{200b}');
+        }
+        output.push(ch);
+    }
+    if text.ends_with(is_autolink_boundary) {
+        output.push('\u{200b}');
+    }
+    output
+}
+
+/// Characters that can appear at the edge of a GFM autolink trigger, so an
+/// adjacent reading boundary can continue or complete it.
+fn is_autolink_boundary(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '.' | ':' | '/' | '@' | '-' | '_' | '+')
+}
+
 /// Returns the byte index of the delimiter of an ordered-list marker at the
 /// start of `text`, if any.
 ///
@@ -935,21 +1018,6 @@ fn ordered_list_delimiter(text: &str) -> Option<usize> {
         };
     }
     None
-}
-
-/// Appends `input` to `output`, escaping characters that have special meaning
-/// in HTML element content. Mirrors the escape rules in the HTML adapter so
-/// that inline-HTML emitted from a `RenderedToken::Ruby` token cannot be
-/// broken out of by hostile dictionary readings or source text.
-fn push_escaped_html_text(output: &mut String, input: &str) {
-    for ch in input.chars() {
-        match ch {
-            '&' => output.push_str("&amp;"),
-            '<' => output.push_str("&lt;"),
-            '>' => output.push_str("&gt;"),
-            other => output.push(other),
-        }
-    }
 }
 
 fn open_event(data: &MarkdownScopeData) -> Event<'static> {

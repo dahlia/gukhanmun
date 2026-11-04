@@ -1471,3 +1471,60 @@ fn markdown_output_preserves_gfm_table_escaped_pipe() {
     );
     assert_eq!(markdown_events(&output), markdown_events(input));
 }
+
+// ── GHSA-j87h-8h88-wm6g: dictionary readings must not become markup ──────────
+
+#[test]
+fn html_output_escapes_dictionary_readings() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n漢字\t<img src=x onerror=alert(1)>\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+            "--format",
+            "text/html",
+        ])
+        .write_stdin("<p>漢字</p>")
+        .assert()
+        .success()
+        .stdout("<p>&lt;img src=x onerror=alert(1)&gt;</p>");
+}
+
+/// The CLI reformats Markdown output with hongdown. hongdown preserves the
+/// character references the Markdown writer emits for annotation text, so the
+/// reading stays literal after formatting. This test pins that behavior: a
+/// hongdown change that decodes the references again would reopen
+/// GHSA-j87h-8h88-wm6g on the CLI.
+#[test]
+fn markdown_output_preserves_annotation_character_references() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n漢字\t<img src=x onerror=alert(1)>\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+            "--format",
+            "text/markdown",
+        ])
+        .write_stdin("漢字\n")
+        .assert()
+        .success()
+        .stdout("&lt;img src=x onerror=alert(1)>\n");
+}

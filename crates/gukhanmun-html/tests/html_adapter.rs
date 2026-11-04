@@ -16,8 +16,9 @@
 
 use gukhanmun_core::{
     ContextWindow, EngineOptions, Error as CoreError, HanjaDictionary, InputToken, MapDictionary,
-    Match, OriginalGloss, RecoverableInputError, Recovery, RenderMode, RenderOptions, RubyBase,
-    mark_homophones, process_tokens_iter_with_options, recover_input_tokens, render_tokens_iter,
+    Match, OriginalGloss, RecoverableInputError, Recovery, RenderMode, RenderOptions,
+    RenderedToken, RubyBase, mark_homophones, process_tokens_iter_with_options,
+    recover_input_tokens, render_tokens_iter,
 };
 use gukhanmun_html::{
     HtmlElementInfo, HtmlError, HtmlFragmentReader, HtmlFragmentWriter, HtmlReaderOptions,
@@ -813,4 +814,181 @@ fn is_korean_lang_recognises_ko_variants() {
     assert!(!is_korean_lang("ja"));
     assert!(!is_korean_lang("en"));
     assert!(!is_korean_lang("zh-Hant"));
+}
+
+// ── GHSA-j87h-8h88-wm6g: annotation text must never become markup ────────────
+
+fn hostile_dictionary(reading: &str) -> MapDictionary {
+    let mut dict = MapDictionary::new();
+    dict.insert("漢字", reading);
+    dict
+}
+
+#[test]
+fn hangul_only_writer_escapes_hostile_dictionary_readings() {
+    let dict = hostile_dictionary("<img src=x onerror=alert(1)>");
+
+    let output = convert_html_fragment("<p>漢字</p>", &dict, RenderMode::HangulOnly);
+
+    assert_eq!(output, "<p>&lt;img src=x onerror=alert(1)&gt;</p>");
+}
+
+#[test]
+fn hanja_hangul_parens_writer_escapes_hostile_dictionary_readings() {
+    let dict = hostile_dictionary("<img src=x onerror=alert(1)>");
+
+    let output = convert_html_fragment("<p>漢字</p>", &dict, RenderMode::HanjaHangulParens);
+
+    assert_eq!(output, "<p>漢字(&lt;img src=x onerror=alert(1)&gt;)</p>");
+}
+
+#[test]
+fn annotation_escaping_covers_special_characters() {
+    let dict = hostile_dictionary("x&<>\"'");
+
+    let output = convert_html_fragment("漢字", &dict, RenderMode::HangulOnly);
+
+    // The first character is an ASCII letter, so it becomes a numeric
+    // reference; the remaining special characters become their references.
+    assert_eq!(output, "&#120;&amp;&lt;&gt;&quot;&#39;");
+}
+
+#[test]
+fn annotation_first_character_cannot_complete_a_source_tag() {
+    let dict = hostile_dictionary("img src=x onerror=alert(1)");
+
+    // Lenient recovery keeps the stray `<` as source text. Without the
+    // first-character reference, the reading would close the tag.
+    let output = convert_html_fragment("<漢字>", &dict, RenderMode::HangulOnly);
+
+    assert_eq!(output, "<&#105;mg src=x onerror=alert(1)>");
+}
+
+#[test]
+fn empty_reading_does_not_complete_a_source_tag() {
+    let dict = hostile_dictionary("");
+
+    let output = convert_html_fragment(
+        "<漢字img src=x onerror=alert(1)>",
+        &dict,
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(output, "<&#8203;img src=x onerror=alert(1)>");
+}
+
+#[test]
+fn quotes_close_the_attribute_boundary_breakout() {
+    let dict = hostile_dictionary("\" onmouseover=\"alert(1)");
+    let input = "<a b\"c d=\"x>漢字\">";
+
+    let hangul_only = convert_html_fragment(input, &dict, RenderMode::HangulOnly);
+    assert_eq!(
+        hangul_only,
+        "<a b\"c d=\"x>&quot; onmouseover=&quot;alert(1)\">"
+    );
+
+    let ruby_on_hangul = convert_html_fragment(input, &dict, RenderMode::Ruby(RubyBase::OnHangul));
+    assert_eq!(
+        ruby_on_hangul,
+        "<a b\"c d=\"x><ruby>&quot; onmouseover=&quot;alert(1)<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>\">"
+    );
+
+    let ruby_on_hanja = convert_html_fragment(input, &dict, RenderMode::Ruby(RubyBase::OnHanja));
+    assert_eq!(
+        ruby_on_hanja,
+        "<a b\"c d=\"x><ruby>漢字<rp>(</rp><rt>&quot; onmouseover=&quot;alert(1)</rt><rp>)</rp></ruby>\">"
+    );
+}
+
+#[test]
+fn ruby_fallback_escapes_readings_inside_text_only_elements() {
+    let dict = hostile_dictionary("</title><script>alert(1)</script>");
+
+    let output = convert_html_fragment(
+        "<title>漢字</title>",
+        &dict,
+        RenderMode::Ruby(RubyBase::OnHangul),
+    );
+
+    assert_eq!(
+        output,
+        "<title>&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;(漢字)</title>"
+    );
+}
+
+#[test]
+fn self_closing_raw_text_elements_do_not_close_immediately() {
+    let output = convert_html_fragment(
+        "<script/>漢字</script><style/>漢字</style><textarea/>漢字</textarea>",
+        &dictionary(),
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(
+        output,
+        "<script/>漢字</script><style/>漢字</style><textarea/>漢字</textarea>"
+    );
+}
+
+#[test]
+fn self_closing_non_raw_text_elements_keep_their_previous_behavior() {
+    let output = convert_html_fragment("<em/>漢字", &dictionary(), RenderMode::HangulOnly);
+
+    assert_eq!(output, "<em/>한자");
+}
+
+#[test]
+fn self_closing_raw_text_inside_foreign_content_stays_preserved() {
+    // Browsers honour `/>` here, but modelling foreign content exactly is not
+    // worth the risk: treating the tag as open only leaves the rest
+    // unconverted, while the opposite mistake can run a reading as script.
+    let output = convert_html_fragment(
+        "<svg><style/></svg><p>漢字</p>",
+        &dictionary(),
+        RenderMode::HangulOnly,
+    );
+
+    assert_eq!(output, "<svg><style/></svg><p>漢字</p>");
+}
+
+#[test]
+fn streaming_writer_escapes_annotated_tokens() {
+    let output = write_html_fragment([
+        RenderedToken::Annotated("<img src=x onerror=alert(1)>".into()),
+        RenderedToken::Annotated(String::new()),
+    ]);
+
+    assert_eq!(output, "&lt;img src=x onerror=alert(1)&gt;&#8203;");
+}
+
+#[test]
+fn text_and_verbatim_tokens_stay_unescaped() {
+    let output = write_html_fragment([
+        RenderedToken::Text("&amp; <b>".into()),
+        RenderedToken::Verbatim("<i>".into()),
+    ]);
+
+    assert_eq!(output, "&amp; <b><i>");
+}
+
+#[test]
+fn html_elements_inside_foreign_content_restore_html_raw_text_rules() {
+    let mut dict = MapDictionary::new();
+    dict.insert("漢字", "가=1,alert(1)//");
+
+    for input in [
+        "<svg><b><script/>漢字</script></b></svg>",
+        "<svg><foreignObject><script/>漢字</script></foreignObject></svg>",
+        "<math><mi><script/>漢字</script></mi></math>",
+        "<svg><br><script/>漢字</script></svg>",
+        "<svg><b></b><script/>漢字</script></svg>",
+        "<svg><img src=x><style/>漢字</style></svg>",
+    ] {
+        let output = convert_html_fragment(input, &dict, RenderMode::HangulOnly);
+        assert!(
+            !output.contains("가=1"),
+            "reading escaped into script context for {input}: {output}"
+        );
+    }
 }
