@@ -35,6 +35,49 @@ Version 0.1.3
 
 To be released.
 
+### gukhanmun-markdown
+
+ -  Escaped source text when writing Markdown, so backslash escapes and
+    character references consumed by the parser are restored instead of being
+    re-emitted raw.  Interior `<`, `&`, `[`, `]`, `` ` ``, `*`, `_`, `~`, `|`,
+    and `\` can no longer reform HTML, links, images, emphasis, code spans, or
+    tables, and line-start characters can no longer start a heading, list,
+    block quote, or definition list after conversion.  Code blocks, autolinks,
+    and HTML blocks remain untouched.  Literal `&` and `<` in prose now appear
+    as `&amp;` and `&lt;` in Markdown output; the rendered text is unchanged.
+    [[#35], [#36]]
+
+[#35]: https://github.com/dahlia/gukhanmun/issues/35
+[#36]: https://github.com/dahlia/gukhanmun/pull/36
+
+### gukhanmun
+
+ -  Markdown conversion escapes source text through the re-exported adapter, so
+    the Rust API no longer drops the escapes and character references in the
+    input.  [[#35], [#36]]
+
+### gukhanmun-cli
+
+ -  `--format text/markdown` now preserves escapes and character references in
+    source text both before and after the Hongdown formatting pass.
+    [[#35], [#36]]
+
+### gukhanmun-napi
+
+ -  Markdown output escapes source text.  [[#35], [#36]]
+
+### gukhanmun-wasm
+
+ -  Markdown output escapes source text.  [[#35], [#36]]
+
+### @gukhanmun/napi
+
+ -  Markdown conversion escapes source text.  [[#35], [#36]]
+
+### @gukhanmun/wasm
+
+ -  Markdown conversion escapes source text.  [[#35], [#36]]
+
 
 Version 0.1.2
 -------------
