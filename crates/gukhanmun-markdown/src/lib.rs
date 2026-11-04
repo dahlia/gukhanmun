@@ -20,6 +20,8 @@
 #![deny(missing_docs)]
 
 use std::fmt;
+use std::fmt::Write as _;
+use std::iter::Peekable;
 
 use gukhanmun_core::{
     ContextWindow, EngineOptions, HanjaDictionary, InputToken, RenderOptions, RenderedToken, Scope,
@@ -141,7 +143,12 @@ pub fn read_markdown_iter(
 /// Writes rendered Markdown tokens back to Markdown text.
 ///
 /// The writer serializes through `pulldown-cmark-to-cmark`, so Markdown syntax
-/// is preserved semantically rather than byte-for-byte.
+/// is preserved semantically rather than byte-for-byte.  [`RenderedToken::Text`]
+/// is written as literal text: `pulldown-cmark` has already decoded backslash
+/// escapes and character references by the time text reaches the writer, so
+/// the writer re-escapes the characters that could otherwise form inline or
+/// block markup.  [`RenderedToken::Verbatim`] (raw inline HTML), code spans,
+/// code blocks, and HTML blocks pass through untouched.
 pub fn write_markdown(
     tokens: impl IntoIterator<Item = RenderedToken<MarkdownScopeData>>,
 ) -> Result<String, MarkdownError> {
@@ -576,14 +583,16 @@ fn rendered_tokens_to_events(
     tokens: impl IntoIterator<Item = RenderedToken<MarkdownScopeData>>,
 ) -> impl Iterator<Item = Event<'static>> {
     RenderedEvents {
-        tokens: tokens.into_iter(),
+        tokens: tokens.into_iter().peekable(),
         stack: Vec::new(),
+        at_line_start: true,
     }
 }
 
-struct RenderedEvents<I> {
-    tokens: I,
+struct RenderedEvents<I: Iterator> {
+    tokens: Peekable<I>,
     stack: Vec<MarkdownScopeData>,
+    at_line_start: bool,
 }
 
 impl<I> Iterator for RenderedEvents<I>
@@ -598,22 +607,79 @@ where
             match token {
                 RenderedToken::Open(scope) => {
                     let data = scope.into_data();
+                    self.at_line_start = opens_at_line_start(&data);
                     let event = open_event(&data);
                     self.stack.push(data);
                     return Some(event);
                 }
                 RenderedToken::Close => {
-                    if let Some(data) = self.stack.pop()
-                        && let Some(event) = close_event(&data)
-                    {
-                        return Some(event);
+                    if let Some(data) = self.stack.pop() {
+                        self.at_line_start = closes_at_line_start(&data, self.at_line_start);
+                        if let Some(event) = close_event(&data) {
+                            return Some(event);
+                        }
                     }
                 }
-                RenderedToken::Text(text) => return Some(Event::Text(CowStr::from(text))),
+                RenderedToken::Text(mut text) => {
+                    // The engine emits one text token per annotation, so a
+                    // logical run can arrive as several adjacent tokens.
+                    // Coalesce them before escaping: a marker or a trailing
+                    // `!` must not be split across a token boundary, and an
+                    // empty token must not hide the following link from the
+                    // lookahead.
+                    while matches!(self.tokens.peek(), Some(RenderedToken::Text(_))) {
+                        if let Some(RenderedToken::Text(more)) = self.tokens.next() {
+                            text.push_str(&more);
+                        }
+                    }
+                    if text.is_empty() {
+                        continue;
+                    }
+                    let mut encoded = if stack_is_raw(&self.stack) {
+                        text.clone()
+                    } else {
+                        let in_table = self.stack.iter().any(|data| {
+                            matches!(&data.node, MarkdownNode::Container(Tag::Table(_)))
+                        });
+                        let at_heading_end =
+                            matches!(
+                                self.stack.last().map(|data| &data.node),
+                                Some(MarkdownNode::Container(Tag::Heading { .. }))
+                            ) && matches!(self.tokens.peek(), None | Some(RenderedToken::Close));
+                        let at_line_end = matches!(
+                            self.tokens.peek(),
+                            Some(RenderedToken::Open(scope))
+                                if matches!(
+                                    &scope.data().node,
+                                    MarkdownNode::Leaf(LeafNode::SoftBreak | LeafNode::HardBreak)
+                                )
+                        );
+                        encode_markdown_text(
+                            &text,
+                            self.at_line_start,
+                            in_table,
+                            at_heading_end,
+                            at_line_end,
+                        )
+                    };
+                    self.at_line_start = text.ends_with('\n');
+                    if encoded.ends_with('!') && next_is_link_like(self.tokens.peek()) {
+                        // The serializer escapes a trailing `!` before a
+                        // link-like event as `\!`; some downstream formatters
+                        // (hongdown) drop a backslash at the start of a text
+                        // node, which would recreate an image.  A character
+                        // reference survives that round trip.
+                        encoded.pop();
+                        encoded.push_str("&#33;");
+                    }
+                    return Some(Event::Text(CowStr::from(encoded)));
+                }
                 RenderedToken::Verbatim(text) => {
+                    self.at_line_start = false;
                     return Some(Event::InlineHtml(CowStr::from(text)));
                 }
                 RenderedToken::Ruby { base, rt } => {
+                    self.at_line_start = false;
                     let mut markup = String::with_capacity(base.len() + rt.len() + 45);
                     markup.push_str("<ruby>");
                     push_escaped_html_text(&mut markup, &base);
@@ -625,6 +691,246 @@ where
             }
         }
     }
+}
+
+/// Returns whether an opening scope places the next token at the start of an
+/// output line.
+///
+/// Headings start a line because Hongdown rewrites level-1 and level-2
+/// headings as setext headings, which move the heading text to column zero.
+/// Table cells do not: their text follows the cell pipe.  Inline containers
+/// and inline HTML never start a line.
+fn opens_at_line_start(data: &MarkdownScopeData) -> bool {
+    match &data.node {
+        MarkdownNode::Container(tag) => container_starts_line(tag),
+        MarkdownNode::Leaf(LeafNode::SoftBreak | LeafNode::HardBreak | LeafNode::Rule) => true,
+        MarkdownNode::Leaf(_) | MarkdownNode::InlineHtmlElement { .. } => false,
+    }
+}
+
+/// Returns whether closing `data` places the next token at the start of a line.
+///
+/// A leaf's close is synthetic (leaves are emitted as an open/close pair), so
+/// it leaves the line-start state unchanged instead of undoing the state set
+/// by a soft break, hard break, or rule.  Closing a table cell returns to the
+/// same table row, not to a line start.
+fn closes_at_line_start(data: &MarkdownScopeData, current: bool) -> bool {
+    match &data.node {
+        MarkdownNode::Leaf(_) => current,
+        MarkdownNode::Container(Tag::TableCell) => false,
+        MarkdownNode::Container(tag) => container_starts_line(tag),
+        MarkdownNode::InlineHtmlElement { .. } => false,
+    }
+}
+
+/// Returns whether `tag` is a block container whose content starts after the
+/// serializer's block prefix (`# `, `> `, `* `, `| `, and so on) or at column
+/// zero.
+fn container_starts_line(tag: &Tag<'_>) -> bool {
+    !matches!(
+        tag,
+        Tag::Emphasis
+            | Tag::Strong
+            | Tag::Strikethrough
+            | Tag::Superscript
+            | Tag::Subscript
+            | Tag::Link { .. }
+            | Tag::Image { .. }
+            | Tag::TableCell
+    )
+}
+
+/// Returns whether the open scopes make the current text raw output.
+///
+/// Code blocks and HTML blocks are raw in CommonMark, and the serializer
+/// writes an autolink or e-mail link as `<` + text + `>`, where escaping would
+/// break the destination.
+fn stack_is_raw(stack: &[MarkdownScopeData]) -> bool {
+    stack.iter().any(|data| {
+        matches!(
+            &data.node,
+            MarkdownNode::Container(Tag::CodeBlock(_) | Tag::HtmlBlock)
+                | MarkdownNode::Container(Tag::Link {
+                    link_type: LinkType::Autolink | LinkType::Email,
+                    ..
+                })
+        )
+    })
+}
+
+/// Returns whether `token` begins a link-like event, matching the serializer's
+/// own `next_is_link_like` check.
+fn next_is_link_like(token: Option<&RenderedToken<MarkdownScopeData>>) -> bool {
+    let Some(RenderedToken::Open(scope)) = token else {
+        return false;
+    };
+    matches!(
+        &scope.data().node,
+        MarkdownNode::Container(Tag::Link { .. } | Tag::Image { .. } | Tag::FootnoteDefinition(_))
+            | MarkdownNode::Leaf(LeafNode::FootnoteReference(_))
+    )
+}
+
+/// Encodes a text run so that re-parsing the serialized Markdown recovers the
+/// same literal characters instead of forming markup.
+///
+/// `pulldown-cmark-to-cmark` treats `Event::Text` as already-parsed text and
+/// escapes only the first character of a run.  Source text must therefore
+/// carry its own escapes: `<` and `&` become character references, Markdown
+/// punctuation is backslash-escaped, and characters that can start a block
+/// construct at a line start become numeric character references.  Code
+/// blocks, autolinks, and HTML blocks bypass this function entirely.
+///
+/// `at_line_start` is the line-start state tracked by [`RenderedEvents`];
+/// `in_table` selects the table-pipe encoding, `at_heading_end` enables the
+/// trailing-`#` and trailing-space rules at the end of a heading, and
+/// `at_line_end` marks a run followed by a soft or hard break.
+fn encode_markdown_text(
+    text: &str,
+    at_line_start: bool,
+    in_table: bool,
+    at_heading_end: bool,
+    at_line_end: bool,
+) -> String {
+    let special = pulldown_cmark_to_cmark::Options::default().special_characters();
+    // A heading's optional closing ATX sequence is a trailing run of `#`,
+    // spaces, and tabs.  Find its start once instead of rescanning the suffix
+    // for every `#`, which would be quadratic on hostile input.
+    let heading_tail_start = if at_heading_end {
+        text.char_indices()
+            .rev()
+            .find(|(_, character)| !matches!(character, '#' | ' ' | '\t'))
+            .map_or(0, |(index, character)| index + character.len_utf8())
+    } else {
+        text.len()
+    };
+    let mut output = String::with_capacity(text.len());
+    let mut line_start = at_line_start;
+    let mut ordered_delimiter = None;
+    for (index, ch) in text.char_indices() {
+        if line_start {
+            ordered_delimiter = ordered_list_delimiter(&text[index..]).map(|offset| index + offset);
+        }
+        let rest = &text[index + ch.len_utf8()..];
+        let next = rest.chars().next();
+        let previous = text[..index].chars().next_back();
+        let mut handled = false;
+        if ch == '&' {
+            output.push_str("&amp;");
+            handled = true;
+        } else if ch == '<' {
+            output.push_str("&lt;");
+            handled = true;
+        } else if ch == '\r' {
+            // A literal carriage return is a line ending to a Markdown block
+            // parser, so it must not reach the output as a raw character.
+            output.push_str("&#13;");
+            handled = true;
+        } else if ch == '\n' {
+            // Structural line breaks arrive as `SoftBreak`/`HardBreak`; a
+            // newline inside a text run came from a character reference and
+            // must stay a literal character rather than become a line ending.
+            output.push_str("&#10;");
+            handled = true;
+        } else if at_heading_end && ch == '#' && index >= heading_tail_start {
+            // A trailing `#` run is the optional closing ATX sequence.  A
+            // numeric reference keeps it as text and avoids the serializer's
+            // own trailing-`#` escape, which it would double.
+            output.push_str("&#35;");
+            handled = true;
+        } else if line_start {
+            match ch {
+                ' ' => {
+                    output.push_str("&#32;");
+                    handled = true;
+                }
+                '\t' => {
+                    output.push_str("&#9;");
+                    handled = true;
+                }
+                '#' | '>' | '|' | '-' | '+' | '=' | ':' => {
+                    write!(output, "&#{};", ch as u32).expect("writing to a String cannot fail");
+                    handled = true;
+                }
+                _ => {}
+            }
+        }
+        if !handled && Some(index) == ordered_delimiter {
+            // Escape the delimiter rather than the digit: `\.` is never the
+            // first byte of the run, so it cannot be doubled by the serializer.
+            output.push('\\');
+            output.push(ch);
+            handled = true;
+        }
+        if !handled && in_table && ch == '|' {
+            output.push_str("&#124;");
+            handled = true;
+        }
+        if !handled && matches!(ch, '\\' | '`' | '*' | '_' | '~' | '[' | ']') {
+            if ch == '~'
+                || (in_table && ch == '\\')
+                || (index == 0 && matches!(ch, '\\' | '[' | ']'))
+            {
+                // A numeric reference survives downstream formatters that
+                // drop a leading backslash at the start of a text node.  A
+                // backslash next to a table delimiter can also merge cells.
+                write!(output, "&#{};", ch as u32).expect("writing to a String cannot fail");
+            } else if index == 0 && special.contains(ch) {
+                output.push(ch);
+            } else {
+                output.push('\\');
+                output.push(ch);
+            }
+            handled = true;
+        }
+        if !handled && matches!(ch, ' ' | '\t') && next.is_none() {
+            if at_heading_end {
+                if ch == '\t' {
+                    output.push_str("&#9;");
+                } else {
+                    output.push_str("&#32;");
+                }
+                handled = true;
+            } else if at_line_end && ch == ' ' && previous == Some(' ') {
+                // Two literal spaces before a soft break would become a hard
+                // break; encode the last one so the break stays soft.
+                output.push_str("&#32;");
+                handled = true;
+            }
+        }
+        if !handled {
+            output.push(ch);
+        }
+        line_start = ch == '\n';
+    }
+    output
+}
+
+/// Returns the byte index of the delimiter of an ordered-list marker at the
+/// start of `text`, if any.
+///
+/// CommonMark accepts one to nine ASCII digits followed by `.` or `)`, and
+/// then a space, a tab, a line break, or the end of the input.
+fn ordered_list_delimiter(text: &str) -> Option<usize> {
+    let mut digits = 0;
+    for (index, ch) in text.char_indices() {
+        if ch.is_ascii_digit() {
+            digits += 1;
+            if digits > 9 {
+                return None;
+            }
+            continue;
+        }
+        if digits == 0 || !matches!(ch, '.' | ')') {
+            return None;
+        }
+        let rest = &text[index + ch.len_utf8()..];
+        return match rest.chars().next() {
+            None | Some(' ' | '\t' | '\n' | '\r') => Some(index),
+            Some(_) => None,
+        };
+    }
+    None
 }
 
 /// Appends `input` to `output`, escaping characters that have special meaning
