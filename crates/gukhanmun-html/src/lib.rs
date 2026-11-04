@@ -499,7 +499,14 @@ impl<'r, 'o> HtmlFragmentReader<'r, 'o> {
         let predicate_preserve_self = predicate_preserve_inherited
             || self.evaluate_preserve_predicate(&tag_name, raw_attributes, &context);
         context.predicate_preserve = predicate_preserve_self;
-        let omit_end_tag = self_closing || is_void_tag(&tag_name);
+        // Browsers ignore a trailing `/` on non-void HTML elements, so
+        // `<script/>` opens a raw-text element that runs to `</script>`. The
+        // same is true inside SVG and MathML once an HTML breakout tag such as
+        // `<br>` or `<b>` appears, and modelling foreign content precisely is
+        // not worth the risk here: treating every raw-text tag as open only
+        // leaves following text unconverted, while the opposite mistake can
+        // put dictionary data into executable script or CSS.
+        let omit_end_tag = is_void_tag(&tag_name) || (self_closing && !is_raw_text_tag(&tag_name));
         let scope = HtmlScopeData {
             tag_name: tag_name.clone(),
             raw_attributes: raw_attributes.to_owned(),
@@ -775,14 +782,22 @@ pub fn try_read_html_fragment_with_options(
 /// Writes rendered HTML tokens back to a fragment string.
 ///
 /// Start tags are emitted from the raw source text captured by the reader.
-/// `Text` and `Verbatim` tokens are passed through without additional
-/// escaping (the reader does not entity-encode `Text` either, so this matches
-/// the original input form). Renderer-emitted `Ruby` tokens are wrapped in a
-/// `<ruby>...<rp>(</rp><rt>...</rt><rp>)</rp></ruby>` element with
-/// HTML-special characters escaped in both the base text and the `rt` gloss;
-/// that prevents any user- or dictionary-supplied reading from breaking out of
-/// the markup. The `<rp>` elements supply parenthesized fallback text for
-/// browsers that do not support `<ruby>`.
+/// `Text` and `Verbatim` tokens are passed through without additional escaping
+/// (the reader does not entity-encode `Text` either, so this matches the
+/// original input form).
+///
+/// `Annotated` tokens carry data the renderer generated from a dictionary or
+/// other annotation source. They are written as escaped character data: `&`,
+/// `<`, `>`, `"`, and `'` become character references, an empty annotation
+/// becomes U+200B so it cannot join surrounding source text into a tag, and a
+/// leading ASCII letter, `/`, `!`, or `?` is written as a numeric reference so
+/// it cannot continue a tag opened by adjacent source text. This closes
+/// GHSA-j87h-8h88-wm6g while leaving source HTML untouched.
+///
+/// `Ruby` tokens are wrapped in a
+/// `<ruby>...<rp>(</rp><rt>...</rt><rp>)</rp></ruby>` element with the base
+/// text and `rt` gloss escaped the same way. The `<rp>` elements supply
+/// parenthesized fallback text for browsers that do not support `<ruby>`.
 pub fn write_html_fragment(
     tokens: impl IntoIterator<Item = RenderedToken<HtmlScopeData>>,
 ) -> String {
@@ -841,11 +856,14 @@ where
             RenderedToken::Text(text) | RenderedToken::Verbatim(text) => {
                 self.output.write_all(text.as_bytes())?;
             }
+            RenderedToken::Annotated(text) => {
+                write_escaped_html_annotation(&mut self.output, &text)?;
+            }
             RenderedToken::Ruby { base, rt } => {
                 self.output.write_all(b"<ruby>")?;
-                write_escaped_html_text(&mut self.output, &base)?;
+                write_escaped_html_ruby_text(&mut self.output, &base)?;
                 self.output.write_all(b"<rp>(</rp><rt>")?;
-                write_escaped_html_text(&mut self.output, &rt)?;
+                write_escaped_html_ruby_text(&mut self.output, &rt)?;
                 self.output.write_all(b"</rt><rp>)</rp></ruby>")?;
             }
         }
@@ -864,14 +882,67 @@ where
     }
 }
 
-/// Writes `input` to `output`, escaping characters that have special meaning
-/// in HTML element content.
-fn write_escaped_html_text(output: &mut impl Write, input: &str) -> io::Result<()> {
+/// Writes annotation-derived text as HTML character data.
+///
+/// Annotation text is generated data, so it must never become markup. This
+/// function applies three defenses:
+///
+/// 1.  An empty string becomes `&#8203;` (U+200B, zero width space). Without
+///     it, deleting the annotation would join the preceding source text (for
+///     example a stray `<` kept by lenient recovery) with the following source
+///     text and could form a tag.
+/// 2.  Quotes are escaped. The reader ends a start tag where the browser does
+///     not when a quote appears outside an attribute value, and in that window
+///     annotation text lands inside a quoted attribute value. Only the matching
+///     quote can break out, so escaping both closes that path.
+/// 3.  A first character that is an ASCII letter, `/`, `!`, or `?` is written
+///     as a numeric character reference. After a `<`, those are the only
+///     characters that move the tokenizer out of the data state, and `<`
+///     followed by `&` is plain text.
+fn write_escaped_html_annotation(output: &mut impl Write, input: &str) -> io::Result<()> {
+    if input.is_empty() {
+        return output.write_all(b"&#8203;");
+    }
+    for (index, ch) in input.chars().enumerate() {
+        match ch {
+            '&' => output.write_all(b"&amp;")?,
+            '<' => output.write_all(b"&lt;")?,
+            '>' => output.write_all(b"&gt;")?,
+            '"' => output.write_all(b"&quot;")?,
+            '\'' => output.write_all(b"&#39;")?,
+            other if index == 0 && is_tag_opening_char(other) => {
+                write!(output, "&#{};", other as u32)?;
+            }
+            other => {
+                let mut buffer = [0; 4];
+                output.write_all(other.encode_utf8(&mut buffer).as_bytes())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Returns whether `ch` can start or continue a construct immediately after a
+/// `<` in HTML, which makes it dangerous as the first character of annotation
+/// text.
+fn is_tag_opening_char(ch: char) -> bool {
+    ch.is_ascii_alphabetic() || matches!(ch, '/' | '!' | '?')
+}
+
+/// Writes ruby base or gloss text as HTML character data.
+///
+/// Ruby content follows markup this writer emits, so it cannot be adjacent to a
+/// source `<` and needs no first-character reference. It can still sit inside a
+/// quoted attribute value when the reader misidentifies the tag boundary, so
+/// quotes are escaped along with the element-content characters.
+fn write_escaped_html_ruby_text(output: &mut impl Write, input: &str) -> io::Result<()> {
     for ch in input.chars() {
         match ch {
             '&' => output.write_all(b"&amp;")?,
             '<' => output.write_all(b"&lt;")?,
             '>' => output.write_all(b"&gt;")?,
+            '"' => output.write_all(b"&quot;")?,
+            '\'' => output.write_all(b"&#39;")?,
             other => {
                 let mut buffer = [0; 4];
                 output.write_all(other.encode_utf8(&mut buffer).as_bytes())?;
@@ -1285,7 +1356,10 @@ pub fn classify_inline_html(html: &str) -> InlineHtml {
     let self_closing = is_self_closing_start_tag(html, name_end, end_position);
     let raw_attrs = raw_attributes(html, name_end, end_position, self_closing).to_owned();
     let lang = extract_lang(&raw_attrs);
-    let omit_end_tag = self_closing || is_void_tag(&tag_name);
+    // Mirrors the reader: a trailing `/` on a raw-text element does not close
+    // it. Inline HTML has no ancestor stack, so foreign content (SVG, MathML)
+    // cannot be detected here and the conservative branch is used.
+    let omit_end_tag = is_void_tag(&tag_name) || (self_closing && !is_raw_text_tag(&tag_name));
 
     InlineHtml::StartTag(InlineStartTag {
         raw_start_tag: html.to_owned(),

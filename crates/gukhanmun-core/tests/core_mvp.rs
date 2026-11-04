@@ -420,7 +420,7 @@ fn variant_sets_render_from_the_canonical_dictionary_spelling() {
             ..RenderOptions::default()
         },
     );
-    assert_eq!(rendered, vec![RenderedToken::Text("芸術".into())]);
+    assert_eq!(rendered, vec![RenderedToken::Annotated("芸術".into())]);
 }
 
 #[test]
@@ -449,7 +449,7 @@ fn every_variant_set_applies_to_hanja_in_parentheses_and_original_output() {
         );
         assert_eq!(
             parens,
-            vec![RenderedToken::Text(format!("예술({expected})"))]
+            vec![RenderedToken::Annotated(format!("예술({expected})"))]
         );
         let original = render_tokens(
             vec![OutputToken::<PlainScopeData>::Annotated(annotation.clone())],
@@ -459,7 +459,7 @@ fn every_variant_set_applies_to_hanja_in_parentheses_and_original_output() {
                 ..RenderOptions::default()
             },
         );
-        assert_eq!(original, vec![RenderedToken::Text(expected.into())]);
+        assert_eq!(original, vec![RenderedToken::Annotated(expected.into())]);
     }
 }
 
@@ -484,7 +484,7 @@ fn variant_sets_normalize_transitive_dictionary_spellings() {
                 ..RenderOptions::default()
             },
         );
-        assert_eq!(rendered, vec![RenderedToken::Text(expected.into())]);
+        assert_eq!(rendered, vec![RenderedToken::Annotated(expected.into())]);
     }
 }
 
@@ -519,7 +519,7 @@ fn variant_sets_prefer_direct_mappings_and_preserve_existing_targets() {
                 ..RenderOptions::default()
             },
         );
-        assert_eq!(rendered, vec![RenderedToken::Text(expected.into())]);
+        assert_eq!(rendered, vec![RenderedToken::Annotated(expected.into())]);
     }
 }
 
@@ -545,7 +545,7 @@ fn variant_sets_do_not_cross_senses_joined_by_a_shared_simplified_form() {
                 ..RenderOptions::default()
             },
         );
-        assert_eq!(rendered, vec![RenderedToken::Text(expected.into())]);
+        assert_eq!(rendered, vec![RenderedToken::Annotated(expected.into())]);
     }
 }
 
@@ -565,7 +565,7 @@ fn asahi_variant_set_includes_the_verified_extra_pairs() {
             ..RenderOptions::default()
         },
     );
-    assert_eq!(rendered, vec![RenderedToken::Text("彚".into())]);
+    assert_eq!(rendered, vec![RenderedToken::Annotated("彚".into())]);
 }
 
 #[test]
@@ -614,9 +614,9 @@ fn original_renderer_keeps_hanja_unless_hangul_is_required() {
     assert_eq!(
         rendered,
         vec![
-            RenderedToken::Text("天地".into()),
+            RenderedToken::Annotated("天地".into()),
             RenderedToken::Text(" ".into()),
-            RenderedToken::Text("漢字(한자)".into()),
+            RenderedToken::Annotated("漢字(한자)".into()),
         ]
     );
 }
@@ -2485,7 +2485,7 @@ fn renderer_removes_annotations_from_the_stream() {
         RenderMode::HangulOnly,
     );
 
-    assert_eq!(rendered, vec![RenderedToken::Text("한자".into())]);
+    assert_eq!(rendered, vec![RenderedToken::Annotated("한자".into())]);
 }
 
 #[test]
@@ -3087,19 +3087,19 @@ fn skip_annotation_collapses_to_primary_plain_text_for_each_render_mode() {
 
     assert_eq!(
         render_tokens(token(), RenderMode::HangulOnly),
-        vec![RenderedToken::Text("한자".into())]
+        vec![RenderedToken::Annotated("한자".into())]
     );
     assert_eq!(
         render_tokens(token(), RenderMode::HangulHanjaParens),
-        vec![RenderedToken::Text("한자".into())]
+        vec![RenderedToken::Annotated("한자".into())]
     );
     assert_eq!(
         render_tokens(token(), RenderMode::HanjaHangulParens),
-        vec![RenderedToken::Text("漢字".into())]
+        vec![RenderedToken::Annotated("漢字".into())]
     );
     assert_eq!(
         render_tokens(token(), RenderMode::Original),
-        vec![RenderedToken::Text("漢字".into())]
+        vec![RenderedToken::Annotated("漢字".into())]
     );
 }
 
@@ -3204,19 +3204,38 @@ proptest! {
     }
 
     #[test]
-    fn renderer_never_emits_unrendered_annotations(
+    fn renderer_never_emits_plain_text_for_annotations(
         hanja in "[一-龥]{1,4}",
         reading in "[가-힣]{1,6}",
         require_hanja in any::<bool>(),
         require_hangul in any::<bool>(),
         homophone in any::<bool>(),
-        mode in 0u8..4,
+        skip_annotation in any::<bool>(),
+        ruby in any::<bool>(),
+        ruby_base in any::<bool>(),
+        original_gloss in any::<bool>(),
+        mode in 0u8..5,
     ) {
-        let mode = match mode {
-            0 => RenderMode::HangulOnly,
-            1 => RenderMode::HangulHanjaParens,
-            2 => RenderMode::HanjaHangulParens,
-            _ => RenderMode::Original,
+        let mut options = RenderOptions::default();
+        if ruby {
+            let base = if ruby_base {
+                RubyBase::OnHanja
+            } else {
+                RubyBase::OnHangul
+            };
+            options.mode = RenderMode::Ruby(base);
+        } else {
+            options.mode = match mode {
+                0 => RenderMode::HangulOnly,
+                1 => RenderMode::HangulHanjaParens,
+                2 => RenderMode::HanjaHangulParens,
+                _ => RenderMode::Original,
+            };
+            options.original_gloss = if original_gloss {
+                OriginalGloss::Ruby
+            } else {
+                OriginalGloss::Parens
+            };
         };
         let rendered = render_tokens(
             vec![OutputToken::<PlainScopeData>::Annotated(annotated! {
@@ -3226,20 +3245,23 @@ proptest! {
                 require_hanja: require_hanja,
                 require_hangul: require_hangul,
                 first_in_context: true,
-                skip_annotation: false,
+                skip_annotation: skip_annotation,
                 from_dictionary: true,
                 from_source_gloss: false,
             })],
-            mode,
+            options,
         );
 
-        prop_assert!(rendered.into_iter().all(|token| matches!(
-            token,
-            RenderedToken::Open(_)
-                | RenderedToken::Close
-                | RenderedToken::Text(_)
-                | RenderedToken::Verbatim(_)
-        )));
+        // Every token an annotation renders to must be marked as generated
+        // text, so that each writer escapes it. A `Text` here is exactly the
+        // GHSA-j87h-8h88-wm6g regression.
+        let every_token_is_generated = rendered.into_iter().all(|token| {
+            matches!(
+                token,
+                RenderedToken::Annotated(_) | RenderedToken::Ruby { .. }
+            )
+        });
+        prop_assert!(every_token_is_generated);
     }
 }
 
@@ -3478,7 +3500,7 @@ fn ruby_falls_back_to_parens_when_inline_markup_disallowed() {
         rendered_on_hangul,
         vec![
             RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
-            RenderedToken::Text("한자(漢字)".into()),
+            RenderedToken::Annotated("한자(漢字)".into()),
             RenderedToken::Close,
         ]
     );
@@ -3488,7 +3510,7 @@ fn ruby_falls_back_to_parens_when_inline_markup_disallowed() {
         rendered_on_hanja,
         vec![
             RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
-            RenderedToken::Text("漢字(한자)".into()),
+            RenderedToken::Annotated("漢字(한자)".into()),
             RenderedToken::Close,
         ]
     );
@@ -3538,7 +3560,7 @@ fn ruby_falls_back_when_any_ancestor_disallows_inline_markup() {
         vec![
             RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
             RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
-            RenderedToken::Text("한자(漢字)".into()),
+            RenderedToken::Annotated("한자(漢字)".into()),
             RenderedToken::Close,
             RenderedToken::Close,
         ]
@@ -3567,7 +3589,7 @@ fn ruby_recovers_after_a_disallowing_scope_closes() {
         vec![
             RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
             RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
-            RenderedToken::Text("한자(漢字)".into()),
+            RenderedToken::Annotated("한자(漢字)".into()),
             RenderedToken::Close,
             RenderedToken::Close,
             RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
@@ -3598,7 +3620,7 @@ fn renderer_pops_scope_on_close_so_outer_scope_governs_next_annotation() {
         vec![
             RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
             RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
-            RenderedToken::Text("한자(漢字)".into()),
+            RenderedToken::Annotated("한자(漢字)".into()),
             RenderedToken::Close,
             RenderedToken::Ruby {
                 base: "한자".into(),
@@ -3664,7 +3686,7 @@ fn ruby_skip_annotation_collapses_to_primary_form() {
         rendered_on_hangul,
         vec![
             RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
-            RenderedToken::Text("한자".into()),
+            RenderedToken::Annotated("한자".into()),
             RenderedToken::Close,
         ]
     );
@@ -3674,7 +3696,7 @@ fn ruby_skip_annotation_collapses_to_primary_form() {
         rendered_on_hanja,
         vec![
             RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
-            RenderedToken::Text("漢字".into()),
+            RenderedToken::Annotated("漢字".into()),
             RenderedToken::Close,
         ]
     );
@@ -3707,7 +3729,7 @@ fn original_with_ruby_gloss_emits_inline_markup_for_required_hangul() {
                 base: "漢字".into(),
                 rt: "한자".into()
             },
-            RenderedToken::Text("漢字".into()),
+            RenderedToken::Annotated("漢字".into()),
             RenderedToken::Close,
         ]
     );
@@ -3735,7 +3757,7 @@ fn original_with_ruby_gloss_falls_back_to_parens_in_disallowing_scope() {
         rendered,
         vec![
             RenderedToken::Open(Scope::new(MarkupTestScopeData::no_inline())),
-            RenderedToken::Text("漢字(한자)".into()),
+            RenderedToken::Annotated("漢字(한자)".into()),
             RenderedToken::Close,
         ]
     );
@@ -3763,7 +3785,7 @@ fn original_with_parens_gloss_keeps_existing_behavior() {
         rendered,
         vec![
             RenderedToken::Open(Scope::new(MarkupTestScopeData::inline())),
-            RenderedToken::Text("漢字(한자)".into()),
+            RenderedToken::Annotated("漢字(한자)".into()),
             RenderedToken::Close,
         ]
     );

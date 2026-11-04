@@ -100,3 +100,38 @@ fn html_ruby_rendering_emits_ruby_tags() {
         .expect("html");
     assert!(output.contains("<ruby>학교<rp>(</rp><rt>學校</rt><rp>)</rp></ruby>"));
 }
+
+// ── GHSA-j87h-8h88-wm6g: dictionary readings are escaped in HTML output ──────
+
+fn hostile_reading_builder(reading: &'static str) -> gukhanmun::Converter<'static> {
+    let mut user = MapDictionary::new();
+    user.insert("漢字", reading);
+    Builder::new()
+        .no_bundled_stdict()
+        .push_dictionary(user)
+        .homophone_window(ContextWindow::Off)
+        .build()
+        .expect("builder")
+}
+
+#[test]
+fn html_output_escapes_dictionary_readings() {
+    let converter = hostile_reading_builder("<img src=x onerror=alert(1)>");
+
+    let output = converter
+        .convert_html_fragment_to_string("<p>漢字</p>")
+        .expect("html");
+
+    assert_eq!(output, "<p>&lt;img src=x onerror=alert(1)&gt;</p>");
+}
+
+#[test]
+fn plain_text_output_keeps_readings_verbatim() {
+    let converter = hostile_reading_builder("<img src=x onerror=alert(1)>");
+
+    let output = converter
+        .convert_text_to_string("漢字")
+        .expect("plain text");
+
+    assert_eq!(output, "<img src=x onerror=alert(1)>");
+}
