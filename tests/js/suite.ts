@@ -349,6 +349,154 @@ export function registerSuite(name: string, binding: Binding): void {
     }
   });
 
+  // ── Runtime entry dictionaries ───────────────────────────────────────────
+  // Entries computed in memory must reach the engine as a `MapDictionary`, with
+  // no compiled artifact and no `gukhanmun-mkdict` run.
+  describe(`${name}: entry dictionaries`, () => {
+    test("builds a dictionary from entries alone", async () => {
+      const g = await load({
+        dictionaries: [{ entries: [{ hanja: "東京", reading: "도쿄" }] }],
+      });
+      assert.equal(g.convert("東京"), "도쿄");
+      // Without a dictionary the same input falls back per character.
+      const fallback = await load({ dictionaries: [] });
+      assert.equal(fallback.convert("東京"), "동경");
+    });
+
+    test("an entry source overrides a compiled dictionary listed after it", async () => {
+      const compiled = await stdictFst();
+      const overridden = await load({
+        dictionaries: [{ entries: [{ hanja: "東京", reading: "동경" }] }, compiled],
+      });
+      assert.equal(overridden.convert("東京"), "동경");
+      // stdict carries 東京 as 도쿄 (preference 30) and 동경 (preference 10).
+      const original = await load({
+        dictionaries: [compiled, { entries: [{ hanja: "東京", reading: "동경" }] }],
+      });
+      assert.equal(original.convert("東京"), "도쿄");
+    });
+
+    test("repeated keys keep competing readings and particle evidence picks one", async () => {
+      const entries = [
+        { hanja: "東京", reading: "동경" },
+        { hanja: "東京", reading: "도쿄", preference: 10 },
+      ];
+      for (const order of [entries, [...entries].reverse()]) {
+        const g = await load({ dictionaries: [{ entries: order }] });
+        assert.equal(g.convert("東京"), "도쿄");
+        assert.equal(g.convert("東京을"), "동경을");
+        assert.equal(g.convert("東京를"), "도쿄를");
+      }
+    });
+
+    test("suffixReading supplies the non-word-initial form", async () => {
+      const g = await load({
+        dictionaries: [
+          { entries: [{ hanja: "年代", reading: "연대", suffixReading: "년대" }] },
+        ],
+      });
+      assert.equal(g.convert("1990年代"), "1990년대");
+      assert.equal(g.convert("年代"), "연대");
+    });
+
+    test("class instances exposing fields through getters are honoured", async () => {
+      class Entry {
+        readonly hanja = "年代";
+        readonly reading = "연대";
+        get suffixReading(): string {
+          return "년대";
+        }
+        get preference(): number {
+          return 5;
+        }
+      }
+      const g = await load({ dictionaries: [{ entries: [new Entry()] }] });
+      assert.equal(g.convert("1990年代"), "1990년대");
+      assert.equal(g.convert("年代"), "연대");
+    });
+
+    test("entry marks drive glosses in every render mode", async () => {
+      const hangulOnly = await load({
+        dictionaries: [{ entries: [{ hanja: "庫間", reading: "곳간", requireHanja: true }] }],
+        homophoneWindow: "off",
+      });
+      assert.equal(hangulOnly.convert("庫間"), "곳간(庫間)");
+      const original = await load({
+        dictionaries: [{ entries: [{ hanja: "庫間", reading: "곳간", requireHangul: true }] }],
+        rendering: "original",
+        homophoneWindow: "off",
+      });
+      assert.equal(original.convert("庫間"), "庫間(곳간)");
+    });
+
+    test("an empty entry list contributes nothing", async () => {
+      const compiled = await stdictFst();
+      const withEmpty = await load({ dictionaries: [{ entries: [] }, compiled] });
+      const alone = await load({ dictionaries: [compiled] });
+      const input = "漢字를 한글로 東京 1990年代";
+      assert.equal(withEmpty.convert(input), alone.convert(input));
+      assert.equal(
+        await streamAll(withEmpty.stream("text"), [...input]),
+        alone.convert(input),
+      );
+    });
+
+    test("invalid entry lists reject with invalid-input", async () => {
+      const invalid: unknown[] = [
+        { entries: "not-an-array" },
+        { entries: [{ hanja: "", reading: "가" }] },
+        { entries: [{ hanja: "漢", reading: "" }] },
+        { entries: [{ hanja: "漢", reading: "한", suffixReading: "" }] },
+        { entries: [{ hanja: "漢" }] },
+        { entries: [{ hanja: "漢", reading: "한", preference: -1 }] },
+        { entries: [{ hanja: "漢", reading: "한", preference: 1.5 }] },
+        { entries: [{ hanja: "漢", reading: "한", preference: Number.NaN }] },
+        { entries: [null] },
+        { entries: [{ hanja: 1, reading: "한" }] },
+        { format: "fst", data: new Uint8Array(), entries: [] },
+        null,
+      ];
+      for (const source of invalid) {
+        await assert.rejects(
+          () => load({ dictionaries: [source as never] }),
+          (error: unknown) => error instanceof GukhanmunError && error.code === "invalid-input",
+        );
+      }
+    });
+
+    test("per-entry errors name the offending entry index", async () => {
+      const cases: readonly (readonly [unknown[], number])[] = [
+        [[{ hanja: "漢", reading: "한" }, { hanja: "漢" }], 1],
+        [[{ hanja: "漢", reading: "한" }, null], 1],
+        [
+          [
+            { hanja: "漢", reading: "한" },
+            { hanja: "漢", reading: "한", preference: -1 },
+          ],
+          1,
+        ],
+        [
+          [
+            { hanja: "漢", reading: "한" },
+            { hanja: "漢", reading: "한", preference: 1.5 },
+          ],
+          1,
+        ],
+        [[{ hanja: "漢", reading: "한", preference: Number.NaN }], 0],
+        [[{ hanja: "漢", reading: "한", suffixReading: "" }], 0],
+      ];
+      for (const [entries, index] of cases) {
+        await assert.rejects(
+          () => load({ dictionaries: [{ entries } as never] }),
+          (error: unknown) =>
+            error instanceof GukhanmunError &&
+            error.code === "invalid-input" &&
+            error.message.includes(`entry ${index}`),
+        );
+      }
+    });
+  });
+
   // ── Render modes ─────────────────────────────────────────────────────────
   describe(`${name}: render modes`, () => {
     test("hangul-hanja-parens glosses with the source hanja", async () => {

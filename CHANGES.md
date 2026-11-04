@@ -19,6 +19,65 @@ Version 0.4.0
 
 To be released.
 
+### gukhanmun
+
+ -  Added `MapDictionary::from_candidates()` and `CandidateError::EmptyKey`
+    through the umbrella re-export, and made `MapDictionary::max_word_chars()`
+    report `Some(0)` while the map is empty so dictionaries chained after it
+    keep their streaming word bound.  [[#33], [#34]]
+
+[#33]: https://github.com/dahlia/gukhanmun/issues/33
+[#34]: https://github.com/dahlia/gukhanmun/pull/34
+
+### gukhanmun-core
+
+ -  Added `MapDictionary::from_candidates()` for building a dictionary from
+    per-reading entries: repeated keys are grouped into one candidate set
+    instead of replacing earlier readings, and preferences are normalised as
+    `ReadingCandidates::new()` does. Added `CandidateError::EmptyKey` for an
+    empty hanja key, which would otherwise match at every offset.
+    [[#33], [#34]]
+ -  Changed `MapDictionary::max_word_chars()` to report `Some(0)` while the map
+    is empty, so an empty user dictionary no longer hides the word bound of the
+    dictionaries chained after it while streaming.  [[#33], [#34]]
+
+### gukhanmun-napi
+
+ -  Accepted runtime dictionary entries from the JavaScript binding: a
+    dictionary record now carries either a compiled artifact or an entry list
+    that becomes a `MapDictionary`, so callers need no compiled artifact for
+    readings computed at runtime. Malformed entry lists report `invalid-input`
+    with the offending entry index.  [[#33], [#34]]
+
+### gukhanmun-wasm
+
+ -  Accepted runtime dictionary entries from the JavaScript binding: a
+    dictionary record now carries either a compiled artifact or an entry list
+    that becomes a `MapDictionary`, so callers need no compiled artifact for
+    readings computed at runtime. Malformed entry lists report `invalid-input`
+    with the offending entry index.  [[#33], [#34]]
+
+### @gukhanmun/napi
+
+ -  Accepted `MapDictionarySource` entry lists in `dictionaries`, building them
+    as in-memory dictionaries without a compiled artifact or a
+    `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
+    [[#33], [#34]]
+
+### @gukhanmun/types
+
+ -  Added the `MapDictionarySource` dictionary variant for entries computed at
+    runtime, and added the `suffixReading` and `preference` fields to
+    `DictionaryEntry`. `DictionarySource` now accepts either the file or the
+    entry-list shape.  [[#33], [#34]]
+
+### @gukhanmun/wasm
+
+ -  Accepted `MapDictionarySource` entry lists in `dictionaries`, building them
+    as in-memory dictionaries without a compiled artifact or a
+    `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
+    [[#33], [#34]]
+
 <!-- sacho:unreleased:end -->
 
 

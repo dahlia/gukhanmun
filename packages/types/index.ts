@@ -212,13 +212,39 @@ export type Recovery = "strict" | "lenient";
 // ── Dictionary sources ─────────────────────────────────────────────────────
 
 /**
- * A single dictionary entry returned by a dictionary lookup.
+ * A single dictionary entry: a hanja key with one hangul reading.
+ *
+ * Callers pass these in {@link MapDictionarySource.entries} to build a
+ * dictionary at runtime.  Fields mirror the Rust `ReadingCandidate` type plus
+ * the hanja key.
  */
 export interface DictionaryEntry {
-  /** The hanja form (key), e.g. `"漢字"`. */
+  /** The hanja form (dictionary key), e.g. `"漢字"`. */
   readonly hanja: string;
-  /** The hangul reading, e.g. `"한자"`. */
+  /** The word-initial hangul reading, e.g. `"한자"`. */
   readonly reading: string;
+  /**
+   * The reading used when the match is not word-initial, when it differs from
+   * {@link reading}.  For example a `年代` entry with `reading: "연대"` and
+   * `suffixReading: "년대"` reads `1990年代` as `1990년대` but `年代` alone as
+   * `연대`.
+   *
+   * Corresponds to Rust `ReadingCandidate::suffix_reading`.
+   */
+  readonly suffixReading?: string;
+  /**
+   * Relative default preference for this reading within its hanja key, a
+   * non-negative integer.  Larger values win, so an entry listed twice with
+   * different preferences keeps competing readings and uses the higher one by
+   * default.  Absent means `0`.
+   *
+   * List order never selects the default: when two readings share a preference
+   * the tie is broken by reading spelling.  Set distinct preferences to choose
+   * a default deliberately.
+   *
+   * Corresponds to Rust `ReadingCandidate::preference`.
+   */
+  readonly preference?: number;
   /**
    * When `true`, the renderer should always show the original hanja
    * alongside the hangul reading, regardless of ambiguity.
@@ -247,7 +273,8 @@ export interface DictionaryEntry {
  *   Deno 2.0+, and Bun only.  Throws in browser environments.
  *
  * At runtime, a `FileDictionarySource` is distinguished from other values by
- * the presence of a `format` property (`"format" in source`).
+ * the absence of an `entries` property (`"entries" in source` selects a
+ * {@link MapDictionarySource}).
  */
 export interface FileDictionarySource {
   /**
@@ -268,17 +295,61 @@ export interface FileDictionarySource {
    *   or in-memory bytes; supported in Node-API and (with `from_bytes`) in
    *   WASM builds that include the `cdb` feature.
    *
-   * The `"tsv"` format is reserved for future use; passing it throws
-   * `GukhanmunError` with code `"unsupported-content-type"`.
+   * The `"tsv"` format is reserved and never accepted.  Pass entries in memory
+   * through {@link MapDictionarySource} instead of compiling a table.
    */
   readonly format: "fst" | "cdb";
 }
 
 /**
+ * A dictionary built from entries computed at runtime, such as per-document
+ * reading overrides.
+ *
+ * Use this instead of compiling a TSV file with `gukhanmun-mkdict` when the
+ * entries do not exist on disk, for example in a browser, an edge runtime, or a
+ * site generator that derives entries per document.
+ *
+ * A source is distinguished from a {@link FileDictionarySource} by the presence
+ * of an `entries` property.
+ *
+ * @example
+ * ```ts
+ * import { stdictFst } from "@gukhanmun/stdict-fst";
+ * const g = await load({
+ *   dictionaries: [
+ *     {
+ *       entries: [
+ *         { hanja: "高橋", reading: "다카하시" },
+ *         { hanja: "東京", reading: "도쿄", preference: 10 },
+ *         { hanja: "年代", reading: "연대", suffixReading: "년대" },
+ *       ],
+ *     },
+ *     await stdictFst(),
+ *   ],
+ * });
+ * ```
+ */
+export interface MapDictionarySource {
+  /**
+   * The entries of this dictionary.
+   *
+   * Repeated `hanja` keys append competing readings instead of replacing each
+   * other, and {@link DictionaryEntry.preference} decides which reading is the
+   * context-free default.  Several readings for one key also let the engine
+   * pick a reading from a following particle (`東京을` versus `東京를`).
+   *
+   * An empty list contributes nothing, which is a convenient way to express
+   * "this document has no overrides".
+   */
+  readonly entries: readonly DictionaryEntry[];
+}
+
+/**
  * A dictionary source accepted by {@link GukhanmunOptions.dictionaries}.
  *
- * Currently only {@link FileDictionarySource} (binary file / URL / path) is
- * supported.  Sources are tried in array order; the first match wins.
+ * Sources are tried in array order; the first match for a hanja key wins, and
+ * every source listed before a compiled dictionary overrides that dictionary
+ * for the keys it carries.
  *
  * @example
  * ```ts
@@ -286,7 +357,7 @@ export interface FileDictionarySource {
  * const g = await load({ dictionaries: [await stdictFst()] });
  * ```
  */
-export type DictionarySource = FileDictionarySource;
+export type DictionarySource = FileDictionarySource | MapDictionarySource;
 
 // ── HTML options ────────────────────────────────────────────────────────────
 
@@ -518,6 +589,10 @@ export interface GukhanmunOptions {
    * `@gukhanmun/opendict-cdb` explicitly. For NIKL loanword examples, load
    * `@gukhanmun/loanwords-fst` or `@gukhanmun/loanwords-cdb`. Put user
    * dictionaries first, then loanwords, then the preset dictionaries.
+   *
+   * Entries computed at runtime need no package and no `gukhanmun-mkdict` run:
+   * pass {@link MapDictionarySource} (`{ entries: [...] }`) at the position
+   * where those overrides should take precedence.
    *
    * @see {@link DictionarySource}
    */

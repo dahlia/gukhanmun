@@ -1079,16 +1079,28 @@ export type DictionarySource = FileDictionarySource | MapDictionarySource;
 
 export interface FileDictionarySource {
   readonly data: BufferSource | string | URL;
-  readonly format: "cdb" | "fst" | "tsv";
+  readonly format: "cdb" | "fst";
 }
 
-export type MapDictionarySource =
-  ReadonlyMap<string, Omit<DictionaryEntry, "hanja">>;
+export interface MapDictionarySource {
+  readonly entries: readonly DictionaryEntry[];
+}
 ~~~~
 
-The two variants are distinguished by `instanceof Map` at runtime, and by
-structural typing at compile time. The `Map` form is convenient for small
-custom vocabularies created in code; the file form is for shipped dictionaries.
+The two variants are distinguished by the presence of an `entries` property at
+runtime (`"entries" in source`) and by structural typing at compile time. The
+array form carries one reading per item, so repeating a `hanja` key supplies
+competing readings for the same headword; this is what allows particle evidence
+to choose between them, and a `ReadonlyMap` could not express it once a key has
+several readings. Wrapping the array in an object also leaves room for
+per-source options such as the reading profiles of #17. The file form remains
+the route for shipped dictionaries, and the reserved `"tsv"` member is gone:
+entries that exist only in memory go through `MapDictionarySource` instead.
+
+Both variants are handed to `Builder::push_dictionary()` in array order, so an
+entry list placed before a compiled dictionary overrides that dictionary for the
+keys it carries, and entry lists become `MapDictionary` values in
+`gukhanmun-core` with no text parser in the bindings.
 
 ### Registry matrix
 

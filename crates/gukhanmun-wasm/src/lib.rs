@@ -37,8 +37,8 @@ use gukhanmun::html::HtmlElementInfo;
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
     Builder, ContextWindow, Converter, DirectiveAction, HanjaVariantSet, HomophoneDetection,
-    NumeralStrategy, OriginalGloss, Preset, Recovery, RenderMode, RenderOptions, RubyBase,
-    SegmentationStrategy,
+    MapDictionary, MatchMark, NumeralStrategy, OriginalGloss, Preset, ReadingCandidate, Recovery,
+    RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
 };
 
 // ── Option deserialization structs ──────────────────────────────────────────
@@ -88,6 +88,26 @@ struct JsHtmlOptions {
 enum JsPreserveAttr {
     Name(String),
     NameValue { name: String, value: Option<String> },
+}
+
+/// One entry of a runtime-built dictionary, as serialised by the wrapper.
+///
+/// Every optional field is `Option` so that an explicit JSON `null` means
+/// "absent", exactly like an omitted property. `#[serde(default)] bool` (the
+/// `gukhanmun-mkdict` JSONL shape) would reject `null` instead.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JsDictEntry {
+    hanja: String,
+    reading: String,
+    #[serde(default)]
+    suffix_reading: Option<String>,
+    #[serde(default)]
+    preference: Option<u32>,
+    #[serde(default)]
+    require_hanja: Option<bool>,
+    #[serde(default)]
+    require_hangul: Option<bool>,
 }
 
 // ── Format selector ──────────────────────────────────────────────────────────
@@ -227,6 +247,29 @@ impl WasmGukhanmun {
         let dicts_arr = Array::from(&dictionaries);
         for i in 0..dicts_arr.length() {
             let entry = dicts_arr.get(i);
+            let entries_val =
+                Reflect::get(&entry, &JsValue::from_str("entriesJson")).map_err(|_| {
+                    make_error(
+                        "invalid-input",
+                        "each dictionary must have an 'entriesJson' or 'format' field",
+                    )
+                })?;
+            if !entries_val.is_undefined() && !entries_val.is_null() {
+                let json = entries_val.as_string().ok_or_else(|| {
+                    make_error("invalid-input", "dictionary 'entriesJson' must be a string")
+                })?;
+                let has_binary = Reflect::has(&entry, &JsValue::from_str("format"))
+                    .unwrap_or(false)
+                    || Reflect::has(&entry, &JsValue::from_str("bytes")).unwrap_or(false);
+                if has_binary {
+                    return Err(make_error(
+                        "invalid-input",
+                        "a dictionary must not combine `entries` with `format` or `bytes`",
+                    ));
+                }
+                builder = builder.push_dictionary(entry_dictionary(&json)?);
+                continue;
+            }
             let fmt = Reflect::get(&entry, &JsValue::from_str("format"))
                 .ok()
                 .and_then(|v| v.as_string())
@@ -356,6 +399,59 @@ fn convert_with_format(
                 .map_err(|e| map_gukhanmun_error(&e))
         }
     }
+}
+
+/// Builds a [`MapDictionary`] from the JSON-encoded entry list the wrapper sends
+/// for a `MapDictionarySource`.
+///
+/// This is the only place user-authored entries are validated, so every
+/// per-entry error, including a deserialization failure, names the offending
+/// entry by zero-based index. Grouping repeated keys and normalising preferences
+/// stay in [`MapDictionary::from_candidates`].
+fn entry_dictionary(json: &str) -> Result<MapDictionary, JsValue> {
+    let entries: Vec<serde_json::Value> = serde_json::from_str(json)
+        .map_err(|e| make_error("invalid-input", &format!("invalid dictionary entries: {e}")))?;
+    let mut candidates = Vec::with_capacity(entries.len());
+    for (index, value) in entries.into_iter().enumerate() {
+        let entry: JsDictEntry = serde_json::from_value(value).map_err(|e| {
+            make_error(
+                "invalid-input",
+                &format!("dictionary entry {index} is invalid: {e}"),
+            )
+        })?;
+        if entry.hanja.is_empty() {
+            return Err(make_error(
+                "invalid-input",
+                &format!("dictionary entry {index} has an empty `hanja` key"),
+            ));
+        }
+        if entry.reading.is_empty() {
+            return Err(make_error(
+                "invalid-input",
+                &format!("dictionary entry {index} has an empty `reading`"),
+            ));
+        }
+        if entry.suffix_reading.as_deref() == Some("") {
+            return Err(make_error(
+                "invalid-input",
+                &format!("dictionary entry {index} has an empty `suffixReading`"),
+            ));
+        }
+        candidates.push((
+            entry.hanja,
+            ReadingCandidate {
+                reading: entry.reading,
+                suffix_reading: entry.suffix_reading,
+                mark: MatchMark {
+                    require_hanja: entry.require_hanja.unwrap_or(false),
+                    require_hangul: entry.require_hangul.unwrap_or(false),
+                },
+                preference: entry.preference.unwrap_or(0),
+            },
+        ));
+    }
+    MapDictionary::from_candidates(candidates)
+        .map_err(|e| make_error("invalid-input", &e.to_string()))
 }
 
 fn parse_format(val: &JsValue) -> Result<StreamFormat, JsValue> {

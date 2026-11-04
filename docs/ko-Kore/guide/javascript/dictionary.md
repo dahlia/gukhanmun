@@ -7,8 +7,10 @@ description: |-
 辭典
 ====
 
-`dictionaries` 옵션에 `DictionarySource` 客體의 配列을 넘깁니다.  辭典은
-順序대로 探索됩니다; 처음 一致한 것이 採擇됩니다.
+`dictionaries` 옵션에 `DictionarySource` 客體의 配列을 넘깁니다.  辭典 出處는
+컴파일된 産出物(`FileDictionarySource`)이거나 實行 時點에 計算한 項目 目錄
+(`MapDictionarySource`)입니다.  辭典은 順序대로 探索됩니다; 처음 一致한 것이
+採擇됩니다.
 
 
 《標準國語大辭典》 패키지
@@ -191,4 +193,74 @@ const g = await load({
 `gukhanmun-mkdict` 道具로 平文 텍스트 表에서 빌드됩니다.  辭典 出處를 作成하고
 컴파일하는 方法은 CLI 案內書의
 〈[使用者 定義 辭典 構築](../cli/dictionary.md#使用者-定義-辭典-構築)〉을
-參照하십시오.
+參照하십시오.  項目을 디스크에 두지 않고 實行 中에 計算한다면, 다음 節처럼
+直接 넘기면 됩니다.
+
+
+實行 時點에 計算한 項目
+-----------------------
+
+`MapDictionarySource`는 項目을 메모리에 담습니다.  文書를 만드는 途中에 讀音을
+計算하거나, TSV 파일도 `gukhanmun-mkdict`도 쓸 수 없는 브라우저·에지 런타임에서
+使用합니다:
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+import { stdictFst } from "@gukhanmun/stdict-fst";
+// ---cut-before---
+const converter = await load({
+  dictionaries: [
+    {
+      entries: [
+        { hanja: "高橋", reading: "다카하시" },
+        { hanja: "東京", reading: "도쿄", preference: 10 },
+        { hanja: "年代", reading: "연대", suffixReading: "년대" },
+      ],
+    },
+    await stdictFst(),
+  ],
+});
+~~~~
+
+各 필드는 한자 키를 除外하면 Rust의 `ReadingCandidate` 타입과 같습니다:
+
+| 필드            | 意味                                                     |
+| --------------- | -------------------------------------------------------- |
+| `hanja`         | 辭典 키                                                  |
+| `reading`       | 語頭 讀音                                                |
+| `suffixReading` | 語頭가 아닐 때 쓰는 讀音 (다를 때만)                     |
+| `preference`    | 같은 키 안에서의 相對 優先 順位; 클수록 優先, 없으면 `0` |
+| `requireHanja`  | 讀音과 함께 原本 漢字를 恒常 보임                        |
+| `requireHangul` | 原本 漢字와 함께 한글 註를 恒常 보임                     |
+
+出處의 優先 順位는 `dictionaries`에서와 같습니다.  컴파일된 辭典 앞에 두면 그
+辭典이 지닌 키를 덮어쓰고, 뒤에 두면 컴파일된 辭典이 그대로 優先합니다.
+
+같은 `hanja` 키를 되풀이하면 앞의 讀音을 代替하지 않고 讀音을 하나 더
+追加합니다. 엔진은 한 標題語의 여러 讀音을 모두 지니고 있다가, 뒤따르는 助詞가
+決定的이면 그 助詞에 맞는 讀音을 고릅니다:
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+// ---cut-before---
+const g = await load({
+  dictionaries: [
+    {
+      entries: [
+        { hanja: "東京", reading: "동경" },
+        { hanja: "東京", reading: "도쿄", preference: 10 },
+      ],
+    },
+  ],
+});
+g.convert("東京");   // "도쿄": 優先 順位가 높은 讀音
+g.convert("東京을"); // "동경을": 助詞가 다른 讀音을 고름
+g.convert("東京를"); // "도쿄를"
+~~~~
+
+文脈 없이 쓰는 基本 讀音은 `preference`가 決定합니다.  目錄 順序는 決코 基本
+讀音을 고르지 않습니다.  두 讀音의 優先 順位가 같으면 讀音 綴字 順序로
+決定되므로, 選擇이 重要하다면 `preference`를 서로 다르게 指定하십시오.
+
+빈 `entries` 目錄은 아무것도 寄與하지 않으므로, 덮어쓸 項目이 없는 文書에는
+`{ entries: [] }`를 그대로 둘 수 있습니다.
