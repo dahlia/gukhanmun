@@ -1444,6 +1444,8 @@ fn markdown_output_preserves_block_markers_after_hongdown() {
         "**a**\\![x](y)\n",
         "&#32;`a`\n",
         "a\n\\:-:\n",
+        "a&#32;\nb\n",
+        "a&#9;\nb\n",
         "\\[*a*\\](https://example.com)\n",
         "\\[\na\n\\](https://example.com)\n",
         "\\[*a*] and [*a*]\n\n[*a*]: https://example.com\n",

@@ -1038,6 +1038,28 @@ fn markdown_writer_escapes_marker_spanning_annotation_runs() {
     );
 }
 
+#[test]
+fn trailing_entity_space_before_soft_break_is_preserved() {
+    let empty = MapDictionary::new();
+    for (input, expected) in [("a&#32;\nb\n", "a&#32;"), ("a&#9;\nb\n", "a&#9;")] {
+        let output = convert_markdown(
+            input,
+            &empty,
+            RenderMode::HangulOnly,
+            MarkdownVariant::CommonMark,
+        )
+        .unwrap();
+        assert!(
+            output.contains(expected),
+            "trailing whitespace was not encoded: {output:?}"
+        );
+        assert_eq!(
+            normalized_events(&output, MarkdownVariant::CommonMark),
+            normalized_events(input, MarkdownVariant::CommonMark)
+        );
+    }
+}
+
 proptest! {
     #[test]
     fn escaped_punctuation_markdown_roundtrips_literally(

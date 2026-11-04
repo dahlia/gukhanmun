@@ -813,7 +813,6 @@ fn encode_markdown_text(
         }
         let rest = &text[index + ch.len_utf8()..];
         let next = rest.chars().next();
-        let previous = text[..index].chars().next_back();
         let mut handled = false;
         if ch == '&' {
             output.push_str("&amp;");
@@ -891,10 +890,15 @@ fn encode_markdown_text(
                     output.push_str("&#32;");
                 }
                 handled = true;
-            } else if at_line_end && ch == ' ' && previous == Some(' ') {
-                // Two literal spaces before a soft break would become a hard
-                // break; encode the last one so the break stays soft.
-                output.push_str("&#32;");
+            } else if at_line_end {
+                // A trailing space or tab before a soft break is stripped
+                // when the output is parsed again.  Encode it so the literal
+                // character survives without changing the break's structure.
+                if ch == '\t' {
+                    output.push_str("&#9;");
+                } else {
+                    output.push_str("&#32;");
+                }
                 handled = true;
             }
         }
