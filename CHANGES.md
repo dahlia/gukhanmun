@@ -33,7 +33,7 @@ Format guide for contributors:
 Version 0.1.3
 -------------
 
-To be released.
+Released on November 5, 2026.
 
 ### gukhanmun-core
 
