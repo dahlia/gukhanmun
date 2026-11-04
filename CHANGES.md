@@ -13,11 +13,13 @@ See CONTRIBUTING.md for the changelog and release workflow.
 
 <!-- sacho:unreleased:begin -->
 
+<!-- sacho:unreleased:end -->
+
 
 Version 0.3.1
 -------------
 
-To be released.
+Released on November 5, 2026.
 
 ### gukhanmun
 
@@ -104,8 +106,6 @@ To be released.
     [[#35], [#36]]
  -  `convert(..., "html")` and `stream("html")` escape dictionary readings.
     [[GHSA-j87h-8h88-wm6g]]
-
-<!-- sacho:unreleased:end -->
 
 
 Version 0.3.0
