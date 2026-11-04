@@ -37,6 +37,13 @@ linux-x64 = "hongdown-*-x86_64-unknown-linux-musl.tar.bz2"
 linux-arm64 = "hongdown-*-aarch64-unknown-linux-musl.tar.bz2"
 
 
+# nushell rejects an inherited PWD that ends with a slash, which some shells
+# and task runners leave behind.  Pin PWD to the project root for every nushell
+# task so the pre-commit hook and release tasks do not fail before they start.
+[task_templates.nu]
+shell = "nu -c"
+env = { PWD = "{{ config_root }}" }
+
 [tasks.check]
 description = "Run fast checks suitable for pre-commit"
 depends = [
@@ -76,7 +83,7 @@ depends = [
 
 [tasks.rust-init]
 description = "Materialize the pinned Rust toolchain in a single rustup process"
-shell = "nu -c"
+extends = "nu"
 # mise's rust tool is a symlink backend that defers to the system rustup, so the
 # toolchain and its components are not actually downloaded until the first cargo
 # invocation.  Under `mise run ci` several cargo tasks start at once and race to
@@ -102,7 +109,7 @@ let target_args = ($rust.targets | split row "," | each { |t| ["--target" $t] } 
 [tasks.bump]
 description = "Preview a workspace version bump and the changelog transition"
 usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init", "changelog-check"]
 run = """
 cargo release --workspace --no-publish --no-tag --no-push $env.usage_version
@@ -113,7 +120,7 @@ print "The applied bump will also run sacho next with the new workspace version.
 [tasks.bump-execute]
 description = "Create one signed commit bumping the workspace and the packages/ JS manifests"
 usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init", "changelog-check"]
 # cargo-release bumps the shared Cargo version, the intra-workspace dependency
 # requirements, and Cargo.lock, then writes a signed commit.  It knows nothing
@@ -246,7 +253,7 @@ run = "deno fmt --check"
 
 [tasks.wasm-build]
 description = "Build gukhanmun-wasm WASM module for web, nodejs, and deno targets"
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = """
 let out = $"(pwd)/packages/wasm/wasm"
@@ -257,7 +264,7 @@ wasm-pack build crates/gukhanmun-wasm --release --target deno --out-dir $"($out)
 
 [tasks.stdict-fst-data]
 description = "Build gukhanmun-stdict (release) and copy FST binary to packages/stdict-fst/"
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = """
 cargo build -p gukhanmun-stdict --release
@@ -273,7 +280,7 @@ cp ($matches | first) packages/stdict-fst/stdict.fst
 
 [tasks.napi-build]
 description = "Build the gukhanmun-napi native Node.js addon"
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = """
 cargo build -p gukhanmun-napi --release
@@ -286,7 +293,7 @@ match $nu.os-info.name {
 
 [tasks.stdict-cdb-data]
 description = "Build gukhanmun-mkdict (release) and generate CDB binary to packages/stdict-cdb/"
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-stdict"
@@ -296,7 +303,7 @@ cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict
 
 [tasks.opendict-fst-data]
 description = "Build gukhanmun-opendict (release) and copy FST binaries to packages/opendict-fst/"
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = """
 rm -rf target/release/build/gukhanmun-opendict-*
@@ -317,7 +324,7 @@ cp $"($out)/archaic.gukfst" packages/opendict-fst/archaic.fst
 
 [tasks.opendict-cdb-data]
 description = "Build gukhanmun-mkdict (release) and generate CDB binaries to packages/opendict-cdb/"
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-opendict"
@@ -370,7 +377,7 @@ run = [
 
 [tasks.js-sync-version]
 description = "Write a version string to all JS package manifests"
-shell = "nu -c"
+extends = "nu"
 run = """
 let ver = if "VERSION" in $env { $env.VERSION } else {
   error make { msg: "usage: VERSION=x.y.z mise run js-sync-version" }
@@ -400,7 +407,7 @@ for pkg in [
 
 [tasks.js-version-dev]
 description = "Compute a dev pre-release version and sync it to all JS manifests"
-shell = "nu -c"
+extends = "nu"
 run = """
 let build = if "BUILD" in $env { $env.BUILD } else { "0" }
 let commit = (git rev-parse --short HEAD | str trim)
@@ -413,7 +420,7 @@ mise run js-sync-version
 
 [tasks.js-publish]
 description = "Publish npm and JSR packages locally (manual first-publish or recovery)"
-shell = "nu -c"
+extends = "nu"
 run = """
 pnpm -r publish --no-git-checks
 deno publish --allow-dirty
@@ -497,7 +504,7 @@ run = "node docs/scripts/subset-hero-fonts.mjs"
 [tasks.stdict-extract]
 description = "Regenerate stdict candidates and positional forms from a pinned dump"
 usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = """
 let output = ($env.GUKHANMUN_DICTS_OUTPUT_DIR? | default "crates/gukhanmun-stdict/data")
@@ -507,14 +514,14 @@ cargo run --locked -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.us
 [tasks.stdict-extract-check]
 description = "Check stdict extraction against a pinned dump without modifying files"
 usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = 'cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output crates/gukhanmun-stdict/data/stdict.tsv --suffix-output crates/gukhanmun-stdict/data/suffix.tsv --check'
 
 [tasks.opendict-extract]
 description = "Regenerate Open Korean Dictionary candidates from a pinned dump"
 usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = """
 let output = ($env.GUKHANMUN_DICTS_OUTPUT_DIR? | default "crates/gukhanmun-opendict/data")
@@ -524,7 +531,7 @@ cargo run --locked -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $en
 [tasks.opendict-extract-check]
 description = "Check Open Korean Dictionary candidates from a pinned dump"
 usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = 'cargo run -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output crates/gukhanmun-opendict/data/general.tsv --north-korean-output crates/gukhanmun-opendict/data/north-korean.tsv --dialect-output crates/gukhanmun-opendict/data/dialect.tsv --archaic-output crates/gukhanmun-opendict/data/archaic.tsv --check'
 
@@ -542,28 +549,28 @@ run = [
 [tasks.loanwords-extract]
 description = "Extract an explicitly supplied loanword snapshot and editorial decisions"
 usage = 'arg "<snapshot>" help="Authorized versioned snapshot"; arg "<decisions>" help="Editorial decisions JSON"; arg "<output>" help="TSV destination"; arg "<report>" help="Hashed report destination"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = 'cargo run -p gukhanmun-dict-extract --features loanwords-cli --bin gukhanmun-loanwords -- extract --snapshot $env.usage_snapshot --decisions $env.usage_decisions --output $env.usage_output --report $env.usage_report'
 
 [tasks.loanwords-extract-check]
 description = "Check explicit loanword extraction artifacts without modifying files"
 usage = 'arg "<snapshot>"; arg "<decisions>"; arg "<output>"; arg "<report>"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = 'cargo run -p gukhanmun-dict-extract --features loanwords-cli --bin gukhanmun-loanwords -- check --snapshot $env.usage_snapshot --decisions $env.usage_decisions --output $env.usage_output --report $env.usage_report'
 
 [tasks.loanwords-collect]
 description = "Experimentally collect two full sweeps to an explicit external snapshot"
 usage = 'arg "<output>" help="Snapshot destination outside Git checkouts"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = 'cargo run -p gukhanmun-dict-extract --features loanwords-collect --bin gukhanmun-loanwords -- collect --output $env.usage_output'
 
 [tasks.loanwords-fst-data]
 description = "Build the pinned loanword FST for JavaScript packages"
 depends = ["rust-init"]
-shell = "nu -c"
+extends = "nu"
 run = """
 let metadata = (open crates/gukhanmun-loanwords/data/metadata.json | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
 cargo run --locked --release -p gukhanmun-mkdict -- --validate --format fst --output packages/loanwords-fst/loanwords.fst ...$metadata crates/gukhanmun-loanwords/data/loanwords.tsv
@@ -572,7 +579,7 @@ cargo run --locked --release -p gukhanmun-mkdict -- --validate --format fst --ou
 [tasks.loanwords-cdb-data]
 description = "Build the pinned loanword CDB for JavaScript packages"
 depends = ["rust-init"]
-shell = "nu -c"
+extends = "nu"
 run = """
 let metadata = (open crates/gukhanmun-loanwords/data/metadata.json | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
 cargo run --locked --release -p gukhanmun-mkdict -- --validate --format cdb --output packages/loanwords-cdb/loanwords.cdb ...$metadata crates/gukhanmun-loanwords/data/loanwords.tsv
@@ -636,32 +643,32 @@ run = [
 [tasks.dicts-state]
 description = "Read validated dictionary skip state from a pinned local target"
 usage = 'arg "<root>"; arg "<output>"'
-shell = "nu -c"
+extends = "nu"
 run = 'python -B scripts/dictionaries/collect.py state $env.usage_root $env.usage_output'
 
 [tasks.dicts-collect]
 description = "Log in to NIKL and collect complete current JSON dumps"
 usage = 'arg "<output>"'
-shell = "nu -c"
+extends = "nu"
 run = 'python -B scripts/dictionaries/collect.py collect $env.usage_output'
 
 [tasks.dicts-collect-local]
 description = "Explicitly load local account variables and collect current dumps"
 usage = 'arg "<output>"'
-shell = "nu -c"
+extends = "nu"
 run = 'deno run --env-file=.env -A scripts/dictionaries/local.ts $env.usage_output'
 
 [tasks.dicts-update]
 description = "Validate and apply an already collected dictionary update offline"
 usage = 'arg "<input>"'
-shell = "nu -c"
+extends = "nu"
 depends = ["rust-init"]
 run = 'deno run -A scripts/dictionaries/update.ts $env.usage_input'
 
 [tasks.dicts-target]
 description = "Select only the newest compatible maintenance line"
 usage = 'arg "[remote]" default="origin"'
-shell = "nu -c"
+extends = "nu"
 run = 'deno run -A scripts/dictionaries/targets.ts $env.usage_remote'
 
 [tasks.dicts-test]
