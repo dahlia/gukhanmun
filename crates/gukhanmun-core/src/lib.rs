@@ -273,6 +273,11 @@ pub enum OutputToken<S> {
 /// Writers consume this stream because it cannot contain unrendered
 /// annotations. That makes the renderer-to-writer boundary explicit in the type
 /// system.
+///
+/// The distinction between [`RenderedToken::Text`] and
+/// [`RenderedToken::Annotated`] is a security boundary: `Text` is source data
+/// that is already valid for the target format, while `Annotated` is generated
+/// data that every writer must serialize as literal text.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RenderedToken<S> {
     /// Enters a structural scope.
@@ -281,11 +286,31 @@ pub enum RenderedToken<S> {
     /// Leaves the most recent structural scope.
     Close,
 
-    /// Text ready for serialization.
+    /// Text that is already valid for the target format.
+    ///
+    /// This variant carries source text that the reader passed through, so a
+    /// writer must not escape it: in HTML output the input is HTML by
+    /// definition, and escaping it would corrupt markup and double-encode
+    /// character references.
     Text(String),
 
     /// Verbatim text ready for serialization.
     Verbatim(String),
+
+    /// Text the renderer produced from an annotation rather than from source
+    /// input.
+    ///
+    /// This is generated data: readings, their positional forms, and the hanja
+    /// shown beside them. It may contain characters supplied by a dictionary
+    /// or by another annotation source, so every writer must serialize it as
+    /// literal text for its own format. It is never already-valid markup, and
+    /// a writer that passes it through unescaped reintroduces a cross-site
+    /// scripting hole (GHSA-j87h-8h88-wm6g).
+    ///
+    /// An empty annotation carries no character at all, so writers that emit
+    /// markup must restore a boundary themselves; see the adapter crates for
+    /// their chosen encoding.
+    Annotated(String),
 
     /// A structural ruby annotation pairing a base text with an `rt` gloss.
     ///
@@ -298,7 +323,7 @@ pub enum RenderedToken<S> {
     ///
     /// Renderers only emit this variant when the active scope reports
     /// [`ScopeData::allows_inline_markup`] as `true`; scopes that disallow
-    /// inline markup receive a plain `Text` fallback instead.
+    /// inline markup receive an [`RenderedToken::Annotated`] fallback instead.
     Ruby {
         /// Base text shown as the primary side of the ruby annotation.
         base: String,
@@ -1047,16 +1072,19 @@ pub fn read_plain_text(input: &str) -> Vec<InputToken<PlainScopeData>> {
 /// Writes rendered plain-text tokens back to a string.
 ///
 /// Structural tokens are ignored because plain text has no serialized scope
-/// markers. `Text` and `Verbatim` tokens are concatenated in stream order.
-/// `Ruby` tokens are not expected because [`PlainScopeData`] disallows inline
-/// markup, but they are defensively serialized as `base(rt)` rather than
-/// dropped silently if one ever reaches the writer.
+/// markers. `Text`, `Annotated`, and `Verbatim` tokens are concatenated in
+/// stream order; plain text has no markup, so annotation text needs no
+/// escaping. `Ruby` tokens are not expected because [`PlainScopeData`]
+/// disallows inline markup, but they are defensively serialized as `base(rt)`
+/// rather than dropped silently if one ever reaches the writer.
 pub fn write_plain_text<S>(tokens: impl IntoIterator<Item = RenderedToken<S>>) -> String {
     let mut output = String::new();
     for token in tokens {
         match token {
             RenderedToken::Open(_) | RenderedToken::Close => {}
-            RenderedToken::Text(text) | RenderedToken::Verbatim(text) => output.push_str(&text),
+            RenderedToken::Text(text)
+            | RenderedToken::Verbatim(text)
+            | RenderedToken::Annotated(text) => output.push_str(&text),
             RenderedToken::Ruby { base, rt } => {
                 output.push_str(&parens(&base, &rt));
             }
@@ -3514,30 +3542,30 @@ fn render_annotation<S>(
                 | RenderMode::Ruby(RubyBase::OnHangul)
         )
     {
-        return RenderedToken::Text(annotation.reading.clone());
+        return RenderedToken::Annotated(annotation.reading.clone());
     }
     if !annotation.skip_annotation
         && options.mode == RenderMode::HangulOnly
         && !annotation.require_hanja
         && !annotation.homophone
     {
-        return RenderedToken::Text(annotation.reading.clone());
+        return RenderedToken::Annotated(annotation.reading.clone());
     }
     let dictionary_hanja = annotation.canonical_hanja();
     let rendered_hanja = variants::render_hanja(dictionary_hanja, options.hanja_variant_set);
     if annotation.skip_annotation {
-        return RenderedToken::Text(rendered_hanja.into_owned());
+        return RenderedToken::Annotated(rendered_hanja.into_owned());
     }
 
     match options.mode {
         RenderMode::HangulOnly => {
-            RenderedToken::Text(parens(&annotation.reading, rendered_hanja.as_ref()))
+            RenderedToken::Annotated(parens(&annotation.reading, rendered_hanja.as_ref()))
         }
         RenderMode::HangulHanjaParens => {
-            RenderedToken::Text(parens(&annotation.reading, rendered_hanja.as_ref()))
+            RenderedToken::Annotated(parens(&annotation.reading, rendered_hanja.as_ref()))
         }
         RenderMode::HanjaHangulParens => {
-            RenderedToken::Text(parens(rendered_hanja.as_ref(), &annotation.reading))
+            RenderedToken::Annotated(parens(rendered_hanja.as_ref(), &annotation.reading))
         }
         RenderMode::Ruby(base) => render_ruby(
             annotation,
@@ -3547,7 +3575,7 @@ fn render_annotation<S>(
         ),
         RenderMode::Original if annotation.require_hangul => match options.original_gloss {
             OriginalGloss::Parens => {
-                RenderedToken::Text(parens(rendered_hanja.as_ref(), &annotation.reading))
+                RenderedToken::Annotated(parens(rendered_hanja.as_ref(), &annotation.reading))
             }
             // `Original` keeps hanja as the primary text, so its ruby form
             // always uses hanja as the base regardless of any other setting.
@@ -3558,7 +3586,7 @@ fn render_annotation<S>(
                 allows_inline_markup,
             ),
         },
-        RenderMode::Original => RenderedToken::Text(rendered_hanja.into_owned()),
+        RenderMode::Original => RenderedToken::Annotated(rendered_hanja.into_owned()),
     }
 }
 
@@ -3573,7 +3601,7 @@ fn render_ruby<S>(
         RubyBase::OnHanja => (hanja, annotation.reading.as_str()),
     };
     if !allows_inline_markup {
-        return RenderedToken::Text(parens(base_text, rt_text));
+        return RenderedToken::Annotated(parens(base_text, rt_text));
     }
     RenderedToken::Ruby {
         base: String::from(base_text),
