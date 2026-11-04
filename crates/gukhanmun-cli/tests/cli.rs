@@ -1555,3 +1555,147 @@ fn build_dictionary_fixture_with_format(
     .unwrap();
     output
 }
+
+fn markdown_events(markdown: &str) -> Vec<String> {
+    let options = pulldown_cmark::Options::ENABLE_TABLES
+        | pulldown_cmark::Options::ENABLE_FOOTNOTES
+        | pulldown_cmark::Options::ENABLE_STRIKETHROUGH
+        | pulldown_cmark::Options::ENABLE_TASKLISTS
+        | pulldown_cmark::Options::ENABLE_GFM;
+    let mut normalized = Vec::new();
+    let mut pending_text = String::new();
+    for event in pulldown_cmark::Parser::new_ext(markdown, options) {
+        match event {
+            pulldown_cmark::Event::Text(text) => pending_text.push_str(&text),
+            other => {
+                if !pending_text.is_empty() {
+                    normalized.push(format!("text:{pending_text:?}"));
+                    pending_text.clear();
+                }
+                normalized.push(format!("{other:?}"));
+            }
+        }
+    }
+    if !pending_text.is_empty() {
+        normalized.push(format!("text:{pending_text:?}"));
+    }
+    normalized
+}
+
+fn run_markdown(input: &str, format: &str) -> String {
+    let assert = Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--format", format, "--disambiguation", "off"])
+        .write_stdin(input)
+        .assert()
+        .success();
+    String::from_utf8(assert.get_output().stdout.clone()).unwrap()
+}
+
+#[test]
+fn markdown_output_escapes_source_markup() {
+    let input = "a \\<img src=x onerror=alert(1)> b\n\n\
+                 c &lt;script&gt;alert(1)&lt;/script&gt; d\n\n\
+                 e \\[x\\](y) f\n";
+    let output = run_markdown(input, "text/markdown");
+
+    assert!(!output.contains("<img"), "raw image leaked: {output:?}");
+    assert!(!output.contains("<script"), "raw script leaked: {output:?}");
+    assert_eq!(markdown_events(&output), markdown_events(input));
+}
+
+#[test]
+fn markdown_output_preserves_block_markers_after_hongdown() {
+    for input in [
+        "a\n\\> b\n",
+        "- \\# c\n",
+        "a | b\n\\|---|---|\n",
+        "# 1\\. 서론\n",
+        "## \\- 항목\n",
+        "**a**\\![x](y)\n",
+        "&#32;`a`\n",
+        "a\n\\:-:\n",
+        "a&#32;\nb\n",
+        "a&#9;\nb\n",
+        "\\[*a*\\](https://example.com)\n",
+        "\\[\na\n\\](https://example.com)\n",
+        "\\[*a*] and [*a*]\n\n[*a*]: https://example.com\n",
+        "\\\\\\[*x*\\](https://example.com)\n",
+    ] {
+        let output = run_markdown(input, "text/markdown; variant=GFM");
+        assert_eq!(
+            markdown_events(&output),
+            markdown_events(input),
+            "CLI output did not round-trip for {input:?}: {output:?}"
+        );
+    }
+}
+
+#[test]
+fn markdown_output_preserves_gfm_table_escaped_pipe() {
+    let input = "| a | b |\n|---|---|\n| c \\| d | e |\n";
+    let output = run_markdown(input, "text/markdown; variant=GFM");
+
+    assert!(
+        !output.contains("\\\\|"),
+        "table pipe was double-escaped: {output:?}"
+    );
+    assert_eq!(markdown_events(&output), markdown_events(input));
+}
+
+// ── GHSA-j87h-8h88-wm6g: dictionary readings must not become markup ──────────
+
+#[test]
+fn html_output_escapes_dictionary_readings() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n漢字\t<img src=x onerror=alert(1)>\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+            "--format",
+            "text/html",
+        ])
+        .write_stdin("<p>漢字</p>")
+        .assert()
+        .success()
+        .stdout("<p>&lt;img src=x onerror=alert(1)&gt;</p>");
+}
+
+/// The CLI reformats Markdown output with hongdown. hongdown preserves the
+/// character references the Markdown writer emits for annotation text, so the
+/// reading stays literal after formatting. This test pins that behavior: a
+/// hongdown change that decodes the references again would reopen
+/// GHSA-j87h-8h88-wm6g on the CLI.
+#[test]
+fn markdown_output_preserves_annotation_character_references() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\n漢字\t<img src=x onerror=alert(1)>\n",
+    );
+
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "--disambiguation",
+            "off",
+            "--format",
+            "text/markdown",
+        ])
+        .write_stdin("漢字\n")
+        .assert()
+        .success()
+        .stdout("&lt;img src=x onerror=alert(1)>\n");
+}

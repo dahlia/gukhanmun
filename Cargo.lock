@@ -840,6 +840,7 @@ dependencies = [
  "noyalib",
  "predicates",
  "proptest",
+ "pulldown-cmark",
  "serde_json",
  "tempfile",
  "tracing",
