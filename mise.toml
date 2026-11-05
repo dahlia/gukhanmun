@@ -330,7 +330,7 @@ run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-opendict"
 let metadata = (open $"($manifest_dir)/data/metadata.json" | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
 for category in [general north-korean dialect archaic] {
-  cargo run --release -p gukhanmun-mkdict -- --validate --format cdb --output $"packages/opendict-cdb/($category).cdb" ...$metadata --metadata $"category=($category)" $"($manifest_dir)/data/($category).tsv"
+  cargo run --release -p gukhanmun-mkdict -- --validate --format cdb --output $"packages/opendict-cdb/($category).cdb" ...$metadata --metadata $"category=($category)" --relations $"($manifest_dir)/data/($category)-relations.tsv" $"($manifest_dir)/data/($category).tsv" $"($manifest_dir)/data/($category)-aliases.tsv"
   # Store gzip-compressed so every binary stays under the JSR 20 MiB per-file
   # limit; the byte loaders inflate transparently.  -n keeps the output
   # reproducible by omitting the name and timestamp.
@@ -525,7 +525,7 @@ extends = "nu"
 depends = ["rust-init"]
 run = """
 let output = ($env.GUKHANMUN_DICTS_OUTPUT_DIR? | default "crates/gukhanmun-opendict/data")
-cargo run --locked -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output $"($output)/general.tsv" --north-korean-output $"($output)/north-korean.tsv" --dialect-output $"($output)/dialect.tsv" --archaic-output $"($output)/archaic.tsv"
+cargo run --locked -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output $"($output)/general.tsv" --north-korean-output $"($output)/north-korean.tsv" --dialect-output $"($output)/dialect.tsv" --archaic-output $"($output)/archaic.tsv" --aliases-dir $output
 """
 
 [tasks.opendict-extract-check]
@@ -533,7 +533,7 @@ description = "Check Open Korean Dictionary candidates from a pinned dump"
 usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
 extends = "nu"
 depends = ["rust-init"]
-run = 'cargo run -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output crates/gukhanmun-opendict/data/general.tsv --north-korean-output crates/gukhanmun-opendict/data/north-korean.tsv --dialect-output crates/gukhanmun-opendict/data/dialect.tsv --archaic-output crates/gukhanmun-opendict/data/archaic.tsv --check'
+run = 'cargo run -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output crates/gukhanmun-opendict/data/general.tsv --north-korean-output crates/gukhanmun-opendict/data/north-korean.tsv --dialect-output crates/gukhanmun-opendict/data/dialect.tsv --archaic-output crates/gukhanmun-opendict/data/archaic.tsv --aliases-dir crates/gukhanmun-opendict/data --check'
 
 [tasks.loanwords-verify]
 description = "Verify optional loanword CLI and collector without official credentials"

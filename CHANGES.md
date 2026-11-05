@@ -88,6 +88,14 @@ To be released.
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
 
+### gukhanmun-opendict
+
+ -  Derive per-category compound aliases and sibling relations from the Open
+    Korean Dictionary dump. The bundled data now carries 1,353 general
+    recognition aliases and 2,342 sibling relations. This dump produced no
+    derived aliases for the North Korean, dialect, or archaic categories;
+    North Korean still ships 103 sibling relations.  [[#38]]
+
 ### gukhanmun-stdict
 
  -  Derive compound aliases from the dump's marked morphemes and explicit
@@ -111,6 +119,18 @@ To be released.
     [[#33], [#34]]
  -  Recognize reviewed compound aliases and stop treating sibling spellings as
     homophones or separate first occurrences. [[#38]]
+
+### @gukhanmun/opendict-cdb
+
+ -  Ship the general and North Korean Open Korean Dictionary data as format
+    version 3 with per-category compound alias metadata. Load it with a reader
+    that understands version 3.  [[#38]]
+
+### @gukhanmun/opendict-fst
+
+ -  Ship the general and North Korean Open Korean Dictionary data as format
+    version 3 with per-category compound alias metadata. Load it with a reader
+    that understands version 3.  [[#38]]
 
 ### @gukhanmun/stdict-cdb
 

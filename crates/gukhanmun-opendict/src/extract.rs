@@ -22,6 +22,7 @@ use std::io::{BufReader, Read, Seek, Write};
 use std::path::Path;
 
 use gukhanmun_core::{MatchMark, ReadingCandidate, ReadingCandidates, select_default_reading};
+use gukhanmun_dict_extract::aliases::{AliasPolicy, AliasSource, derive_aliases};
 use gukhanmun_dict_extract::{
     OriginalLanguageInfo, foreign_hanja_piece, is_hanja, keys_from_originals, normalize_word,
 };
@@ -147,6 +148,17 @@ impl CategoryStats {
     }
 }
 
+/// Buffered alias, relation, and manifest outputs for one category.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AliasOutputs {
+    /// Alias TSV bytes.
+    pub aliases: Vec<u8>,
+    /// Sibling relation TSV bytes.
+    pub relations: Vec<u8>,
+    /// JSONL manifest bytes.
+    pub manifest: Vec<u8>,
+}
+
 /// Writable outputs for every Open Korean Dictionary category.
 pub struct CategoryWriters<G, N, D, A> {
     /// Output writer for `일반어`.
@@ -185,6 +197,27 @@ where
     extractor.write_files(writers)
 }
 
+/// Extracts category TSVs and optional per-category alias files.
+pub fn extract_path_to_all_files<G, N, D, A>(
+    path: &Path,
+    writers: CategoryWriters<G, N, D, A>,
+) -> Result<(CategoryStats, BTreeMap<Category, AliasOutputs>)>
+where
+    G: Write,
+    N: Write,
+    D: Write,
+    A: Write,
+{
+    let mut extractor = Extractor {
+        allow_partial_pins: path.is_file() && !has_extension(path, "zip"),
+        ..Extractor::default()
+    };
+    extractor.read_path(path)?;
+    let aliases = extractor.alias_outputs()?;
+    let stats = extractor.write_files(writers)?;
+    Ok((stats, aliases))
+}
+
 /// Extracts canonical category TSVs from one Open Korean Dictionary JSON reader.
 ///
 /// This helper is intended for tests and tools that already opened an
@@ -217,6 +250,7 @@ struct Extractor {
     allow_partial_pins: bool,
     stats: CategoryStats,
     entries: BTreeMap<Category, BTreeMap<String, BTreeMap<String, Entry>>>,
+    alias_sources: BTreeMap<Category, Vec<AliasSource>>,
 }
 
 impl Extractor {
@@ -331,6 +365,27 @@ impl Extractor {
                 .as_ref()
                 .and_then(|sense| sense.pos.as_deref())
                 .is_some_and(|pos| pos.trim() == "의존 명사");
+        let categories = item
+            .senseinfo
+            .as_ref()
+            .map(|sense| {
+                sense
+                    .cat_info
+                    .iter()
+                    .filter_map(|cat| cat.cat.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.alias_sources
+            .entry(category)
+            .or_default()
+            .push(AliasSource {
+                word: wordinfo.word.clone().unwrap_or_default(),
+                reading: reading.clone(),
+                spellings: keys.clone(),
+                source_ids: item.target_code.into_iter().collect(),
+                categories,
+            });
         for key in keys {
             let entries = self
                 .entries
@@ -362,6 +417,81 @@ impl Extractor {
 
     fn increment_skipped(&mut self, category: Category) {
         self.stats.get_mut(category).skipped_items += 1;
+    }
+
+    fn alias_outputs(&self) -> Result<BTreeMap<Category, AliasOutputs>> {
+        let mut outputs = BTreeMap::new();
+        for category in [
+            Category::General,
+            Category::NorthKorean,
+            Category::Dialect,
+            Category::Archaic,
+        ] {
+            let sources = self
+                .alias_sources
+                .get(&category)
+                .map_or(&[][..], Vec::as_slice);
+            let (aliases, relations) = derive_aliases(sources, &AliasPolicy::default());
+            let entries = self.entries.get(&category);
+            let mut alias_rows = String::from(
+                "hanja\thangul\trequire_hanja\trequire_hangul\tpreference\tsuffix_reading\tcanonical\talias_kind\tvia\n",
+            );
+            let mut relation_rows = String::from("hanja\thangul\tcanonical\talias_kind\n");
+            let mut manifest = String::new();
+            for alias in &aliases {
+                let canonical_exists = entries.is_some_and(|entries| {
+                    entries
+                        .get(&alias.canonical)
+                        .is_some_and(|records| records.contains_key(&alias.reading))
+                });
+                if !canonical_exists {
+                    continue;
+                }
+                alias_rows.push_str(&format!(
+                    "{}\t{}\tfalse\tfalse\t10\t\t{}\trecognition\t{}>{}\n",
+                    alias.hanja, alias.reading, alias.canonical, alias.via.0, alias.via.1,
+                ));
+                let record = serde_json::json!({
+                    "schema": 1,
+                    "alias": alias.hanja,
+                    "target": alias.canonical,
+                    "reading": alias.reading,
+                    "kind": "recognition",
+                    "via": {"from": alias.via.0, "to": alias.via.1},
+                    "compound_ids": alias.compound_source_ids,
+                    "donor_ids": alias.donor_source_ids,
+                });
+                manifest.push_str(&serde_json::to_string(&record)?);
+                manifest.push('\n');
+            }
+            for relation in &relations {
+                let source_exists = entries.is_some_and(|entries| {
+                    entries
+                        .get(&relation.hanja)
+                        .is_some_and(|records| records.contains_key(&relation.reading))
+                });
+                let canonical_exists = entries.is_some_and(|entries| {
+                    entries
+                        .get(&relation.canonical)
+                        .is_some_and(|records| records.contains_key(&relation.reading))
+                });
+                if source_exists && canonical_exists {
+                    relation_rows.push_str(&format!(
+                        "{}\t{}\t{}\tsibling\n",
+                        relation.hanja, relation.reading, relation.canonical,
+                    ));
+                }
+            }
+            outputs.insert(
+                category,
+                AliasOutputs {
+                    aliases: alias_rows.into_bytes(),
+                    relations: relation_rows.into_bytes(),
+                    manifest: manifest.into_bytes(),
+                },
+            );
+        }
+        Ok(outputs)
     }
 
     fn write_files<G, N, D, A>(
@@ -723,6 +853,13 @@ struct SenseInfo {
     pos: Option<String>,
     #[serde(rename = "type")]
     lexical_type: Option<String>,
+    #[serde(default)]
+    cat_info: Vec<CatInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CatInfo {
+    cat: Option<String>,
 }
 
 #[cfg(test)]

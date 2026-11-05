@@ -45,7 +45,24 @@ ENDPOINTS = {
 }
 FILES = {
     "stdict": ("stdict.tsv", "suffix.tsv", "aliases.tsv", "relations.tsv", "aliases-manifest.jsonl"),
-    "opendict": ("general.tsv", "north-korean.tsv", "dialect.tsv", "archaic.tsv"),
+    "opendict": (
+        "general.tsv",
+        "north-korean.tsv",
+        "dialect.tsv",
+        "archaic.tsv",
+        "general-aliases.tsv",
+        "north-korean-aliases.tsv",
+        "dialect-aliases.tsv",
+        "archaic-aliases.tsv",
+        "general-relations.tsv",
+        "north-korean-relations.tsv",
+        "dialect-relations.tsv",
+        "archaic-relations.tsv",
+        "general-manifest.jsonl",
+        "north-korean-manifest.jsonl",
+        "dialect-manifest.jsonl",
+        "archaic-manifest.jsonl",
+    ),
 }
 MAX_ZIP = 1024**3
 MAX_MEMBER = 128 * 1024**2

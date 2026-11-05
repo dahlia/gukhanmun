@@ -259,10 +259,25 @@ fn bundled_dictionaries_are_partitioned_by_category() {
         (dialect, include_str!("../data/dialect.tsv")),
         (archaic, include_str!("../data/archaic.tsv")),
     ] {
+        let aliases = match dictionary {
+            _ if std::ptr::eq(dictionary, general) => include_str!("../data/general-aliases.tsv"),
+            _ if std::ptr::eq(dictionary, north_korean) => {
+                include_str!("../data/north-korean-aliases.tsv")
+            }
+            _ if std::ptr::eq(dictionary, dialect) => include_str!("../data/dialect-aliases.tsv"),
+            _ => include_str!("../data/archaic-aliases.tsv"),
+        };
         let keys: std::collections::BTreeSet<_> = tsv
             .lines()
             .skip(1)
             .map(|line| line.split('\t').next().unwrap())
+            .chain(
+                aliases
+                    .lines()
+                    .skip(1)
+                    .filter(|line| !line.is_empty())
+                    .map(|line| line.split('\t').next().unwrap()),
+            )
             .collect();
         assert_eq!(dictionary.entry_count(), keys.len() as u64);
         assert_eq!(
@@ -522,17 +537,28 @@ fn all_category_candidates_roundtrip_through_fst_and_cdb() {
         ("dialect", gukhanmun_opendict::dialect()),
         ("archaic", gukhanmun_opendict::archaic()),
     ] {
-        let input = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join(format!("{category}.tsv"));
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let input = data.join(format!("{category}.tsv"));
+        let aliases = data.join(format!("{category}-aliases.tsv"));
+        let relations = data.join(format!("{category}-relations.tsv"));
         let output = temp.path().join(format!("{category}.cdb"));
+        let mut inputs = vec![input];
+        if aliases.exists() {
+            inputs.push(aliases);
+        }
+        let relations = if relations.exists() {
+            vec![relations]
+        } else {
+            Vec::new()
+        };
         build_dictionary(
-            &[input],
+            &inputs,
             &output,
             &BuildOptions {
                 format: DictionaryFormat::Cdb,
                 merge: MergePolicy::Error,
                 validate: true,
+                relations,
                 ..BuildOptions::default()
             },
         )
@@ -773,4 +799,129 @@ fn partial_pinned_positional_key_accepts_initial_without_its_suffix_record() {
             .unwrap()
             .contains("年代\t연대\tfalse\tfalse\t\t\t1\n")
     );
+}
+
+#[test]
+fn alias_extraction_writes_per_category_files() {
+    use std::fs;
+    use tempfile::tempdir;
+
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dump.json");
+    let dump = serde_json::json!({"channel": {"item": [
+        {"target_code": 1, "wordinfo": {"word": "기념", "word_unit": "어휘", "original_language_info": [
+            {"original_language": "紀念", "language_type": "한자"},
+            {"original_language": "/", "language_type": "/(병기)"},
+            {"original_language": "記念", "language_type": "한자"}
+        ]}, "senseinfo": {"type": "일반어"}},
+        {"target_code": 2, "wordinfo": {"word": "기념-관", "word_unit": "어휘", "original_language_info": [
+            {"original_language": "紀念館", "language_type": "한자"}
+        ]}, "senseinfo": {"type": "일반어"}},
+        {"target_code": 3, "wordinfo": {"word": "기념-관", "word_unit": "어휘", "original_language_info": [
+            {"original_language": "紀念館", "language_type": "한자"}
+        ]}, "senseinfo": {"type": "방언"}},
+        {"target_code": 4, "wordinfo": {"word": "기념", "word_unit": "어휘", "original_language_info": [
+            {"original_language": "紀念", "language_type": "한자"},
+            {"original_language": "/", "language_type": "/(병기)"},
+            {"original_language": "記念", "language_type": "한자"}
+        ]}, "senseinfo": {"type": "방언"}}
+    ]}});
+    fs::write(&input, dump.to_string()).unwrap();
+    let mut general = Vec::new();
+    let mut north = Vec::new();
+    let mut dialect = Vec::new();
+    let mut archaic = Vec::new();
+    let (_, outputs) = gukhanmun_opendict::extract::extract_path_to_all_files(
+        &input,
+        gukhanmun_opendict::extract::CategoryWriters {
+            general: &mut general,
+            north_korean: &mut north,
+            dialect: &mut dialect,
+            archaic: &mut archaic,
+        },
+    )
+    .unwrap();
+    let general = &outputs[&gukhanmun_opendict::extract::Category::General];
+    assert!(
+        String::from_utf8_lossy(&general.aliases)
+            .contains("記念館\t기념관\tfalse\tfalse\t10\t\t紀念館\trecognition\t紀念>記念")
+    );
+    let dialect = &outputs[&gukhanmun_opendict::extract::Category::Dialect];
+    assert!(String::from_utf8_lossy(&dialect.aliases).contains("記念館\t기념관"));
+}
+
+#[test]
+fn cli_alias_dir_writes_and_checks_without_overwriting() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dump.json");
+    let general = temp.path().join("general.tsv");
+    let north = temp.path().join("north-korean.tsv");
+    let dialect = temp.path().join("dialect.tsv");
+    let archaic = temp.path().join("archaic.tsv");
+    let alias_dir = temp.path().join("aliases");
+    fs::write(
+        &input,
+        serde_json::json!({"channel": {"item": [
+            {"target_code": 1, "wordinfo": {"word": "기념", "word_unit": "어휘", "original_language_info": [
+                {"original_language": "紀念", "language_type": "한자"},
+                {"original_language": "/", "language_type": "/(병기)"},
+                {"original_language": "記念", "language_type": "한자"}
+            ]}, "senseinfo": {"type": "일반어"}},
+            {"target_code": 2, "wordinfo": {"word": "기념-관", "word_unit": "어휘", "original_language_info": [
+                {"original_language": "紀念館", "language_type": "한자"}
+            ]}, "senseinfo": {"type": "일반어"}}
+        ]}})
+        .to_string(),
+    )
+    .unwrap();
+    let args = [
+        input.to_str().unwrap(),
+        "--general-output",
+        general.to_str().unwrap(),
+        "--north-korean-output",
+        north.to_str().unwrap(),
+        "--dialect-output",
+        dialect.to_str().unwrap(),
+        "--archaic-output",
+        archaic.to_str().unwrap(),
+        "--aliases-dir",
+        alias_dir.to_str().unwrap(),
+    ];
+    Command::cargo_bin("gukhanmun-opendict-extract")
+        .unwrap()
+        .args(args)
+        .assert()
+        .success();
+    let general_aliases = alias_dir.join("general-aliases.tsv");
+    assert!(
+        fs::read_to_string(&general_aliases)
+            .unwrap()
+            .contains("記念館\t기념관")
+    );
+    for category in ["general", "north-korean", "dialect", "archaic"] {
+        for suffix in ["aliases.tsv", "relations.tsv", "manifest.jsonl"] {
+            assert!(
+                alias_dir.join(format!("{category}-{suffix}")).exists(),
+                "{category}-{suffix} was not written"
+            );
+        }
+    }
+
+    fs::write(&general_aliases, "stale\n").unwrap();
+    let mut check_args = args.to_vec();
+    check_args.push("--check");
+    Command::cargo_bin("gukhanmun-opendict-extract")
+        .unwrap()
+        .args(&check_args)
+        .assert()
+        .failure();
+    assert_eq!(fs::read_to_string(&general_aliases).unwrap(), "stale\n");
+
+    fs::remove_file(&general_aliases).unwrap();
+    Command::cargo_bin("gukhanmun-opendict-extract")
+        .unwrap()
+        .args(&check_args)
+        .assert()
+        .failure();
+    assert!(!general_aliases.exists());
 }
