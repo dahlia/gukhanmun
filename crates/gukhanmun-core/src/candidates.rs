@@ -479,9 +479,11 @@ type LexemeReadings = alloc::collections::BTreeMap<String, (AliasKind, String)>;
 
 /// Resolves derived spellings to the canonical spelling of the same word.
 ///
-/// Only `Sibling` and `Lexical` aliases contribute identity.  A `Recognition`
-/// alias is a reading hint, not an equivalence claim, so it is absent from the
-/// index and falls back to its own surface spelling.
+/// The index records every alias kind, because a derived spelling is never a
+/// homophone of the word it derives from.  [`LexemeIndex::canonical`] still
+/// restricts lexical identity to `Sibling` and `Lexical` aliases;
+/// [`LexemeIndex::homophone_canonical`] is the wider query used by homophone
+/// marking.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct LexemeIndex {
     by_hanja: alloc::collections::BTreeMap<String, LexemeReadings>,
