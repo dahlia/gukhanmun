@@ -450,3 +450,37 @@ fn uncached_enumerable_dictionary_gets_identity_in_middleware() {
     assert!(!annotated(&streamed, 0).homophone);
     assert!(!annotated(&streamed, 2).homophone);
 }
+
+#[test]
+fn chain_override_keeps_homophone_detection_with_lookup_only_child() {
+    struct LookupOnlyDictionary;
+
+    impl HanjaDictionary for LookupOnlyDictionary {
+        fn candidate_matches_at<'a>(
+            &'a self,
+            _s: &'a str,
+        ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+            Box::new(std::iter::empty())
+        }
+        fn matches_at<'a>(&'a self, _s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            Box::new(std::iter::empty())
+        }
+    }
+
+    let mut high = MapDictionary::new();
+    high.insert("聯絡", "연락");
+    let mut low = MapDictionary::new();
+    low.insert("連絡", "연락");
+    low.insert_candidates(
+        "聯絡",
+        ReadingCandidates::new(vec![candidate("연락", Some(alias_target_for_test("連絡")))])
+            .unwrap(),
+    );
+    let dictionaries: Vec<Box<dyn HanjaDictionary>> = vec![
+        Box::new(high),
+        Box::new(low),
+        Box::new(LookupOnlyDictionary),
+    ];
+    let chain = ChainDictionary::from_iter(dictionaries);
+    assert!(chain.has_homophone("聯絡", "연락"));
+}

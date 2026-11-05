@@ -824,13 +824,25 @@ where
         let hanja = lexemes
             .as_ref()
             .map_or(hanja, |lexemes| lexemes.canonical(hanja, reading));
-        if let Some(mut records) = self.candidate_entries() {
-            return records.any(|record| record.has_homophone(hanja, reading));
+        let mut records = BTreeMap::<String, CandidateRecord>::new();
+        let mut lookup_only = Vec::new();
+        for dictionary in &self.dictionaries {
+            match dictionary.candidate_entries() {
+                Some(entries) => {
+                    for record in entries {
+                        records.entry(record.hanja.clone()).or_insert(record);
+                    }
+                }
+                None => lookup_only.push(dictionary),
+            }
         }
-
-        self.dictionaries
-            .iter()
-            .any(|dictionary| dictionary.has_homophone(hanja, reading))
+        let collision = records
+            .values()
+            .any(|record| record.has_homophone(hanja, reading));
+        collision
+            || lookup_only
+                .into_iter()
+                .any(|dictionary| dictionary.has_homophone(hanja, reading))
     }
 
     fn lexemes(&self) -> Option<LexemeIndex> {
