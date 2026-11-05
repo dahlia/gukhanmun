@@ -110,7 +110,7 @@ pub use gukhanmun_core::{
     process_fallible_tokens, process_fallible_tokens_with_options, process_tokens,
     process_tokens_iter, process_tokens_iter_with_options, process_tokens_with_options,
     read_plain_text, recover_input_token, recover_input_tokens, render_tokens, render_tokens_iter,
-    select_default_reading, write_plain_text,
+    reverse_hanja, select_default_reading, write_plain_text,
 };
 
 #[cfg(feature = "serde")]

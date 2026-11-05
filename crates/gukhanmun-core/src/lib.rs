@@ -1032,6 +1032,68 @@ impl MapDictionary {
         self.entries.insert(hanja, candidates);
     }
 
+    /// Adds one alias candidate to a key, preserving its existing candidates.
+    ///
+    /// Fails with [`CandidateError::ConflictingAlias`] when the key already has
+    /// a candidate with the same reading but a different identity.
+    ///
+    /// The canonical key does not have to exist in this dictionary yet: a user
+    /// dictionary may point at a spelling that only a bundled layer provides.
+    /// [`LexemeIndex`] falls back to the matched spelling for a dangling
+    /// canonical, so such a candidate reads exactly like a plain entry.
+    pub fn insert_alias(
+        &mut self,
+        hanja: impl Into<String>,
+        reading: impl Into<String>,
+        canonical: impl Into<String>,
+        kind: AliasKind,
+    ) -> Result<(), CandidateError> {
+        self.insert_alias_inner(hanja, reading, None, canonical, kind)
+    }
+
+    /// Adds one positional alias candidate to a key.
+    pub fn insert_alias_with_suffix(
+        &mut self,
+        hanja: impl Into<String>,
+        reading: impl Into<String>,
+        suffix: impl Into<String>,
+        canonical: impl Into<String>,
+        kind: AliasKind,
+    ) -> Result<(), CandidateError> {
+        self.insert_alias_inner(hanja, reading, Some(suffix.into()), canonical, kind)
+    }
+
+    fn insert_alias_inner(
+        &mut self,
+        hanja: impl Into<String>,
+        reading: impl Into<String>,
+        suffix: Option<String>,
+        canonical: impl Into<String>,
+        kind: AliasKind,
+    ) -> Result<(), CandidateError> {
+        let hanja = hanja.into();
+        let mut candidates = self
+            .entries
+            .get(&hanja)
+            .map_or_else(Vec::new, |candidates| candidates.as_slice().to_vec());
+        candidates.push(ReadingCandidate {
+            reading: reading.into(),
+            suffix_reading: suffix,
+            mark: MatchMark::default(),
+            preference: 0,
+            alias: Some(AliasTarget {
+                canonical: canonical.into(),
+                kind,
+            }),
+        });
+        let candidates = ReadingCandidates::new(candidates)?;
+        let chars = hanja.chars().count();
+        self.max_word_chars = Some(self.max_word_chars.map_or(chars, |max| max.max(chars)));
+        self.lexemes.set_key(&hanja, &candidates);
+        self.entries.insert(hanja, candidates);
+        Ok(())
+    }
+
     /// Builds a dictionary from explicitly authored candidate entries.
     ///
     /// Repeated keys append candidates instead of replacing earlier readings, so
@@ -1077,6 +1139,43 @@ impl MapDictionary {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+}
+
+/// Returns canonical hanja spellings that read as `reading`.
+///
+/// Reviewed and sibling aliases contribute their canonical spelling; plain
+/// entries contribute their stored key; recognition aliases are excluded
+/// because they do not claim lexical identity.  The result is sorted and
+/// deduplicated, and empty when the dictionary cannot enumerate entries.
+///
+/// This scans every enumerable entry, so callers that query many readings
+/// should build their own index instead of calling it in a loop.
+pub fn reverse_hanja<D>(dictionary: &D, reading: &str) -> Vec<String>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    let Some(records) = dictionary.candidate_entries() else {
+        return Vec::new();
+    };
+    let mut forms = BTreeSet::new();
+    for record in records {
+        for candidate in record.candidates.as_slice() {
+            if candidate.reading != reading && candidate.suffix_reading.as_deref() != Some(reading)
+            {
+                continue;
+            }
+            match &candidate.alias {
+                Some(alias) if matches!(alias.kind, AliasKind::Lexical | AliasKind::Sibling) => {
+                    forms.insert(alias.canonical.clone());
+                }
+                Some(_) => {}
+                None => {
+                    forms.insert(record.hanja.clone());
+                }
+            }
+        }
+    }
+    forms.into_iter().collect()
 }
 
 impl HanjaDictionary for MapDictionary {

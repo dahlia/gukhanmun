@@ -484,3 +484,40 @@ fn chain_override_keeps_homophone_detection_with_lookup_only_child() {
     let chain = ChainDictionary::from_iter(dictionaries);
     assert!(chain.has_homophone("聯絡", "연락"));
 }
+
+#[test]
+fn map_dictionary_alias_api_and_reverse_lookup() {
+    let mut dictionary = MapDictionary::new();
+    dictionary.insert("連絡", "연락");
+    dictionary
+        .insert_alias("聯絡", "연락", "連絡", AliasKind::Sibling)
+        .unwrap();
+    dictionary
+        .insert_alias("聯絡處", "연락처", "連絡處", AliasKind::Recognition)
+        .unwrap();
+    assert_eq!(reverse_hanja(&dictionary, "연락"), vec!["連絡"]);
+    assert!(reverse_hanja(&dictionary, "연락처").is_empty());
+    assert_eq!(
+        dictionary
+            .insert_alias("連絡", "연락", "聯絡", AliasKind::Sibling)
+            .unwrap_err(),
+        CandidateError::ConflictingAlias
+    );
+}
+
+#[test]
+fn positional_alias_participates_in_reverse_lookup() {
+    let mut dictionary = MapDictionary::new();
+    dictionary.insert("連絡處", "연락처");
+    dictionary
+        .insert_alias_with_suffix("聯絡處", "연락처", "련락처", "連絡處", AliasKind::Lexical)
+        .unwrap();
+    assert_eq!(reverse_hanja(&dictionary, "련락처"), vec!["連絡處"]);
+    assert_eq!(reverse_hanja(&dictionary, "연락처"), vec!["連絡處"]);
+    let matched = dictionary
+        .matches_at("聯絡處")
+        .next()
+        .expect("alias key matches");
+    assert_eq!(matched.reading, "연락처");
+    assert_eq!(matched.suffix_reading.as_deref(), Some("련락처"));
+}

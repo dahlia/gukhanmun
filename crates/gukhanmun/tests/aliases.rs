@@ -16,8 +16,13 @@
 
 //! Bundled alias recognition tests.
 
-use gukhanmun::{Builder, ContextWindow, DirectiveAction, RenderMode};
+use gukhanmun::{Builder, RenderMode};
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
+use gukhanmun::{ContextWindow, DirectiveAction};
 
+// The default preset bundles the standard and loanword dictionaries, which
+// supply these entries.
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn bundled_alias_renders_as_one_annotation() {
     let converter = Builder::new()
@@ -32,6 +37,9 @@ fn bundled_alias_renders_as_one_annotation() {
     );
 }
 
+// The default preset bundles the standard and loanword dictionaries, which
+// supply these entries.
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn alias_repairs_the_parenthetical_collapser() {
     let converter = Builder::new().build().expect("builder");
@@ -43,6 +51,9 @@ fn alias_repairs_the_parenthetical_collapser() {
     );
 }
 
+// The default preset bundles the standard and loanword dictionaries, which
+// supply these entries.
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn sibling_spellings_do_not_trigger_homophone_glosses() {
     let converter = Builder::new()
@@ -63,6 +74,9 @@ fn sibling_spellings_do_not_trigger_homophone_glosses() {
     );
 }
 
+// The default preset bundles the standard and loanword dictionaries, which
+// supply these entries.
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn real_homophones_still_get_glossed() {
     let converter = Builder::new()
@@ -77,6 +91,9 @@ fn real_homophones_still_get_glossed() {
     );
 }
 
+// The default preset bundles the standard and loanword dictionaries, which
+// supply these entries.
+#[cfg(all(feature = "stdict", feature = "loanwords"))]
 #[test]
 fn canonical_directive_reaches_a_reviewed_alias() {
     let converter = Builder::new()
@@ -88,5 +105,24 @@ fn canonical_directive_reaches_a_reviewed_alias() {
             .convert_text_to_string("紀念館 記念館")
             .expect("convert"),
         "기념관(紀念館) 기념관(記念館)"
+    );
+}
+
+#[test]
+fn umbrella_exposes_user_alias_and_reverse_lookup() {
+    let mut user = gukhanmun::MapDictionary::new();
+    user.insert("連絡處", "연락처");
+    user.insert_alias("聯絡處", "연락처", "連絡處", gukhanmun::AliasKind::Lexical)
+        .expect("alias insert");
+    assert_eq!(gukhanmun::reverse_hanja(&user, "연락처"), vec!["連絡處"]);
+    let converter = Builder::new()
+        .no_bundled_dictionaries()
+        .push_dictionary(user)
+        .rendering(RenderMode::HangulHanjaParens)
+        .build()
+        .expect("builder");
+    assert_eq!(
+        converter.convert_text_to_string("聯絡處").expect("convert"),
+        "연락처(聯絡處)"
     );
 }

@@ -30,6 +30,8 @@ To be released.
     spellings no longer trigger false homophone glosses. The standard
     dictionary data now carries the full automatically derived corpus plus the
     reviewed seed.  [[#38]]
+ -  Re-exported the user alias insertion APIs and `reverse_hanja()` from the
+    umbrella crate.  [[#38]]
 
 [#33]: https://github.com/dahlia/gukhanmun/issues/33
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
@@ -62,6 +64,9 @@ To be released.
     `ReadingCandidate::alias`) and `LexemeIndex`, and made homophone marking,
     first-occurrence filtering, and literal directives resolve sibling and
     reviewed spellings to one canonical lexeme. [[#38]]
+ -  Added `MapDictionary::insert_alias()`,
+    `MapDictionary::insert_alias_with_suffix()`, and `reverse_hanja()` for
+    reviewed user aliases and canonical hangul-to-hanja lookup.  [[#38]]
 
 ### gukhanmun-dict-extract
 
