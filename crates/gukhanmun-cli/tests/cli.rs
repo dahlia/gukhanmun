@@ -1980,3 +1980,19 @@ fn html_directive_reaches_reviewed_alias() {
         .success()
         .stdout("<p>연락처(連絡處) 연락처(聯絡處)</p>");
 }
+
+#[test]
+fn plain_stream_with_directive_writes_before_eof() {
+    assert_plain_stdin_writes_before_eof(
+        [
+            "--disambiguation",
+            "off",
+            "--first-occurrence",
+            "off",
+            "--require-hanja",
+            "連絡處",
+        ],
+        "聯絡處\n",
+        "연락처(聯絡處)\n",
+    );
+}

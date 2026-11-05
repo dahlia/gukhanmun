@@ -431,11 +431,22 @@ fn uncached_enumerable_dictionary_gets_identity_in_middleware() {
     );
     assert!(!annotated(&marked, 0).homophone);
     assert!(!annotated(&marked, 2).homophone);
-    let filtered = filter_first_occurrences_with_lexemes(
-        marked,
-        ContextWindow::PerDocument,
-        LexemeIndex::from_dictionary(&dictionary).unwrap(),
-    );
+    let mut filter =
+        FirstOccurrenceFilter::from_dictionary(ContextWindow::PerDocument, &dictionary);
+    let mut filtered = Vec::new();
+    for token in marked.clone() {
+        filtered.extend(filter.push_token(token));
+    }
+    filtered.extend(filter.finish());
     assert!(annotated(&filtered, 0).first_in_context);
     assert!(!annotated(&filtered, 2).first_in_context);
+
+    let mut marker = HomophoneMarker::new(&dictionary, ContextWindow::PerDocument);
+    let mut streamed = Vec::new();
+    for token in marked {
+        streamed.extend(marker.push_token(token));
+    }
+    streamed.extend(marker.finish());
+    assert!(!annotated(&streamed, 0).homophone);
+    assert!(!annotated(&streamed, 2).homophone);
 }
