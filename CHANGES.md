@@ -69,6 +69,9 @@ To be released.
     `aliases::sibling_relations()` for aligning marked compound headwords,
     applying the same-source-id ambiguity gate, and emitting recognition
     aliases plus sibling relations.  [[#38]]
+ -  Added `aliases::grid_aliases()` to reconstruct omitted position-wise
+    combinations inside multi-spelling headwords, limited to single-reading
+    groups.  [[#38]]
 
 ### gukhanmun-fst
 
@@ -91,15 +94,15 @@ To be released.
 ### gukhanmun-opendict
 
  -  Derive per-category compound aliases and sibling relations from the Open
-    Korean Dictionary dump. The bundled data now carries 1,353 general
-    recognition aliases and 2,342 sibling relations. This dump produced no
-    derived aliases for the North Korean, dialect, or archaic categories;
-    North Korean still ships 103 sibling relations.  [[#38]]
+    Korean Dictionary dump. The bundled data now carries 1,497 general
+    recognition aliases and 2,342 sibling relations. This dump produced 10
+    recognition aliases and 103 sibling relations for North Korean, and no
+    derived aliases for dialect or archaic.  [[#38]]
 
 ### gukhanmun-stdict
 
  -  Derive compound aliases from the dump's marked morphemes and explicit
-    spelling groups, bundling 1,858 recognition aliases, the seven reviewed
+    spelling groups, bundling 1,996 recognition aliases, the seven reviewed
     lexical aliases, 2,873 sibling relations, and a JSONL provenance manifest.
     [[#38]]
 

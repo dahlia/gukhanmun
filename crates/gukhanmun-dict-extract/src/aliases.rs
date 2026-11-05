@@ -134,6 +134,129 @@ pub fn align_morphemes(word: &str, hanja: &str) -> Option<Vec<Chunk>> {
     (offset == hanja_chars).then_some(chunks)
 }
 
+/// Derives missing position-wise combinations inside two-spelling headwords.
+///
+/// The dictionary prints the first and last combination of a two-component
+/// spelling grid.  This function reconstructs the omitted intermediate
+/// combinations only when the group has one reading, exactly two equal-length
+/// spellings that differ in at least two positions, neither spelling is a
+/// doubled character, and every spelling belongs to the same source-id set.
+pub fn grid_aliases(
+    sources: &[AliasSource],
+    readings: &BTreeMap<String, BTreeSet<String>>,
+    policy: &AliasPolicy,
+) -> Vec<DerivedAlias> {
+    let pair_ids = pair_source_ids(sources);
+    let mut readings_by_set = BTreeMap::<BTreeSet<String>, BTreeSet<String>>::new();
+    let mut groups =
+        BTreeMap::<(String, BTreeSet<String>), (String, BTreeSet<u64>, BTreeSet<String>)>::new();
+    for source in sources {
+        let ordered = dedup(&source.spellings);
+        if ordered.len() < 2 {
+            continue;
+        }
+        let set = ordered.iter().cloned().collect::<BTreeSet<_>>();
+        readings_by_set
+            .entry(set.clone())
+            .or_default()
+            .insert(source.reading.clone());
+        if ordered.len() != 2 {
+            continue;
+        }
+        let length = ordered[0].chars().count();
+        if length < 2 || ordered[1].chars().count() != length {
+            continue;
+        }
+        let differing = ordered[0]
+            .chars()
+            .zip(ordered[1].chars())
+            .filter(|(left, right)| left != right)
+            .count();
+        if differing < 2 || difference_is_doubled(&ordered[0], &ordered[1]) {
+            continue;
+        }
+        let entry = groups
+            .entry((source.reading.clone(), set))
+            .or_insert_with(|| (ordered[0].clone(), BTreeSet::new(), BTreeSet::new()));
+        entry.1.extend(source.source_ids.iter().copied());
+        entry.2.extend(source.categories.iter().cloned());
+    }
+    let mut aliases = Vec::new();
+    for ((reading, set), (canonical, source_ids, categories)) in groups {
+        if readings_by_set
+            .get(&set)
+            .is_some_and(|readings| readings.len() > 1)
+            || categories.iter().any(|category| {
+                policy
+                    .excluded_categories
+                    .iter()
+                    .any(|excluded| category == excluded)
+            })
+            || set.iter().any(|spelling| {
+                pair_ids.get(&(reading.clone(), spelling.clone())) != Some(&source_ids)
+            })
+        {
+            continue;
+        }
+        let spellings = set.iter().cloned().collect::<Vec<_>>();
+        let columns = (0..canonical.chars().count())
+            .map(|index| {
+                spellings
+                    .iter()
+                    .filter_map(|spelling| spelling.chars().nth(index))
+                    .collect::<BTreeSet<_>>()
+            })
+            .collect::<Vec<_>>();
+        let mut products = vec![String::new()];
+        for column in columns {
+            products = products
+                .into_iter()
+                .flat_map(|prefix| {
+                    column.iter().map(move |ch| {
+                        let mut next = prefix.clone();
+                        next.push(*ch);
+                        next
+                    })
+                })
+                .collect();
+        }
+        let mut group_aliases = Vec::new();
+        for candidate in products {
+            if set.contains(&candidate) || readings.contains_key(&candidate) {
+                continue;
+            }
+            group_aliases.push(DerivedAlias {
+                hanja: candidate.clone(),
+                reading: reading.clone(),
+                canonical: canonical.clone(),
+                kind: AliasKind::Recognition,
+                via: ("grid".into(), candidate),
+                compound_source_ids: source_ids.clone(),
+                donor_source_ids: source_ids.clone(),
+            });
+        }
+        group_aliases.truncate(policy.max_per_compound);
+        aliases.extend(group_aliases);
+    }
+    aliases
+}
+
+fn difference_is_doubled(left: &str, right: &str) -> bool {
+    let differing = left
+        .chars()
+        .zip(right.chars())
+        .filter(|(left, right)| left != right)
+        .collect::<Vec<_>>();
+    if differing.is_empty() {
+        return false;
+    }
+    let left_first = differing[0].0;
+    let right_first = differing[0].1;
+    differing
+        .iter()
+        .all(|(left, right)| *left == left_first && *right == right_first)
+}
+
 /// Derives compound aliases and sibling relations from source rows.
 ///
 /// `sources` should contain every admitted headword from one dictionary
@@ -144,9 +267,9 @@ pub fn derive_aliases(
     policy: &AliasPolicy,
 ) -> (Vec<DerivedAlias>, Vec<SiblingRelation>) {
     let readings = readings_by_spelling(sources);
+    let mut aliases = grid_aliases(sources, &readings, policy);
     let (donors, ambiguous) = donor_groups(sources);
     let siblings = sibling_relations(sources, &donors, &ambiguous);
-    let mut aliases = Vec::new();
     for compound in sources {
         if compound.categories.iter().any(|category| {
             policy
@@ -390,6 +513,77 @@ mod tests {
         name.categories.insert("인명".into());
         let donor = source("기념", "기념", &["紀念", "記念"], &[4]);
         let (aliases, _) = derive_aliases(&[donor, name], &AliasPolicy::default());
+        assert!(aliases.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod grid_tests {
+    use super::*;
+
+    fn source(word: &str, reading: &str, spellings: &[&str], ids: &[u64]) -> AliasSource {
+        AliasSource {
+            word: word.into(),
+            reading: reading.into(),
+            spellings: spellings.iter().map(|value| (*value).into()).collect(),
+            source_ids: ids.iter().copied().collect(),
+            categories: BTreeSet::new(),
+        }
+    }
+
+    #[test]
+    fn grid_closure_recovers_omitted_combinations() {
+        let sources = vec![source("마비", "마비", &["痲痹", "麻痺"], &[1])];
+        let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        let spellings = aliases
+            .iter()
+            .map(|alias| alias.hanja.as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(spellings, BTreeSet::from(["痲痺", "麻痹"]));
+    }
+
+    #[test]
+    fn grid_closure_skips_multi_reading_groups() {
+        let sources = vec![
+            source("마비", "마비", &["痲痹", "麻痺"], &[1]),
+            source("마비", "마비2", &["麻痺", "痲痹"], &[2]),
+        ];
+        let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        assert!(aliases.is_empty());
+    }
+
+    #[test]
+    fn grid_closure_skips_three_spellings_and_doubled_words() {
+        let three = vec![source(
+            "정수정전",
+            "정수정전",
+            &["鄭秀貞傳", "鄭壽貞傳", "鄭水晶傳"],
+            &[1],
+        )];
+        let (aliases, _) = derive_aliases(&three, &AliasPolicy::default());
+        assert!(aliases.is_empty());
+        for pair in [
+            ("황황", "煌煌", "晃晃"),
+            ("황황하다", "煌煌하다", "晃晃하다"),
+            ("우우탄탄", "吁吁歎歎", "吁吁嘆嘆"),
+        ] {
+            let doubled = vec![source(pair.0, pair.0, &[pair.1, pair.2], &[2])];
+            let (aliases, _) = derive_aliases(&doubled, &AliasPolicy::default());
+            assert!(aliases.is_empty(), "{}", pair.0);
+        }
+    }
+
+    #[test]
+    fn grid_closure_skips_shared_homographs_and_excluded_categories() {
+        let shared = vec![
+            source("훈육", "훈육", &["薰育", "獯鬻"], &[1]),
+            source("훈육", "훈육", &["薰育"], &[2]),
+        ];
+        let (aliases, _) = derive_aliases(&shared, &AliasPolicy::default());
+        assert!(aliases.is_empty());
+        let mut name = source("마비", "마비", &["痲痹", "麻痺"], &[3]);
+        name.categories.insert("인명".into());
+        let (aliases, _) = derive_aliases(&[name], &AliasPolicy::default());
         assert!(aliases.is_empty());
     }
 }

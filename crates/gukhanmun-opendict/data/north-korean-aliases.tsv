@@ -1,1 +1,11 @@
 hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	alias_kind	via
+伶悧하다	령리하다	false	false	10		怜悧하다	recognition	grid>伶悧하다
+佚宕껏	질탕껏	false	false	10		跌宕껏	recognition	grid>佚宕껏
+傝茸하다	탑용하다	false	false	10		闒茸하다	recognition	grid>傝茸하다
+怜俐하다	령리하다	false	false	10		怜悧하다	recognition	grid>怜俐하다
+硨渠	차거	false	false	10		硨磲	recognition	grid>硨渠
+綠駬	록이	false	false	10		騄駬	recognition	grid>綠駬
+跌蕩껏	질탕껏	false	false	10		跌宕껏	recognition	grid>跌蕩껏
+車磲	차거	false	false	10		硨磲	recognition	grid>車磲
+闒䢇하다	탑용하다	false	false	10		闒茸하다	recognition	grid>闒䢇하다
+騄耳	록이	false	false	10		騄駬	recognition	grid>騄耳
