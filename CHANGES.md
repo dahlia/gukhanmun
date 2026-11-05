@@ -45,9 +45,9 @@ To be released.
 ### gukhanmun-cli
 
  -  Canonical literals in the require-hanja directive and related directives
-    now reach reviewed alias spellings, and the streaming plain-text path
-    defers to the buffered pipeline when directives are present so identity is
-    available. [[#38]]
+    now reach reviewed alias spellings. The streaming plain-text path keeps
+    streaming and applies each directive with the dictionary's lexeme index, so
+    a reviewed alias resolves without buffering the whole document. [[#38]]
 
 ### gukhanmun-core
 
