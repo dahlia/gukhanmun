@@ -83,6 +83,9 @@ To be released.
     Reviewed suffix readings such as `욕`, `암`, and `리` may act as
     single-character donors, and reviewed `역사` compounds can opt back in
     through `AliasPolicy::approved_compounds`.  [[#38]]
+ -  Bound the Cartesian enumeration at `AliasPolicy::max_combinations` so a
+    pathological spelling group is skipped instead of exhausting memory.
+    [[#38]]
 
 ### gukhanmun-fst
 

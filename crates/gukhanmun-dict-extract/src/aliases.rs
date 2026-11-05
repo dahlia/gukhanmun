@@ -57,6 +57,12 @@ pub struct Chunk {
 pub struct AliasPolicy {
     /// Maximum aliases generated for one compound.
     pub max_per_compound: usize,
+    /// Maximum substitutions enumerated before one group is skipped.
+    ///
+    /// Grid closure and multi-chunk substitution build a Cartesian product.
+    /// A pathological source could grow it beyond memory, so a group whose
+    /// product exceeds this bound is skipped instead of allocated.
+    pub max_combinations: usize,
     /// Categories whose compounds are not derived automatically.
     pub excluded_categories: &'static [&'static str],
     /// Excluded-category compounds reviewed individually.
@@ -77,6 +83,7 @@ impl Default for AliasPolicy {
     fn default() -> Self {
         Self {
             max_per_compound: 8,
+            max_combinations: 4096,
             excluded_categories: &["인명", "지명", "책명", "역사"],
             approved_compounds: &[("철련가", "鐵連枷"), ("철연가", "鐵連枷")],
             single_character_suffix_donors: &["욕", "암", "리"],
@@ -221,6 +228,16 @@ pub fn grid_aliases(
                     .collect::<BTreeSet<_>>()
             })
             .collect::<Vec<_>>();
+        let mut combinations = 1usize;
+        for column in &columns {
+            combinations = combinations.saturating_mul(column.len());
+            if combinations > policy.max_combinations {
+                break;
+            }
+        }
+        if combinations > policy.max_combinations {
+            continue;
+        }
         let mut products = vec![String::new()];
         for column in columns {
             products = products
@@ -317,6 +334,16 @@ pub fn derive_aliases(
             substitutable.push((chunk, group.clone(), ids.clone()));
         }
         if substitutable.is_empty() {
+            continue;
+        }
+        let mut combinations = 1usize;
+        for (_, group, _) in &substitutable {
+            combinations = combinations.saturating_mul(group.len());
+            if combinations > policy.max_combinations {
+                break;
+            }
+        }
+        if combinations > policy.max_combinations {
             continue;
         }
         // Each product carries the donors whose replacement it actually used,
@@ -647,6 +674,26 @@ mod tests {
         assert_eq!(aliases[0].hanja, "鐵連耞");
         assert_eq!(aliases[0].reading, "철련가");
         assert_eq!(aliases[0].canonical, "鐵連枷");
+    }
+
+    #[test]
+    fn skips_products_that_exceed_the_combination_bound() {
+        let left = "甲乙".repeat(13);
+        let right = "丙丁".repeat(13);
+        let sources = vec![source("가나", "가나", &[&left, &right], &[1])];
+        let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        assert!(aliases.is_empty());
+
+        let compound = vec!["가나"; 13].join("-");
+        let hanja = "甲乙".repeat(13);
+        // One differing position keeps grid closure out of the picture, so the
+        // only possible aliases are the compound's 2^13 substitutions.
+        let sources = vec![
+            source("가나", "가나", &["甲乙", "甲丁"], &[1]),
+            source(&compound, &compound.replace('-', ""), &[&hanja], &[2]),
+        ];
+        let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        assert!(aliases.is_empty());
     }
 
     #[test]
