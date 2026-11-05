@@ -99,6 +99,18 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Recognize reviewed compound aliases and stop treating sibling spellings as
+    homophones or separate first occurrences. [[#38]]
+
+### @gukhanmun/stdict-cdb
+
+ -  Ship format version 3 dictionary data carrying compound alias metadata.
+    Load it with a reader that understands version 3. [[#38]]
+
+### @gukhanmun/stdict-fst
+
+ -  Ship format version 3 dictionary data carrying compound alias metadata.
+    Load it with a reader that understands version 3. [[#38]]
 
 ### @gukhanmun/types
 
@@ -113,6 +125,8 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Recognize reviewed compound aliases and stop treating sibling spellings as
+    homophones or separate first occurrences. [[#38]]
 
 <!-- sacho:unreleased:end -->
 

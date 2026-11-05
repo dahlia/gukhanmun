@@ -390,3 +390,52 @@ fn lookup_only_constituent_exercises_chain_fallback() {
     let chain = ChainDictionary::from_iter(dictionaries);
     assert!(!chain.has_homophone("聯絡", "연락"));
 }
+
+#[test]
+fn uncached_enumerable_dictionary_gets_identity_in_middleware() {
+    struct DefaultIdentityDictionary(MapDictionary);
+
+    impl HanjaDictionary for DefaultIdentityDictionary {
+        fn candidate_matches_at<'a>(
+            &'a self,
+            s: &'a str,
+        ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+            self.0.candidate_matches_at(s)
+        }
+        fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            self.0.matches_at(s)
+        }
+        fn candidate_entries<'a>(
+            &'a self,
+        ) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
+            self.0.candidate_entries()
+        }
+    }
+
+    let mut inner = MapDictionary::new();
+    inner.insert("連絡", "연락");
+    inner.insert_candidates(
+        "聯絡",
+        ReadingCandidates::new(vec![candidate("연락", Some(alias_target_for_test("連絡")))])
+            .unwrap(),
+    );
+    let dictionary = DefaultIdentityDictionary(inner);
+    let marked = mark_homophones(
+        vec![
+            OutputToken::<PlainScopeData>::Annotated(annotation("連絡", "연락")),
+            OutputToken::Text(" ".into()),
+            OutputToken::Annotated(annotation("聯絡", "연락")),
+        ],
+        &dictionary,
+        ContextWindow::PerDocument,
+    );
+    assert!(!annotated(&marked, 0).homophone);
+    assert!(!annotated(&marked, 2).homophone);
+    let filtered = filter_first_occurrences_with_lexemes(
+        marked,
+        ContextWindow::PerDocument,
+        LexemeIndex::from_dictionary(&dictionary).unwrap(),
+    );
+    assert!(annotated(&filtered, 0).first_in_context);
+    assert!(!annotated(&filtered, 2).first_in_context);
+}

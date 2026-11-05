@@ -29,8 +29,8 @@ use gukhanmun::{
     HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken, LexemeIndex, NumeralStrategy,
     OriginalGloss, OutputToken, PlainScopeData, Preset as UmbrellaPreset, RecoverableInputError,
     Recovery, RedundantParenCollapser, RenderMode, RenderOptions, RenderedToken, Renderer,
-    RubyBase, ScopeData, SegmentationStrategy, UserDirectives, apply_user_directives,
-    recover_input_token, render_tokens_iter, write_plain_text,
+    RubyBase, ScopeData, SegmentationStrategy, UserDirectives, recover_input_token,
+    render_tokens_iter, write_plain_text,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -1043,8 +1043,11 @@ fn convert_plain_document(
     let options = converter.options();
     if options.homophone_window == ContextWindow::Off
         && options.first_occurrence_window == ContextWindow::Off
-        && converter.directives().is_empty()
     {
+        let lexemes = converter
+            .dictionary()
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(converter.dictionary()));
         let engine =
             Engine::<PlainScopeData, _>::with_options(converter.dictionary(), options.engine);
         return convert_plain_stream_without_homophone_lookahead(
@@ -1053,6 +1056,7 @@ fn convert_plain_document(
             engine,
             options.rendering,
             converter.directives(),
+            lexemes.as_ref(),
             options.collapse_redundant_parens,
             options.punctuation,
         );
@@ -1089,6 +1093,7 @@ fn convert_plain_stream_without_homophone_lookahead<D>(
     mut engine: Engine<PlainScopeData, D>,
     rendering: RenderOptions,
     directives: &UserDirectives<'_>,
+    lexemes: Option<&LexemeIndex>,
     collapse_parens: bool,
     punctuation: gukhanmun::PunctuationProfile,
 ) -> Result<()>
@@ -1123,7 +1128,10 @@ where
             None => output_tokens,
         };
         if !directives.is_empty() {
-            output_tokens = apply_user_directives(output_tokens, directives);
+            output_tokens = output_tokens
+                .into_iter()
+                .map(|token| directives.apply_with_lexemes(token, lexemes))
+                .collect();
         }
         let normalized = output_tokens
             .into_iter()
@@ -1142,7 +1150,10 @@ where
         output_tokens.extend(collapser.finish());
     }
     if !directives.is_empty() {
-        output_tokens = apply_user_directives(output_tokens, directives);
+        output_tokens = output_tokens
+            .into_iter()
+            .map(|token| directives.apply_with_lexemes(token, lexemes))
+            .collect();
     }
     let mut normalized: Vec<_> = output_tokens
         .into_iter()

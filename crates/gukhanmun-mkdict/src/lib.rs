@@ -53,6 +53,7 @@ const RESERVED_METADATA_KEYS: &[&str] = &[
     "max_word_chars",
     "max_key_bytes",
     "prefix_count",
+    "aliases",
 ];
 const CDB_META_KEY: &[u8] = b"__gukhanmun_meta__";
 

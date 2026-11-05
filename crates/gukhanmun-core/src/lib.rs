@@ -2703,7 +2703,9 @@ where
     };
     let lexemes = match &index {
         Some(index) => Some(index.lexemes.clone()),
-        None => dictionary.lexemes(),
+        None => dictionary
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(dictionary)),
     };
     let lookup_fallback = match detection {
         HomophoneDetection::ContextLocal => None,
@@ -2805,7 +2807,9 @@ where
         };
         let lexemes = match &index {
             Some(index) => Some(index.lexemes.clone()),
-            None => dictionary.lexemes(),
+            None => dictionary
+                .lexemes()
+                .or_else(|| LexemeIndex::from_dictionary(dictionary)),
         };
         let lookup_fallback = match detection {
             HomophoneDetection::ContextLocal => None,
@@ -2885,7 +2889,10 @@ where
     where
         D: HanjaDictionary + ?Sized,
     {
-        match dictionary.lexemes() {
+        match dictionary
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(dictionary))
+        {
             Some(lexemes) => Self::with_lexemes(window, lexemes),
             None => Self::new(window),
         }
