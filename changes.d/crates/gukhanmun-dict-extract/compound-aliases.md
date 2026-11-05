@@ -9,3 +9,9 @@ links:
  -  Added `aliases::grid_aliases()` to reconstruct omitted position-wise
     combinations inside multi-spelling headwords, limited to single-reading
     groups.  [[#38]]
+ -  Substitute every licensed constituent of a compound, taking the bounded
+    Cartesian product instead of one chunk at a time, and match a non-initial
+    constituent whose reading differs only by the word-initial sound law.
+    Reviewed suffix readings such as `욕`, `암`, and `리` may act as
+    single-character donors, and reviewed `역사` compounds can opt back in
+    through `AliasPolicy::approved_compounds`.  [[#38]]

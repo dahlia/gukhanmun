@@ -42,6 +42,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 上梁대	상량대	false	false	10		上樑대	recognition	上樑>上梁
 上梁도리	상량도리	false	false	10		上樑도리	recognition	上樑>上梁
 上梁보	상량보	false	false	10		上樑보	recognition	上樑>上梁
+不參裏	불참리	false	false	10		不參裡	recognition	裡>裏
 不姙性	불임성	false	false	10		不妊性	recognition	不妊>不姙
 不姙法	불임법	false	false	10		不妊法	recognition	不妊>不姙
 不姙率	불임률	false	false	10		不妊率	recognition	不妊>不姙
@@ -57,6 +58,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 乞企待	걸기대	false	false	10		乞期待	recognition	期待>企待
 乾癨亂	건곽란	false	false	10		乾霍亂	recognition	霍亂>癨亂
 事務器機	사무기기	false	false	10		事務機器	recognition	機器>器機
+事業慾	사업욕	false	false	10		事業欲	recognition	欲>慾
 二諸貢	이제공	false	false	10		二提栱	recognition	提栱>諸貢
 二重賬簿	이중장부	false	false	10		二重帳簿	recognition	帳簿>賬簿
 五佳皮	오가피	false	false	10		五加皮	recognition	五加>五佳
@@ -68,10 +70,12 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 交遞期	교체기	false	false	10		交替期	recognition	交替>交遞
 交附稅	교부세	false	false	10		交付稅	recognition	交付>交附
 交附金	교부금	false	false	10		交付金	recognition	交付>交附
+人氣裏	인기리	false	false	10		人氣裡	recognition	裡>裏
 人砂汰	인사태	false	false	10		人沙汰	recognition	沙汰>砂汰
 人迹未踏	인적미답	false	false	10		人跡未踏	recognition	人跡>人迹
 人迹氣	인적기	false	false	10		人跡氣	recognition	人跡>人迹
 仔細子細	자세자세	false	false	10		仔細仔細	recognition	仔細>子細
+仕宦慾	사환욕	false	false	10		仕宦欲	recognition	欲>慾
 付着力	부착력	false	false	10		附着力	recognition	附着>付着
 付着器	부착기	false	false	10		附着器	recognition	附着>付着
 付着根	부착근	false	false	10		附着根	recognition	附着>付着
@@ -195,6 +199,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 冬栢나무	동백나무	false	false	10		冬柏나무	recognition	冬柏>冬栢
 冷煖房	냉난방	false	false	10		冷暖房	recognition	暖房>煖房
 冷煖自知	냉난자지	false	false	10		冷暖自知	recognition	冷暖>冷煖
+出世慾	출세욕	false	false	10		出世欲	recognition	欲>慾
 分歧器	분기기	false	false	10		分岐器	recognition	分岐>分歧
 分歧線	분기선	false	false	10		分岐線	recognition	分岐>分歧
 分歧驛	분기역	false	false	10		分岐驛	recognition	分岐>分歧
@@ -204,6 +209,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 初諸貢	초제공	false	false	10		初提栱	recognition	提栱>諸貢
 別竿竹	별간죽	false	false	10		別簡竹	recognition	簡竹>竿竹
 別間竹	별간죽	false	false	10		別簡竹	recognition	簡竹>間竹
+利己慾	이기욕	false	false	10		利己欲	recognition	欲>慾
+利潤慾	이윤욕	false	false	10		利潤欲	recognition	欲>慾
 制馭器	제어기	false	false	10		制御器	recognition	制御>制馭
 制馭棒	제어봉	false	false	10		制御棒	recognition	制御>制馭
 制馭瓣	제어판	false	false	10		制御瓣	recognition	制御>制馭
@@ -213,6 +220,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 前途遼遠	전도요원	false	false	10		前途遙遠	recognition	遙遠>遼遠
 副狀元	부장원	false	false	10		副壯元	recognition	壯元>狀元
 副表題	부표제	false	false	10		副標題	recognition	標題>表題
+創作慾	창작욕	false	false	10		創作欲	recognition	欲>慾
 創制者	창제자	false	false	10		創製者	recognition	創製>創制
 劇寒高熱	극한고열	false	false	10		極寒高熱	recognition	極寒>劇寒
 劇烈分子	극렬분자	false	false	10		極烈分子	recognition	極烈>劇烈
@@ -220,8 +228,11 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 劇熱地獄	극열지옥	false	false	10		極熱地獄	recognition	極熱>劇熱
 劇甚스럽다	극심스럽다	false	false	10		極甚스럽다	recognition	極甚>劇甚
 劇逆大憝	극역대대	false	false	10		極逆大憝	recognition	極逆>劇逆
+功利慾	공리욕	false	false	10		功利欲	recognition	欲>慾
+功名慾	공명욕	false	false	10		功名欲	recognition	欲>慾
 功致詞	공치사	false	false	10		功致辭	recognition	致辭>致詞
 加羅頻伽	가라빈가	false	false	10		迦羅頻伽	recognition	迦羅>加羅
+動物慾	동물욕	false	false	10		動物欲	recognition	欲>慾
 勤懇人	근간인	false	false	10		勤幹人	recognition	勤幹>勤懇
 十回向	십회향	false	false	10		十廻向	recognition	廻向>回向
 升頭之利	승두지리	false	false	10		升斗之利	recognition	grid>升頭之利
@@ -248,6 +259,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 古文詞	고문사	false	false	10		古文辭	recognition	文辭>文詞
 古蹟地	고적지	false	false	10		古跡地	recognition	古跡>古蹟
 句股弦	구고현	false	false	10		勾股弦	recognition	勾股>句股
+可嘆可嘆	가탄가탄	false	false	10		可歎可歎	recognition	可歎,可歎>可嘆,可嘆
 可嘆可歎	가탄가탄	false	false	10		可歎可歎	recognition	可歎>可嘆
 可嘆스럽다	가탄스럽다	false	false	10		可歎스럽다	recognition	可歎>可嘆
 可姙期	가임기	false	false	10		可妊期	recognition	可妊>可姙
@@ -266,6 +278,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 同樂泰平	동락태평	false	false	10		同樂太平	recognition	太平>泰平
 名勝古蹟	명승고적	false	false	10		名勝古跡	recognition	古跡>古蹟
 名臺辭	명대사	false	false	10		名臺詞	recognition	臺詞>臺辭
+名譽慾	명예욕	false	false	10		名譽欲	recognition	欲>慾
 吏頭文	이두문	false	false	10		吏讀文	recognition	吏讀>吏頭
 吐瀉霍亂	토사곽란	false	false	10		吐瀉癨亂	recognition	癨亂>霍亂
 周年作	주년작	false	false	10		週年作	recognition	週年>周年
@@ -313,6 +326,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 堅如磐石	견여반석	false	false	10		堅如盤石	recognition	盤石>磐石
 塹濠戰	참호전	false	false	10		塹壕戰	recognition	塹壕>塹濠
 塹濠熱	참호열	false	false	10		塹壕熱	recognition	塹壕>塹濠
+增大慾	증대욕	false	false	10		增大欲	recognition	欲>慾
 壁煖爐	벽난로	false	false	10		壁暖爐	recognition	暖爐>煖爐
 壁附煖爐	벽부난로	false	false	10		壁附暖爐	recognition	暖爐>煖爐
 壓紙틀	압지틀	false	false	10		押紙틀	recognition	押紙>壓紙
@@ -367,11 +381,14 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 婦椽間板	부연간판	false	false	10		附椽間板	recognition	附椽>婦椽
 嫉妒心	질투심	false	false	10		嫉妬心	recognition	嫉妬>嫉妒
 嫉妒感	질투감	false	false	10		嫉妬感	recognition	嫉妬>嫉妒
+子息慾	자식욕	false	false	10		子息欲	recognition	欲>慾
 子細仔細	자세자세	false	false	10		仔細仔細	recognition	仔細>子細
+子細子細	자세자세	false	false	10		仔細仔細	recognition	仔細,仔細>子細,子細
 孤苦伶丁	고고영정	false	false	10		孤苦零丁	recognition	grid>孤苦伶丁
 孤苦零仃	고고영정	false	false	10		孤苦零丁	recognition	grid>孤苦零仃
 安過泰平	안과태평	false	false	10		安過太平	recognition	太平>泰平
 完如磐石	완여반석	false	false	10		完如盤石	recognition	盤石>磐石
+官能慾	관능욕	false	false	10		官能欲	recognition	欲>慾
 家族計畫	가족계획	false	false	10		家族計劃	recognition	計劃>計畫
 寒煖計	한란계	false	false	10		寒暖計	recognition	寒暖>寒煖
 實柏糤子	실백산자	false	false	10		實柏饊子	recognition	饊子>糤子
@@ -399,6 +416,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 屢代墳山	누대분산	false	false	10		累代墳山	recognition	累代>屢代
 屢代奉祀	누대봉사	false	false	10		累代奉祀	recognition	累代>屢代
 屢代淸德	누대청덕	false	false	10		累代淸德	recognition	累代>屢代
+屢代緣戚	누대연척	false	false	10		累代連戚	recognition	累代,連戚>屢代,緣戚
 屢代連戚	누대연척	false	false	10		累代連戚	recognition	累代>屢代
 山嶽人	산악인	false	false	10		山岳人	recognition	山岳>山嶽
 山嶽信仰	산악신앙	false	false	10		山岳信仰	recognition	山岳>山嶽
@@ -427,6 +445,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 幫助罪	방조죄	false	false	10		幇助罪	recognition	幇助>幫助
 幫助者	방조자	false	false	10		幇助者	recognition	幇助>幫助
 平原廣野	평원광야	false	false	10		平原曠野	recognition	曠野>廣野
+平和裏	평화리	false	false	10		平和裡	recognition	裡>裏
 平女墻	평여장	false	false	10		平女牆	recognition	女牆>女墻
 平欄杆	평난간	false	false	10		平欄干	recognition	欄干>欄杆
 平沙落鴈	평사낙안	false	false	10		平沙落雁	recognition	落雁>落鴈
@@ -498,6 +517,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 彷髴하다	방불하다	false	false	10		彷彿하다	recognition	grid>彷髴하다
 彷髴히	방불히	false	false	10		彷彿히	recognition	grid>彷髴히
 往相回向	왕상회향	false	false	10		往相廻向	recognition	廻向>回向
+征服慾	정복욕	false	false	10		征服欲	recognition	欲>慾
 從孫婿	종손서	false	false	10		從孫壻	recognition	孫壻>孫婿
 御者座	어자좌	false	false	10		馭者座	recognition	馭者>御者
 御者臺	어자대	false	false	10		馭者臺	recognition	馭者>御者
@@ -563,6 +583,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 慾心부리다	욕심부리다	false	false	10		欲心부리다	recognition	欲心>慾心
 慾心스럽다	욕심스럽다	false	false	10		欲心스럽다	recognition	欲心>慾心
 慾心쟁이	욕심쟁이	false	false	10		欲心쟁이	recognition	欲心>慾心
+慾邪行	욕사행	false	false	10		欲邪行	recognition	欲>慾
 憂心熱烈	우심열렬	false	false	10		憂心烈烈	recognition	烈烈>熱烈
 憐愍스럽다	연민스럽다	false	false	10		憐憫스럽다	recognition	憐憫>憐愍
 憔顇	초췌	false	false	10		憔悴	recognition	grid>憔顇
@@ -571,10 +592,13 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 憤怒拳印	분노권인	false	false	10		忿怒拳印	recognition	忿怒>憤怒
 憤愾心	분개심	false	false	10		憤慨心	recognition	憤慨>憤愾
 戀愛片紙	연애편지	false	false	10		戀愛便紙	recognition	便紙>片紙
+成功裏	성공리	false	false	10		成功裡	recognition	裡>裏
+成就慾	성취욕	false	false	10		成就欲	recognition	欲>慾
 截斷機	절단기	false	false	10		切斷機	recognition	切斷>截斷
 截斷術	절단술	false	false	10		切斷術	recognition	切斷>截斷
 截斷面	절단면	false	false	10		切斷面	recognition	切斷>截斷
 戰迹地	전적지	false	false	10		戰跡地	recognition	戰跡>戰迹
+所有慾	소유욕	false	false	10		所有欲	recognition	欲>慾
 扶餘神	부여신	false	false	10		夫餘神	recognition	夫餘>扶餘
 承平世界	승평세계	false	false	10		昇平世界	recognition	昇平>承平
 承平契	승평계	false	false	10		昇平契	recognition	昇平>承平
@@ -582,6 +606,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 把子廛	파자전	false	false	10		笆子廛	recognition	笆子>把子
 披鍼	피침	false	false	10		鈹鍼	recognition	grid>披鍼
 披髮左衽	피발좌임	false	false	10		被髮左衽	recognition	被髮>披髮
+披髮左袵	피발좌임	false	false	10		被髮左衽	recognition	被髮,左衽>披髮,左袵
 披髮徒跣	피발도선	false	false	10		被髮徒跣	recognition	被髮>披髮
 拑口令	겸구령	false	false	10		箝口令	recognition	箝口>拑口
 拑口勿說	겸구물설	false	false	10		箝口勿說	recognition	箝口>拑口
@@ -611,8 +636,10 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 掌匣機	장갑기	false	false	10		掌甲機	recognition	掌甲>掌匣
 排列名	배열명	false	false	10		配列名	recognition	配列>排列
 排列圖	배열도	false	false	10		配列圖	recognition	配列>排列
+探究慾	탐구욕	false	false	10		探究欲	recognition	欲>慾
 接屋連墻	접옥연장	false	false	10		接屋連牆	recognition	連牆>連墻
 接木法	접목법	false	false	10		椄木法	recognition	椄木>接木
+接近慾	접근욕	false	false	10		接近欲	recognition	欲>慾
 提貢	제공	false	false	10		提栱	recognition	grid>提貢
 搖鈴잡이	요령잡이	false	false	10		鐃鈴잡이	recognition	鐃鈴>搖鈴
 摩崖佛	마애불	false	false	10		磨崖佛	recognition	磨崖>摩崖
@@ -653,6 +680,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 支吾	지오	false	false	10		枝吾	recognition	grid>支吾
 支吾하다	지오하다	false	false	10		枝吾하다	recognition	grid>支吾하다
 放聲慟哭	방성통곡	false	false	10		放聲痛哭	recognition	痛哭>慟哭
+政權慾	정권욕	false	false	10		政權欲	recognition	欲>慾
 故物商	고물상	false	false	10		古物商	recognition	古物>故物
 故物廛	고물전	false	false	10		古物廛	recognition	古物>故物
 故物가게	고물가게	false	false	10		古物가게	recognition	古物>故物
@@ -700,6 +728,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 春府丈	춘부장	false	false	10		椿府丈	recognition	椿府>春府
 春府大人	춘부대인	false	false	10		椿府大人	recognition	椿府>春府
 普陀落山	보타락산	false	false	10		補陀落山	recognition	補陀落>普陀落
+暗暗裏	암암리	false	false	10		暗暗裡	recognition	裡>裏
+暗默裏	암묵리	false	false	10		暗默裡	recognition	裡>裏
 曉喩文	효유문	false	false	10		曉諭文	recognition	曉諭>曉喩
 曲蟮	곡선	false	false	10		曲蟺	recognition	grid>曲蟮
 書柬文	서간문	false	false	10		書簡文	recognition	書簡>書柬
@@ -756,6 +786,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 梅花糤子	매화산자	false	false	10		梅花饊子	recognition	饊子>糤子
 棄世隱遯	기세은둔	false	false	10		棄世隱遁	recognition	隱遁>隱遯
 棟樑材	동량재	false	false	10		棟梁材	recognition	棟梁>棟樑
+極祕密裏	극비밀리	false	false	10		極祕密裡	recognition	裡>裏
+極祕裏	극비리	false	false	10		極祕裡	recognition	裡>裏
 模形化	모형화	false	false	10		模型化	recognition	模型>模形
 模形圖	모형도	false	false	10		模型圖	recognition	模型>模形
 模形實驗	모형실험	false	false	10		模型實驗	recognition	模型>模形
@@ -791,6 +823,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 欄杆엄지기둥	난간엄지기둥	false	false	10		欄干엄지기둥	recognition	欄干>欄杆
 欄杆연잎	난간연잎	false	false	10		欄干연잎	recognition	欄干>欄杆
 欄杆이마	난간이마	false	false	10		欄干이마	recognition	欄干>欄杆
+權力慾	권력욕	false	false	10		權力欲	recognition	欲>慾
+權勢慾	권세욕	false	false	10		權勢欲	recognition	欲>慾
 歉然스럽다	겸연스럽다	false	false	10		慊然스럽다	recognition	慊然>歉然
 歉然적다	겸연적다	false	false	10		慊然적다	recognition	慊然>歉然
 歉然쩍다	겸연쩍다	false	false	10		慊然쩍다	recognition	慊然>歉然
@@ -953,6 +987,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 烝氣法	증기법	false	false	10		蒸氣法	recognition	蒸氣>烝氣
 烝氣浴	증기욕	false	false	10		蒸氣浴	recognition	蒸氣>烝氣
 烝氣湯	증기탕	false	false	10		蒸氣湯	recognition	蒸氣>烝氣
+烝氣煖房	증기난방	false	false	10		蒸氣暖房	recognition	蒸氣,暖房>烝氣,煖房
+烝氣煖爐	증기난로	false	false	10		蒸氣暖爐	recognition	蒸氣,暖爐>烝氣,煖爐
 烝氣瓣	증기변	false	false	10		蒸氣瓣	recognition	蒸氣>烝氣
 烝氣管	증기관	false	false	10		蒸氣管	recognition	蒸氣>烝氣
 烝氣罐	증기관	false	false	10		蒸氣罐	recognition	蒸氣>烝氣
@@ -1040,6 +1076,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 狀元禮	장원례	false	false	10		壯元禮	recognition	壯元>狀元
 猛訓練	맹훈련	false	false	10		猛訓鍊	recognition	訓鍊>訓練
 猛鍊習	맹연습	false	false	10		猛練習	recognition	練習>鍊習
+獨占慾	독점욕	false	false	10		獨占欲	recognition	欲>慾
 獸蹄鳥迹	수제조적	false	false	10		獸蹄鳥跡	recognition	鳥跡>鳥迹
 獻餠獻酌	헌병헌작	false	false	10		獻餠獻爵	recognition	獻爵>獻酌
 玄孫婿	현손서	false	false	10		玄孫壻	recognition	孫壻>孫婿
@@ -1081,7 +1118,9 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 球麻痺	구마비	false	false	10		球痲痹	recognition	痲痹>麻痺
 琺瑯珍珠	법랑진주	false	false	10		琺瑯眞珠	recognition	眞珠>珍珠
 瓦斯煖爐	와사난로	false	false	10		瓦斯暖爐	recognition	暖爐>煖爐
+生殖慾	생식욕	false	false	10		生殖欲	recognition	欲>慾
 生沒年	생몰년	false	false	10		生歿年	recognition	歿年>沒年
+生活慾	생활욕	false	false	10		生活欲	recognition	欲>慾
 生鴉片	생아편	false	false	10		生阿片	recognition	阿片>鴉片
 甦生室	소생실	false	false	10		蘇生室	recognition	蘇生>甦生
 甦生期	소생기	false	false	10		蘇生期	recognition	蘇生>甦生
@@ -1106,6 +1145,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 痲痺	마비	false	false	10		痲痹	recognition	grid>痲痺
 痲痺되다	마비되다	false	false	10		痲痹되다	recognition	grid>痲痺되다
 瘡痍未瘳	창이미추	false	false	10		創痍未瘳	recognition	創痍>瘡痍
+發表慾	발표욕	false	false	10		發表欲	recognition	欲>慾
 發顯者	발현자	false	false	10		發現者	recognition	發現>發顯
 白冬栢	백동백	false	false	10		白冬柏	recognition	冬柏>冬栢
 白屑糖	백설탕	false	false	10		白雪糖	recognition	雪糖>屑糖
@@ -1122,11 +1162,13 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 白龍魚箙	백룡어복	false	false	10		白龍魚服	recognition	魚服>魚箙
 百方曉喩	백방효유	false	false	10		百方曉諭	recognition	曉諭>曉喩
 百獸慴服	백수습복	false	false	10		百獸慴伏	recognition	慴伏>慴服
+盛況裏	성황리	false	false	10		盛況裡	recognition	裡>裏
 盲竪坑	맹수갱	false	false	10		盲垂坑	recognition	垂坑>竪坑
 眩煌	현황	false	false	10		眩慌	recognition	grid>眩煌
 眩煌하다	현황하다	false	false	10		眩慌하다	recognition	grid>眩煌하다
 眩煌히	현황히	false	false	10		眩慌히	recognition	grid>眩煌히
 着押經印	착압경인	false	false	10		著押經印	recognition	著押>着押
+睡眠慾	수면욕	false	false	10		睡眠欲	recognition	欲>慾
 瞑想家	명상가	false	false	10		冥想家	recognition	冥想>瞑想
 瞑想曲	명상곡	false	false	10		冥想曲	recognition	冥想>瞑想
 瞑想錄	명상록	false	false	10		冥想錄	recognition	冥想>瞑想
@@ -1142,6 +1184,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 知慧眼	지혜안	false	false	10		智慧眼	recognition	智慧>知慧
 知慧鏡	지혜경	false	false	10		智慧鏡	recognition	智慧>知慧
 知慧롭다	지혜롭다	false	false	10		智慧롭다	recognition	智慧>知慧
+知識慾	지식욕	false	false	10		知識欲	recognition	欲>慾
 石栮團子	석이단자	false	false	10		石耳團子	recognition	石耳>石栮
 石栮科	석이과	false	false	10		石耳科	recognition	石耳>石栮
 石栮菜	석이채	false	false	10		石耳菜	recognition	石耳>石栮
@@ -1158,6 +1201,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 砂器店	사기점	false	false	10		沙器店	recognition	沙器>砂器
 砂器廛	사기전	false	false	10		沙器廛	recognition	沙器>砂器
 砂器所	사기소	false	false	10		沙器所	recognition	沙器>砂器
+砂器珍珠	사기진주	false	false	10		沙器眞珠	recognition	沙器,眞珠>砂器,珍珠
 砂器甁	사기병	false	false	10		沙器甁	recognition	沙器>砂器
 砂器盞	사기잔	false	false	10		沙器盞	recognition	沙器>砂器
 砂器眞珠	사기진주	false	false	10		沙器眞珠	recognition	沙器>砂器
@@ -1251,6 +1295,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 磁器所	자기소	false	false	10		瓷器所	recognition	瓷器>磁器
 礬砂紙	반사지	false	false	10		礬沙紙	recognition	礬沙>礬砂
 示顯塔	시현탑	false	false	10		示現塔	recognition	示現>示顯
+祕密裏	비밀리	false	false	10		祕密裡	recognition	裡>裏
 神機漏洩	신기누설	false	false	10		神機漏泄	recognition	漏泄>漏洩
 神采英拔	신채영발	false	false	10		神彩英拔	recognition	神彩>神采
 禳日食	양일식	false	false	10		禳日蝕	recognition	日蝕>日食
@@ -1265,6 +1310,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 空致詞	공치사	false	false	10		空致辭	recognition	致辭>致詞
 立柱上梁	입주상량	false	false	10		立柱上樑	recognition	上樑>上梁
 立石記功	입석기공	false	false	10		立石紀功	recognition	紀功>記功
+競爭裏	경쟁리	false	false	10		競爭裡	recognition	裡>裏
 竹筩美女	죽통미녀	false	false	10		竹筒美女	recognition	竹筒>竹筩
 竹筩酒	죽통주	false	false	10		竹筒酒	recognition	竹筒>竹筩
 筩狀花	통상화	false	false	10		筒狀花	recognition	筒狀>筩狀
@@ -1296,6 +1342,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 細飯糤子	세반산자	false	false	10		細飯饊子	recognition	饊子>糤子
 結婚斑指	결혼반지	false	false	10		結婚半指	recognition	半指>斑指
 結配阻攩	결배조당	false	false	10		結配阻擋	recognition	阻擋>阻攩
+絕讚裏	절찬리	false	false	10		絕讚裡	recognition	裡>裏
 綠耳霜蹄	녹이상제	false	false	10		騄耳霜蹄	recognition	騄耳>綠耳
 綵鳳感別曲	채봉감별곡	false	false	10		彩鳳感別曲	recognition	彩鳳>綵鳳
 綿掌甲	면장갑	false	false	10		綿掌匣	recognition	掌匣>掌甲
@@ -1530,6 +1577,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 詠嘆詞	영탄사	false	false	10		詠歎詞	recognition	詠歎>詠嘆
 詠嘆調	영탄조	false	false	10		詠歎調	recognition	詠歎>詠嘆
 試練期	시련기	false	false	10		試鍊期	recognition	試鍊>試練
+誇示慾	과시욕	false	false	10		誇示欲	recognition	欲>慾
 誓多林	서다림	false	false	10		逝多林	recognition	逝多>誓多
 語原學	어원학	false	false	10		語源學	recognition	語源>語原
 語原論	어원론	false	false	10		語源論	recognition	語源>語原
@@ -1545,6 +1593,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 謙巽스럽다	겸손스럽다	false	false	10		謙遜스럽다	recognition	謙遜>謙巽
 譖訴질	참소질	false	false	10		讒訴질	recognition	讒訴>譖訴
 譬喩法	비유법	false	false	10		比喩法	recognition	比喩>譬喩
+讀書慾	독서욕	false	false	10		讀書欲	recognition	欲>慾
 讚嘆	찬탄	false	false	10		讚歎	recognition	grid>讚嘆
 讚嘆하다	찬탄하다	false	false	10		讚歎하다	recognition	grid>讚嘆하다
 谿流낚시	계류낚시	false	false	10		溪流낚시	recognition	溪流>谿流
@@ -1560,6 +1609,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 賀皇恩詞	하황은사	false	false	10		荷皇恩詞	recognition	荷皇恩>賀皇恩
 賬簿冊	장부책	false	false	10		帳簿冊	recognition	帳簿>賬簿
 賬簿끝	장부끝	false	false	10		帳簿끝	recognition	帳簿>賬簿
+購買慾	구매욕	false	false	10		購買欲	recognition	欲>慾
 贊嘆辭	찬탄사	false	false	10		讚歎辭	recognition	讚歎>贊嘆
 贊嘆門	찬탄문	false	false	10		讚歎門	recognition	讚歎>贊嘆
 贊歎	찬탄	false	false	10		讚歎	recognition	grid>贊歎
@@ -1630,6 +1680,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 金剛砂숫돌	금강사숫돌	false	false	10		金剛沙숫돌	recognition	金剛沙>金剛砂
 金斑指	금반지	false	false	10		金半指	recognition	半指>斑指
 金畫磁器	금화자기	false	false	10		金畫瓷器	recognition	瓷器>磁器
+金錢慾	금전욕	false	false	10		金錢欲	recognition	欲>慾
 金빛松栮	금빛송이	false	false	10		金빛松耳	recognition	松耳>松栮
 針筩노리개	침통노리개	false	false	10		針筒노리개	recognition	針筒>針筩
 鈴烝餠	영증병	false	false	10		鈴蒸餠	recognition	蒸餠>烝餠
@@ -1678,6 +1729,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 鐵瓮山城	철옹산성	false	false	10		鐵甕山城	recognition	鐵甕>鐵瓮
 鐵砂釉	철사유	false	false	10		鐵沙釉	recognition	鐵沙>鐵砂
 鐵窓身世	철창신세	false	false	10		鐵窓身勢	recognition	身勢>身世
+鐵連耞	철련가	false	false	10		鐵連枷	recognition	連枷>連耞
+鐵連耞	철연가	false	false	10		鐵連枷	recognition	連枷>連耞
 長嘆息	장탄식	false	false	10		長歎息	recognition	歎息>嘆息
 長嘆愁心	장탄수심	false	false	10		長歎愁心	recognition	長歎>長嘆
 長嘆愁聲	장탄수성	false	false	10		長歎愁聲	recognition	長歎>長嘆
@@ -1771,9 +1824,11 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 霜華紙	상화지	false	false	10		霜花紙	recognition	霜花>霜華
 霜華餠	상화병	false	false	10		霜花餠	recognition	霜花>霜華
 霜華떡	상화떡	false	false	10		霜花떡	recognition	霜花>霜華
+露出慾	노출욕	false	false	10		露出欲	recognition	欲>慾
 靈山會上甲彈	영산회상갑탄	false	false	10		靈山會相甲彈	recognition	靈山會相>靈山會上
 靑丘圖	청구도	false	false	10		靑邱圖	recognition	靑邱>靑丘
 靑丘線表圖	청구선표도	false	false	10		靑邱線表圖	recognition	靑邱>靑丘
+靑山裡	청산리	false	false	10		靑山裏	recognition	裏>裡
 靑砂器	청사기	false	false	10		靑沙器	recognition	沙器>砂器
 靑磁器	청자기	false	false	10		靑瓷器	recognition	靑瓷>靑磁
 靑磁硯滴	청자연적	false	false	10		靑瓷硯滴	recognition	靑瓷>靑磁
@@ -1791,6 +1846,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 領受書	영수서	false	false	10		領收書	recognition	領收>領受
 領受票	영수표	false	false	10		領收票	recognition	領收>領受
 領受證	영수증	false	false	10		領收證	recognition	領收>領受
+領土慾	영토욕	false	false	10		領土欲	recognition	欲>慾
 顓門化	전문화	false	false	10		專門化	recognition	專門>顓門
 顓門大	전문대	false	false	10		專門大	recognition	專門>顓門
 顓門學	전문학	false	false	10		專門學	recognition	專門>顓門
@@ -1835,6 +1891,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 髣彿	방불	false	false	10		彷彿	recognition	grid>髣彿
 髣彿하다	방불하다	false	false	10		彷彿하다	recognition	grid>髣彿하다
 髣彿히	방불히	false	false	10		彷彿히	recognition	grid>髣彿히
+鬪爭慾	투쟁욕	false	false	10		鬪爭欲	recognition	欲>慾
 魚皮箭筩	어피전동	false	false	10		魚皮箭筒	recognition	箭筒>箭筩
 魚網契	어망계	false	false	10		漁網契	recognition	漁網>魚網
 魚網絲	어망사	false	false	10		漁網絲	recognition	漁網>魚網
@@ -1976,6 +2033,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 올冬栢	올동백	false	false	10		올冬柏	recognition	冬柏>冬栢
 올砂果	올사과	false	false	10		올沙果	recognition	沙果>砂果
 욱은欂栱	욱은박공	false	false	10		욱은牔栱	recognition	牔栱>欂栱
+잠慾	잠욕	false	false	10		잠欲	recognition	欲>慾
 잠자리武砂	잠자리무사	false	false	10		잠자리武沙	recognition	武沙>武砂
 잣糤子	잣산자	false	false	10		잣饊子	recognition	饊子>糤子
 장구唾具	장구타구	false	false	10		장구唾口	recognition	唾口>唾具

@@ -41,6 +41,7 @@
 {"alias":"上梁대","compound_ids":[445720],"donor_ids":[176446],"kind":"recognition","reading":"상량대","schema":1,"target":"上樑대","via":{"from":"上樑","to":"上梁"}}
 {"alias":"上梁도리","compound_ids":[176451],"donor_ids":[176446],"kind":"recognition","reading":"상량도리","schema":1,"target":"上樑도리","via":{"from":"上樑","to":"上梁"}}
 {"alias":"上梁보","compound_ids":[445721],"donor_ids":[176446],"kind":"recognition","reading":"상량보","schema":1,"target":"上樑보","via":{"from":"上樑","to":"上梁"}}
+{"alias":"不參裏","compound_ids":[161453],"donor_ids":[106831],"kind":"recognition","reading":"불참리","schema":1,"target":"不參裡","via":{"from":"裡","to":"裏"}}
 {"alias":"不姙性","compound_ids":[157745],"donor_ids":[157740],"kind":"recognition","reading":"불임성","schema":1,"target":"不妊性","via":{"from":"不妊","to":"不姙"}}
 {"alias":"不姙法","compound_ids":[157744],"donor_ids":[157740],"kind":"recognition","reading":"불임법","schema":1,"target":"不妊法","via":{"from":"不妊","to":"不姙"}}
 {"alias":"不姙率","compound_ids":[157743],"donor_ids":[157740],"kind":"recognition","reading":"불임률","schema":1,"target":"不妊率","via":{"from":"不妊","to":"不姙"}}
@@ -56,6 +57,7 @@
 {"alias":"乞企待","compound_ids":[13646],"donor_ids":[406740],"kind":"recognition","reading":"걸기대","schema":1,"target":"乞期待","via":{"from":"期待","to":"企待"}}
 {"alias":"乾癨亂","compound_ids":[12724],"donor_ids":[400917],"kind":"recognition","reading":"건곽란","schema":1,"target":"乾霍亂","via":{"from":"霍亂","to":"癨亂"}}
 {"alias":"事務器機","compound_ids":[168381],"donor_ids":[404745],"kind":"recognition","reading":"사무기기","schema":1,"target":"事務機器","via":{"from":"機器","to":"器機"}}
+{"alias":"事業慾","compound_ids":[168889],"donor_ids":[464129],"kind":"recognition","reading":"사업욕","schema":1,"target":"事業欲","via":{"from":"欲","to":"慾"}}
 {"alias":"二諸貢","compound_ids":[267508],"donor_ids":[481095],"kind":"recognition","reading":"이제공","schema":1,"target":"二提栱","via":{"from":"提栱","to":"諸貢"}}
 {"alias":"二重賬簿","compound_ids":[469285],"donor_ids":[283563],"kind":"recognition","reading":"이중장부","schema":1,"target":"二重帳簿","via":{"from":"帳簿","to":"賬簿"}}
 {"alias":"五佳皮","compound_ids":[237408],"donor_ids":[241326],"kind":"recognition","reading":"오가피","schema":1,"target":"五加皮","via":{"from":"五加","to":"五佳"}}
@@ -67,10 +69,12 @@
 {"alias":"交遞期","compound_ids":[34215],"donor_ids":[397182],"kind":"recognition","reading":"교체기","schema":1,"target":"交替期","via":{"from":"交替","to":"交遞"}}
 {"alias":"交附稅","compound_ids":[396429],"donor_ids":[396480],"kind":"recognition","reading":"교부세","schema":1,"target":"交付稅","via":{"from":"交付","to":"交附"}}
 {"alias":"交附金","compound_ids":[35918],"donor_ids":[396480],"kind":"recognition","reading":"교부금","schema":1,"target":"交付金","via":{"from":"交付","to":"交附"}}
+{"alias":"人氣裏","compound_ids":[271122],"donor_ids":[106831],"kind":"recognition","reading":"인기리","schema":1,"target":"人氣裡","via":{"from":"裡","to":"裏"}}
 {"alias":"人砂汰","compound_ids":[270527],"donor_ids":[164792],"kind":"recognition","reading":"인사태","schema":1,"target":"人沙汰","via":{"from":"沙汰","to":"砂汰"}}
 {"alias":"人迹未踏","compound_ids":[271851],"donor_ids":[475341],"kind":"recognition","reading":"인적미답","schema":1,"target":"人跡未踏","via":{"from":"人跡","to":"人迹"}}
 {"alias":"人迹氣","compound_ids":[271280],"donor_ids":[475341],"kind":"recognition","reading":"인적기","schema":1,"target":"人跡氣","via":{"from":"人跡","to":"人迹"}}
 {"alias":"仔細子細","compound_ids":[268904],"donor_ids":[268900],"kind":"recognition","reading":"자세자세","schema":1,"target":"仔細仔細","via":{"from":"仔細","to":"子細"}}
+{"alias":"仕宦慾","compound_ids":[162408],"donor_ids":[464129],"kind":"recognition","reading":"사환욕","schema":1,"target":"仕宦欲","via":{"from":"欲","to":"慾"}}
 {"alias":"付着力","compound_ids":[433411],"donor_ids":[438905],"kind":"recognition","reading":"부착력","schema":1,"target":"附着力","via":{"from":"附着","to":"付着"}}
 {"alias":"付着器","compound_ids":[152428],"donor_ids":[438905],"kind":"recognition","reading":"부착기","schema":1,"target":"附着器","via":{"from":"附着","to":"付着"}}
 {"alias":"付着根","compound_ids":[152427],"donor_ids":[438905],"kind":"recognition","reading":"부착근","schema":1,"target":"附着根","via":{"from":"附着","to":"付着"}}
@@ -194,6 +198,7 @@
 {"alias":"冬栢나무","compound_ids":[91939],"donor_ids":[91935],"kind":"recognition","reading":"동백나무","schema":1,"target":"冬柏나무","via":{"from":"冬柏","to":"冬栢"}}
 {"alias":"冷煖房","compound_ids":[63014],"donor_ids":[61228],"kind":"recognition","reading":"냉난방","schema":1,"target":"冷暖房","via":{"from":"暖房","to":"煖房"}}
 {"alias":"冷煖自知","compound_ids":[63015],"donor_ids":[63013],"kind":"recognition","reading":"냉난자지","schema":1,"target":"冷暖自知","via":{"from":"冷暖","to":"冷煖"}}
+{"alias":"出世慾","compound_ids":[336303],"donor_ids":[464129],"kind":"recognition","reading":"출세욕","schema":1,"target":"出世欲","via":{"from":"欲","to":"慾"}}
 {"alias":"分歧器","compound_ids":[157644],"donor_ids":[435490],"kind":"recognition","reading":"분기기","schema":1,"target":"分岐器","via":{"from":"分岐","to":"分歧"}}
 {"alias":"分歧線","compound_ids":[157659],"donor_ids":[435490],"kind":"recognition","reading":"분기선","schema":1,"target":"分岐線","via":{"from":"分岐","to":"分歧"}}
 {"alias":"分歧驛","compound_ids":[157660],"donor_ids":[435490],"kind":"recognition","reading":"분기역","schema":1,"target":"分岐驛","via":{"from":"分岐","to":"分歧"}}
@@ -203,6 +208,8 @@
 {"alias":"初諸貢","compound_ids":[329135],"donor_ids":[481095],"kind":"recognition","reading":"초제공","schema":1,"target":"初提栱","via":{"from":"提栱","to":"諸貢"}}
 {"alias":"別竿竹","compound_ids":[143262],"donor_ids":[3398],"kind":"recognition","reading":"별간죽","schema":1,"target":"別簡竹","via":{"from":"簡竹","to":"竿竹"}}
 {"alias":"別間竹","compound_ids":[143262],"donor_ids":[3398],"kind":"recognition","reading":"별간죽","schema":1,"target":"別簡竹","via":{"from":"簡竹","to":"間竹"}}
+{"alias":"利己慾","compound_ids":[512844],"donor_ids":[464129],"kind":"recognition","reading":"이기욕","schema":1,"target":"利己欲","via":{"from":"欲","to":"慾"}}
+{"alias":"利潤慾","compound_ids":[513118],"donor_ids":[464129],"kind":"recognition","reading":"이윤욕","schema":1,"target":"利潤欲","via":{"from":"欲","to":"慾"}}
 {"alias":"制馭器","compound_ids":[294493],"donor_ids":[476947],"kind":"recognition","reading":"제어기","schema":1,"target":"制御器","via":{"from":"制御","to":"制馭"}}
 {"alias":"制馭棒","compound_ids":[480536],"donor_ids":[476947],"kind":"recognition","reading":"제어봉","schema":1,"target":"制御棒","via":{"from":"制御","to":"制馭"}}
 {"alias":"制馭瓣","compound_ids":[294469],"donor_ids":[476947],"kind":"recognition","reading":"제어판","schema":1,"target":"制御瓣","via":{"from":"制御","to":"制馭"}}
@@ -212,6 +219,7 @@
 {"alias":"前途遼遠","compound_ids":[287998],"donor_ids":[246451],"kind":"recognition","reading":"전도요원","schema":1,"target":"前途遙遠","via":{"from":"遙遠","to":"遼遠"}}
 {"alias":"副狀元","compound_ids":[160101],"donor_ids":[281533],"kind":"recognition","reading":"부장원","schema":1,"target":"副壯元","via":{"from":"壯元","to":"狀元"}}
 {"alias":"副表題","compound_ids":[433224],"donor_ids":[497667],"kind":"recognition","reading":"부표제","schema":1,"target":"副標題","via":{"from":"標題","to":"表題"}}
+{"alias":"創作慾","compound_ids":[490709],"donor_ids":[464129],"kind":"recognition","reading":"창작욕","schema":1,"target":"創作欲","via":{"from":"欲","to":"慾"}}
 {"alias":"創制者","compound_ids":[486789],"donor_ids":[323564],"kind":"recognition","reading":"창제자","schema":1,"target":"創製者","via":{"from":"創製","to":"創制"}}
 {"alias":"劇寒高熱","compound_ids":[44546],"donor_ids":[44544],"kind":"recognition","reading":"극한고열","schema":1,"target":"極寒高熱","via":{"from":"極寒","to":"劇寒"}}
 {"alias":"劇烈分子","compound_ids":[44732],"donor_ids":[44130],"kind":"recognition","reading":"극렬분자","schema":1,"target":"極烈分子","via":{"from":"極烈","to":"劇烈"}}
@@ -219,8 +227,11 @@
 {"alias":"劇熱地獄","compound_ids":[401601],"donor_ids":[45357],"kind":"recognition","reading":"극열지옥","schema":1,"target":"極熱地獄","via":{"from":"極熱","to":"劇熱"}}
 {"alias":"劇甚스럽다","compound_ids":[46882],"donor_ids":[46880],"kind":"recognition","reading":"극심스럽다","schema":1,"target":"極甚스럽다","via":{"from":"極甚","to":"劇甚"}}
 {"alias":"劇逆大憝","compound_ids":[401600],"donor_ids":[45356],"kind":"recognition","reading":"극역대대","schema":1,"target":"極逆大憝","via":{"from":"極逆","to":"劇逆"}}
+{"alias":"功利慾","compound_ids":[394719],"donor_ids":[464129],"kind":"recognition","reading":"공리욕","schema":1,"target":"功利欲","via":{"from":"欲","to":"慾"}}
+{"alias":"功名慾","compound_ids":[28871],"donor_ids":[464129],"kind":"recognition","reading":"공명욕","schema":1,"target":"功名欲","via":{"from":"欲","to":"慾"}}
 {"alias":"功致詞","compound_ids":[398536],"donor_ids":[490056],"kind":"recognition","reading":"공치사","schema":1,"target":"功致辭","via":{"from":"致辭","to":"致詞"}}
 {"alias":"加羅頻伽","compound_ids":[980],"donor_ids":[1575],"kind":"recognition","reading":"가라빈가","schema":1,"target":"迦羅頻伽","via":{"from":"迦羅","to":"加羅"}}
+{"alias":"動物慾","compound_ids":[89327],"donor_ids":[464129],"kind":"recognition","reading":"동물욕","schema":1,"target":"動物欲","via":{"from":"欲","to":"慾"}}
 {"alias":"勤懇人","compound_ids":[44748],"donor_ids":[44596],"kind":"recognition","reading":"근간인","schema":1,"target":"勤幹人","via":{"from":"勤幹","to":"勤懇"}}
 {"alias":"十回向","compound_ids":[450112],"donor_ids":[506992],"kind":"recognition","reading":"십회향","schema":1,"target":"十廻向","via":{"from":"廻向","to":"回向"}}
 {"alias":"升頭之利","compound_ids":[200241],"donor_ids":[200241],"kind":"recognition","reading":"승두지리","schema":1,"target":"升斗之利","via":{"from":"grid","to":"升頭之利"}}
@@ -247,6 +258,7 @@
 {"alias":"古文詞","compound_ids":[396089],"donor_ids":[424813],"kind":"recognition","reading":"고문사","schema":1,"target":"古文辭","via":{"from":"文辭","to":"文詞"}}
 {"alias":"古蹟地","compound_ids":[24885],"donor_ids":[396914],"kind":"recognition","reading":"고적지","schema":1,"target":"古跡地","via":{"from":"古跡","to":"古蹟"}}
 {"alias":"句股弦","compound_ids":[396989],"donor_ids":[36421],"kind":"recognition","reading":"구고현","schema":1,"target":"勾股弦","via":{"from":"勾股","to":"句股"}}
+{"alias":"可嘆可嘆","compound_ids":[3581],"donor_ids":[3525],"kind":"recognition","reading":"가탄가탄","schema":1,"target":"可歎可歎","via":{"from":"可歎,可歎","to":"可嘆,可嘆"}}
 {"alias":"可嘆可歎","compound_ids":[3581],"donor_ids":[3525],"kind":"recognition","reading":"가탄가탄","schema":1,"target":"可歎可歎","via":{"from":"可歎","to":"可嘆"}}
 {"alias":"可嘆스럽다","compound_ids":[390176],"donor_ids":[3525],"kind":"recognition","reading":"가탄스럽다","schema":1,"target":"可歎스럽다","via":{"from":"可歎","to":"可嘆"}}
 {"alias":"可姙期","compound_ids":[535129],"donor_ids":[535127],"kind":"recognition","reading":"가임기","schema":1,"target":"可妊期","via":{"from":"可妊","to":"可姙"}}
@@ -265,6 +277,7 @@
 {"alias":"同樂泰平","compound_ids":[89237],"donor_ids":[496920],"kind":"recognition","reading":"동락태평","schema":1,"target":"同樂太平","via":{"from":"太平","to":"泰平"}}
 {"alias":"名勝古蹟","compound_ids":[115232],"donor_ids":[396914],"kind":"recognition","reading":"명승고적","schema":1,"target":"名勝古跡","via":{"from":"古跡","to":"古蹟"}}
 {"alias":"名臺辭","compound_ids":[115960],"donor_ids":[411579],"kind":"recognition","reading":"명대사","schema":1,"target":"名臺詞","via":{"from":"臺詞","to":"臺辭"}}
+{"alias":"名譽慾","compound_ids":[114966],"donor_ids":[464129],"kind":"recognition","reading":"명예욕","schema":1,"target":"名譽欲","via":{"from":"欲","to":"慾"}}
 {"alias":"吏頭文","compound_ids":[534047],"donor_ids":[268298],"kind":"recognition","reading":"이두문","schema":1,"target":"吏讀文","via":{"from":"吏讀","to":"吏頭"}}
 {"alias":"吐瀉霍亂","compound_ids":[349102],"donor_ids":[400917],"kind":"recognition","reading":"토사곽란","schema":1,"target":"吐瀉癨亂","via":{"from":"癨亂","to":"霍亂"}}
 {"alias":"周年作","compound_ids":[485468],"donor_ids":[309798],"kind":"recognition","reading":"주년작","schema":1,"target":"週年作","via":{"from":"週年","to":"周年"}}
@@ -312,6 +325,7 @@
 {"alias":"堅如磐石","compound_ids":[393222],"donor_ids":[427568],"kind":"recognition","reading":"견여반석","schema":1,"target":"堅如盤石","via":{"from":"盤石","to":"磐石"}}
 {"alias":"塹濠戰","compound_ids":[487312],"donor_ids":[324343],"kind":"recognition","reading":"참호전","schema":1,"target":"塹壕戰","via":{"from":"塹壕","to":"塹濠"}}
 {"alias":"塹濠熱","compound_ids":[324359],"donor_ids":[324343],"kind":"recognition","reading":"참호열","schema":1,"target":"塹壕熱","via":{"from":"塹壕","to":"塹濠"}}
+{"alias":"增大慾","compound_ids":[485694],"donor_ids":[464129],"kind":"recognition","reading":"증대욕","schema":1,"target":"增大欲","via":{"from":"欲","to":"慾"}}
 {"alias":"壁煖爐","compound_ids":[428957],"donor_ids":[406909],"kind":"recognition","reading":"벽난로","schema":1,"target":"壁暖爐","via":{"from":"暖爐","to":"煖爐"}}
 {"alias":"壁附煖爐","compound_ids":[151532],"donor_ids":[406909],"kind":"recognition","reading":"벽부난로","schema":1,"target":"壁附暖爐","via":{"from":"暖爐","to":"煖爐"}}
 {"alias":"壓紙틀","compound_ids":[223970],"donor_ids":[455896],"kind":"recognition","reading":"압지틀","schema":1,"target":"押紙틀","via":{"from":"押紙","to":"壓紙"}}
@@ -366,11 +380,14 @@
 {"alias":"婦椽間板","compound_ids":[151705],"donor_ids":[154952],"kind":"recognition","reading":"부연간판","schema":1,"target":"附椽間板","via":{"from":"附椽","to":"婦椽"}}
 {"alias":"嫉妒心","compound_ids":[307944],"donor_ids":[487419],"kind":"recognition","reading":"질투심","schema":1,"target":"嫉妬心","via":{"from":"嫉妬","to":"嫉妒"}}
 {"alias":"嫉妒感","compound_ids":[307669],"donor_ids":[487419],"kind":"recognition","reading":"질투감","schema":1,"target":"嫉妬感","via":{"from":"嫉妬","to":"嫉妒"}}
+{"alias":"子息慾","compound_ids":[279808],"donor_ids":[464129],"kind":"recognition","reading":"자식욕","schema":1,"target":"子息欲","via":{"from":"欲","to":"慾"}}
 {"alias":"子細仔細","compound_ids":[268904],"donor_ids":[268900],"kind":"recognition","reading":"자세자세","schema":1,"target":"仔細仔細","via":{"from":"仔細","to":"子細"}}
+{"alias":"子細子細","compound_ids":[268904],"donor_ids":[268900],"kind":"recognition","reading":"자세자세","schema":1,"target":"仔細仔細","via":{"from":"仔細,仔細","to":"子細,子細"}}
 {"alias":"孤苦伶丁","compound_ids":[21681],"donor_ids":[21681],"kind":"recognition","reading":"고고영정","schema":1,"target":"孤苦零丁","via":{"from":"grid","to":"孤苦伶丁"}}
 {"alias":"孤苦零仃","compound_ids":[21681],"donor_ids":[21681],"kind":"recognition","reading":"고고영정","schema":1,"target":"孤苦零丁","via":{"from":"grid","to":"孤苦零仃"}}
 {"alias":"安過泰平","compound_ids":[455405],"donor_ids":[496920],"kind":"recognition","reading":"안과태평","schema":1,"target":"安過太平","via":{"from":"太平","to":"泰平"}}
 {"alias":"完如磐石","compound_ids":[245649],"donor_ids":[427568],"kind":"recognition","reading":"완여반석","schema":1,"target":"完如盤石","via":{"from":"盤石","to":"磐石"}}
+{"alias":"官能慾","compound_ids":[30522],"donor_ids":[464129],"kind":"recognition","reading":"관능욕","schema":1,"target":"官能欲","via":{"from":"欲","to":"慾"}}
 {"alias":"家族計畫","compound_ids":[386938],"donor_ids":[392031],"kind":"recognition","reading":"가족계획","schema":1,"target":"家族計劃","via":{"from":"計劃","to":"計畫"}}
 {"alias":"寒煖計","compound_ids":[499221],"donor_ids":[365916],"kind":"recognition","reading":"한란계","schema":1,"target":"寒暖計","via":{"from":"寒暖","to":"寒煖"}}
 {"alias":"實柏糤子","compound_ids":[204116],"donor_ids":[177075],"kind":"recognition","reading":"실백산자","schema":1,"target":"實柏饊子","via":{"from":"饊子","to":"糤子"}}
@@ -398,6 +415,7 @@
 {"alias":"屢代墳山","compound_ids":[71314],"donor_ids":[409289],"kind":"recognition","reading":"누대분산","schema":1,"target":"累代墳山","via":{"from":"累代","to":"屢代"}}
 {"alias":"屢代奉祀","compound_ids":[71312],"donor_ids":[409289],"kind":"recognition","reading":"누대봉사","schema":1,"target":"累代奉祀","via":{"from":"累代","to":"屢代"}}
 {"alias":"屢代淸德","compound_ids":[409466],"donor_ids":[409289],"kind":"recognition","reading":"누대청덕","schema":1,"target":"累代淸德","via":{"from":"累代","to":"屢代"}}
+{"alias":"屢代緣戚","compound_ids":[71315],"donor_ids":[409289,460211],"kind":"recognition","reading":"누대연척","schema":1,"target":"累代連戚","via":{"from":"累代,連戚","to":"屢代,緣戚"}}
 {"alias":"屢代連戚","compound_ids":[71315],"donor_ids":[409289],"kind":"recognition","reading":"누대연척","schema":1,"target":"累代連戚","via":{"from":"累代","to":"屢代"}}
 {"alias":"山嶽人","compound_ids":[442816],"donor_ids":[441724],"kind":"recognition","reading":"산악인","schema":1,"target":"山岳人","via":{"from":"山岳","to":"山嶽"}}
 {"alias":"山嶽信仰","compound_ids":[172873],"donor_ids":[441724],"kind":"recognition","reading":"산악신앙","schema":1,"target":"山岳信仰","via":{"from":"山岳","to":"山嶽"}}
@@ -426,6 +444,7 @@
 {"alias":"幫助罪","compound_ids":[138337],"donor_ids":[138064],"kind":"recognition","reading":"방조죄","schema":1,"target":"幇助罪","via":{"from":"幇助","to":"幫助"}}
 {"alias":"幫助者","compound_ids":[138333],"donor_ids":[138064],"kind":"recognition","reading":"방조자","schema":1,"target":"幇助者","via":{"from":"幇助","to":"幫助"}}
 {"alias":"平原廣野","compound_ids":[499804],"donor_ids":[398688],"kind":"recognition","reading":"평원광야","schema":1,"target":"平原曠野","via":{"from":"曠野","to":"廣野"}}
+{"alias":"平和裏","compound_ids":[356983],"donor_ids":[106831],"kind":"recognition","reading":"평화리","schema":1,"target":"平和裡","via":{"from":"裡","to":"裏"}}
 {"alias":"平女墻","compound_ids":[354647],"donor_ids":[228678],"kind":"recognition","reading":"평여장","schema":1,"target":"平女牆","via":{"from":"女牆","to":"女墻"}}
 {"alias":"平欄杆","compound_ids":[503474],"donor_ids":[409579],"kind":"recognition","reading":"평난간","schema":1,"target":"平欄干","via":{"from":"欄干","to":"欄杆"}}
 {"alias":"平沙落鴈","compound_ids":[357132],"donor_ids":[59237],"kind":"recognition","reading":"평사낙안","schema":1,"target":"平沙落雁","via":{"from":"落雁","to":"落鴈"}}
@@ -497,6 +516,7 @@
 {"alias":"彷髴하다","compound_ids":[432322],"donor_ids":[432322],"kind":"recognition","reading":"방불하다","schema":1,"target":"彷彿하다","via":{"from":"grid","to":"彷髴하다"}}
 {"alias":"彷髴히","compound_ids":[136040],"donor_ids":[136040],"kind":"recognition","reading":"방불히","schema":1,"target":"彷彿히","via":{"from":"grid","to":"彷髴히"}}
 {"alias":"往相回向","compound_ids":[243777],"donor_ids":[506992],"kind":"recognition","reading":"왕상회향","schema":1,"target":"往相廻向","via":{"from":"廻向","to":"回向"}}
+{"alias":"征服慾","compound_ids":[479498],"donor_ids":[464129],"kind":"recognition","reading":"정복욕","schema":1,"target":"征服欲","via":{"from":"欲","to":"慾"}}
 {"alias":"從孫婿","compound_ids":[302749],"donor_ids":[191910],"kind":"recognition","reading":"종손서","schema":1,"target":"從孫壻","via":{"from":"孫壻","to":"孫婿"}}
 {"alias":"御者座","compound_ids":[225254],"donor_ids":[455908],"kind":"recognition","reading":"어자좌","schema":1,"target":"馭者座","via":{"from":"馭者","to":"御者"}}
 {"alias":"御者臺","compound_ids":[225250],"donor_ids":[455908],"kind":"recognition","reading":"어자대","schema":1,"target":"馭者臺","via":{"from":"馭者","to":"御者"}}
@@ -562,6 +582,7 @@
 {"alias":"慾心부리다","compound_ids":[517584],"donor_ids":[250316],"kind":"recognition","reading":"욕심부리다","schema":1,"target":"欲心부리다","via":{"from":"欲心","to":"慾心"}}
 {"alias":"慾心스럽다","compound_ids":[250321],"donor_ids":[250316],"kind":"recognition","reading":"욕심스럽다","schema":1,"target":"欲心스럽다","via":{"from":"欲心","to":"慾心"}}
 {"alias":"慾心쟁이","compound_ids":[250327],"donor_ids":[250316],"kind":"recognition","reading":"욕심쟁이","schema":1,"target":"欲心쟁이","via":{"from":"欲心","to":"慾心"}}
+{"alias":"慾邪行","compound_ids":[249739],"donor_ids":[464129],"kind":"recognition","reading":"욕사행","schema":1,"target":"欲邪行","via":{"from":"欲","to":"慾"}}
 {"alias":"憂心熱烈","compound_ids":[470544],"donor_ids":[233232],"kind":"recognition","reading":"우심열렬","schema":1,"target":"憂心烈烈","via":{"from":"烈烈","to":"熱烈"}}
 {"alias":"憐愍스럽다","compound_ids":[236053],"donor_ids":[459874],"kind":"recognition","reading":"연민스럽다","schema":1,"target":"憐憫스럽다","via":{"from":"憐憫","to":"憐愍"}}
 {"alias":"憔顇","compound_ids":[332359],"donor_ids":[332359],"kind":"recognition","reading":"초췌","schema":1,"target":"憔悴","via":{"from":"grid","to":"憔顇"}}
@@ -570,10 +591,13 @@
 {"alias":"憤怒拳印","compound_ids":[151875],"donor_ids":[438512],"kind":"recognition","reading":"분노권인","schema":1,"target":"忿怒拳印","via":{"from":"忿怒","to":"憤怒"}}
 {"alias":"憤愾心","compound_ids":[153834],"donor_ids":[438369],"kind":"recognition","reading":"분개심","schema":1,"target":"憤慨心","via":{"from":"憤慨","to":"憤愾"}}
 {"alias":"戀愛片紙","compound_ids":[463539],"donor_ids":[499292],"kind":"recognition","reading":"연애편지","schema":1,"target":"戀愛便紙","via":{"from":"便紙","to":"片紙"}}
+{"alias":"成功裏","compound_ids":[441432],"donor_ids":[106831],"kind":"recognition","reading":"성공리","schema":1,"target":"成功裡","via":{"from":"裡","to":"裏"}}
+{"alias":"成就慾","compound_ids":[534523],"donor_ids":[464129],"kind":"recognition","reading":"성취욕","schema":1,"target":"成就欲","via":{"from":"欲","to":"慾"}}
 {"alias":"截斷機","compound_ids":[477409],"donor_ids":[285952],"kind":"recognition","reading":"절단기","schema":1,"target":"切斷機","via":{"from":"切斷","to":"截斷"}}
 {"alias":"截斷術","compound_ids":[477411],"donor_ids":[285952],"kind":"recognition","reading":"절단술","schema":1,"target":"切斷術","via":{"from":"切斷","to":"截斷"}}
 {"alias":"截斷面","compound_ids":[477410],"donor_ids":[285952],"kind":"recognition","reading":"절단면","schema":1,"target":"切斷面","via":{"from":"切斷","to":"截斷"}}
 {"alias":"戰迹地","compound_ids":[285768],"donor_ids":[285763],"kind":"recognition","reading":"전적지","schema":1,"target":"戰跡地","via":{"from":"戰跡","to":"戰迹"}}
+{"alias":"所有慾","compound_ids":[448463],"donor_ids":[464129],"kind":"recognition","reading":"소유욕","schema":1,"target":"所有欲","via":{"from":"欲","to":"慾"}}
 {"alias":"扶餘神","compound_ids":[156315],"donor_ids":[160384],"kind":"recognition","reading":"부여신","schema":1,"target":"夫餘神","via":{"from":"夫餘","to":"扶餘"}}
 {"alias":"承平世界","compound_ids":[199956],"donor_ids":[451566],"kind":"recognition","reading":"승평세계","schema":1,"target":"昇平世界","via":{"from":"昇平","to":"承平"}}
 {"alias":"承平契","compound_ids":[199954],"donor_ids":[451566],"kind":"recognition","reading":"승평계","schema":1,"target":"昇平契","via":{"from":"昇平","to":"承平"}}
@@ -581,6 +605,7 @@
 {"alias":"把子廛","compound_ids":[353753],"donor_ids":[353475],"kind":"recognition","reading":"파자전","schema":1,"target":"笆子廛","via":{"from":"笆子","to":"把子"}}
 {"alias":"披鍼","compound_ids":[363981],"donor_ids":[363981],"kind":"recognition","reading":"피침","schema":1,"target":"鈹鍼","via":{"from":"grid","to":"披鍼"}}
 {"alias":"披髮左衽","compound_ids":[362641],"donor_ids":[362637],"kind":"recognition","reading":"피발좌임","schema":1,"target":"被髮左衽","via":{"from":"被髮","to":"披髮"}}
+{"alias":"披髮左袵","compound_ids":[362641],"donor_ids":[362637,480128],"kind":"recognition","reading":"피발좌임","schema":1,"target":"被髮左衽","via":{"from":"被髮,左衽","to":"披髮,左袵"}}
 {"alias":"披髮徒跣","compound_ids":[362639],"donor_ids":[362637],"kind":"recognition","reading":"피발도선","schema":1,"target":"被髮徒跣","via":{"from":"被髮","to":"披髮"}}
 {"alias":"拑口令","compound_ids":[17026],"donor_ids":[17023],"kind":"recognition","reading":"겸구령","schema":1,"target":"箝口令","via":{"from":"箝口","to":"拑口"}}
 {"alias":"拑口勿說","compound_ids":[17027],"donor_ids":[17023],"kind":"recognition","reading":"겸구물설","schema":1,"target":"箝口勿說","via":{"from":"箝口","to":"拑口"}}
@@ -610,8 +635,10 @@
 {"alias":"掌匣機","compound_ids":[275875],"donor_ids":[475154],"kind":"recognition","reading":"장갑기","schema":1,"target":"掌甲機","via":{"from":"掌甲","to":"掌匣"}}
 {"alias":"排列名","compound_ids":[135591],"donor_ids":[135616],"kind":"recognition","reading":"배열명","schema":1,"target":"配列名","via":{"from":"配列","to":"排列"}}
 {"alias":"排列圖","compound_ids":[510685],"donor_ids":[135616],"kind":"recognition","reading":"배열도","schema":1,"target":"配列圖","via":{"from":"配列","to":"排列"}}
+{"alias":"探究慾","compound_ids":[344609],"donor_ids":[464129],"kind":"recognition","reading":"탐구욕","schema":1,"target":"探究欲","via":{"from":"欲","to":"慾"}}
 {"alias":"接屋連墻","compound_ids":[478057],"donor_ids":[234758],"kind":"recognition","reading":"접옥연장","schema":1,"target":"接屋連牆","via":{"from":"連牆","to":"連墻"}}
 {"alias":"接木法","compound_ids":[294154],"donor_ids":[294152],"kind":"recognition","reading":"접목법","schema":1,"target":"椄木法","via":{"from":"椄木","to":"接木"}}
+{"alias":"接近慾","compound_ids":[292856],"donor_ids":[464129],"kind":"recognition","reading":"접근욕","schema":1,"target":"接近欲","via":{"from":"欲","to":"慾"}}
 {"alias":"提貢","compound_ids":[481095],"donor_ids":[481095],"kind":"recognition","reading":"제공","schema":1,"target":"提栱","via":{"from":"grid","to":"提貢"}}
 {"alias":"搖鈴잡이","compound_ids":[242683],"donor_ids":[243012],"kind":"recognition","reading":"요령잡이","schema":1,"target":"鐃鈴잡이","via":{"from":"鐃鈴","to":"搖鈴"}}
 {"alias":"摩崖佛","compound_ids":[107220],"donor_ids":[107218],"kind":"recognition","reading":"마애불","schema":1,"target":"磨崖佛","via":{"from":"磨崖","to":"摩崖"}}
@@ -652,6 +679,7 @@
 {"alias":"支吾","compound_ids":[318841],"donor_ids":[318841],"kind":"recognition","reading":"지오","schema":1,"target":"枝吾","via":{"from":"grid","to":"支吾"}}
 {"alias":"支吾하다","compound_ids":[318842],"donor_ids":[318842],"kind":"recognition","reading":"지오하다","schema":1,"target":"枝吾하다","via":{"from":"grid","to":"支吾하다"}}
 {"alias":"放聲慟哭","compound_ids":[429818],"donor_ids":[343030],"kind":"recognition","reading":"방성통곡","schema":1,"target":"放聲痛哭","via":{"from":"痛哭","to":"慟哭"}}
+{"alias":"政權慾","compound_ids":[476760],"donor_ids":[464129],"kind":"recognition","reading":"정권욕","schema":1,"target":"政權欲","via":{"from":"欲","to":"慾"}}
 {"alias":"故物商","compound_ids":[24339],"donor_ids":[24850],"kind":"recognition","reading":"고물상","schema":1,"target":"古物商","via":{"from":"古物","to":"故物"}}
 {"alias":"故物廛","compound_ids":[24982],"donor_ids":[24850],"kind":"recognition","reading":"고물전","schema":1,"target":"古物廛","via":{"from":"古物","to":"故物"}}
 {"alias":"故物가게","compound_ids":[24852],"donor_ids":[24850],"kind":"recognition","reading":"고물가게","schema":1,"target":"古物가게","via":{"from":"古物","to":"故物"}}
@@ -699,6 +727,8 @@
 {"alias":"春府丈","compound_ids":[490506],"donor_ids":[331952],"kind":"recognition","reading":"춘부장","schema":1,"target":"椿府丈","via":{"from":"椿府","to":"春府"}}
 {"alias":"春府大人","compound_ids":[331953],"donor_ids":[331952],"kind":"recognition","reading":"춘부대인","schema":1,"target":"椿府大人","via":{"from":"椿府","to":"春府"}}
 {"alias":"普陀落山","compound_ids":[145218],"donor_ids":[145217],"kind":"recognition","reading":"보타락산","schema":1,"target":"補陀落山","via":{"from":"補陀落","to":"普陀落"}}
+{"alias":"暗暗裏","compound_ids":[219944],"donor_ids":[106831],"kind":"recognition","reading":"암암리","schema":1,"target":"暗暗裡","via":{"from":"裡","to":"裏"}}
+{"alias":"暗默裏","compound_ids":[226929],"donor_ids":[106831],"kind":"recognition","reading":"암묵리","schema":1,"target":"暗默裡","via":{"from":"裡","to":"裏"}}
 {"alias":"曉喩文","compound_ids":[384311],"donor_ids":[506867],"kind":"recognition","reading":"효유문","schema":1,"target":"曉諭文","via":{"from":"曉諭","to":"曉喩"}}
 {"alias":"曲蟮","compound_ids":[27489],"donor_ids":[27489],"kind":"recognition","reading":"곡선","schema":1,"target":"曲蟺","via":{"from":"grid","to":"曲蟮"}}
 {"alias":"書柬文","compound_ids":[174307],"donor_ids":[174252],"kind":"recognition","reading":"서간문","schema":1,"target":"書簡文","via":{"from":"書簡","to":"書柬"}}
@@ -755,6 +785,8 @@
 {"alias":"梅花糤子","compound_ids":[113981],"donor_ids":[177075],"kind":"recognition","reading":"매화산자","schema":1,"target":"梅花饊子","via":{"from":"饊子","to":"糤子"}}
 {"alias":"棄世隱遯","compound_ids":[50193],"donor_ids":[261505],"kind":"recognition","reading":"기세은둔","schema":1,"target":"棄世隱遁","via":{"from":"隱遁","to":"隱遯"}}
 {"alias":"棟樑材","compound_ids":[88976],"donor_ids":[416597],"kind":"recognition","reading":"동량재","schema":1,"target":"棟梁材","via":{"from":"棟梁","to":"棟樑"}}
+{"alias":"極祕密裏","compound_ids":[403871],"donor_ids":[106831],"kind":"recognition","reading":"극비밀리","schema":1,"target":"極祕密裡","via":{"from":"裡","to":"裏"}}
+{"alias":"極祕裏","compound_ids":[44206],"donor_ids":[106831],"kind":"recognition","reading":"극비리","schema":1,"target":"極祕裡","via":{"from":"裡","to":"裏"}}
 {"alias":"模形化","compound_ids":[423128],"donor_ids":[425919],"kind":"recognition","reading":"모형화","schema":1,"target":"模型化","via":{"from":"模型","to":"模形"}}
 {"alias":"模形圖","compound_ids":[119315],"donor_ids":[425919],"kind":"recognition","reading":"모형도","schema":1,"target":"模型圖","via":{"from":"模型","to":"模形"}}
 {"alias":"模形實驗","compound_ids":[118434],"donor_ids":[425919],"kind":"recognition","reading":"모형실험","schema":1,"target":"模型實驗","via":{"from":"模型","to":"模形"}}
@@ -790,6 +822,8 @@
 {"alias":"欄杆엄지기둥","compound_ids":[409791],"donor_ids":[409579],"kind":"recognition","reading":"난간엄지기둥","schema":1,"target":"欄干엄지기둥","via":{"from":"欄干","to":"欄杆"}}
 {"alias":"欄杆연잎","compound_ids":[59953],"donor_ids":[409579],"kind":"recognition","reading":"난간연잎","schema":1,"target":"欄干연잎","via":{"from":"欄干","to":"欄杆"}}
 {"alias":"欄杆이마","compound_ids":[59954],"donor_ids":[409579],"kind":"recognition","reading":"난간이마","schema":1,"target":"欄干이마","via":{"from":"欄干","to":"欄杆"}}
+{"alias":"權力慾","compound_ids":[397296],"donor_ids":[464129],"kind":"recognition","reading":"권력욕","schema":1,"target":"權力欲","via":{"from":"欲","to":"慾"}}
+{"alias":"權勢慾","compound_ids":[42515],"donor_ids":[464129],"kind":"recognition","reading":"권세욕","schema":1,"target":"權勢欲","via":{"from":"欲","to":"慾"}}
 {"alias":"歉然스럽다","compound_ids":[19488],"donor_ids":[18211],"kind":"recognition","reading":"겸연스럽다","schema":1,"target":"慊然스럽다","via":{"from":"慊然","to":"歉然"}}
 {"alias":"歉然적다","compound_ids":[19646],"donor_ids":[18211],"kind":"recognition","reading":"겸연적다","schema":1,"target":"慊然적다","via":{"from":"慊然","to":"歉然"}}
 {"alias":"歉然쩍다","compound_ids":[19647],"donor_ids":[18211],"kind":"recognition","reading":"겸연쩍다","schema":1,"target":"慊然쩍다","via":{"from":"慊然","to":"歉然"}}
@@ -952,6 +986,8 @@
 {"alias":"烝氣法","compound_ids":[306569],"donor_ids":[306536],"kind":"recognition","reading":"증기법","schema":1,"target":"蒸氣法","via":{"from":"蒸氣","to":"烝氣"}}
 {"alias":"烝氣浴","compound_ids":[307176],"donor_ids":[306536],"kind":"recognition","reading":"증기욕","schema":1,"target":"蒸氣浴","via":{"from":"蒸氣","to":"烝氣"}}
 {"alias":"烝氣湯","compound_ids":[307742],"donor_ids":[306536],"kind":"recognition","reading":"증기탕","schema":1,"target":"蒸氣湯","via":{"from":"蒸氣","to":"烝氣"}}
+{"alias":"烝氣煖房","compound_ids":[306551],"donor_ids":[61228,306536],"kind":"recognition","reading":"증기난방","schema":1,"target":"蒸氣暖房","via":{"from":"蒸氣,暖房","to":"烝氣,煖房"}}
+{"alias":"烝氣煖爐","compound_ids":[486879],"donor_ids":[306536,406909],"kind":"recognition","reading":"증기난로","schema":1,"target":"蒸氣暖爐","via":{"from":"蒸氣,暖爐","to":"烝氣,煖爐"}}
 {"alias":"烝氣瓣","compound_ids":[307148],"donor_ids":[306536],"kind":"recognition","reading":"증기변","schema":1,"target":"蒸氣瓣","via":{"from":"蒸氣","to":"烝氣"}}
 {"alias":"烝氣管","compound_ids":[306546],"donor_ids":[306536],"kind":"recognition","reading":"증기관","schema":1,"target":"蒸氣管","via":{"from":"蒸氣","to":"烝氣"}}
 {"alias":"烝氣罐","compound_ids":[306547],"donor_ids":[306536],"kind":"recognition","reading":"증기관","schema":1,"target":"蒸氣罐","via":{"from":"蒸氣","to":"烝氣"}}
@@ -1039,6 +1075,7 @@
 {"alias":"狀元禮","compound_ids":[274097],"donor_ids":[281533],"kind":"recognition","reading":"장원례","schema":1,"target":"壯元禮","via":{"from":"壯元","to":"狀元"}}
 {"alias":"猛訓練","compound_ids":[114027],"donor_ids":[507461],"kind":"recognition","reading":"맹훈련","schema":1,"target":"猛訓鍊","via":{"from":"訓鍊","to":"訓練"}}
 {"alias":"猛鍊習","compound_ids":[114729],"donor_ids":[233800],"kind":"recognition","reading":"맹연습","schema":1,"target":"猛練習","via":{"from":"練習","to":"鍊習"}}
+{"alias":"獨占慾","compound_ids":[88058],"donor_ids":[464129],"kind":"recognition","reading":"독점욕","schema":1,"target":"獨占欲","via":{"from":"欲","to":"慾"}}
 {"alias":"獸蹄鳥迹","compound_ids":[200429],"donor_ids":[481300],"kind":"recognition","reading":"수제조적","schema":1,"target":"獸蹄鳥跡","via":{"from":"鳥跡","to":"鳥迹"}}
 {"alias":"獻餠獻酌","compound_ids":[371529],"donor_ids":[506223],"kind":"recognition","reading":"헌병헌작","schema":1,"target":"獻餠獻爵","via":{"from":"獻爵","to":"獻酌"}}
 {"alias":"玄孫婿","compound_ids":[372317],"donor_ids":[191910],"kind":"recognition","reading":"현손서","schema":1,"target":"玄孫壻","via":{"from":"孫壻","to":"孫婿"}}
@@ -1080,7 +1117,9 @@
 {"alias":"球麻痺","compound_ids":[394113],"donor_ids":[420837],"kind":"recognition","reading":"구마비","schema":1,"target":"球痲痹","via":{"from":"痲痹","to":"麻痺"}}
 {"alias":"琺瑯珍珠","compound_ids":[140991],"donor_ids":[314283],"kind":"recognition","reading":"법랑진주","schema":1,"target":"琺瑯眞珠","via":{"from":"眞珠","to":"珍珠"}}
 {"alias":"瓦斯煖爐","compound_ids":[247511],"donor_ids":[406909],"kind":"recognition","reading":"와사난로","schema":1,"target":"瓦斯暖爐","via":{"from":"暖爐","to":"煖爐"}}
+{"alias":"生殖慾","compound_ids":[174255],"donor_ids":[464129],"kind":"recognition","reading":"생식욕","schema":1,"target":"生殖欲","via":{"from":"欲","to":"慾"}}
 {"alias":"生沒年","compound_ids":[175755],"donor_ids":[119127],"kind":"recognition","reading":"생몰년","schema":1,"target":"生歿年","via":{"from":"歿年","to":"沒年"}}
+{"alias":"生活慾","compound_ids":[441931],"donor_ids":[464129],"kind":"recognition","reading":"생활욕","schema":1,"target":"生活欲","via":{"from":"欲","to":"慾"}}
 {"alias":"生鴉片","compound_ids":[174880],"donor_ids":[457676],"kind":"recognition","reading":"생아편","schema":1,"target":"生阿片","via":{"from":"阿片","to":"鴉片"}}
 {"alias":"甦生室","compound_ids":[190936],"donor_ids":[443749],"kind":"recognition","reading":"소생실","schema":1,"target":"蘇生室","via":{"from":"蘇生","to":"甦生"}}
 {"alias":"甦生期","compound_ids":[190634],"donor_ids":[443749],"kind":"recognition","reading":"소생기","schema":1,"target":"蘇生期","via":{"from":"蘇生","to":"甦生"}}
@@ -1105,6 +1144,7 @@
 {"alias":"痲痺","compound_ids":[420837],"donor_ids":[420837],"kind":"recognition","reading":"마비","schema":1,"target":"痲痹","via":{"from":"grid","to":"痲痺"}}
 {"alias":"痲痺되다","compound_ids":[107851],"donor_ids":[107851],"kind":"recognition","reading":"마비되다","schema":1,"target":"痲痹되다","via":{"from":"grid","to":"痲痺되다"}}
 {"alias":"瘡痍未瘳","compound_ids":[326112],"donor_ids":[486587],"kind":"recognition","reading":"창이미추","schema":1,"target":"創痍未瘳","via":{"from":"創痍","to":"瘡痍"}}
+{"alias":"發表慾","compound_ids":[135321],"donor_ids":[464129],"kind":"recognition","reading":"발표욕","schema":1,"target":"發表欲","via":{"from":"欲","to":"慾"}}
 {"alias":"發顯者","compound_ids":[136066],"donor_ids":[136064],"kind":"recognition","reading":"발현자","schema":1,"target":"發現者","via":{"from":"發現","to":"發顯"}}
 {"alias":"白冬栢","compound_ids":[429046],"donor_ids":[91935],"kind":"recognition","reading":"백동백","schema":1,"target":"白冬柏","via":{"from":"冬柏","to":"冬栢"}}
 {"alias":"白屑糖","compound_ids":[143928],"donor_ids":[184336],"kind":"recognition","reading":"백설탕","schema":1,"target":"白雪糖","via":{"from":"雪糖","to":"屑糖"}}
@@ -1121,11 +1161,13 @@
 {"alias":"白龍魚箙","compound_ids":[431306],"donor_ids":[225381],"kind":"recognition","reading":"백룡어복","schema":1,"target":"白龍魚服","via":{"from":"魚服","to":"魚箙"}}
 {"alias":"百方曉喩","compound_ids":[141866],"donor_ids":[506867],"kind":"recognition","reading":"백방효유","schema":1,"target":"百方曉諭","via":{"from":"曉諭","to":"曉喩"}}
 {"alias":"百獸慴服","compound_ids":[430969],"donor_ids":[197847],"kind":"recognition","reading":"백수습복","schema":1,"target":"百獸慴伏","via":{"from":"慴伏","to":"慴服"}}
+{"alias":"盛況裏","compound_ids":[189240],"donor_ids":[106831],"kind":"recognition","reading":"성황리","schema":1,"target":"盛況裡","via":{"from":"裡","to":"裏"}}
 {"alias":"盲竪坑","compound_ids":[113254],"donor_ids":[195705],"kind":"recognition","reading":"맹수갱","schema":1,"target":"盲垂坑","via":{"from":"垂坑","to":"竪坑"}}
 {"alias":"眩煌","compound_ids":[375715],"donor_ids":[375715],"kind":"recognition","reading":"현황","schema":1,"target":"眩慌","via":{"from":"grid","to":"眩煌"}}
 {"alias":"眩煌하다","compound_ids":[375716],"donor_ids":[375716],"kind":"recognition","reading":"현황하다","schema":1,"target":"眩慌하다","via":{"from":"grid","to":"眩煌하다"}}
 {"alias":"眩煌히","compound_ids":[517419],"donor_ids":[517419],"kind":"recognition","reading":"현황히","schema":1,"target":"眩慌히","via":{"from":"grid","to":"眩煌히"}}
 {"alias":"着押經印","compound_ids":[485795],"donor_ids":[317192],"kind":"recognition","reading":"착압경인","schema":1,"target":"著押經印","via":{"from":"著押","to":"着押"}}
+{"alias":"睡眠慾","compound_ids":[449775],"donor_ids":[464129],"kind":"recognition","reading":"수면욕","schema":1,"target":"睡眠欲","via":{"from":"欲","to":"慾"}}
 {"alias":"瞑想家","compound_ids":[424691],"donor_ids":[424690],"kind":"recognition","reading":"명상가","schema":1,"target":"冥想家","via":{"from":"冥想","to":"瞑想"}}
 {"alias":"瞑想曲","compound_ids":[116596],"donor_ids":[424690],"kind":"recognition","reading":"명상곡","schema":1,"target":"冥想曲","via":{"from":"冥想","to":"瞑想"}}
 {"alias":"瞑想錄","compound_ids":[116597],"donor_ids":[424690],"kind":"recognition","reading":"명상록","schema":1,"target":"冥想錄","via":{"from":"冥想","to":"瞑想"}}
@@ -1141,6 +1183,7 @@
 {"alias":"知慧眼","compound_ids":[488597],"donor_ids":[488595],"kind":"recognition","reading":"지혜안","schema":1,"target":"智慧眼","via":{"from":"智慧","to":"知慧"}}
 {"alias":"知慧鏡","compound_ids":[316643],"donor_ids":[488595],"kind":"recognition","reading":"지혜경","schema":1,"target":"智慧鏡","via":{"from":"智慧","to":"知慧"}}
 {"alias":"知慧롭다","compound_ids":[488596],"donor_ids":[488595],"kind":"recognition","reading":"지혜롭다","schema":1,"target":"智慧롭다","via":{"from":"智慧","to":"知慧"}}
+{"alias":"知識慾","compound_ids":[488166],"donor_ids":[464129],"kind":"recognition","reading":"지식욕","schema":1,"target":"知識欲","via":{"from":"欲","to":"慾"}}
 {"alias":"石栮團子","compound_ids":[441274],"donor_ids":[180164],"kind":"recognition","reading":"석이단자","schema":1,"target":"石耳團子","via":{"from":"石耳","to":"石栮"}}
 {"alias":"石栮科","compound_ids":[180165],"donor_ids":[180164],"kind":"recognition","reading":"석이과","schema":1,"target":"石耳科","via":{"from":"石耳","to":"石栮"}}
 {"alias":"石栮菜","compound_ids":[180454],"donor_ids":[180164],"kind":"recognition","reading":"석이채","schema":1,"target":"石耳菜","via":{"from":"石耳","to":"石栮"}}
@@ -1157,6 +1200,7 @@
 {"alias":"砂器店","compound_ids":[172448],"donor_ids":[439243],"kind":"recognition","reading":"사기점","schema":1,"target":"沙器店","via":{"from":"沙器","to":"砂器"}}
 {"alias":"砂器廛","compound_ids":[172447],"donor_ids":[439243],"kind":"recognition","reading":"사기전","schema":1,"target":"沙器廛","via":{"from":"沙器","to":"砂器"}}
 {"alias":"砂器所","compound_ids":[172427],"donor_ids":[439243],"kind":"recognition","reading":"사기소","schema":1,"target":"沙器所","via":{"from":"沙器","to":"砂器"}}
+{"alias":"砂器珍珠","compound_ids":[168117],"donor_ids":[314283,439243],"kind":"recognition","reading":"사기진주","schema":1,"target":"沙器眞珠","via":{"from":"沙器,眞珠","to":"砂器,珍珠"}}
 {"alias":"砂器甁","compound_ids":[172421],"donor_ids":[439243],"kind":"recognition","reading":"사기병","schema":1,"target":"沙器甁","via":{"from":"沙器","to":"砂器"}}
 {"alias":"砂器盞","compound_ids":[172445],"donor_ids":[439243],"kind":"recognition","reading":"사기잔","schema":1,"target":"沙器盞","via":{"from":"沙器","to":"砂器"}}
 {"alias":"砂器眞珠","compound_ids":[168117],"donor_ids":[439243],"kind":"recognition","reading":"사기진주","schema":1,"target":"沙器眞珠","via":{"from":"沙器","to":"砂器"}}
@@ -1250,6 +1294,7 @@
 {"alias":"磁器所","compound_ids":[280943],"donor_ids":[274362],"kind":"recognition","reading":"자기소","schema":1,"target":"瓷器所","via":{"from":"瓷器","to":"磁器"}}
 {"alias":"礬砂紙","compound_ids":[133399],"donor_ids":[132877],"kind":"recognition","reading":"반사지","schema":1,"target":"礬沙紙","via":{"from":"礬沙","to":"礬砂"}}
 {"alias":"示顯塔","compound_ids":[204487],"donor_ids":[203943],"kind":"recognition","reading":"시현탑","schema":1,"target":"示現塔","via":{"from":"示現","to":"示顯"}}
+{"alias":"祕密裏","compound_ids":[437540],"donor_ids":[106831],"kind":"recognition","reading":"비밀리","schema":1,"target":"祕密裡","via":{"from":"裡","to":"裏"}}
 {"alias":"神機漏洩","compound_ids":[202206],"donor_ids":[409497],"kind":"recognition","reading":"신기누설","schema":1,"target":"神機漏泄","via":{"from":"漏泄","to":"漏洩"}}
 {"alias":"神采英拔","compound_ids":[451905],"donor_ids":[205778],"kind":"recognition","reading":"신채영발","schema":1,"target":"神彩英拔","via":{"from":"神彩","to":"神采"}}
 {"alias":"禳日食","compound_ids":[224144],"donor_ids":[473387],"kind":"recognition","reading":"양일식","schema":1,"target":"禳日蝕","via":{"from":"日蝕","to":"日食"}}
@@ -1264,6 +1309,7 @@
 {"alias":"空致詞","compound_ids":[398537],"donor_ids":[490056],"kind":"recognition","reading":"공치사","schema":1,"target":"空致辭","via":{"from":"致辭","to":"致詞"}}
 {"alias":"立柱上梁","compound_ids":[275355],"donor_ids":[176446],"kind":"recognition","reading":"입주상량","schema":1,"target":"立柱上樑","via":{"from":"上樑","to":"上梁"}}
 {"alias":"立石記功","compound_ids":[471132],"donor_ids":[47707],"kind":"recognition","reading":"입석기공","schema":1,"target":"立石紀功","via":{"from":"紀功","to":"記功"}}
+{"alias":"競爭裏","compound_ids":[19439],"donor_ids":[106831],"kind":"recognition","reading":"경쟁리","schema":1,"target":"競爭裡","via":{"from":"裡","to":"裏"}}
 {"alias":"竹筩美女","compound_ids":[482533],"donor_ids":[301441],"kind":"recognition","reading":"죽통미녀","schema":1,"target":"竹筒美女","via":{"from":"竹筒","to":"竹筩"}}
 {"alias":"竹筩酒","compound_ids":[301442],"donor_ids":[301441],"kind":"recognition","reading":"죽통주","schema":1,"target":"竹筒酒","via":{"from":"竹筒","to":"竹筩"}}
 {"alias":"筩狀花","compound_ids":[347658],"donor_ids":[347091],"kind":"recognition","reading":"통상화","schema":1,"target":"筒狀花","via":{"from":"筒狀","to":"筩狀"}}
@@ -1295,6 +1341,7 @@
 {"alias":"細飯糤子","compound_ids":[441374],"donor_ids":[177075],"kind":"recognition","reading":"세반산자","schema":1,"target":"細飯饊子","via":{"from":"饊子","to":"糤子"}}
 {"alias":"結婚斑指","compound_ids":[391984],"donor_ids":[130761],"kind":"recognition","reading":"결혼반지","schema":1,"target":"結婚半指","via":{"from":"半指","to":"斑指"}}
 {"alias":"結配阻攩","compound_ids":[19374],"donor_ids":[292092],"kind":"recognition","reading":"결배조당","schema":1,"target":"結配阻擋","via":{"from":"阻擋","to":"阻攩"}}
+{"alias":"絕讚裏","compound_ids":[288560],"donor_ids":[106831],"kind":"recognition","reading":"절찬리","schema":1,"target":"絕讚裡","via":{"from":"裡","to":"裏"}}
 {"alias":"綠耳霜蹄","compound_ids":[67851],"donor_ids":[67850],"kind":"recognition","reading":"녹이상제","schema":1,"target":"騄耳霜蹄","via":{"from":"騄耳","to":"綠耳"}}
 {"alias":"綵鳳感別曲","compound_ids":[487121],"donor_ids":[487120],"kind":"recognition","reading":"채봉감별곡","schema":1,"target":"彩鳳感別曲","via":{"from":"彩鳳","to":"綵鳳"}}
 {"alias":"綿掌甲","compound_ids":[116222],"donor_ids":[475154],"kind":"recognition","reading":"면장갑","schema":1,"target":"綿掌匣","via":{"from":"掌匣","to":"掌甲"}}
@@ -1529,6 +1576,7 @@
 {"alias":"詠嘆詞","compound_ids":[234071],"donor_ids":[463863],"kind":"recognition","reading":"영탄사","schema":1,"target":"詠歎詞","via":{"from":"詠歎","to":"詠嘆"}}
 {"alias":"詠嘆調","compound_ids":[463865],"donor_ids":[463863],"kind":"recognition","reading":"영탄조","schema":1,"target":"詠歎調","via":{"from":"詠歎","to":"詠嘆"}}
 {"alias":"試練期","compound_ids":[205849],"donor_ids":[451187],"kind":"recognition","reading":"시련기","schema":1,"target":"試鍊期","via":{"from":"試鍊","to":"試練"}}
+{"alias":"誇示慾","compound_ids":[534630],"donor_ids":[464129],"kind":"recognition","reading":"과시욕","schema":1,"target":"誇示欲","via":{"from":"欲","to":"慾"}}
 {"alias":"誓多林","compound_ids":[182903],"donor_ids":[182902],"kind":"recognition","reading":"서다림","schema":1,"target":"逝多林","via":{"from":"逝多","to":"誓多"}}
 {"alias":"語原學","compound_ids":[225377],"donor_ids":[225373],"kind":"recognition","reading":"어원학","schema":1,"target":"語源學","via":{"from":"語源","to":"語原"}}
 {"alias":"語原論","compound_ids":[225374],"donor_ids":[225373],"kind":"recognition","reading":"어원론","schema":1,"target":"語源論","via":{"from":"語源","to":"語原"}}
@@ -1544,6 +1592,7 @@
 {"alias":"謙巽스럽다","compound_ids":[391212],"donor_ids":[391210],"kind":"recognition","reading":"겸손스럽다","schema":1,"target":"謙遜스럽다","via":{"from":"謙遜","to":"謙巽"}}
 {"alias":"譖訴질","compound_ids":[322331],"donor_ids":[490636],"kind":"recognition","reading":"참소질","schema":1,"target":"讒訴질","via":{"from":"讒訴","to":"譖訴"}}
 {"alias":"譬喩法","compound_ids":[436288],"donor_ids":[163907],"kind":"recognition","reading":"비유법","schema":1,"target":"比喩法","via":{"from":"比喩","to":"譬喩"}}
+{"alias":"讀書慾","compound_ids":[86220],"donor_ids":[464129],"kind":"recognition","reading":"독서욕","schema":1,"target":"讀書欲","via":{"from":"欲","to":"慾"}}
 {"alias":"讚嘆","compound_ids":[483562],"donor_ids":[483562],"kind":"recognition","reading":"찬탄","schema":1,"target":"讚歎","via":{"from":"grid","to":"讚嘆"}}
 {"alias":"讚嘆하다","compound_ids":[483741],"donor_ids":[483741],"kind":"recognition","reading":"찬탄하다","schema":1,"target":"讚歎하다","via":{"from":"grid","to":"讚嘆하다"}}
 {"alias":"谿流낚시","compound_ids":[20357],"donor_ids":[22349],"kind":"recognition","reading":"계류낚시","schema":1,"target":"溪流낚시","via":{"from":"溪流","to":"谿流"}}
@@ -1559,6 +1608,7 @@
 {"alias":"賀皇恩詞","compound_ids":[362843],"donor_ids":[362842],"kind":"recognition","reading":"하황은사","schema":1,"target":"荷皇恩詞","via":{"from":"荷皇恩","to":"賀皇恩"}}
 {"alias":"賬簿冊","compound_ids":[477244],"donor_ids":[283563],"kind":"recognition","reading":"장부책","schema":1,"target":"帳簿冊","via":{"from":"帳簿","to":"賬簿"}}
 {"alias":"賬簿끝","compound_ids":[283572],"donor_ids":[283563],"kind":"recognition","reading":"장부끝","schema":1,"target":"帳簿끝","via":{"from":"帳簿","to":"賬簿"}}
+{"alias":"購買慾","compound_ids":[394091],"donor_ids":[464129],"kind":"recognition","reading":"구매욕","schema":1,"target":"購買欲","via":{"from":"欲","to":"慾"}}
 {"alias":"贊嘆辭","compound_ids":[323677],"donor_ids":[483562],"kind":"recognition","reading":"찬탄사","schema":1,"target":"讚歎辭","via":{"from":"讚歎","to":"贊嘆"}}
 {"alias":"贊嘆門","compound_ids":[323406],"donor_ids":[483562],"kind":"recognition","reading":"찬탄문","schema":1,"target":"讚歎門","via":{"from":"讚歎","to":"贊嘆"}}
 {"alias":"贊歎","compound_ids":[483562],"donor_ids":[483562],"kind":"recognition","reading":"찬탄","schema":1,"target":"讚歎","via":{"from":"grid","to":"贊歎"}}
@@ -1629,6 +1679,7 @@
 {"alias":"金剛砂숫돌","compound_ids":[399420],"donor_ids":[46960],"kind":"recognition","reading":"금강사숫돌","schema":1,"target":"金剛沙숫돌","via":{"from":"金剛沙","to":"金剛砂"}}
 {"alias":"金斑指","compound_ids":[46145],"donor_ids":[130761],"kind":"recognition","reading":"금반지","schema":1,"target":"金半指","via":{"from":"半指","to":"斑指"}}
 {"alias":"金畫磁器","compound_ids":[47682],"donor_ids":[274362],"kind":"recognition","reading":"금화자기","schema":1,"target":"金畫瓷器","via":{"from":"瓷器","to":"磁器"}}
+{"alias":"金錢慾","compound_ids":[399667],"donor_ids":[464129],"kind":"recognition","reading":"금전욕","schema":1,"target":"金錢欲","via":{"from":"欲","to":"慾"}}
 {"alias":"金빛松栮","compound_ids":[509294],"donor_ids":[190986],"kind":"recognition","reading":"금빛송이","schema":1,"target":"金빛松耳","via":{"from":"松耳","to":"松栮"}}
 {"alias":"針筩노리개","compound_ids":[340628],"donor_ids":[340626],"kind":"recognition","reading":"침통노리개","schema":1,"target":"針筒노리개","via":{"from":"針筒","to":"針筩"}}
 {"alias":"鈴烝餠","compound_ids":[232768],"donor_ids":[300764],"kind":"recognition","reading":"영증병","schema":1,"target":"鈴蒸餠","via":{"from":"蒸餠","to":"烝餠"}}
@@ -1677,6 +1728,8 @@
 {"alias":"鐵瓮山城","compound_ids":[323996],"donor_ids":[323995],"kind":"recognition","reading":"철옹산성","schema":1,"target":"鐵甕山城","via":{"from":"鐵甕","to":"鐵瓮"}}
 {"alias":"鐵砂釉","compound_ids":[319865],"donor_ids":[319863],"kind":"recognition","reading":"철사유","schema":1,"target":"鐵沙釉","via":{"from":"鐵沙","to":"鐵砂"}}
 {"alias":"鐵窓身世","compound_ids":[327072],"donor_ids":[453497],"kind":"recognition","reading":"철창신세","schema":1,"target":"鐵窓身勢","via":{"from":"身勢","to":"身世"}}
+{"alias":"鐵連耞","compound_ids":[324877],"donor_ids":[459638],"kind":"recognition","reading":"철련가","schema":1,"target":"鐵連枷","via":{"from":"連枷","to":"連耞"}}
+{"alias":"鐵連耞","compound_ids":[328399],"donor_ids":[459638],"kind":"recognition","reading":"철연가","schema":1,"target":"鐵連枷","via":{"from":"連枷","to":"連耞"}}
 {"alias":"長嘆息","compound_ids":[477063],"donor_ids":[345440],"kind":"recognition","reading":"장탄식","schema":1,"target":"長歎息","via":{"from":"歎息","to":"嘆息"}}
 {"alias":"長嘆愁心","compound_ids":[477062],"donor_ids":[282179],"kind":"recognition","reading":"장탄수심","schema":1,"target":"長歎愁心","via":{"from":"長歎","to":"長嘆"}}
 {"alias":"長嘆愁聲","compound_ids":[277951],"donor_ids":[282179],"kind":"recognition","reading":"장탄수성","schema":1,"target":"長歎愁聲","via":{"from":"長歎","to":"長嘆"}}
@@ -1770,9 +1823,11 @@
 {"alias":"霜華紙","compound_ids":[444381],"donor_ids":[443618],"kind":"recognition","reading":"상화지","schema":1,"target":"霜花紙","via":{"from":"霜花","to":"霜華"}}
 {"alias":"霜華餠","compound_ids":[182672],"donor_ids":[443618],"kind":"recognition","reading":"상화병","schema":1,"target":"霜花餠","via":{"from":"霜花","to":"霜華"}}
 {"alias":"霜華떡","compound_ids":[443619],"donor_ids":[443618],"kind":"recognition","reading":"상화떡","schema":1,"target":"霜花떡","via":{"from":"霜花","to":"霜華"}}
+{"alias":"露出慾","compound_ids":[66110],"donor_ids":[464129],"kind":"recognition","reading":"노출욕","schema":1,"target":"露出欲","via":{"from":"欲","to":"慾"}}
 {"alias":"靈山會上甲彈","compound_ids":[236134],"donor_ids":[236133],"kind":"recognition","reading":"영산회상갑탄","schema":1,"target":"靈山會相甲彈","via":{"from":"靈山會相","to":"靈山會上"}}
 {"alias":"靑丘圖","compound_ids":[329883],"donor_ids":[329557],"kind":"recognition","reading":"청구도","schema":1,"target":"靑邱圖","via":{"from":"靑邱","to":"靑丘"}}
 {"alias":"靑丘線表圖","compound_ids":[330161],"donor_ids":[329557],"kind":"recognition","reading":"청구선표도","schema":1,"target":"靑邱線表圖","via":{"from":"靑邱","to":"靑丘"}}
+{"alias":"靑山裡","compound_ids":[487701],"donor_ids":[106831],"kind":"recognition","reading":"청산리","schema":1,"target":"靑山裏","via":{"from":"裏","to":"裡"}}
 {"alias":"靑砂器","compound_ids":[325240],"donor_ids":[439243],"kind":"recognition","reading":"청사기","schema":1,"target":"靑沙器","via":{"from":"沙器","to":"砂器"}}
 {"alias":"靑磁器","compound_ids":[321854],"donor_ids":[491615],"kind":"recognition","reading":"청자기","schema":1,"target":"靑瓷器","via":{"from":"靑瓷","to":"靑磁"}}
 {"alias":"靑磁硯滴","compound_ids":[327897],"donor_ids":[491615],"kind":"recognition","reading":"청자연적","schema":1,"target":"靑瓷硯滴","via":{"from":"靑瓷","to":"靑磁"}}
@@ -1790,6 +1845,7 @@
 {"alias":"領受書","compound_ids":[238438],"donor_ids":[233926],"kind":"recognition","reading":"영수서","schema":1,"target":"領收書","via":{"from":"領收","to":"領受"}}
 {"alias":"領受票","compound_ids":[512814],"donor_ids":[233926],"kind":"recognition","reading":"영수표","schema":1,"target":"領收票","via":{"from":"領收","to":"領受"}}
 {"alias":"領受證","compound_ids":[238712],"donor_ids":[233926],"kind":"recognition","reading":"영수증","schema":1,"target":"領收證","via":{"from":"領收","to":"領受"}}
+{"alias":"領土慾","compound_ids":[512825],"donor_ids":[464129],"kind":"recognition","reading":"영토욕","schema":1,"target":"領土欲","via":{"from":"欲","to":"慾"}}
 {"alias":"顓門化","compound_ids":[289319],"donor_ids":[478632],"kind":"recognition","reading":"전문화","schema":1,"target":"專門化","via":{"from":"專門","to":"顓門"}}
 {"alias":"顓門大","compound_ids":[515294],"donor_ids":[478632],"kind":"recognition","reading":"전문대","schema":1,"target":"專門大","via":{"from":"專門","to":"顓門"}}
 {"alias":"顓門學","compound_ids":[289316],"donor_ids":[478632],"kind":"recognition","reading":"전문학","schema":1,"target":"專門學","via":{"from":"專門","to":"顓門"}}
@@ -1834,6 +1890,7 @@
 {"alias":"髣彿","compound_ids":[136039],"donor_ids":[136039],"kind":"recognition","reading":"방불","schema":1,"target":"彷彿","via":{"from":"grid","to":"髣彿"}}
 {"alias":"髣彿하다","compound_ids":[432322],"donor_ids":[432322],"kind":"recognition","reading":"방불하다","schema":1,"target":"彷彿하다","via":{"from":"grid","to":"髣彿하다"}}
 {"alias":"髣彿히","compound_ids":[136040],"donor_ids":[136040],"kind":"recognition","reading":"방불히","schema":1,"target":"彷彿히","via":{"from":"grid","to":"髣彿히"}}
+{"alias":"鬪爭慾","compound_ids":[495364],"donor_ids":[464129],"kind":"recognition","reading":"투쟁욕","schema":1,"target":"鬪爭欲","via":{"from":"欲","to":"慾"}}
 {"alias":"魚皮箭筩","compound_ids":[460886],"donor_ids":[296396],"kind":"recognition","reading":"어피전동","schema":1,"target":"魚皮箭筒","via":{"from":"箭筒","to":"箭筩"}}
 {"alias":"魚網契","compound_ids":[460540],"donor_ids":[226797],"kind":"recognition","reading":"어망계","schema":1,"target":"漁網契","via":{"from":"漁網","to":"魚網"}}
 {"alias":"魚網絲","compound_ids":[226814],"donor_ids":[226797],"kind":"recognition","reading":"어망사","schema":1,"target":"漁網絲","via":{"from":"漁網","to":"魚網"}}
@@ -1975,6 +2032,7 @@
 {"alias":"올冬栢","compound_ids":[239399],"donor_ids":[91935],"kind":"recognition","reading":"올동백","schema":1,"target":"올冬柏","via":{"from":"冬柏","to":"冬栢"}}
 {"alias":"올砂果","compound_ids":[465584],"donor_ids":[441490],"kind":"recognition","reading":"올사과","schema":1,"target":"올沙果","via":{"from":"沙果","to":"砂果"}}
 {"alias":"욱은欂栱","compound_ids":[249530],"donor_ids":[129870],"kind":"recognition","reading":"욱은박공","schema":1,"target":"욱은牔栱","via":{"from":"牔栱","to":"欂栱"}}
+{"alias":"잠慾","compound_ids":[284061],"donor_ids":[464129],"kind":"recognition","reading":"잠욕","schema":1,"target":"잠欲","via":{"from":"欲","to":"慾"}}
 {"alias":"잠자리武砂","compound_ids":[284053],"donor_ids":[123031],"kind":"recognition","reading":"잠자리무사","schema":1,"target":"잠자리武沙","via":{"from":"武沙","to":"武砂"}}
 {"alias":"잣糤子","compound_ids":[282880],"donor_ids":[177075],"kind":"recognition","reading":"잣산자","schema":1,"target":"잣饊子","via":{"from":"饊子","to":"糤子"}}
 {"alias":"장구唾具","compound_ids":[281968],"donor_ids":[492698],"kind":"recognition","reading":"장구타구","schema":1,"target":"장구唾口","via":{"from":"唾口","to":"唾具"}}

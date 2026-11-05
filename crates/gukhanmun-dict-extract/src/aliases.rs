@@ -24,7 +24,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use gukhanmun_core::AliasKind;
+use gukhanmun_core::{AliasKind, is_initial_sound_law_pair};
 
 /// One dictionary headword or sense used as a derivation source.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -59,6 +59,18 @@ pub struct AliasPolicy {
     pub max_per_compound: usize,
     /// Categories whose compounds are not derived automatically.
     pub excluded_categories: &'static [&'static str],
+    /// Excluded-category compounds reviewed individually.
+    ///
+    /// The dictionary tags 鐵連枷 as `역사`, which the automatic pass skips
+    /// because history entries are where the worst false aliases live.  A
+    /// reviewed pair may still be admitted here, as `(reading, hanja)`.
+    pub approved_compounds: &'static [(&'static str, &'static str)],
+    /// Suffix readings admitted as single-character donors.
+    ///
+    /// A one-character donor cannot distinguish the musical-note 郞 from the
+    /// official-rank 郞, so the automatic set rejects them.  These suffix
+    /// headwords carry no such homograph risk and are reviewed by hand.
+    pub single_character_suffix_donors: &'static [&'static str],
 }
 
 impl Default for AliasPolicy {
@@ -66,6 +78,8 @@ impl Default for AliasPolicy {
         Self {
             max_per_compound: 8,
             excluded_categories: &["인명", "지명", "책명", "역사"],
+            approved_compounds: &[("철련가", "鐵連枷"), ("철연가", "鐵連枷")],
+            single_character_suffix_donors: &["욕", "암", "리"],
         }
     }
 }
@@ -268,55 +282,88 @@ pub fn derive_aliases(
 ) -> (Vec<DerivedAlias>, Vec<SiblingRelation>) {
     let readings = readings_by_spelling(sources);
     let mut aliases = grid_aliases(sources, &readings, policy);
-    let (donors, ambiguous) = donor_groups(sources);
+    let (donors, ambiguous) = donor_groups(sources, policy);
     let siblings = sibling_relations(sources, &donors, &ambiguous);
     for compound in sources {
-        if compound.categories.iter().any(|category| {
-            policy
-                .excluded_categories
-                .iter()
-                .any(|excluded| category == excluded)
-        }) {
-            continue;
-        }
         let spellings = dedup(&compound.spellings);
         if spellings.len() != 1 {
             continue;
         }
         let hanja = &spellings[0];
+        let excluded = compound.categories.iter().any(|category| {
+            policy
+                .excluded_categories
+                .iter()
+                .any(|excluded| category == excluded)
+        });
+        if excluded
+            && !policy
+                .approved_compounds
+                .contains(&(compound.reading.as_str(), hanja.as_str()))
+        {
+            continue;
+        }
         let Some(chunks) = align_morphemes(&compound.word, hanja) else {
             continue;
         };
-        let mut for_compound = Vec::new();
+        let mut substitutable = Vec::new();
         for chunk in chunks {
-            if chunk.hanja.chars().count() < 2 {
+            if chunk.hanja.is_empty() {
                 continue;
             }
-            let key = (chunk.reading.clone(), chunk.hanja.clone());
-            let Some((group, donor_ids)) = donors.get(&key) else {
+            let Some((group, ids)) = donor_lookup(&donors, &ambiguous, &chunk) else {
                 continue;
             };
-            if ambiguous.contains(&key) {
+            substitutable.push((chunk, group.clone(), ids.clone()));
+        }
+        if substitutable.is_empty() {
+            continue;
+        }
+        // Each product carries the donors whose replacement it actually used,
+        // so a partially substituted compound does not credit the unused ones.
+        let mut products = vec![(
+            hanja.clone(),
+            Vec::<(String, String)>::new(),
+            BTreeSet::new(),
+        )];
+        for (chunk, group, ids) in &substitutable {
+            let mut next = Vec::new();
+            for (current, via, used) in &products {
+                next.push((current.clone(), via.clone(), used.clone()));
+                for alternative in group {
+                    if alternative == &chunk.hanja {
+                        continue;
+                    }
+                    let mut replaced = via.clone();
+                    replaced.push((chunk.hanja.clone(), alternative.clone()));
+                    let mut credited = used.clone();
+                    credited.extend(ids.iter().copied());
+                    next.push((
+                        replace_span(current, chunk.start, &chunk.hanja, alternative),
+                        replaced,
+                        credited,
+                    ));
+                }
+            }
+            products = next;
+        }
+        let mut for_compound = Vec::new();
+        for (candidate, via, donor_ids) in products {
+            if candidate == *hanja || via.is_empty() {
                 continue;
             }
-            for alternative in group {
-                let candidate = replace_span(hanja, chunk.start, &chunk.hanja, alternative);
-                if candidate == *hanja {
-                    continue;
-                }
-                if readings.contains_key(&candidate) {
-                    continue;
-                }
-                for_compound.push(DerivedAlias {
-                    hanja: candidate,
-                    reading: compound.reading.clone(),
-                    canonical: hanja.clone(),
-                    kind: AliasKind::Recognition,
-                    via: (chunk.hanja.clone(), alternative.clone()),
-                    compound_source_ids: compound.source_ids.clone(),
-                    donor_source_ids: donor_ids.clone(),
-                });
+            if readings.contains_key(&candidate) {
+                continue;
             }
+            for_compound.push(DerivedAlias {
+                hanja: candidate,
+                reading: compound.reading.clone(),
+                canonical: hanja.clone(),
+                kind: AliasKind::Recognition,
+                via: join_via(&via),
+                compound_source_ids: compound.source_ids.clone(),
+                donor_source_ids: donor_ids,
+            });
         }
         for_compound.sort_by(|left, right| {
             (&left.hanja, &left.reading).cmp(&(&right.hanja, &right.reading))
@@ -377,6 +424,64 @@ pub fn sibling_relations(
     relations
 }
 
+/// Looks up the donor group that licenses substitutions for one chunk.
+///
+/// The exact `(reading, hanja)` key wins.  A non-initial chunk may instead
+/// match a donor whose reading differs only by the word-initial sound law,
+/// which is how 철-련가 (鐵連枷) reaches the 연가03 group (連枷/連耞).  Two
+/// law-related donors, or one ambiguous donor, refuse the lookup.
+fn donor_lookup<'a>(
+    donors: &'a DonorMap,
+    ambiguous: &BTreeSet<DonorKey>,
+    chunk: &Chunk,
+) -> Option<&'a DonorGroup> {
+    let key = (chunk.reading.clone(), chunk.hanja.clone());
+    if ambiguous.contains(&key) {
+        return None;
+    }
+    if let Some(group) = donors.get(&key) {
+        return Some(group);
+    }
+    if chunk.start == 0 {
+        return None;
+    }
+    let law_related = |reading: &str, hanja: &str| {
+        hanja == chunk.hanja
+            && (is_initial_sound_law_pair(reading, &chunk.reading)
+                || is_initial_sound_law_pair(&chunk.reading, reading))
+    };
+    let mut found = None;
+    for (reading, hanja) in ambiguous {
+        if law_related(reading, hanja) {
+            return None;
+        }
+    }
+    for ((reading, hanja), group) in donors {
+        if !law_related(reading, hanja) {
+            continue;
+        }
+        if found.is_some() {
+            return None;
+        }
+        found = Some(group);
+    }
+    found
+}
+
+fn join_via(pairs: &[(String, String)]) -> (String, String) {
+    let from = pairs
+        .iter()
+        .map(|pair| pair.0.as_str())
+        .collect::<Vec<_>>()
+        .join(",");
+    let to = pairs
+        .iter()
+        .map(|pair| pair.1.as_str())
+        .collect::<Vec<_>>()
+        .join(",");
+    (from, to)
+}
+
 fn dedup(values: &[String]) -> Vec<String> {
     let mut seen = BTreeSet::new();
     values
@@ -411,7 +516,7 @@ fn pair_source_ids(sources: &[AliasSource]) -> BTreeMap<(String, String), BTreeS
     ids
 }
 
-fn donor_groups(sources: &[AliasSource]) -> (DonorMap, BTreeSet<DonorKey>) {
+fn donor_groups(sources: &[AliasSource], policy: &AliasPolicy) -> (DonorMap, BTreeSet<DonorKey>) {
     let pair_ids = pair_source_ids(sources);
     let mut donors = DonorMap::new();
     let mut ambiguous = BTreeSet::new();
@@ -421,10 +526,17 @@ fn donor_groups(sources: &[AliasSource]) -> (DonorMap, BTreeSet<DonorKey>) {
             continue;
         }
         let length = spellings[0].chars().count();
+        if spellings
+            .iter()
+            .any(|spelling| spelling.chars().count() != length)
+        {
+            continue;
+        }
         if length < 2
-            || spellings
-                .iter()
-                .any(|spelling| spelling.chars().count() != length)
+            && !(source.word.starts_with('-')
+                && policy
+                    .single_character_suffix_donors
+                    .contains(&source.reading.as_str()))
         {
             continue;
         }
@@ -498,6 +610,112 @@ mod tests {
         let second = source("삼도", "삼도", &["三道", "三途"], &[11]);
         let compound = source("삼남-삼도", "삼남삼도", &["三南三道"], &[20]);
         let (aliases, _) = derive_aliases(&[first, second, compound], &AliasPolicy::default());
+        assert!(aliases.is_empty());
+    }
+
+    #[test]
+    fn expands_every_substitutable_chunk() {
+        let sources = vec![
+            source("사기", "사기", &["沙器", "砂器"], &[1]),
+            source("진주", "진주", &["眞珠", "眞朱"], &[2]),
+            source("사기-진주", "사기진주", &["沙器眞珠"], &[3]),
+        ];
+        let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        let spellings = aliases
+            .iter()
+            .map(|alias| alias.hanja.as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            spellings,
+            BTreeSet::from(["沙器眞朱", "砂器眞珠", "砂器眞朱"])
+        );
+        let combined = aliases
+            .iter()
+            .find(|alias| alias.hanja == "砂器眞朱")
+            .expect("combined alias");
+        assert_eq!(combined.via, ("沙器,眞珠".into(), "砂器,眞朱".into()));
+    }
+
+    #[test]
+    fn matches_a_non_initial_sound_law_donor() {
+        let sources = vec![
+            source("연가", "연가", &["連枷", "連耞"], &[1]),
+            source("철-련가", "철련가", &["鐵連枷"], &[2]),
+        ];
+        let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        assert_eq!(aliases.len(), 1);
+        assert_eq!(aliases[0].hanja, "鐵連耞");
+        assert_eq!(aliases[0].reading, "철련가");
+        assert_eq!(aliases[0].canonical, "鐵連枷");
+    }
+
+    #[test]
+    fn refuses_an_ambiguous_donor_before_the_sound_law_fallback() {
+        let sources = vec![
+            source("련가04", "련가", &["連枷"], &[10]),
+            source("련가05", "련가", &["連枷", "連耞"], &[11]),
+            source("연가", "연가", &["連枷", "連耞"], &[1]),
+            source("철-련가", "철련가", &["鐵連枷"], &[2]),
+        ];
+        let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        assert!(aliases.is_empty());
+
+        let sources = vec![
+            source("련가04", "련가", &["連枷"], &[10]),
+            source("련가05", "련가", &["連枷", "連耞"], &[11]),
+            source("련가-철", "련가철", &["連枷鐵"], &[2]),
+        ];
+        let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        assert!(aliases.is_empty());
+    }
+
+    #[test]
+    fn credits_only_the_donors_a_product_uses() {
+        let sources = vec![
+            source("사기", "사기", &["沙器", "砂器"], &[1]),
+            source("진주", "진주", &["眞珠", "眞朱"], &[2]),
+            source("사기-진주", "사기진주", &["沙器眞珠"], &[3]),
+        ];
+        let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        let partial = aliases
+            .iter()
+            .find(|alias| alias.hanja == "砂器眞珠")
+            .expect("partial alias");
+        assert_eq!(partial.donor_source_ids, BTreeSet::from([1]));
+        let combined = aliases
+            .iter()
+            .find(|alias| alias.hanja == "砂器眞朱")
+            .expect("combined alias");
+        assert_eq!(combined.donor_source_ids, BTreeSet::from([1, 2]));
+    }
+
+    #[test]
+    fn admits_only_reviewed_excluded_compounds() {
+        let donor = source("연가", "연가", &["連枷", "連耞"], &[1]);
+        let mut compound = source("철-련가", "철련가", &["鐵連枷"], &[2]);
+        compound.categories.insert("역사".into());
+        let (aliases, _) = derive_aliases(&[donor.clone(), compound], &AliasPolicy::default());
+        assert_eq!(aliases.len(), 1);
+        assert_eq!(aliases[0].hanja, "鐵連耞");
+
+        let mut unreviewed = source("철-려가", "철려가", &["鐵連枷"], &[3]);
+        unreviewed.categories.insert("역사".into());
+        let (aliases, _) = derive_aliases(&[donor, unreviewed], &AliasPolicy::default());
+        assert!(aliases.is_empty());
+    }
+
+    #[test]
+    fn admits_reviewed_single_character_suffix_donors() {
+        let donor = source("-욕", "욕", &["慾", "欲"], &[1]);
+        let compound = source("탐-욕", "탐욕", &["貪慾"], &[2]);
+        let (aliases, _) = derive_aliases(&[donor, compound], &AliasPolicy::default());
+        assert_eq!(aliases.len(), 1);
+        assert_eq!(aliases[0].hanja, "貪欲");
+        assert_eq!(aliases[0].reading, "탐욕");
+
+        let unreviewed = source("-가", "가", &["價", "家"], &[3]);
+        let compound = source("시-가", "시가", &["時價"], &[4]);
+        let (aliases, _) = derive_aliases(&[unreviewed, compound], &AliasPolicy::default());
         assert!(aliases.is_empty());
     }
 

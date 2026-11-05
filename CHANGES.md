@@ -77,6 +77,12 @@ To be released.
  -  Added `aliases::grid_aliases()` to reconstruct omitted position-wise
     combinations inside multi-spelling headwords, limited to single-reading
     groups.  [[#38]]
+ -  Substitute every licensed constituent of a compound, taking the bounded
+    Cartesian product instead of one chunk at a time, and match a non-initial
+    constituent whose reading differs only by the word-initial sound law.
+    Reviewed suffix readings such as `욕`, `암`, and `리` may act as
+    single-character donors, and reviewed `역사` compounds can opt back in
+    through `AliasPolicy::approved_compounds`.  [[#38]]
 
 ### gukhanmun-fst
 
@@ -99,16 +105,16 @@ To be released.
 ### gukhanmun-opendict
 
  -  Derive per-category compound aliases and sibling relations from the Open
-    Korean Dictionary dump. The bundled data now carries 1,497 general
-    recognition aliases and 2,342 sibling relations. This dump produced 10
+    Korean Dictionary dump. The bundled data now carries 1,561 general
+    recognition aliases and 2,343 sibling relations. This dump produced 10
     recognition aliases and 103 sibling relations for North Korean, and no
     derived aliases for dialect or archaic.  [[#38]]
 
 ### gukhanmun-stdict
 
  -  Derive compound aliases from the dump's marked morphemes and explicit
-    spelling groups, bundling 1,996 recognition aliases, the seven reviewed
-    lexical aliases, 2,873 sibling relations, and a JSONL provenance manifest.
+    spelling groups, bundling 2,054 recognition aliases, the seven reviewed
+    lexical aliases, 2,875 sibling relations, and a JSONL provenance manifest.
     [[#38]]
 
 ### gukhanmun-wasm
