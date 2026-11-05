@@ -543,7 +543,7 @@ pub trait HanjaDictionary {
         let lexemes = LexemeIndex::from_dictionary(self);
         let hanja = lexemes
             .as_ref()
-            .map_or(hanja, |lexemes| lexemes.canonical(hanja, reading));
+            .map_or(hanja, |lexemes| lexemes.homophone_canonical(hanja, reading));
         self.candidate_entries()
             .is_some_and(|mut entries| entries.any(|record| record.has_homophone(hanja, reading)))
     }
@@ -823,7 +823,7 @@ where
             .or_else(|| LexemeIndex::from_dictionary(self));
         let hanja = lexemes
             .as_ref()
-            .map_or(hanja, |lexemes| lexemes.canonical(hanja, reading));
+            .map_or(hanja, |lexemes| lexemes.homophone_canonical(hanja, reading));
         let mut records = BTreeMap::<String, CandidateRecord>::new();
         let mut lookup_only = Vec::new();
         for dictionary in &self.dictionaries {
@@ -1223,7 +1223,7 @@ impl HanjaDictionary for MapDictionary {
         ))
     }
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        let hanja = self.lexemes.canonical(hanja, reading);
+        let hanja = self.lexemes.homophone_canonical(hanja, reading);
         self.candidate_entries()
             .unwrap()
             .any(|record| record.has_homophone(hanja, reading))
@@ -3648,7 +3648,7 @@ impl HomophoneIndex {
             .or_else(|| LexemeIndex::from_dictionary(dictionary))?;
         for record in dictionary.candidate_entries()? {
             let selected = select_default_reading(&record.candidates);
-            let form = record.lexeme();
+            let form = record.homophone_key();
             for reading in core::iter::once(&selected.reading).chain(selected.suffix_reading.iter())
             {
                 forms_by_reading
@@ -3664,7 +3664,7 @@ impl HomophoneIndex {
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        let lexeme = self.lexemes.canonical(hanja, reading);
+        let lexeme = self.lexemes.homophone_canonical(hanja, reading);
         self.forms_by_reading
             .get(reading)
             .is_some_and(|forms| forms.iter().any(|form| form != lexeme))
@@ -3689,7 +3689,7 @@ fn mark_homophones_in_context<S, D>(
                 || annotation.canonical_hanja().to_string(),
                 |lexemes| {
                     lexemes
-                        .canonical(annotation.canonical_hanja(), &annotation.reading)
+                        .homophone_canonical(annotation.canonical_hanja(), &annotation.reading)
                         .to_string()
                 },
             );

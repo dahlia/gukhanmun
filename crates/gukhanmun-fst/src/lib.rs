@@ -295,7 +295,7 @@ impl HanjaDictionary for FstDictionary {
         ))
     }
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        let hanja = self.lexemes.canonical(hanja, reading);
+        let hanja = self.lexemes.homophone_canonical(hanja, reading);
         self.candidate_entries()
             .unwrap()
             .any(|record| record.has_homophone(hanja, reading))

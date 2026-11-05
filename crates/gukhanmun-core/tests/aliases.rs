@@ -172,7 +172,7 @@ fn annotated<S: ScopeData>(tokens: &[OutputToken<S>], index: usize) -> &Annotati
 }
 
 #[test]
-fn recognition_alias_does_not_suppress_homophones() {
+fn recognition_alias_shares_homophone_identity() {
     let mut dictionary = MapDictionary::new();
     dictionary.insert("連絡", "연락");
     dictionary.insert_candidates(
@@ -192,8 +192,11 @@ fn recognition_alias_does_not_suppress_homophones() {
         &dictionary,
         ContextWindow::PerDocument,
     );
-    assert!(annotated(&marked, 0).homophone);
-    assert!(annotated(&marked, 2).homophone);
+    // Both spellings are one word, so neither is glossed as a homophone.
+    assert!(!annotated(&marked, 0).homophone);
+    assert!(!annotated(&marked, 2).homophone);
+    assert!(!dictionary.has_homophone("連絡", "연락"));
+    assert!(!dictionary.has_homophone("聯絡", "연락"));
 }
 
 #[test]

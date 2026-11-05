@@ -503,9 +503,6 @@ impl LexemeIndex {
                 let Some(alias) = &candidate.alias else {
                     continue;
                 };
-                if !matches!(alias.kind, AliasKind::Sibling | AliasKind::Lexical) {
-                    continue;
-                }
                 let readings = by_hanja.entry(record.hanja.clone()).or_default();
                 readings.insert(
                     candidate.reading.clone(),
@@ -521,8 +518,24 @@ impl LexemeIndex {
 
     /// Returns the canonical spelling for a matched key and reading.
     ///
-    /// Falls back to the matched key when the pair has no identity relation.
+    /// Only reviewed and sibling aliases claim lexical identity, so a
+    /// recognition alias reports the matched key.  Falls back to the matched
+    /// key when the pair has no identity relation.
     pub fn canonical<'a>(&'a self, hanja: &'a str, reading: &str) -> &'a str {
+        self.by_hanja
+            .get(hanja)
+            .and_then(|readings| readings.get(reading))
+            .filter(|(kind, _)| matches!(kind, AliasKind::Sibling | AliasKind::Lexical))
+            .map_or(hanja, |(_, canonical)| canonical.as_str())
+    }
+
+    /// Returns the spelling that homophone marking treats as this word.
+    ///
+    /// Every alias kind shares its canonical spelling here.  A recognition
+    /// alias does not claim lexical identity, but it is still the same word for
+    /// homophone purposes, so a canonical spelling is not glossed merely
+    /// because a derived alias exists for it.
+    pub fn homophone_canonical<'a>(&'a self, hanja: &'a str, reading: &str) -> &'a str {
         self.by_hanja
             .get(hanja)
             .and_then(|readings| readings.get(reading))
@@ -574,11 +587,7 @@ impl LexemeIndex {
                 "recognition" => AliasKind::Recognition,
                 _ => continue,
             };
-            if kind == AliasKind::Recognition
-                || hanja.is_empty()
-                || reading.is_empty()
-                || canonical.is_empty()
-            {
+            if hanja.is_empty() || reading.is_empty() || canonical.is_empty() {
                 continue;
             }
             by_hanja
@@ -595,9 +604,6 @@ impl LexemeIndex {
             let Some(alias) = &candidate.alias else {
                 continue;
             };
-            if !matches!(alias.kind, AliasKind::Sibling | AliasKind::Lexical) {
-                continue;
-            }
             let readings = self.by_hanja.entry(hanja.to_string()).or_default();
             readings.insert(
                 candidate.reading.clone(),
@@ -710,10 +716,22 @@ impl CandidateRecord {
         })
     }
 
+    /// Returns the spelling homophone marking attributes to this record.
+    ///
+    /// Unlike [`CandidateRecord::lexeme`], every alias kind reports its
+    /// canonical spelling, because two spellings of one word are never
+    /// homophones.
+    pub fn homophone_key(&self) -> &str {
+        select_default_reading(&self.candidates)
+            .alias
+            .as_ref()
+            .map_or(&self.hanja, |alias| &alias.canonical)
+    }
+
     /// Tests a collision against the selected initial and suffix forms only.
     pub fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
         let selected = select_default_reading(&self.candidates);
-        self.lexeme() != hanja
+        self.homophone_key() != hanja
             && (selected.reading == reading || selected.suffix_reading.as_deref() == Some(reading))
     }
 }
