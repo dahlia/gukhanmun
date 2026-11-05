@@ -31,13 +31,13 @@ use tempfile::tempdir;
 fn converts_stdin_to_stdout_with_bundled_stdict_by_default() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .write_stdin("漢字 北京 標識 一分錢 布告하다 佈告하다\n")
+        .write_stdin("漢字 北京 標識 一分錢 刻本 脚本\n")
         .assert()
         .success()
-        // 布告하다 and 佈告하다 share 포고하다 within the line, so the default
+        // 刻本 and 脚本 share 각본 within the line, so the default
         // context-local detection glosses both.  漢字 and 標識 have no in-text
         // homophone here and are therefore left as plain hangul.
-        .stdout("한자 베이징 표지 일푼전 포고하다(布告하다) 포고하다(佈告하다)\n");
+        .stdout("한자 베이징 표지 일푼전 각본(刻本) 각본(脚本)\n");
 }
 
 #[test]

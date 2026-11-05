@@ -508,7 +508,7 @@ extends = "nu"
 depends = ["rust-init"]
 run = """
 let output = ($env.GUKHANMUN_DICTS_OUTPUT_DIR? | default "crates/gukhanmun-stdict/data")
-cargo run --locked -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output $"($output)/stdict.tsv" --suffix-output $"($output)/suffix.tsv"
+cargo run --locked -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output $"($output)/stdict.tsv" --suffix-output $"($output)/suffix.tsv" --aliases-output $"($output)/aliases.tsv" --relations-output $"($output)/relations.tsv" --manifest-output $"($output)/aliases-manifest.jsonl" --seed-aliases "crates/gukhanmun-stdict/data/aliases-seed.tsv"
 """
 
 [tasks.stdict-extract-check]
@@ -516,7 +516,7 @@ description = "Check stdict extraction against a pinned dump without modifying f
 usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
 extends = "nu"
 depends = ["rust-init"]
-run = 'cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output crates/gukhanmun-stdict/data/stdict.tsv --suffix-output crates/gukhanmun-stdict/data/suffix.tsv --check'
+run = 'cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output crates/gukhanmun-stdict/data/stdict.tsv --suffix-output crates/gukhanmun-stdict/data/suffix.tsv --aliases-output crates/gukhanmun-stdict/data/aliases.tsv --relations-output crates/gukhanmun-stdict/data/relations.tsv --manifest-output crates/gukhanmun-stdict/data/aliases-manifest.jsonl --seed-aliases crates/gukhanmun-stdict/data/aliases-seed.tsv --check'
 
 [tasks.opendict-extract]
 description = "Regenerate Open Korean Dictionary candidates from a pinned dump"

@@ -27,7 +27,9 @@ To be released.
     keep their streaming word bound.  [[#33], [#34]]
  -  Bundled compound aliases now render as one dictionary-backed annotation, no
     longer split by the engine or by the parenthetical collapser, and sibling
-    spellings no longer trigger false homophone glosses.  [[#38]]
+    spellings no longer trigger false homophone glosses. The standard
+    dictionary data now carries the full automatically derived corpus plus the
+    reviewed seed.  [[#38]]
 
 [#33]: https://github.com/dahlia/gukhanmun/issues/33
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
@@ -61,6 +63,13 @@ To be released.
     first-occurrence filtering, and literal directives resolve sibling and
     reviewed spellings to one canonical lexeme. [[#38]]
 
+### gukhanmun-dict-extract
+
+ -  Added `aliases::align_morphemes()`, `aliases::derive_aliases()`, and
+    `aliases::sibling_relations()` for aligning marked compound headwords,
+    applying the same-source-id ambiguity gate, and emitting recognition
+    aliases plus sibling relations.  [[#38]]
+
 ### gukhanmun-fst
 
  -  Read dictionary format version 3 candidate payloads with alias metadata.
@@ -81,9 +90,10 @@ To be released.
 
 ### gukhanmun-stdict
 
- -  Bundled reviewed aliases for compounds such as 記念館, 聯絡處, and 顓門家,
-    and marked the non-first spellings of 連絡, 紀念, and 專門 as siblings so
-    they share one lexical identity.  [[#38]]
+ -  Derive compound aliases from the dump's marked morphemes and explicit
+    spelling groups, bundling 1,858 recognition aliases, the seven reviewed
+    lexical aliases, 2,873 sibling relations, and a JSONL provenance manifest.
+    [[#38]]
 
 ### gukhanmun-wasm
 

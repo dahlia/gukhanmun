@@ -2,6 +2,7 @@
 links:
   '#38': https://github.com/dahlia/gukhanmun/issues/38
 ---
- -  Bundled reviewed aliases for compounds such as 記念館, 聯絡處, and 顓門家,
-    and marked the non-first spellings of 連絡, 紀念, and 專門 as siblings so
-    they share one lexical identity.  [[#38]]
+ -  Derive compound aliases from the dump's marked morphemes and explicit
+    spelling groups, bundling 1,858 recognition aliases, the seven reviewed
+    lexical aliases, 2,873 sibling relations, and a JSONL provenance manifest.
+    [[#38]]

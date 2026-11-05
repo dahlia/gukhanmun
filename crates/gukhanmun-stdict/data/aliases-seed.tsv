@@ -1,0 +1,8 @@
+hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	alias_kind	via
+記念館	기념관	false	false	10		紀念館	lexical	紀念>記念
+聯絡處	연락처	false	false	10		連絡處	lexical	連絡>聯絡
+顓門家	전문가	false	false	10		專門家	lexical	專門>顓門
+反亂軍	반란군	false	false	10		叛亂軍	lexical	叛亂>反亂
+四十八誡	사십팔계	false	false	10		四十八戒	lexical	戒>誡
+感嘆스럽다	감탄스럽다	false	false	10		感歎스럽다	lexical	感歎>感嘆
+돌煖爐	돌난로	false	false	10		돌暖爐	lexical	暖爐>煖爐
