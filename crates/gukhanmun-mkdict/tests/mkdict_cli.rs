@@ -881,6 +881,34 @@ fn alias_metadata_includes_suffix_readings() {
 }
 
 #[test]
+fn recognition_rows_survive_metadata_decode() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("aliases.tsv");
+    let output = temp.path().join("dict.gukfst");
+    fs::write(
+        &input,
+        "hanja\thangul\tcanonical\talias_kind\n紀念品\t기념품\t\t\n記念品\t기념품\t紀念品\trecognition\n",
+    )
+    .unwrap();
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            output.to_str().unwrap(),
+            "--validate",
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let dictionary = FstDictionary::open(&output).unwrap();
+    let lexemes = dictionary.lexemes().unwrap();
+    assert_eq!(lexemes.canonical("記念品", "기념품"), "記念品");
+    assert_eq!(lexemes.homophone_canonical("記念品", "기념품"), "紀念品");
+    assert!(!dictionary.has_homophone("紀念品", "기념품"));
+    assert!(!dictionary.has_homophone("記念品", "기념품"));
+}
+
+#[test]
 fn conflicting_alias_rows_are_rejected() {
     let temp = tempdir().unwrap();
     let input = temp.path().join("aliases.tsv");

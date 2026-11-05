@@ -41,6 +41,24 @@ fn converts_stdin_to_stdout_with_bundled_stdict_by_default() {
 }
 
 #[test]
+fn dictionary_wide_homophones_ignore_derived_alias_spellings() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--homophone-detection",
+            "dictionary-wide",
+            "--disambiguation",
+            "per-document",
+        ])
+        .write_stdin("紀念品 刻本 脚本\n")
+        .assert()
+        .success()
+        // 記念品 is a recognition alias of 紀念品, so the canonical spelling is
+        // not a homophone on its own; 刻本 and 脚本 are genuinely homophonous.
+        .stdout("기념품 각본(刻本) 각본(脚本)\n");
+}
+
+#[test]
 fn collapses_redundant_parenthetical_annotation_by_default() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
