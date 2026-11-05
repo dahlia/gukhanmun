@@ -65,6 +65,11 @@ struct Cli {
     #[arg(long)]
     allow_unmatched_rules: bool,
 
+    /// Path to a relation TSV file that attaches alias identity to existing
+    /// entries without duplicating their keys.  May be repeated.
+    #[arg(long = "relations", value_name = "PATH")]
+    relations: Vec<PathBuf>,
+
     /// Enable debug-level diagnostic output (overridden by RUST_LOG).
     #[arg(short, long)]
     verbose: bool,
@@ -107,6 +112,7 @@ fn main() -> Result<()> {
         metadata: cli.metadata.into_iter().collect::<BTreeMap<_, _>>(),
         rules: cli.rules,
         allow_unmatched_rules: cli.allow_unmatched_rules,
+        relations: cli.relations,
     };
 
     build_dictionary(&cli.inputs, cli.output, &options)?;

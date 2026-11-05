@@ -260,6 +260,7 @@ fn cdb_output_rejects_non_utf8_paths() {
             metadata: BTreeMap::new(),
             rules: Vec::new(),
             allow_unmatched_rules: false,
+            relations: Vec::new(),
         },
     )
     .unwrap_err();
@@ -769,4 +770,163 @@ fn v1_cannot_interpret_a_tagged_v2_fst_payload() {
     bytes[8..12].copy_from_slice(&1u32.to_le_bytes());
     let dictionary = FstDictionary::from_bytes(&bytes).unwrap();
     assert!(dictionary.lookup("東京").is_err());
+}
+
+fn assert_alias(candidates: &gukhanmun_core::ReadingCandidates) {
+    let candidate = &candidates.as_slice()[0];
+    assert_eq!(candidate.reading, "기념관");
+    let target = candidate.alias.as_ref().unwrap();
+    assert_eq!(target.canonical, "紀念館");
+    assert_eq!(target.kind, gukhanmun_core::AliasKind::Lexical);
+}
+
+#[test]
+fn alias_columns_round_trip_through_fst_and_cdb() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("aliases.tsv");
+    fs::write(
+        &input,
+        "hanja\thangul\tcanonical\talias_kind\n記念館\t기념관\t紀念館\tlexical\n紀念館\t기념관\t\t\n連絡\t연락\t\t\n聯絡\t연락\t連絡\tsibling\n",
+    )
+    .unwrap();
+
+    for (format, extension) in [("fst", "gukfst"), ("cdb", "gukcdb")] {
+        let output = temp.path().join(format!("dict.{extension}"));
+        Command::cargo_bin("gukhanmun-mkdict")
+            .unwrap()
+            .args([
+                "-o",
+                output.to_str().unwrap(),
+                "--format",
+                format,
+                "--validate",
+                input.to_str().unwrap(),
+            ])
+            .assert()
+            .success();
+
+        if format == "fst" {
+            let dictionary = FstDictionary::open(&output).unwrap();
+            assert_eq!(dictionary.metadata().get("version").unwrap(), "3");
+            let alias = dictionary.lookup("記念館").unwrap().unwrap();
+            assert_alias(alias.candidates());
+        } else {
+            let dictionary = CdbDictionary::open(&output).unwrap();
+            assert_eq!(dictionary.metadata().get("version").unwrap(), "3");
+            let alias = dictionary.lookup("記念館").unwrap().unwrap();
+            assert_alias(alias.candidates());
+        }
+    }
+}
+
+#[test]
+fn relations_attach_identity_without_duplicating_a_key() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dict.tsv");
+    let relations = temp.path().join("relations.tsv");
+    let output = temp.path().join("dict.gukfst");
+    fs::write(&input, "hanja\thangul\n連絡\t연락\n聯絡\t연락\n").unwrap();
+    fs::write(
+        &relations,
+        "hanja\thangul\tcanonical\talias_kind\n聯絡\t연락\t連絡\tsibling\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            output.to_str().unwrap(),
+            "--validate",
+            "--relations",
+            relations.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let dictionary = FstDictionary::open(&output).unwrap();
+    let entry = dictionary.lookup("聯絡").unwrap().unwrap();
+    let candidate = &entry.candidates().as_slice()[0];
+    assert_eq!(candidate.alias.as_ref().unwrap().canonical, "連絡");
+    assert_eq!(
+        candidate.alias.as_ref().unwrap().kind,
+        gukhanmun_core::AliasKind::Sibling
+    );
+}
+
+#[test]
+fn alias_metadata_includes_suffix_readings() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("aliases.tsv");
+    let output = temp.path().join("dict.gukfst");
+    fs::write(
+        &input,
+        "hanja\thangul\tsuffix_reading\tcanonical\talias_kind\n連絡\t연락\t련락\t\t\n聯絡\t연락\t련락\t連絡\tsibling\n",
+    )
+    .unwrap();
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            output.to_str().unwrap(),
+            "--validate",
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let dictionary = FstDictionary::open(&output).unwrap();
+    let lexemes = dictionary.lexemes().unwrap();
+    assert_eq!(lexemes.canonical("聯絡", "련락"), "連絡");
+}
+
+#[test]
+fn conflicting_alias_rows_are_rejected() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("aliases.tsv");
+    let output = temp.path().join("dict.gukfst");
+    fs::write(
+        &input,
+        "hanja\thangul\tpreference\tcanonical\talias_kind\n聯絡\t연락\t0\t乙\tlexical\n聯絡\t연락\t0\t甲\tlexical\n",
+    )
+    .unwrap();
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args(["-o", output.to_str().unwrap(), input.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "candidates sharing a reading must agree on alias identity",
+        ));
+}
+
+#[test]
+fn relations_attach_to_suffix_bearing_entries() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dict.tsv");
+    let relations = temp.path().join("relations.tsv");
+    let output = temp.path().join("dict.gukfst");
+    fs::write(&input, "hanja\thangul\tsuffix_reading\n聯絡\t연락\t련락\n").unwrap();
+    fs::write(
+        &relations,
+        "hanja\thangul\tcanonical\talias_kind\n聯絡\t연락\t連絡\tsibling\n",
+    )
+    .unwrap();
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args([
+            "-o",
+            output.to_str().unwrap(),
+            "--validate",
+            "--relations",
+            relations.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let dictionary = FstDictionary::open(&output).unwrap();
+    assert_eq!(
+        dictionary.lexemes().unwrap().canonical("聯絡", "련락"),
+        "連絡"
+    );
 }

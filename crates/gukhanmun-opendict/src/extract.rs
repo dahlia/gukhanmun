@@ -430,6 +430,7 @@ impl Extractor {
                             suffix_reading: c.suffix_reading.clone(),
                             mark: MatchMark::default(),
                             preference: 0,
+                            alias: None,
                         })
                         .collect(),
                 )

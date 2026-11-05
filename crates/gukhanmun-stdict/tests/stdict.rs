@@ -753,3 +753,30 @@ fn one_initial_reading_can_keep_several_suffix_forms() {
     assert!(output.contains("旅人\t여인\tfalse\tfalse\t10\t녀인\t1,3\n"));
     assert!(output.contains("旅人\t려인\tfalse\tfalse\t10\t\t2,4\n"));
 }
+
+#[test]
+fn seed_alias_metadata_is_present() {
+    let entry = gukhanmun_stdict::ko_kr().lookup("記念館").unwrap().unwrap();
+    println!("lookup alias: {:?}", entry.candidates().as_slice()[0].alias);
+    let record = gukhanmun_stdict::ko_kr()
+        .candidate_entries()
+        .unwrap()
+        .find(|record| record.hanja == "記念館")
+        .unwrap();
+    println!("record alias: {:?}", record.candidates.as_slice()[0].alias);
+    assert!(entry.candidates().as_slice()[0].alias.is_some());
+    assert!(record.candidates.as_slice()[0].alias.is_some());
+}
+
+#[test]
+fn seed_alias_lexeme_index_resolves() {
+    let index = gukhanmun_core::LexemeIndex::from_dictionary(gukhanmun_stdict::ko_kr()).unwrap();
+    assert_eq!(index.canonical("記念館", "기념관"), "紀念館");
+    assert_eq!(index.canonical("聯絡", "연락"), "連絡");
+}
+
+#[test]
+fn bundled_dictionary_exposes_cached_lexemes() {
+    let lexemes = gukhanmun_stdict::ko_kr().lexemes().unwrap();
+    assert_eq!(lexemes.canonical("記念館", "기념관"), "紀念館");
+}

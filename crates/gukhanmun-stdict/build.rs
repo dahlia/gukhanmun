@@ -24,16 +24,20 @@ use gukhanmun_mkdict::{BuildOptions, DictionaryFormat, MergePolicy, build_dictio
 fn main() -> Result<()> {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("manifest dir"));
     let input = manifest_dir.join("data").join("stdict.tsv");
+    let aliases = manifest_dir.join("data").join("aliases.tsv");
+    let relations = manifest_dir.join("data").join("relations.tsv");
     let rules = manifest_dir.join("data").join("rules.tsv");
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("out dir")).join("stdict.gukfst");
 
     println!("cargo:rerun-if-changed={}", input.display());
+    println!("cargo:rerun-if-changed={}", aliases.display());
+    println!("cargo:rerun-if-changed={}", relations.display());
     println!("cargo:rerun-if-changed={}", rules.display());
     let metadata = manifest_dir.join("data/metadata.json");
     println!("cargo:rerun-if-changed={}", metadata.display());
     let provenance: BTreeMap<String, String> = serde_json::from_slice(&std::fs::read(metadata)?)?;
     build_dictionary(
-        &[input],
+        &[input, aliases],
         output,
         &BuildOptions {
             format: DictionaryFormat::Fst,
@@ -43,6 +47,7 @@ fn main() -> Result<()> {
             metadata: provenance,
             rules: vec![rules],
             allow_unmatched_rules: false,
+            relations: vec![relations],
         },
     )?;
 

@@ -30,6 +30,7 @@ fn candidate(
             require_hanja: marked,
             require_hangul: false,
         },
+        alias: None,
     }
 }
 fn dictionary(default: &str, alternate: &str) -> MapDictionary {

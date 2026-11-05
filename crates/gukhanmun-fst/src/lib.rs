@@ -31,9 +31,9 @@ use ciborium::de::from_reader;
 use fst::automaton::Automaton;
 use fst::{IntoStreamer, Map, Streamer};
 use gukhanmun_core::{
-    CandidateError, CandidateMatch, CandidateRecord, DictionaryRecord, HanjaDictionary, Match,
-    MatchMark, ReadingCandidate, ReadingCandidates, candidate_matches_at_spellings,
-    select_default_reading,
+    CandidateError, CandidateMatch, CandidateRecord, DictionaryRecord, HanjaDictionary,
+    LexemeIndex, Match, MatchMark, ReadingCandidate, ReadingCandidates,
+    candidate_matches_at_spellings, select_default_reading,
 };
 
 const MAGIC: &[u8; 8] = b"GUKHMFST";
@@ -59,6 +59,7 @@ pub struct FstDictionary {
     readings: ByteSection,
     entry_count: u64,
     max_word_chars: Option<usize>,
+    lexemes: LexemeIndex,
 }
 
 impl FstDictionary {
@@ -110,6 +111,9 @@ impl FstDictionary {
             .unwrap_or_else(|| u64::try_from(map.len()).unwrap_or(u64::MAX));
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars")
             .or_else(|| max_key_chars_from_map(&map));
+        let lexemes = metadata
+            .get("aliases")
+            .map_or_else(LexemeIndex::default, |encoded| LexemeIndex::decode(encoded));
 
         tracing::debug!(
             byte_length = bytes.len(),
@@ -125,6 +129,7 @@ impl FstDictionary {
             readings,
             entry_count,
             max_word_chars,
+            lexemes,
         })
     }
 
@@ -173,7 +178,7 @@ impl FstDictionary {
                 candidates: ReadingCandidates::decode_payload(reading_bytes)?,
             });
         }
-        if self.format_version == 2 && (encoded >> VALUE_MARK_SHIFT) as u8 & !3 != 0 {
+        if self.format_version >= 2 && (encoded >> VALUE_MARK_SHIFT) as u8 & !3 != 0 {
             return Err(CandidateError::Malformed.into());
         }
         let reading = std::str::from_utf8(reading_bytes)
@@ -189,6 +194,7 @@ impl FstDictionary {
                 suffix_reading: None,
                 mark,
                 preference: 0,
+                alias: None,
             }])?,
         })
     }
@@ -289,9 +295,14 @@ impl HanjaDictionary for FstDictionary {
         ))
     }
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        let hanja = self.lexemes.canonical(hanja, reading);
         self.candidate_entries()
             .unwrap()
             .any(|record| record.has_homophone(hanja, reading))
+    }
+
+    fn lexemes(&self) -> Option<LexemeIndex> {
+        Some(self.lexemes.clone())
     }
 }
 
@@ -436,7 +447,7 @@ impl FixedHeader {
             return Err(Error::InvalidMagic);
         }
         let version = read_u32(&bytes[8..12]);
-        if !matches!(version, 1 | 2) {
+        if !matches!(version, 1..=3) {
             tracing::error!(
                 version,
                 expected = FORMAT_VERSION,

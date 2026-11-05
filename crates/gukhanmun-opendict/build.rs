@@ -83,6 +83,7 @@ fn build_category(
             metadata: provenance,
             rules: Vec::new(),
             allow_unmatched_rules: false,
+            relations: Vec::new(),
         },
     )?;
     Ok(())

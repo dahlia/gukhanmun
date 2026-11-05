@@ -20,10 +20,10 @@
 use gukhanmun_core::recover_input_tokens;
 use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter,
-    HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken,
+    HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken, LexemeIndex,
     NumeralStrategy, OutputToken, PlainScopeData, Recovery, RedundantParenCollapser, RenderMode,
     RenderOptions, RenderedToken, ScopeData, SegmentationStrategy, UserDirectives,
-    apply_user_directives_iter, read_plain_text, render_tokens_iter, write_plain_text,
+    apply_user_directives_iter_with_lexemes, read_plain_text, render_tokens_iter, write_plain_text,
 };
 
 use crate::error::Error;
@@ -671,13 +671,25 @@ impl<'a> Converter<'a> {
             HomophoneMarker::push_token,
             HomophoneMarker::finish,
         );
+        let lexemes = self
+            .dictionary
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(&self.dictionary))
+            .unwrap_or_default();
         let first_occurrence_iter = MiddlewareIter::new(
             homophone_iter,
-            FirstOccurrenceFilter::new(self.options.first_occurrence_window),
+            FirstOccurrenceFilter::with_lexemes(
+                self.options.first_occurrence_window,
+                lexemes.clone(),
+            ),
             FirstOccurrenceFilter::push_token,
             FirstOccurrenceFilter::finish,
         );
-        let directives_iter = apply_user_directives_iter(first_occurrence_iter, &self.directives);
+        let directives_iter = apply_user_directives_iter_with_lexemes(
+            first_occurrence_iter,
+            &self.directives,
+            lexemes,
+        );
         let punctuation_iter = MiddlewareIter::new(
             directives_iter,
             gukhanmun_core::PunctuationNormalizer::with_codec(self.options.punctuation, codec),

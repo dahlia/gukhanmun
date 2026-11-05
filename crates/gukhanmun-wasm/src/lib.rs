@@ -447,6 +447,7 @@ fn entry_dictionary(json: &str) -> Result<MapDictionary, JsValue> {
                     require_hangul: entry.require_hangul.unwrap_or(false),
                 },
                 preference: entry.preference.unwrap_or(0),
+                alias: None,
             },
         ));
     }

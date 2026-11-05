@@ -335,6 +335,7 @@ pub fn extract(snapshot: &Snapshot, decisions: &Decisions) -> Result<Extraction,
                         .get(key)
                         .is_some_and(|selected| **selected == c.reading),
                 ),
+                alias: None,
             })
             .collect();
         let runtime =

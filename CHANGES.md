@@ -25,9 +25,25 @@ To be released.
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it
     keep their streaming word bound.  [[#33], [#34]]
+ -  Bundled compound aliases now render as one dictionary-backed annotation, no
+    longer split by the engine or by the parenthetical collapser, and sibling
+    spellings no longer trigger false homophone glosses.  [[#38]]
 
 [#33]: https://github.com/dahlia/gukhanmun/issues/33
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
+[#38]: https://github.com/dahlia/gukhanmun/issues/38
+
+### gukhanmun-cdb
+
+ -  Read dictionary format version 3 candidate payloads with alias metadata.
+    [[#38]]
+
+### gukhanmun-cli
+
+ -  Canonical literals in the require-hanja directive and related directives
+    now reach reviewed alias spellings, and the streaming plain-text path
+    defers to the buffered pipeline when directives are present so identity is
+    available. [[#38]]
 
 ### gukhanmun-core
 
@@ -40,6 +56,20 @@ To be released.
  -  Changed `MapDictionary::max_word_chars()` to report `Some(0)` while the map
     is empty, so an empty user dictionary no longer hides the word bound of the
     dictionaries chained after it while streaming.  [[#33], [#34]]
+ -  Added candidate-level alias metadata (`AliasKind`, `AliasTarget`,
+    `ReadingCandidate::alias`) and `LexemeIndex`, and made homophone marking,
+    first-occurrence filtering, and literal directives resolve sibling and
+    reviewed spellings to one canonical lexeme. [[#38]]
+
+### gukhanmun-fst
+
+ -  Read dictionary format version 3 candidate payloads with alias metadata.
+    [[#38]]
+
+### gukhanmun-mkdict
+
+ -  Accept `canonical` and `alias_kind` columns plus a `--relations` input, and
+    emit format version 3 when alias metadata is present. [[#38]]
 
 ### gukhanmun-napi
 
@@ -48,6 +78,12 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+
+### gukhanmun-stdict
+
+ -  Bundled reviewed aliases for compounds such as 記念館, 聯絡處, and 顓門家,
+    and marked the non-first spellings of 連絡, 紀念, and 專門 as siblings so
+    they share one lexical identity.  [[#38]]
 
 ### gukhanmun-wasm
 

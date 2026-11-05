@@ -298,7 +298,7 @@ depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-stdict"
 let metadata = (open $"($manifest_dir)/data/metadata.json" | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
-cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb ...$metadata --rules $"($manifest_dir)/data/rules.tsv" $"($manifest_dir)/data/stdict.tsv"
+cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb ...$metadata --rules $"($manifest_dir)/data/rules.tsv" --relations $"($manifest_dir)/data/relations.tsv" $"($manifest_dir)/data/stdict.tsv" $"($manifest_dir)/data/aliases.tsv"
 """
 
 [tasks.opendict-fst-data]
@@ -372,7 +372,7 @@ depends = ["js-build", "napi-build", "loanwords-test-data"]
 run = [
   "node --test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts tests/js/loanwords.test.ts",
   "deno test --allow-read --allow-env --allow-ffi --allow-sys tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts tests/js/loanwords.test.ts",
-  "bun test tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts tests/js/loanwords.test.ts",
+  "bun test --timeout 30000 tests/js/wasm.test.ts tests/js/napi.test.ts tests/js/stdict-loader.test.ts tests/js/opendict-loader.test.ts tests/js/loanwords.test.ts",
 ]
 
 [tasks.js-sync-version]

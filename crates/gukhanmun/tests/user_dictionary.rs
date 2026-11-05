@@ -130,12 +130,14 @@ fn candidate_sets_survive_builder_boxes_and_user_override() {
                 suffix_reading: None,
                 mark: MatchMark::default(),
                 preference: 0,
+                alias: None,
             },
             ReadingCandidate {
                 reading: "도쿄".into(),
                 suffix_reading: None,
                 mark: MatchMark::default(),
                 preference: 10,
+                alias: None,
             },
         ])
         .unwrap(),
@@ -226,12 +228,14 @@ fn bundled_particles_and_format_boundaries() {
                     suffix_reading: None,
                     preference: 10,
                     mark: gukhanmun::MatchMark::default(),
+                    alias: None,
                 },
                 gukhanmun::ReadingCandidate {
                     reading: "동경".into(),
                     suffix_reading: None,
                     preference: 0,
                     mark: gukhanmun::MatchMark::default(),
+                    alias: None,
                 },
             ])
             .unwrap(),

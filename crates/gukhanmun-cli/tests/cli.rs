@@ -1574,6 +1574,7 @@ fn build_dictionary_fixture_with_format(
             metadata: BTreeMap::new(),
             rules: Vec::new(),
             allow_unmatched_rules: false,
+            relations: Vec::new(),
         },
     )
     .unwrap();
@@ -1958,4 +1959,24 @@ fn markdown_output_preserves_annotation_character_references() {
         .assert()
         .success()
         .stdout("&lt;img src=x onerror=alert(1)>\n");
+}
+
+#[test]
+fn html_directive_reaches_reviewed_alias() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--disambiguation",
+            "off",
+            "--first-occurrence",
+            "per-document",
+            "--require-hanja",
+            "連絡處",
+        ])
+        .write_stdin("<p>連絡處 聯絡處</p>")
+        .assert()
+        .success()
+        .stdout("<p>연락처(連絡處) 연락처(聯絡處)</p>");
 }

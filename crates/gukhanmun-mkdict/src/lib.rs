@@ -38,7 +38,9 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use gukhanmun_core::{MatchMark, ReadingCandidate, ReadingCandidates, select_default_reading};
+use gukhanmun_core::{
+    AliasKind, AliasTarget, MatchMark, ReadingCandidate, ReadingCandidates, select_default_reading,
+};
 
 const MAGIC: &[u8; 8] = b"GUKHMFST";
 const FIXED_HEADER_LEN: usize = 64;
@@ -184,6 +186,8 @@ pub struct DictionaryEntry {
     mark: EntryMark,
     suffix_reading: Option<String>,
     preference: Option<u32>,
+    canonical: Option<String>,
+    alias_kind: Option<AliasKind>,
 }
 
 impl DictionaryEntry {
@@ -195,6 +199,8 @@ impl DictionaryEntry {
             mark,
             suffix_reading: None,
             preference: None,
+            canonical: None,
+            alias_kind: None,
         }
     }
 
@@ -584,6 +590,10 @@ pub struct BuildOptions {
 
     /// Allow rules that match no entries to pass instead of erroring.
     pub allow_unmatched_rules: bool,
+
+    /// Paths to relation TSV files that attach alias identity to existing
+    /// entries without duplicating their keys.
+    pub relations: Vec<PathBuf>,
 }
 
 impl Default for BuildOptions {
@@ -596,6 +606,7 @@ impl Default for BuildOptions {
             metadata: BTreeMap::new(),
             rules: Vec::new(),
             allow_unmatched_rules: false,
+            relations: Vec::new(),
         }
     }
 }
@@ -634,6 +645,9 @@ pub fn build_dictionary(
             }
         }
         apply_rules(&mut entries, &rules, options.allow_unmatched_rules)?;
+    }
+    if !options.relations.is_empty() {
+        apply_relations(&mut entries, &options.relations)?;
     }
     let metadata = build_metadata(&options.metadata, &entries)?;
     match options.format {
@@ -723,6 +737,17 @@ fn candidate_groups(entries: &[DictionaryEntry]) -> Result<BTreeMap<String, Read
                     require_hangul: entry.mark.require_hangul,
                 },
                 preference: entry.preference.unwrap_or(0),
+                alias: match (&entry.canonical, entry.alias_kind) {
+                    (Some(canonical), Some(kind)) => Some(AliasTarget {
+                        canonical: canonical.clone(),
+                        kind,
+                    }),
+                    (None, None) => None,
+                    _ => bail!(
+                        "`{}` must set both `canonical` and `alias_kind`",
+                        entry.hanja
+                    ),
+                },
             });
     }
     groups
@@ -877,6 +902,17 @@ fn parse_jsonl(
         );
         entry.suffix_reading = record.suffix_reading;
         entry.preference = record.preference;
+        entry.canonical = record.canonical.filter(|value| !value.is_empty());
+        entry.alias_kind = record
+            .alias_kind
+            .filter(|value| !value.is_empty())
+            .map(|value| parse_alias_kind(&value, &format!("{}:{line_number}", path.display())))
+            .transpose()?;
+        ensure!(
+            entry.canonical.is_some() == entry.alias_kind.is_some(),
+            "{}:{line_number}: `canonical` and `aliasKind` must be set together",
+            path.display()
+        );
         entries.push(entry);
     }
     Ok(entries)
@@ -890,6 +926,8 @@ struct HeaderColumns {
     require_hangul: Option<usize>,
     preference: Option<usize>,
     suffix_reading: Option<usize>,
+    canonical: Option<usize>,
+    alias_kind: Option<usize>,
     column_count: usize,
 }
 
@@ -906,6 +944,8 @@ fn parse_header_with_format(header: &str, format_name: &str) -> Result<HeaderCol
     let mut require_hangul = None;
     let mut preference = None;
     let mut suffix_reading = None;
+    let mut canonical = None;
+    let mut alias_kind = None;
 
     for (index, column) in columns.iter().enumerate() {
         ensure!(
@@ -923,6 +963,8 @@ fn parse_header_with_format(header: &str, format_name: &str) -> Result<HeaderCol
             "require_hangul" => require_hangul = Some(index),
             "preference" => preference = Some(index),
             "suffix_reading" => suffix_reading = Some(index),
+            "canonical" => canonical = Some(index),
+            "alias_kind" => alias_kind = Some(index),
             "source_ids" => {}
             extra => {
                 tracing::warn!(
@@ -941,6 +983,8 @@ fn parse_header_with_format(header: &str, format_name: &str) -> Result<HeaderCol
         require_hangul,
         preference,
         suffix_reading,
+        canonical,
+        alias_kind,
         column_count: columns.len(),
     })
 }
@@ -997,7 +1041,31 @@ fn parse_fields(
         .and_then(|i| fields.get(i))
         .filter(|v| !v.is_empty())
         .map(|v| (*v).to_owned());
+    entry.canonical = columns
+        .canonical
+        .and_then(|i| fields.get(i))
+        .filter(|v| !v.is_empty())
+        .map(|v| (*v).to_owned());
+    entry.alias_kind = columns
+        .alias_kind
+        .and_then(|i| fields.get(i))
+        .filter(|v| !v.is_empty())
+        .map(|v| parse_alias_kind(v, location))
+        .transpose()?;
+    ensure!(
+        entry.canonical.is_some() == entry.alias_kind.is_some(),
+        "{location}: `canonical` and `alias_kind` must be set together"
+    );
     Ok(entry)
+}
+
+fn parse_alias_kind(value: &str, location: &str) -> Result<AliasKind> {
+    match value {
+        "sibling" => Ok(AliasKind::Sibling),
+        "lexical" => Ok(AliasKind::Lexical),
+        "recognition" => Ok(AliasKind::Recognition),
+        _ => bail!("{location}: invalid alias_kind `{value}`"),
+    }
 }
 
 fn normalize_entry(
@@ -1034,6 +1102,78 @@ fn parse_optional_bool(fields: &[&str], index: Option<usize>, location: &str) ->
     }
 }
 
+fn apply_relations(entries: &mut [DictionaryEntry], paths: &[PathBuf]) -> Result<()> {
+    for path in paths {
+        let file =
+            fs::File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+        let mut lines = BufReader::new(file).lines();
+        let header = loop {
+            let Some(line) = lines.next() else {
+                bail!("{} is empty", path.display());
+            };
+            let line = line.with_context(|| format!("failed to read {}", path.display()))?;
+            if !line.is_empty() {
+                break line;
+            }
+        };
+        let columns = header.split('\t').collect::<Vec<_>>();
+        let index = |name: &str| {
+            columns
+                .iter()
+                .position(|column| *column == name)
+                .ok_or_else(|| {
+                    Error::message(format!("{}: missing `{name}` column", path.display()))
+                })
+        };
+        let hanja_index = index("hanja")?;
+        let hangul_index = index("hangul")?;
+        let canonical_index = index("canonical")?;
+        let kind_index = index("alias_kind")?;
+        for (line_index, line) in lines.enumerate() {
+            let line_number = line_index + 2;
+            let line = line.with_context(|| format!("failed to read {}", path.display()))?;
+            if line.is_empty() {
+                continue;
+            }
+            let fields = line.split('\t').collect::<Vec<_>>();
+            ensure!(
+                fields.len() == columns.len(),
+                "{}:{line_number}: expected {} relation fields, got {}",
+                path.display(),
+                columns.len(),
+                fields.len()
+            );
+            let hanja = fields[hanja_index];
+            let hangul = fields[hangul_index];
+            let canonical = fields[canonical_index];
+            ensure!(
+                !canonical.is_empty(),
+                "{}:{line_number}: `canonical` must not be empty",
+                path.display()
+            );
+            let kind = parse_alias_kind(
+                fields[kind_index],
+                &format!("{}:{line_number}", path.display()),
+            )?;
+            let mut matched = 0;
+            for entry in entries
+                .iter_mut()
+                .filter(|entry| entry.hanja() == hanja && entry.reading() == hangul)
+            {
+                entry.canonical = Some(canonical.to_owned());
+                entry.alias_kind = Some(kind);
+                matched += 1;
+            }
+            ensure!(
+                matched > 0,
+                "{}:{line_number}: no entry for `{hanja}` read as `{hangul}`",
+                path.display()
+            );
+        }
+    }
+    Ok(())
+}
+
 fn build_metadata(
     user_metadata: &BTreeMap<String, String>,
     entries: &[DictionaryEntry],
@@ -1063,15 +1203,46 @@ fn build_metadata(
     );
     let groups = candidate_groups(entries)?;
     metadata.insert("entry_count".to_owned(), groups.len().to_string());
+    let has_alias = entries.iter().any(|entry| entry.canonical.is_some());
     metadata.insert(
         "version".to_owned(),
-        if groups.values().all(ReadingCandidates::is_scalar) {
+        if has_alias {
+            "3"
+        } else if groups.values().all(ReadingCandidates::is_scalar) {
             "1"
         } else {
             "2"
         }
         .to_owned(),
     );
+    let mut alias_lines = Vec::new();
+    for (hanja, candidates) in &groups {
+        for candidate in candidates.as_slice() {
+            let Some(alias) = &candidate.alias else {
+                continue;
+            };
+            let kind = match alias.kind {
+                AliasKind::Sibling => "sibling",
+                AliasKind::Lexical => "lexical",
+                AliasKind::Recognition => "recognition",
+            };
+            alias_lines.push(format!(
+                "{}\t{}\t{}\t{}",
+                hanja, candidate.reading, kind, alias.canonical
+            ));
+            if let Some(suffix) = &candidate.suffix_reading
+                && suffix != &candidate.reading
+            {
+                alias_lines.push(format!(
+                    "{}\t{}\t{}\t{}",
+                    hanja, suffix, kind, alias.canonical
+                ));
+            }
+        }
+    }
+    if !alias_lines.is_empty() {
+        metadata.insert("aliases".to_owned(), alias_lines.join("\n"));
+    }
     metadata.insert(
         "max_word_chars".to_owned(),
         entries
@@ -1287,6 +1458,10 @@ struct JsonLineEntry {
     require_hanja: bool,
     #[serde(default, alias = "requireHangul")]
     require_hangul: bool,
+    #[serde(default)]
+    canonical: Option<String>,
+    #[serde(default, alias = "aliasKind")]
+    alias_kind: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
