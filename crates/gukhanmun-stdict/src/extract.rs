@@ -418,7 +418,7 @@ impl Extractor {
                         "donor_ids": [],
                     })
                 });
-            record["kind"] = serde_json::Value::String("lexical".into());
+            record["kind"] = serde_json::Value::String(fields[7].clone());
             record["target"] = serde_json::Value::String(fields[6].clone());
             let via = fields[8].split_once('>').unwrap_or((&fields[8], ""));
             record["via"] = serde_json::json!({"from": via.0, "to": via.1});

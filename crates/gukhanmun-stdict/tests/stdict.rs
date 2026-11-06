@@ -884,3 +884,47 @@ fn malformed_seed_row_is_reported() {
     .unwrap_err();
     assert!(error.to_string().contains("seed.tsv:2"));
 }
+
+#[test]
+fn seed_manifest_reports_the_seed_alias_kind() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dump.json");
+    let seed = temp.path().join("seed.tsv");
+    fs::write(
+        &seed,
+        "hanja\thangul\trequire_hanja\trequire_hangul\tpreference\tsuffix_reading\tcanonical\talias_kind\tvia\n記念館\t기념관\tfalse\tfalse\t10\t\t紀念館\tsibling\t紀念>記念\n",
+    )
+    .unwrap();
+    let dump = serde_json::json!({"channel": {"item": [
+        {"target_code": 1, "word_info": {"word": "기념", "word_unit": "단어", "original_language_info": [
+            {"original_language": "紀念", "language_type": "한자"},
+            {"original_language": "/", "language_type": "/(병기)"},
+            {"original_language": "記念", "language_type": "한자"}
+        ]}},
+        {"target_code": 2, "word_info": {"word": "기념-관", "word_unit": "단어", "original_language_info": [
+            {"original_language": "紀念館", "language_type": "한자"}
+        ]}}
+    ]}});
+    fs::write(&input, dump.to_string()).unwrap();
+
+    let mut tsv = Vec::new();
+    let mut suffix = Vec::new();
+    let mut aliases = Vec::new();
+    let mut relations = Vec::new();
+    let mut manifest = Vec::new();
+    gukhanmun_stdict::extract::extract_path_to_all_files(
+        &input,
+        &mut tsv,
+        &mut suffix,
+        &mut aliases,
+        &mut relations,
+        &mut manifest,
+        Some(&seed),
+    )
+    .unwrap();
+    let aliases = String::from_utf8(aliases).unwrap();
+    let manifest = String::from_utf8(manifest).unwrap();
+
+    assert!(aliases.contains("記念館\t기념관\tfalse\tfalse\t10\t\t紀念館\tsibling\t紀念>記念"));
+    assert!(manifest.contains("\"kind\":\"sibling\""));
+}
