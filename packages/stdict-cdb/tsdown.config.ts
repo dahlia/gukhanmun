@@ -22,4 +22,5 @@ export default defineConfig({
   dts: true,
   outDir: "dist",
   hash: false,
+  fixedExtension: false,
 });
