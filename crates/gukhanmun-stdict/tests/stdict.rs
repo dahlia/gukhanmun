@@ -753,3 +753,178 @@ fn one_initial_reading_can_keep_several_suffix_forms() {
     assert!(output.contains("旅人\t여인\tfalse\tfalse\t10\t녀인\t1,3\n"));
     assert!(output.contains("旅人\t려인\tfalse\tfalse\t10\t\t2,4\n"));
 }
+
+#[test]
+fn seed_alias_metadata_is_present() {
+    let entry = gukhanmun_stdict::ko_kr().lookup("記念館").unwrap().unwrap();
+    println!("lookup alias: {:?}", entry.candidates().as_slice()[0].alias);
+    let record = gukhanmun_stdict::ko_kr()
+        .candidate_entries()
+        .unwrap()
+        .find(|record| record.hanja == "記念館")
+        .unwrap();
+    println!("record alias: {:?}", record.candidates.as_slice()[0].alias);
+    assert!(entry.candidates().as_slice()[0].alias.is_some());
+    assert!(record.candidates.as_slice()[0].alias.is_some());
+}
+
+#[test]
+fn seed_alias_lexeme_index_resolves() {
+    let index = gukhanmun_core::LexemeIndex::from_dictionary(gukhanmun_stdict::ko_kr()).unwrap();
+    assert_eq!(index.canonical("記念館", "기념관"), "紀念館");
+    assert_eq!(index.canonical("聯絡", "연락"), "連絡");
+}
+
+#[test]
+fn bundled_dictionary_exposes_cached_lexemes() {
+    let lexemes = gukhanmun_stdict::ko_kr().lexemes().unwrap();
+    assert_eq!(lexemes.canonical("記念館", "기념관"), "紀念館");
+}
+
+#[test]
+fn alias_extraction_writes_all_outputs_and_merges_seed() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dump.json");
+    let seed = temp.path().join("seed.tsv");
+    fs::write(
+        &seed,
+        "hanja\thangul\trequire_hanja\trequire_hangul\tpreference\tsuffix_reading\tcanonical\talias_kind\tvia\n四十八誡\t사십팔계\tfalse\tfalse\t10\t\t四十八戒\tlexical\t戒>誡\n記念館\t기념관\tfalse\tfalse\t10\t\t紀念館\tlexical\t紀念>記念\n",
+    )
+    .unwrap();
+    let dump = serde_json::json!({"channel": {"item": [
+        {"target_code": 1, "word_info": {"word": "기념", "word_unit": "단어", "original_language_info": [
+            {"original_language": "紀念", "language_type": "한자"},
+            {"original_language": "/", "language_type": "/(병기)"},
+            {"original_language": "記念", "language_type": "한자"}
+        ]}},
+        {"target_code": 2, "word_info": {"word": "기념-관", "word_unit": "단어", "original_language_info": [
+            {"original_language": "紀念館", "language_type": "한자"}
+        ]}},
+        {"target_code": 3, "word_info": {"word": "기념-비", "word_unit": "단어", "original_language_info": [
+            {"original_language": "紀念碑", "language_type": "한자"}
+        ], "pos_info": [{"pos": "명사", "comm_pattern_info": [{"sense_info": [{"definition": "인명", "cat_info": [{"cat": "인명"}]}]}]}]}},
+        {"target_code": 4, "word_info": {"word": "전동", "word_unit": "단어", "original_language_info": [
+            {"original_language": "箭筒", "language_type": "한자"},
+            {"original_language": "/", "language_type": "/(병기)"},
+            {"original_language": "箭筩", "language_type": "한자"}
+        ]}},
+        {"target_code": 5, "word_info": {"word": "전통", "word_unit": "단어", "original_language_info": [
+            {"original_language": "箭筒", "language_type": "한자"},
+            {"original_language": "/", "language_type": "/(병기)"},
+            {"original_language": "箭筩", "language_type": "한자"}
+        ]}},
+        {"target_code": 6, "word_info": {"word": "전동-주머니", "word_unit": "단어", "original_language_info": [
+            {"original_language": "箭筒주머니", "language_type": "한자"}
+        ]}},
+        {"target_code": 7, "word_info": {"word": "전통-주머니", "word_unit": "단어", "original_language_info": [
+            {"original_language": "箭筒주머니", "language_type": "한자"}
+        ]}}
+    ]}});
+    fs::write(&input, dump.to_string()).unwrap();
+
+    let mut tsv = Vec::new();
+    let mut suffix = Vec::new();
+    let mut aliases = Vec::new();
+    let mut relations = Vec::new();
+    let mut manifest = Vec::new();
+    gukhanmun_stdict::extract::extract_path_to_all_files(
+        &input,
+        &mut tsv,
+        &mut suffix,
+        &mut aliases,
+        &mut relations,
+        &mut manifest,
+        Some(&seed),
+    )
+    .unwrap();
+    let aliases = String::from_utf8(aliases).unwrap();
+    let relations = String::from_utf8(relations).unwrap();
+    let manifest = String::from_utf8(manifest).unwrap();
+
+    assert!(aliases.contains("記念館\t기념관\tfalse\tfalse\t10\t\t紀念館\tlexical\t紀念>記念"));
+    assert!(!aliases.contains("紀念碑"));
+    assert!(!manifest.contains("紀念碑"));
+    assert_eq!(aliases.matches("箭筩주머니\t전동주머니").count(), 1);
+    assert_eq!(aliases.matches("箭筩주머니\t전통주머니").count(), 1);
+    assert!(aliases.contains("四十八誡\t사십팔계\tfalse\tfalse\t10\t\t四十八戒\tlexical\t戒>誡"));
+    assert!(relations.contains("記念\t기념\t紀念\tsibling"));
+    assert!(manifest.contains("\"kind\":\"lexical\""));
+    assert_eq!(manifest.matches("\"alias\":\"箭筩주머니\"").count(), 2);
+}
+
+#[test]
+fn malformed_seed_row_is_reported() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dump.json");
+    let seed = temp.path().join("seed.tsv");
+    fs::write(
+        &seed,
+        "hanja\thangul\trequire_hanja\trequire_hangul\tpreference\tsuffix_reading\tcanonical\talias_kind\n四十八誡\t사십팔계\tfalse\tfalse\t10\t\t四十八戒\tlexical\n",
+    )
+    .unwrap();
+    fs::write(
+        &input,
+        serde_json::json!({"channel": {"item": []}}).to_string(),
+    )
+    .unwrap();
+    let mut tsv = Vec::new();
+    let mut suffix = Vec::new();
+    let mut aliases = Vec::new();
+    let mut relations = Vec::new();
+    let mut manifest = Vec::new();
+    let error = gukhanmun_stdict::extract::extract_path_to_all_files(
+        &input,
+        &mut tsv,
+        &mut suffix,
+        &mut aliases,
+        &mut relations,
+        &mut manifest,
+        Some(&seed),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("seed.tsv:2"));
+}
+
+#[test]
+fn seed_manifest_reports_the_seed_alias_kind() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("dump.json");
+    let seed = temp.path().join("seed.tsv");
+    fs::write(
+        &seed,
+        "hanja\thangul\trequire_hanja\trequire_hangul\tpreference\tsuffix_reading\tcanonical\talias_kind\tvia\n記念館\t기념관\tfalse\tfalse\t10\t\t紀念館\tsibling\t紀念>記念\n",
+    )
+    .unwrap();
+    let dump = serde_json::json!({"channel": {"item": [
+        {"target_code": 1, "word_info": {"word": "기념", "word_unit": "단어", "original_language_info": [
+            {"original_language": "紀念", "language_type": "한자"},
+            {"original_language": "/", "language_type": "/(병기)"},
+            {"original_language": "記念", "language_type": "한자"}
+        ]}},
+        {"target_code": 2, "word_info": {"word": "기념-관", "word_unit": "단어", "original_language_info": [
+            {"original_language": "紀念館", "language_type": "한자"}
+        ]}}
+    ]}});
+    fs::write(&input, dump.to_string()).unwrap();
+
+    let mut tsv = Vec::new();
+    let mut suffix = Vec::new();
+    let mut aliases = Vec::new();
+    let mut relations = Vec::new();
+    let mut manifest = Vec::new();
+    gukhanmun_stdict::extract::extract_path_to_all_files(
+        &input,
+        &mut tsv,
+        &mut suffix,
+        &mut aliases,
+        &mut relations,
+        &mut manifest,
+        Some(&seed),
+    )
+    .unwrap();
+    let aliases = String::from_utf8(aliases).unwrap();
+    let manifest = String::from_utf8(manifest).unwrap();
+
+    assert!(aliases.contains("記念館\t기념관\tfalse\tfalse\t10\t\t紀念館\tsibling\t紀念>記念"));
+    assert!(manifest.contains("\"kind\":\"sibling\""));
+}

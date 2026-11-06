@@ -130,12 +130,14 @@ fn candidate_sets_survive_builder_boxes_and_user_override() {
                 suffix_reading: None,
                 mark: MatchMark::default(),
                 preference: 0,
+                alias: None,
             },
             ReadingCandidate {
                 reading: "도쿄".into(),
                 suffix_reading: None,
                 mark: MatchMark::default(),
                 preference: 10,
+                alias: None,
             },
         ])
         .unwrap(),
@@ -226,12 +228,14 @@ fn bundled_particles_and_format_boundaries() {
                     suffix_reading: None,
                     preference: 10,
                     mark: gukhanmun::MatchMark::default(),
+                    alias: None,
                 },
                 gukhanmun::ReadingCandidate {
                     reading: "동경".into(),
                     suffix_reading: None,
                     preference: 0,
                     mark: gukhanmun::MatchMark::default(),
+                    alias: None,
                 },
             ])
             .unwrap(),
@@ -281,4 +285,59 @@ fn bundled_particles_and_format_boundaries() {
             );
         }
     }
+}
+
+#[test]
+fn conversions_reuse_the_resolved_lexeme_index() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use gukhanmun::{CandidateMatch, HanjaDictionary, LexemeIndex, MapDictionary, Match};
+
+    struct CountingLexemes {
+        inner: MapDictionary,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl HanjaDictionary for CountingLexemes {
+        fn candidate_matches_at<'a>(
+            &'a self,
+            s: &'a str,
+        ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+            self.inner.candidate_matches_at(s)
+        }
+
+        fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            self.inner.matches_at(s)
+        }
+
+        fn lexemes(&self) -> Option<LexemeIndex> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.inner.lexemes()
+        }
+    }
+
+    let mut inner = MapDictionary::new();
+    inner.insert("外字", "외자");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let dictionary = CountingLexemes {
+        inner,
+        calls: calls.clone(),
+    };
+    let converter = Builder::new()
+        .no_bundled_dictionaries()
+        .push_dictionary(dictionary)
+        .build()
+        .expect("builder");
+    let after_build = calls.load(Ordering::SeqCst);
+    assert!(after_build > 0, "build resolves the index once");
+    calls.store(0, Ordering::SeqCst);
+    for _ in 0..2 {
+        converter.convert_text_to_string("外字").expect("convert");
+    }
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "conversions must reuse the index resolved at build time"
+    );
 }

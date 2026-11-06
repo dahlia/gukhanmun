@@ -31,13 +31,31 @@ use tempfile::tempdir;
 fn converts_stdin_to_stdout_with_bundled_stdict_by_default() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
-        .write_stdin("漢字 北京 標識 一分錢 布告하다 佈告하다\n")
+        .write_stdin("漢字 北京 標識 一分錢 刻本 脚本\n")
         .assert()
         .success()
-        // 布告하다 and 佈告하다 share 포고하다 within the line, so the default
+        // 刻本 and 脚本 share 각본 within the line, so the default
         // context-local detection glosses both.  漢字 and 標識 have no in-text
         // homophone here and are therefore left as plain hangul.
-        .stdout("한자 베이징 표지 일푼전 포고하다(布告하다) 포고하다(佈告하다)\n");
+        .stdout("한자 베이징 표지 일푼전 각본(刻本) 각본(脚本)\n");
+}
+
+#[test]
+fn dictionary_wide_homophones_ignore_derived_alias_spellings() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--homophone-detection",
+            "dictionary-wide",
+            "--disambiguation",
+            "per-document",
+        ])
+        .write_stdin("紀念品 刻本 脚本\n")
+        .assert()
+        .success()
+        // 記念品 is a recognition alias of 紀念品, so the canonical spelling is
+        // not a homophone on its own; 刻本 and 脚本 are genuinely homophonous.
+        .stdout("기념품 각본(刻本) 각본(脚本)\n");
 }
 
 #[test]
@@ -1574,6 +1592,7 @@ fn build_dictionary_fixture_with_format(
             metadata: BTreeMap::new(),
             rules: Vec::new(),
             allow_unmatched_rules: false,
+            relations: Vec::new(),
         },
     )
     .unwrap();
@@ -1958,4 +1977,40 @@ fn markdown_output_preserves_annotation_character_references() {
         .assert()
         .success()
         .stdout("&lt;img src=x onerror=alert(1)>\n");
+}
+
+#[test]
+fn html_directive_reaches_reviewed_alias() {
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--format",
+            "text/html",
+            "--disambiguation",
+            "off",
+            "--first-occurrence",
+            "per-document",
+            "--require-hanja",
+            "連絡處",
+        ])
+        .write_stdin("<p>連絡處 聯絡處</p>")
+        .assert()
+        .success()
+        .stdout("<p>연락처(連絡處) 연락처(聯絡處)</p>");
+}
+
+#[test]
+fn plain_stream_with_directive_writes_before_eof() {
+    assert_plain_stdin_writes_before_eof(
+        [
+            "--disambiguation",
+            "off",
+            "--first-occurrence",
+            "off",
+            "--require-hanja",
+            "連絡處",
+        ],
+        "聯絡處\n",
+        "연락처(聯絡處)\n",
+    );
 }

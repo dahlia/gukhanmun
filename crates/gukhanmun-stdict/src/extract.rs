@@ -21,6 +21,7 @@ use std::fs;
 use std::io::{BufReader, Cursor, Read, Seek, Write};
 use std::path::Path;
 
+use gukhanmun_dict_extract::aliases::{AliasPolicy, AliasSource, derive_aliases};
 use gukhanmun_dict_extract::{
     OriginalLanguageInfo, foreign_hanja_piece, is_hanja, keys_from_originals, normalize_word,
 };
@@ -46,6 +47,10 @@ pub enum Error {
     /// ZIP archive input could not be read.
     #[error("failed to read dictionary ZIP archive: {0}")]
     Zip(#[from] zip::result::ZipError),
+
+    /// Alias seed or generated data was not valid UTF-8.
+    #[error("alias data is not valid UTF-8: {0}")]
+    Utf8(#[from] std::string::FromUtf8Error),
 }
 
 /// Result type returned by Standard Korean Language Dictionary extraction APIs.
@@ -77,6 +82,32 @@ pub fn extract_path_to_files(
 ) -> Result<ExtractStats> {
     let mut extractor = Extractor::default();
     extractor.read_path(path)?;
+    extractor.write_suffix_tsv(suffix_writer)?;
+    extractor.write_tsv(tsv_writer)
+}
+
+/// Extracts the canonical TSV, suffix overrides, aliases, relations, and
+/// alias manifest from one input.
+///
+/// The alias files are derived after every shard is read so source-id
+/// ambiguity checks see the complete dictionary.
+pub fn extract_path_to_all_files(
+    path: &Path,
+    tsv_writer: impl Write,
+    suffix_writer: impl Write,
+    aliases_writer: impl Write,
+    relations_writer: impl Write,
+    manifest_writer: impl Write,
+    seed_aliases: Option<&Path>,
+) -> Result<ExtractStats> {
+    let mut extractor = Extractor::default();
+    extractor.read_path(path)?;
+    extractor.write_alias_files(
+        aliases_writer,
+        relations_writer,
+        manifest_writer,
+        seed_aliases,
+    )?;
     extractor.write_suffix_tsv(suffix_writer)?;
     extractor.write_tsv(tsv_writer)
 }
@@ -118,6 +149,8 @@ struct Extractor {
     initial_forms: BTreeMap<String, BTreeSet<String>>,
     /// Suffix and bound-noun readings seen for multi-syllable hanja keys.
     suffix_forms: BTreeMap<String, BTreeSet<String>>,
+    /// Raw headword rows used for compound alias derivation.
+    alias_sources: Vec<AliasSource>,
 }
 
 impl Extractor {
@@ -222,6 +255,21 @@ impl Extractor {
         };
         let base_priority = entry_priority(&word_info, originals);
         let suffix_headword = is_suffix_headword(&word_info);
+        let categories = word_info
+            .pos_info
+            .iter()
+            .flat_map(|pos| &pos.comm_pattern_info)
+            .flat_map(|pattern| &pattern.sense_info)
+            .flat_map(|sense| &sense.cat_info)
+            .filter_map(|cat| cat.cat.clone())
+            .collect::<BTreeSet<_>>();
+        self.alias_sources.push(AliasSource {
+            word: word_info.word.clone().unwrap_or_default(),
+            reading: reading.clone(),
+            spellings: keys.clone(),
+            source_ids: source_id.into_iter().collect(),
+            categories,
+        });
 
         for key in keys {
             // A single hanja borrowed for a foreign reading (the loanword 삐끼
@@ -296,6 +344,177 @@ impl Extractor {
             .entry(key.to_owned())
             .or_default()
             .insert(reading.to_owned());
+    }
+
+    fn merge_seed_aliases(
+        aliases: &mut Vec<u8>,
+        manifest: &mut Vec<u8>,
+        seed_path: &Path,
+    ) -> Result<()> {
+        use std::collections::BTreeMap;
+
+        let seed = fs::read_to_string(seed_path)?;
+        let mut seed_rows = BTreeMap::<(String, String), Vec<String>>::new();
+        for (index, line) in seed.lines().enumerate().skip(1) {
+            if line.is_empty() {
+                continue;
+            }
+            let fields = line.split('\t').map(str::to_owned).collect::<Vec<_>>();
+            if fields.len() != 9 || fields[0].is_empty() || fields[1].is_empty() {
+                return Err(Error::DefaultDecision(format!(
+                    "{}:{}: expected 9 fields with nonempty hanja and hangul",
+                    seed_path.display(),
+                    index + 1,
+                )));
+            }
+            seed_rows.insert((fields[0].clone(), fields[1].clone()), fields);
+        }
+        let text = String::from_utf8(std::mem::take(aliases))?;
+        let mut lines = text.lines();
+        let header = lines.next().unwrap_or_default().to_owned();
+        let mut rows = BTreeMap::<(String, String), String>::new();
+        for line in lines {
+            let fields = line.split('\t').collect::<Vec<_>>();
+            if fields.len() >= 2 {
+                rows.insert(
+                    (fields[0].to_owned(), fields[1].to_owned()),
+                    line.to_owned(),
+                );
+            }
+        }
+        for (key, fields) in &seed_rows {
+            rows.insert(key.clone(), fields.join("\t"));
+        }
+        let mut output = String::new();
+        output.push_str(&header);
+        output.push('\n');
+        for line in rows.values() {
+            output.push_str(line);
+            output.push('\n');
+        }
+        *aliases = output.into_bytes();
+
+        let manifest_text = String::from_utf8(std::mem::take(manifest))?;
+        let mut records = BTreeMap::<(String, String), serde_json::Value>::new();
+        for line in manifest_text.lines() {
+            if let Ok(record) = serde_json::from_str::<serde_json::Value>(line)
+                && let (Some(alias), Some(reading)) = (
+                    record.get("alias").and_then(|value| value.as_str()),
+                    record.get("reading").and_then(|value| value.as_str()),
+                )
+            {
+                records.insert((alias.to_owned(), reading.to_owned()), record);
+            }
+        }
+        for ((alias, reading), fields) in seed_rows {
+            let mut record = records
+                .remove(&(alias.clone(), reading.clone()))
+                .unwrap_or_else(|| {
+                    serde_json::json!({
+                        "schema": 1,
+                        "alias": alias,
+                        "reading": reading,
+                        "compound_ids": [],
+                        "donor_ids": [],
+                    })
+                });
+            record["kind"] = serde_json::Value::String(fields[7].clone());
+            record["target"] = serde_json::Value::String(fields[6].clone());
+            let via = fields[8].split_once('>').unwrap_or((&fields[8], ""));
+            record["via"] = serde_json::json!({"from": via.0, "to": via.1});
+            records.insert((alias, reading), record);
+        }
+        let mut output = String::new();
+        for record in records.values() {
+            output.push_str(&serde_json::to_string(record)?);
+            output.push('\n');
+        }
+        *manifest = output.into_bytes();
+        Ok(())
+    }
+
+    /// Writes derived compound aliases, sibling relations, and their manifest.
+    fn write_alias_files(
+        &self,
+        mut aliases_writer: impl Write,
+        mut relations_writer: impl Write,
+        mut manifest_writer: impl Write,
+        seed_aliases: Option<&Path>,
+    ) -> Result<()> {
+        let (aliases, relations) = derive_aliases(&self.alias_sources, &AliasPolicy::default());
+        let mut aliases_buffer = Vec::new();
+        let mut manifest_buffer = Vec::new();
+        writeln!(
+            aliases_buffer,
+            "hanja\thangul\trequire_hanja\trequire_hangul\tpreference\tsuffix_reading\tcanonical\talias_kind\tvia"
+        )?;
+        for alias in &aliases {
+            if !self.entries.contains_key(&alias.canonical)
+                || !self
+                    .entries
+                    .get(&alias.canonical)
+                    .is_some_and(|entries| entries.contains_key(&alias.reading))
+            {
+                continue;
+            }
+            writeln!(
+                aliases_buffer,
+                "{}\t{}\tfalse\tfalse\t10\t\t{}\trecognition\t{}>{}",
+                alias.hanja, alias.reading, alias.canonical, alias.via.0, alias.via.1,
+            )?;
+        }
+        writeln!(relations_writer, "hanja\thangul\tcanonical\talias_kind")?;
+        for relation in &relations {
+            let source_exists = self
+                .entries
+                .get(&relation.hanja)
+                .is_some_and(|entries| entries.contains_key(&relation.reading));
+            let canonical_exists = self
+                .entries
+                .get(&relation.canonical)
+                .is_some_and(|entries| entries.contains_key(&relation.reading));
+            if !source_exists || !canonical_exists {
+                continue;
+            }
+            writeln!(
+                relations_writer,
+                "{}\t{}\t{}\tsibling",
+                relation.hanja, relation.reading, relation.canonical,
+            )?;
+        }
+        for alias in &aliases {
+            if !self.entries.contains_key(&alias.canonical)
+                || !self
+                    .entries
+                    .get(&alias.canonical)
+                    .is_some_and(|entries| entries.contains_key(&alias.reading))
+            {
+                continue;
+            }
+            let record = serde_json::json!({
+                "schema": 1,
+                "alias": alias.hanja,
+                "target": alias.canonical,
+                "reading": alias.reading,
+                "kind": "recognition",
+                "via": {"from": alias.via.0, "to": alias.via.1},
+                "compound_ids": alias.compound_source_ids,
+                "donor_ids": alias.donor_source_ids,
+            });
+            serde_json::to_writer(&mut manifest_buffer, &record)?;
+            writeln!(manifest_buffer)?;
+        }
+        if let Some(seed) = seed_aliases {
+            Self::merge_seed_aliases(&mut aliases_buffer, &mut manifest_buffer, seed)?;
+        }
+        aliases_writer.write_all(&aliases_buffer)?;
+        manifest_writer.write_all(&manifest_buffer)?;
+        tracing::info!(
+            aliases = aliases.len(),
+            relations = relations.len(),
+            "wrote alias data"
+        );
+        Ok(())
     }
 
     /// Writes the multi-syllable suffix override table.
@@ -570,6 +789,13 @@ struct CommPatternInfo {
 struct SenseInfo {
     definition: Option<String>,
     definition_original: Option<String>,
+    #[serde(default)]
+    cat_info: Vec<CatInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CatInfo {
+    cat: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

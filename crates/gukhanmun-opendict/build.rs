@@ -65,15 +65,32 @@ fn build_category(
     output_name: &str,
 ) -> Result<()> {
     let input = manifest_dir.join("data").join(input_name);
+    let aliases = manifest_dir
+        .join("data")
+        .join(format!("{category}-aliases.tsv"));
+    let relations = manifest_dir
+        .join("data")
+        .join(format!("{category}-relations.tsv"));
     let output = out_dir.join(output_name);
     println!("cargo:rerun-if-changed={}", input.display());
+    println!("cargo:rerun-if-changed={}", aliases.display());
+    println!("cargo:rerun-if-changed={}", relations.display());
+    let mut inputs = vec![input];
+    if aliases.exists() {
+        inputs.push(aliases);
+    }
+    let relations = if relations.exists() {
+        vec![relations]
+    } else {
+        Vec::new()
+    };
     let metadata = manifest_dir.join("data/metadata.json");
     println!("cargo:rerun-if-changed={}", metadata.display());
     let mut provenance: BTreeMap<String, String> =
         serde_json::from_slice(&std::fs::read(metadata)?)?;
     provenance.insert("category".to_owned(), category.to_owned());
     build_dictionary(
-        &[input],
+        &inputs,
         output,
         &BuildOptions {
             format: DictionaryFormat::Fst,
@@ -83,6 +100,7 @@ fn build_category(
             metadata: provenance,
             rules: Vec::new(),
             allow_unmatched_rules: false,
+            relations,
         },
     )?;
     Ok(())

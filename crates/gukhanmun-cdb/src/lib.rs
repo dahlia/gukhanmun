@@ -26,9 +26,9 @@ use std::sync::Arc;
 
 use ciborium::de::from_reader;
 use gukhanmun_core::{
-    CandidateError, CandidateMatch, CandidateRecord, DictionaryRecord, HanjaDictionary, Match,
-    MatchMark, ReadingCandidate, ReadingCandidates, candidate_matches_at_spellings,
-    select_default_reading,
+    CandidateError, CandidateMatch, CandidateRecord, DictionaryRecord, HanjaDictionary,
+    LexemeIndex, Match, MatchMark, ReadingCandidate, ReadingCandidates,
+    candidate_matches_at_spellings, select_default_reading,
 };
 
 const META_KEY: &[u8] = b"__gukhanmun_meta__";
@@ -69,6 +69,7 @@ pub struct CdbDictionary {
     data: DataSource,
     entry_count: u64,
     max_word_chars: Option<usize>,
+    lexemes: LexemeIndex,
 }
 
 impl CdbDictionary {
@@ -104,18 +105,23 @@ impl CdbDictionary {
         let metadata = from_reader::<BTreeMap<String, String>, _>(metadata_bytes.as_slice())
             .map_err(|source| Error::MetadataDecode { source })?;
         if let Some(version) = metadata.get("version")
-            && !matches!(version.as_str(), "1" | "2")
+            && !matches!(version.as_str(), "1" | "2" | "3")
         {
             tracing::error!(version = %version, expected = "1 or 2", "unsupported CDB format version");
             return Err(Error::UnsupportedVersion {
                 version: version.clone(),
             });
         }
-        let format_version = metadata
-            .get("version")
-            .map_or(1, |v| if v == "2" { 2 } else { 1 });
+        let format_version = metadata.get("version").map_or(1, |v| match v.as_str() {
+            "3" => 3,
+            "2" => 2,
+            _ => 1,
+        });
         let entry_count = parse_u64_metadata(&metadata, "entry_count").unwrap_or(0);
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars");
+        let lexemes = metadata
+            .get("aliases")
+            .map_or_else(LexemeIndex::default, |encoded| LexemeIndex::decode(encoded));
 
         tracing::info!(
             format_version = metadata.get("version").map(String::as_str).unwrap_or("1"),
@@ -128,6 +134,7 @@ impl CdbDictionary {
             data,
             entry_count,
             max_word_chars,
+            lexemes,
         })
     }
 
@@ -255,9 +262,14 @@ impl HanjaDictionary for CdbDictionary {
         ))
     }
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        let hanja = self.lexemes.homophone_canonical(hanja, reading);
         self.candidate_entries()
             .unwrap()
             .any(|record| record.has_homophone(hanja, reading))
+    }
+
+    fn lexemes(&self) -> Option<LexemeIndex> {
+        Some(self.lexemes.clone())
     }
 }
 
@@ -521,7 +533,7 @@ fn decode_record_version(value: &[u8], version: u32) -> Result<Option<LookupEntr
         return Err(CandidateError::Malformed.into());
     }
     if value[0] == 0 {
-        if version == 2 && value != [0, 0, 0, 0] {
+        if version >= 2 && value != [0, 0, 0, 0] {
             return Err(CandidateError::Malformed.into());
         }
         return Ok(None);
@@ -545,7 +557,7 @@ fn decode_record_version(value: &[u8], version: u32) -> Result<Option<LookupEntr
             candidates: ReadingCandidates::decode_payload(reading_bytes)?,
         }));
     }
-    if version == 2 && (value[0] != 1 || value[1] & !3 != 0 || value.len() != reading_end) {
+    if version >= 2 && (value[0] != 1 || value[1] & !3 != 0 || value.len() != reading_end) {
         return Err(CandidateError::Malformed.into());
     }
     let reading = std::str::from_utf8(reading_bytes)
@@ -561,6 +573,7 @@ fn decode_record_version(value: &[u8], version: u32) -> Result<Option<LookupEntr
             suffix_reading: None,
             mark,
             preference: 0,
+            alias: None,
         }])?,
     }))
 }
@@ -933,6 +946,7 @@ mod candidate_record_tests {
             suffix_reading: Some("년대".into()),
             mark: MatchMark::default(),
             preference: 0,
+            alias: None,
         }])
         .unwrap();
         let payload = candidates.encode_payload().unwrap();

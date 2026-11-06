@@ -2608,6 +2608,12 @@ fn context_local_detection_does_not_build_dictionary_index() {
             Box::new(std::iter::empty())
         }
 
+        fn candidate_entries<'a>(
+            &'a self,
+        ) -> Option<Box<dyn Iterator<Item = gukhanmun_core::CandidateRecord> + 'a>> {
+            None
+        }
+
         fn entries<'a>(
             &'a self,
         ) -> Option<Box<dyn Iterator<Item = gukhanmun_core::DictionaryRecord> + 'a>> {

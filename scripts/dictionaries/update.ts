@@ -98,9 +98,28 @@ export interface Result {
   summary: string;
   sources: Partial<Record<Kind, Source>>;
 }
-function groups(bytes: Uint8Array): Map<string, string[]> {
-  const rows = decoder.decode(bytes).trimEnd().split("\n");
+function groups(bytes: Uint8Array, name = ""): Map<string, string[]> {
+  const text = decoder.decode(bytes).trimEnd();
   const result = new Map<string, string[]>();
+  if (name.endsWith(".jsonl")) {
+    for (const line of text.split("\n")) {
+      if (!line) continue;
+      let key = line;
+      try {
+        const record = JSON.parse(line);
+        if (typeof record.alias === "string" && typeof record.reading === "string") {
+          key = `${record.alias}\t${record.reading}`;
+        }
+      } catch {
+        // Keep malformed lines addressable rather than dropping them.
+      }
+      const values = result.get(key) ?? [];
+      values.push(line);
+      result.set(key, values);
+    }
+    return result;
+  }
+  const rows = text.split("\n");
   for (const line of rows.slice(1)) {
     if (!line) continue;
     const key = line.split("\t")[0];
@@ -111,8 +130,12 @@ function groups(bytes: Uint8Array): Map<string, string[]> {
   return result;
 }
 /** Counts key-level changes including alternate readings and positional forms. */
-export async function mappingReport(before: Uint8Array, after: Uint8Array): Promise<MappingReport> {
-  const old = groups(before), current = groups(after);
+export async function mappingReport(
+  before: Uint8Array,
+  after: Uint8Array,
+  name = "",
+): Promise<MappingReport> {
+  const old = groups(before, name), current = groups(after, name);
   return {
     sha256: await hash(after),
     rows: [...current.values()].reduce((n, rows) => n + rows.length, 0),
@@ -196,7 +219,7 @@ export async function update(root: string, directory: string, execute: Run = run
         const bytes = await Deno.readFile(`${staged}/${name}`);
         const old = await read(root, `${data(kind)}/${name}`);
         if (!old) throw new Error("target dictionary file missing");
-        reports[name] = await mappingReport(old, bytes);
+        reports[name] = await mappingReport(old, bytes, name);
         if (await hash(old) !== await hash(bytes)) {
           behaviorChanged = true;
           changes.set(`${data(kind)}/${name}`, bytes);

@@ -38,6 +38,27 @@ struct Cli {
     #[arg(long, value_name = "PATH")]
     suffix_output: Option<PathBuf>,
 
+    /// Path to write derived compound aliases.
+    #[arg(
+        long,
+        value_name = "PATH",
+        requires = "relations_output",
+        requires = "manifest_output"
+    )]
+    aliases_output: Option<PathBuf>,
+
+    /// Path to write sibling spelling relations.
+    #[arg(long, value_name = "PATH", requires = "aliases_output")]
+    relations_output: Option<PathBuf>,
+
+    /// Path to write the JSONL alias derivation manifest.
+    #[arg(long, value_name = "PATH", requires = "aliases_output")]
+    manifest_output: Option<PathBuf>,
+
+    /// Reviewed alias TSV merged over derived alias rows.
+    #[arg(long, value_name = "PATH")]
+    seed_aliases: Option<PathBuf>,
+
     /// Check that output files match extraction without modifying them.
     #[arg(long, requires = "output")]
     check: bool,
@@ -52,7 +73,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_writer(io::stderr)
         .init();
     let mut output = Vec::new();
-    let stats = if let Some(suffix_path) = cli.suffix_output {
+    let stats = if let Some(aliases_path) = cli.aliases_output {
+        let mut suffix_output = Vec::new();
+        let mut aliases_output = Vec::new();
+        let mut relations_output = Vec::new();
+        let mut manifest_output = Vec::new();
+        let stats = gukhanmun_stdict::extract::extract_path_to_all_files(
+            &cli.input,
+            &mut output,
+            &mut suffix_output,
+            &mut aliases_output,
+            &mut relations_output,
+            &mut manifest_output,
+            cli.seed_aliases.as_deref(),
+        )?;
+        if let Some(path) = cli.suffix_output {
+            write_or_check(path, &suffix_output, cli.check)?;
+        }
+        write_or_check(aliases_path, &aliases_output, cli.check)?;
+        write_or_check(
+            cli.relations_output
+                .expect("clap requires relations output"),
+            &relations_output,
+            cli.check,
+        )?;
+        write_or_check(
+            cli.manifest_output.expect("clap requires manifest output"),
+            &manifest_output,
+            cli.check,
+        )?;
+        stats
+    } else if let Some(suffix_path) = cli.suffix_output {
         let mut suffix_output = Vec::new();
         let stats = gukhanmun_stdict::extract::extract_path_to_files(
             &cli.input,

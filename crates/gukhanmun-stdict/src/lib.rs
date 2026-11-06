@@ -21,7 +21,9 @@
 
 use std::sync::OnceLock;
 
-use gukhanmun_core::{CandidateMatch, CandidateRecord, DictionaryRecord, HanjaDictionary, Match};
+use gukhanmun_core::{
+    CandidateMatch, CandidateRecord, DictionaryRecord, HanjaDictionary, LexemeIndex, Match,
+};
 use gukhanmun_fst::FstDictionary;
 
 /// Extracts canonical TSV rows from Standard Korean Language Dictionary dumps.
@@ -90,6 +92,10 @@ impl HanjaDictionary for KoKrDictionary {
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
         self.fst.has_homophone(hanja, reading)
+    }
+
+    fn lexemes(&self) -> Option<LexemeIndex> {
+        self.fst.lexemes()
     }
 }
 

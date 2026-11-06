@@ -19,7 +19,9 @@ use std::io;
 use std::path::PathBuf;
 
 use clap::Parser;
-use gukhanmun_opendict::extract::{CategoryWriters, extract_path_to_files};
+use gukhanmun_opendict::extract::{
+    CategoryWriters, extract_path_to_all_files, extract_path_to_files,
+};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
@@ -43,6 +45,10 @@ struct Cli {
     #[arg(long, value_name = "PATH")]
     archaic_output: PathBuf,
 
+    /// Directory for per-category alias, relation, and manifest files.
+    #[arg(long, value_name = "DIR")]
+    aliases_dir: Option<PathBuf>,
+
     /// Compare all four outputs without creating or overwriting any files.
     #[arg(long)]
     check: bool,
@@ -61,15 +67,72 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut north_korean = Vec::new();
     let mut dialect = Vec::new();
     let mut archaic = Vec::new();
-    let stats = extract_path_to_files(
-        &cli.input,
-        CategoryWriters {
-            general: &mut general,
-            north_korean: &mut north_korean,
-            dialect: &mut dialect,
-            archaic: &mut archaic,
-        },
-    )?;
+    let writers = CategoryWriters {
+        general: &mut general,
+        north_korean: &mut north_korean,
+        dialect: &mut dialect,
+        archaic: &mut archaic,
+    };
+    let (stats, alias_outputs) = if cli.aliases_dir.is_some() {
+        extract_path_to_all_files(&cli.input, writers)?
+    } else {
+        (
+            extract_path_to_files(&cli.input, writers)?,
+            Default::default(),
+        )
+    };
+    if let Some(dir) = &cli.aliases_dir {
+        if cli.check {
+            let mut drift = false;
+            for (category, outputs) in &alias_outputs {
+                for (name, bytes) in [
+                    (format!("{}-aliases.tsv", category.id()), &outputs.aliases),
+                    (
+                        format!("{}-relations.tsv", category.id()),
+                        &outputs.relations,
+                    ),
+                    (
+                        format!("{}-manifest.jsonl", category.id()),
+                        &outputs.manifest,
+                    ),
+                ] {
+                    let path = dir.join(name);
+                    match fs::read(&path) {
+                        Ok(actual) if actual == *bytes => {}
+                        Ok(_) => {
+                            tracing::error!(path = %path.display(), "alias extraction drift");
+                            drift = true;
+                        }
+                        Err(error) => {
+                            tracing::error!(path = %path.display(), %error, "cannot check alias output");
+                            drift = true;
+                        }
+                    }
+                }
+            }
+            if drift {
+                return Err(
+                    "Open Korean Dictionary alias extraction differs from checked outputs".into(),
+                );
+            }
+        } else {
+            fs::create_dir_all(dir)?;
+            for (category, outputs) in &alias_outputs {
+                fs::write(
+                    dir.join(format!("{}-aliases.tsv", category.id())),
+                    &outputs.aliases,
+                )?;
+                fs::write(
+                    dir.join(format!("{}-relations.tsv", category.id())),
+                    &outputs.relations,
+                )?;
+                fs::write(
+                    dir.join(format!("{}-manifest.jsonl", category.id())),
+                    &outputs.manifest,
+                )?;
+            }
+        }
+    }
     let outputs = [
         (&cli.general_output, general),
         (&cli.north_korean_output, north_korean),

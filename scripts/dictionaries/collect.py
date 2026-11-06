@@ -44,8 +44,25 @@ ENDPOINTS = {
     "opendict": "https://opendict.korean.go.kr/member/fileDownload",
 }
 FILES = {
-    "stdict": ("stdict.tsv", "suffix.tsv"),
-    "opendict": ("general.tsv", "north-korean.tsv", "dialect.tsv", "archaic.tsv"),
+    "stdict": ("stdict.tsv", "suffix.tsv", "aliases.tsv", "relations.tsv", "aliases-manifest.jsonl"),
+    "opendict": (
+        "general.tsv",
+        "north-korean.tsv",
+        "dialect.tsv",
+        "archaic.tsv",
+        "general-aliases.tsv",
+        "north-korean-aliases.tsv",
+        "dialect-aliases.tsv",
+        "archaic-aliases.tsv",
+        "general-relations.tsv",
+        "north-korean-relations.tsv",
+        "dialect-relations.tsv",
+        "archaic-relations.tsv",
+        "general-manifest.jsonl",
+        "north-korean-manifest.jsonl",
+        "dialect-manifest.jsonl",
+        "archaic-manifest.jsonl",
+    ),
 }
 MAX_ZIP = 1024**3
 MAX_MEMBER = 128 * 1024**2
@@ -97,7 +114,7 @@ def input_fingerprint(root):
     root = Path(root).resolve()
     paths = [root / p for p in ("Cargo.lock", "Cargo.toml", "mise.toml", "scripts/dictionaries/interface.json")]
     for p in (root / "crates").rglob("*"):
-        if p.is_file() and (p.suffix == ".rs" or p.name in ("Cargo.toml", "defaults.tsv", "rules.tsv")):
+        if p.is_file() and (p.suffix == ".rs" or p.name in ("Cargo.toml", "defaults.tsv", "rules.tsv", "aliases-seed.tsv")):
             paths.append(p)
     digest = hashlib.sha256()
     for path in sorted(paths):

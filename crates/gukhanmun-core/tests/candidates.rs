@@ -30,6 +30,7 @@ fn candidate(
             require_hanja: hanja,
             require_hangul: false,
         },
+        alias: None,
     }
 }
 fn tokyo() -> ReadingCandidates {

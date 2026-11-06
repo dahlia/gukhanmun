@@ -448,6 +448,7 @@ fn entry_dictionary(json: &str) -> napi::Result<MapDictionary> {
                     require_hangul: entry.require_hangul.unwrap_or(false),
                 },
                 preference: entry.preference.unwrap_or(0),
+                alias: None,
             },
         ));
     }

@@ -183,3 +183,22 @@ Deno.test("local collection helper accepts filesystem paths with spaces", async 
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("JSONL mapping reports do not skip the first record", async () => {
+  const before = encoder.encode(
+    '{"alias":"甲","reading":"갑","kind":"recognition"}\n' +
+      '{"alias":"乙","reading":"을","kind":"recognition"}\n',
+  );
+  const after = encoder.encode(
+    '{"alias":"甲","reading":"갑","kind":"lexical"}\n' +
+      '{"alias":"乙","reading":"을","kind":"recognition"}\n',
+  );
+  assert.deepEqual(await mappingReport(before, after, "aliases-manifest.jsonl"), {
+    sha256: await hash(after),
+    rows: 2,
+    keys: 2,
+    added: 0,
+    removed: 0,
+    changed: 1,
+  });
+});

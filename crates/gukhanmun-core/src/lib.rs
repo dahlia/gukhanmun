@@ -35,8 +35,8 @@ mod punctuation_categories;
 pub use punctuation::*;
 
 pub use candidates::{
-    CandidateError, CandidateMatch, CandidateRecord, ReadingCandidate, ReadingCandidates,
-    candidate_matches_at_spellings, select_default_reading,
+    AliasKind, AliasTarget, CandidateError, CandidateMatch, CandidateRecord, LexemeIndex,
+    ReadingCandidate, ReadingCandidates, candidate_matches_at_spellings, select_default_reading,
 };
 mod generated;
 mod segment;
@@ -540,8 +540,21 @@ pub trait HanjaDictionary {
 
     /// Returns whether another hanja spelling has the same hangul reading.
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        let lexemes = LexemeIndex::from_dictionary(self);
+        let hanja = lexemes
+            .as_ref()
+            .map_or(hanja, |lexemes| lexemes.homophone_canonical(hanja, reading));
         self.candidate_entries()
             .is_some_and(|mut entries| entries.any(|record| record.has_homophone(hanja, reading)))
+    }
+
+    /// Returns cached lexical identity relations, when the backend has them.
+    ///
+    /// Backends that serialize alias metadata can return a prebuilt index so
+    /// identity checks do not rescan the whole dictionary for every conversion.
+    /// The default returns `None`, which keeps spelling-based identity.
+    fn lexemes(&self) -> Option<LexemeIndex> {
+        None
     }
 }
 
@@ -581,6 +594,10 @@ where
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
         (**self).has_homophone(hanja, reading)
     }
+
+    fn lexemes(&self) -> Option<LexemeIndex> {
+        (**self).lexemes()
+    }
 }
 
 impl<D> HanjaDictionary for Box<D>
@@ -618,6 +635,10 @@ where
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
         (**self).has_homophone(hanja, reading)
+    }
+
+    fn lexemes(&self) -> Option<LexemeIndex> {
+        (**self).lexemes()
     }
 }
 
@@ -797,13 +818,56 @@ where
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        if let Some(mut records) = self.candidate_entries() {
-            return records.any(|record| record.has_homophone(hanja, reading));
+        let lexemes = self
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(self));
+        let hanja = lexemes
+            .as_ref()
+            .map_or(hanja, |lexemes| lexemes.homophone_canonical(hanja, reading));
+        let mut records = BTreeMap::<String, CandidateRecord>::new();
+        let mut lookup_only = Vec::new();
+        for dictionary in &self.dictionaries {
+            match dictionary.candidate_entries() {
+                Some(entries) => {
+                    for record in entries {
+                        records.entry(record.hanja.clone()).or_insert(record);
+                    }
+                }
+                None => lookup_only.push(dictionary),
+            }
         }
+        let collision = records
+            .values()
+            .any(|record| record.has_homophone(hanja, reading));
+        collision
+            || lookup_only
+                .into_iter()
+                .any(|dictionary| dictionary.has_homophone(hanja, reading))
+    }
 
-        self.dictionaries
-            .iter()
-            .any(|dictionary| dictionary.has_homophone(hanja, reading))
+    fn lexemes(&self) -> Option<LexemeIndex> {
+        let mut merged = LexemeIndex::default();
+        let mut any = false;
+        for (index, dictionary) in self.dictionaries.iter().enumerate() {
+            let Some(lexemes) = dictionary
+                .lexemes()
+                .or_else(|| LexemeIndex::from_dictionary(dictionary))
+            else {
+                continue;
+            };
+            any = true;
+            for (hanja, reading, kind, canonical) in lexemes.iter() {
+                let overridden = self.dictionaries[..index].iter().any(|higher| {
+                    higher
+                        .matches_at(hanja)
+                        .any(|matched| matched.byte_len == hanja.len())
+                });
+                if !overridden {
+                    merged.insert(hanja, reading, kind, canonical);
+                }
+            }
+        }
+        any.then_some(merged)
     }
 }
 
@@ -904,6 +968,7 @@ pub enum NumeralStrategy {
 pub struct MapDictionary {
     entries: BTreeMap<String, ReadingCandidates>,
     max_word_chars: Option<usize>,
+    lexemes: LexemeIndex,
 }
 
 impl MapDictionary {
@@ -952,10 +1017,9 @@ impl MapDictionary {
         self.max_word_chars = Some(self.max_word_chars.map_or(word_chars, |max| {
             if word_chars > max { word_chars } else { max }
         }));
-        self.entries.insert(
-            hanja,
-            ReadingCandidates::from_legacy(reading.into(), suffix_reading, mark),
-        );
+        let candidates = ReadingCandidates::from_legacy(reading.into(), suffix_reading, mark);
+        self.lexemes.set_key(&hanja, &candidates);
+        self.entries.insert(hanja, candidates);
     }
 
     /// Replaces a whole key with an explicitly authored, validated candidate set.
@@ -964,7 +1028,70 @@ impl MapDictionary {
         let hanja = hanja.into();
         let chars = hanja.chars().count();
         self.max_word_chars = Some(self.max_word_chars.map_or(chars, |max| max.max(chars)));
+        self.lexemes.set_key(&hanja, &candidates);
         self.entries.insert(hanja, candidates);
+    }
+
+    /// Adds one alias candidate to a key, preserving its existing candidates.
+    ///
+    /// Fails with [`CandidateError::ConflictingAlias`] when the key already has
+    /// a candidate with the same reading but a different identity.
+    ///
+    /// The canonical key does not have to exist in this dictionary yet: a user
+    /// dictionary may point at a spelling that only a bundled layer provides.
+    /// [`LexemeIndex`] falls back to the matched spelling for a dangling
+    /// canonical, so such a candidate reads exactly like a plain entry.
+    pub fn insert_alias(
+        &mut self,
+        hanja: impl Into<String>,
+        reading: impl Into<String>,
+        canonical: impl Into<String>,
+        kind: AliasKind,
+    ) -> Result<(), CandidateError> {
+        self.insert_alias_inner(hanja, reading, None, canonical, kind)
+    }
+
+    /// Adds one positional alias candidate to a key.
+    pub fn insert_alias_with_suffix(
+        &mut self,
+        hanja: impl Into<String>,
+        reading: impl Into<String>,
+        suffix: impl Into<String>,
+        canonical: impl Into<String>,
+        kind: AliasKind,
+    ) -> Result<(), CandidateError> {
+        self.insert_alias_inner(hanja, reading, Some(suffix.into()), canonical, kind)
+    }
+
+    fn insert_alias_inner(
+        &mut self,
+        hanja: impl Into<String>,
+        reading: impl Into<String>,
+        suffix: Option<String>,
+        canonical: impl Into<String>,
+        kind: AliasKind,
+    ) -> Result<(), CandidateError> {
+        let hanja = hanja.into();
+        let mut candidates = self
+            .entries
+            .get(&hanja)
+            .map_or_else(Vec::new, |candidates| candidates.as_slice().to_vec());
+        candidates.push(ReadingCandidate {
+            reading: reading.into(),
+            suffix_reading: suffix,
+            mark: MatchMark::default(),
+            preference: 0,
+            alias: Some(AliasTarget {
+                canonical: canonical.into(),
+                kind,
+            }),
+        });
+        let candidates = ReadingCandidates::new(candidates)?;
+        let chars = hanja.chars().count();
+        self.max_word_chars = Some(self.max_word_chars.map_or(chars, |max| max.max(chars)));
+        self.lexemes.set_key(&hanja, &candidates);
+        self.entries.insert(hanja, candidates);
+        Ok(())
     }
 
     /// Builds a dictionary from explicitly authored candidate entries.
@@ -1014,6 +1141,43 @@ impl MapDictionary {
     }
 }
 
+/// Returns canonical hanja spellings that read as `reading`.
+///
+/// Reviewed and sibling aliases contribute their canonical spelling; plain
+/// entries contribute their stored key; recognition aliases are excluded
+/// because they do not claim lexical identity.  The result is sorted and
+/// deduplicated, and empty when the dictionary cannot enumerate entries.
+///
+/// This scans every enumerable entry, so callers that query many readings
+/// should build their own index instead of calling it in a loop.
+pub fn reverse_hanja<D>(dictionary: &D, reading: &str) -> Vec<String>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    let Some(records) = dictionary.candidate_entries() else {
+        return Vec::new();
+    };
+    let mut forms = BTreeSet::new();
+    for record in records {
+        for candidate in record.candidates.as_slice() {
+            if candidate.reading != reading && candidate.suffix_reading.as_deref() != Some(reading)
+            {
+                continue;
+            }
+            match &candidate.alias {
+                Some(alias) if matches!(alias.kind, AliasKind::Lexical | AliasKind::Sibling) => {
+                    forms.insert(alias.canonical.clone());
+                }
+                Some(_) => {}
+                None => {
+                    forms.insert(record.hanja.clone());
+                }
+            }
+        }
+    }
+    forms.into_iter().collect()
+}
+
 impl HanjaDictionary for MapDictionary {
     fn candidate_matches_at<'a>(
         &'a self,
@@ -1059,9 +1223,14 @@ impl HanjaDictionary for MapDictionary {
         ))
     }
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        let hanja = self.lexemes.homophone_canonical(hanja, reading);
         self.candidate_entries()
             .unwrap()
             .any(|record| record.has_homophone(hanja, reading))
+    }
+
+    fn lexemes(&self) -> Option<LexemeIndex> {
+        Some(self.lexemes.clone())
     }
 }
 
@@ -2540,10 +2709,22 @@ impl<'a> UserDirectives<'a> {
     /// of declaration order. This method is the per-token primitive used by
     /// streaming pipelines that want to apply directives without buffering.
     pub fn apply<S>(&self, token: OutputToken<S>) -> OutputToken<S> {
+        self.apply_with_lexemes(token, None)
+    }
+
+    /// Applies directives with a dictionary identity index.
+    ///
+    /// Literal rules then also match an annotation whose canonical lexeme is
+    /// the rule's hanja, so a reviewed alias inherits a canonical directive.
+    pub fn apply_with_lexemes<S>(
+        &self,
+        token: OutputToken<S>,
+        lexemes: Option<&LexemeIndex>,
+    ) -> OutputToken<S> {
         match token {
             OutputToken::Annotated(mut annotation) => {
                 for rule in &self.rules {
-                    if !rule.predicate.matches(&annotation) {
+                    if !rule.predicate.matches(&annotation, lexemes) {
                         continue;
                     }
                     match rule.action {
@@ -2570,10 +2751,15 @@ enum UserDirectivePredicate<'a> {
 }
 
 impl UserDirectivePredicate<'_> {
-    fn matches(&self, annotation: &Annotation) -> bool {
+    fn matches(&self, annotation: &Annotation, lexemes: Option<&LexemeIndex>) -> bool {
         match self {
             Self::Literal(hanja) => {
-                annotation.hanja == *hanja || annotation.dictionary_hanja.as_ref() == Some(hanja)
+                annotation.hanja == *hanja
+                    || annotation.dictionary_hanja.as_ref() == Some(hanja)
+                    || lexemes.is_some_and(|lexemes| {
+                        lexemes.canonical(annotation.canonical_hanja(), &annotation.reading)
+                            == hanja
+                    })
             }
             Self::Predicate(predicate) => predicate(annotation),
         }
@@ -2624,14 +2810,20 @@ where
 
     let index = match detection {
         HomophoneDetection::ContextLocal => None,
-        HomophoneDetection::DictionaryWide => HomophoneIndex::from_dictionary(dictionary),
+        HomophoneDetection::DictionaryWide => HomophoneIndex::from_dictionary(dictionary, None),
+    };
+    let lexemes = match &index {
+        Some(index) => Some(index.lexemes.clone()),
+        None => dictionary
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(dictionary)),
     };
     let lookup_fallback = match detection {
         HomophoneDetection::ContextLocal => None,
         HomophoneDetection::DictionaryWide => index.is_none().then_some(dictionary),
     };
     ContextMiddleware::new(window, |tokens| {
-        mark_homophones_in_context(tokens, index.as_ref(), lookup_fallback);
+        mark_homophones_in_context(tokens, index.as_ref(), lookup_fallback, lexemes.as_ref());
     })
     .process(tokens)
 }
@@ -2648,10 +2840,30 @@ pub fn filter_first_occurrences<S>(
 where
     S: ScopeData,
 {
-    ContextMiddleware::new(window, filter_first_occurrences_in_context).process(tokens)
+    ContextMiddleware::new(window, |tokens| {
+        filter_first_occurrences_in_context(tokens, None);
+    })
+    .process(tokens)
 }
 
-type ContextApply<S> = fn(&mut [OutputToken<S>]);
+/// Clears repeat gloss requirements using dictionary lexical identity.
+///
+/// Sibling and reviewed alias spellings count as one occurrence when they
+/// resolve to the same canonical lexeme.
+pub fn filter_first_occurrences_with_lexemes<S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    window: ContextWindow,
+    lexemes: LexemeIndex,
+) -> Vec<OutputToken<S>>
+where
+    S: ScopeData,
+{
+    ContextMiddleware::new(window, move |tokens| {
+        filter_first_occurrences_in_context(tokens, Some(&lexemes));
+    })
+    .process(tokens)
+}
+
 type HomophoneApply<'a, S> = Box<dyn FnMut(&mut [OutputToken<S>]) + 'a>;
 
 /// Streaming homophone marker middleware.
@@ -2687,10 +2899,12 @@ where
     /// Creates a homophone marker for the selected context window and detection
     /// strategy.
     ///
-    /// With [`HomophoneDetection::ContextLocal`] no dictionary index is built;
-    /// only readings that collide within the context window are marked.  With
-    /// [`HomophoneDetection::DictionaryWide`] a homophone index (or
-    /// [`HanjaDictionary::has_homophone`] fallback) is consulted as well.
+    /// With [`HomophoneDetection::ContextLocal`] no dictionary-wide homophone
+    /// index is built; only readings that collide within the context window are
+    /// marked, and lexeme identity is resolved anyway so those comparisons use
+    /// canonical spellings.  With [`HomophoneDetection::DictionaryWide`] a
+    /// homophone index (or [`HanjaDictionary::has_homophone`] fallback) is
+    /// consulted as well.  A [`ContextWindow::Off`] marker resolves nothing.
     pub fn with_detection<D>(
         dictionary: &'a D,
         window: ContextWindow,
@@ -2699,10 +2913,59 @@ where
     where
         D: HanjaDictionary + ?Sized,
     {
+        if window == ContextWindow::Off {
+            return Self::disabled(window);
+        }
+        let lexemes = dictionary
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(dictionary));
+        Self::assemble(dictionary, window, detection, lexemes)
+    }
+
+    /// Creates a homophone marker that reuses an already resolved lexeme index.
+    ///
+    /// The caller resolves the index once, for example when the umbrella crate
+    /// fixes its dictionary chain at build time, so conversions do not merge
+    /// the chain index again.
+    pub fn with_detection_and_lexemes<D>(
+        dictionary: &'a D,
+        window: ContextWindow,
+        detection: HomophoneDetection,
+        lexemes: &LexemeIndex,
+    ) -> Self
+    where
+        D: HanjaDictionary + ?Sized,
+    {
+        if window == ContextWindow::Off {
+            return Self::disabled(window);
+        }
+        Self::assemble(dictionary, window, detection, Some(lexemes.clone()))
+    }
+
+    fn disabled(window: ContextWindow) -> Self {
+        Self {
+            inner: ContextMiddleware::new(window, Box::new(|_| {})),
+        }
+    }
+
+    fn assemble<D>(
+        dictionary: &'a D,
+        window: ContextWindow,
+        detection: HomophoneDetection,
+        lexemes: Option<LexemeIndex>,
+    ) -> Self
+    where
+        D: HanjaDictionary + ?Sized,
+    {
         let index = match detection {
-            _ if window == ContextWindow::Off => None,
             HomophoneDetection::ContextLocal => None,
-            HomophoneDetection::DictionaryWide => HomophoneIndex::from_dictionary(dictionary),
+            HomophoneDetection::DictionaryWide => {
+                HomophoneIndex::from_dictionary(dictionary, lexemes.clone())
+            }
+        };
+        let lexemes = match &index {
+            Some(index) => Some(index.lexemes.clone()),
+            None => lexemes,
         };
         let lookup_fallback = match detection {
             HomophoneDetection::ContextLocal => None,
@@ -2712,7 +2975,12 @@ where
             inner: ContextMiddleware::new(
                 window,
                 Box::new(move |tokens| {
-                    mark_homophones_in_context(tokens, index.as_ref(), lookup_fallback);
+                    mark_homophones_in_context(
+                        tokens,
+                        index.as_ref(),
+                        lookup_fallback,
+                        lexemes.as_ref(),
+                    );
                 }),
             ),
         }
@@ -2729,6 +2997,8 @@ where
     }
 }
 
+type FirstOccurrenceApply<S> = Box<dyn FnMut(&mut [OutputToken<S>])>;
+
 /// Streaming first-occurrence middleware.
 ///
 /// Repeated annotations inside a context have `first_in_context` cleared and
@@ -2737,7 +3007,7 @@ pub struct FirstOccurrenceFilter<S>
 where
     S: ScopeData,
 {
-    inner: ContextMiddleware<S, ContextApply<S>>,
+    inner: ContextMiddleware<S, FirstOccurrenceApply<S>>,
 }
 
 impl<S> FirstOccurrenceFilter<S>
@@ -2747,7 +3017,40 @@ where
     /// Creates a first-occurrence filter for the selected context window.
     pub fn new(window: ContextWindow) -> Self {
         Self {
-            inner: ContextMiddleware::new(window, filter_first_occurrences_in_context::<S>),
+            inner: ContextMiddleware::new(
+                window,
+                Box::new(|tokens| filter_first_occurrences_in_context(tokens, None)),
+            ),
+        }
+    }
+
+    /// Creates a filter that uses dictionary identity for first occurrences.
+    ///
+    /// Annotated spellings that resolve to the same canonical lexeme count as
+    /// one occurrence.  Dictionaries that cannot build a [`LexemeIndex`] keep
+    /// the spelling-based behavior of [`FirstOccurrenceFilter::new`].
+    pub fn with_lexemes(window: ContextWindow, lexemes: LexemeIndex) -> Self {
+        Self {
+            inner: ContextMiddleware::new(
+                window,
+                Box::new(move |tokens| {
+                    filter_first_occurrences_in_context(tokens, Some(&lexemes));
+                }),
+            ),
+        }
+    }
+
+    /// Creates a filter using the identity relations of `dictionary`.
+    pub fn from_dictionary<D>(window: ContextWindow, dictionary: &D) -> Self
+    where
+        D: HanjaDictionary + ?Sized,
+    {
+        match dictionary
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(dictionary))
+        {
+            Some(lexemes) => Self::with_lexemes(window, lexemes),
+            None => Self::new(window),
         }
     }
 
@@ -3253,6 +3556,18 @@ pub fn apply_user_directives<S>(
     apply_user_directives_iter(tokens, directives).collect()
 }
 
+/// Applies literal user directives with dictionary lexical identity.
+///
+/// A literal rule also matches a reviewed alias whose canonical spelling is the
+/// rule's hanja.
+pub fn apply_user_directives_with_lexemes<S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    directives: &UserDirectives<'_>,
+    lexemes: LexemeIndex,
+) -> Vec<OutputToken<S>> {
+    apply_user_directives_iter_with_lexemes(tokens, directives, lexemes).collect()
+}
+
 /// Lazily applies literal user directives to an output token stream.
 ///
 /// Returns an iterator that walks the input tokens without intermediate
@@ -3263,6 +3578,21 @@ pub fn apply_user_directives_iter<'a, S>(
     directives: &'a UserDirectives<'_>,
 ) -> impl Iterator<Item = OutputToken<S>> + 'a {
     tokens.into_iter().map(|token| directives.apply(token))
+}
+
+/// Lazily applies user directives with dictionary lexical identity.
+///
+/// Literal rules match a reviewed alias's canonical spelling in addition to the
+/// surface and matched spellings.  Pass an empty [`LexemeIndex`] to retain
+/// spelling-only behavior.
+pub fn apply_user_directives_iter_with_lexemes<'a, S>(
+    tokens: impl IntoIterator<Item = OutputToken<S>> + 'a,
+    directives: &'a UserDirectives<'_>,
+    lexemes: LexemeIndex,
+) -> impl Iterator<Item = OutputToken<S>> + 'a {
+    tokens
+        .into_iter()
+        .map(move |token| directives.apply_with_lexemes(token, Some(&lexemes)))
 }
 
 struct ContextMiddleware<S, F>
@@ -3349,31 +3679,43 @@ where
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct HomophoneIndex {
     forms_by_reading: BTreeMap<String, BTreeSet<String>>,
+    lexemes: LexemeIndex,
 }
 
 impl HomophoneIndex {
-    fn from_dictionary<D>(dictionary: &D) -> Option<Self>
+    fn from_dictionary<D>(dictionary: &D, lexemes: Option<LexemeIndex>) -> Option<Self>
     where
         D: HanjaDictionary + ?Sized,
     {
         let mut forms_by_reading = BTreeMap::<String, BTreeSet<String>>::new();
+        let lexemes = match lexemes {
+            Some(lexemes) => lexemes,
+            None => dictionary
+                .lexemes()
+                .or_else(|| LexemeIndex::from_dictionary(dictionary))?,
+        };
         for record in dictionary.candidate_entries()? {
             let selected = select_default_reading(&record.candidates);
+            let form = record.homophone_key();
             for reading in core::iter::once(&selected.reading).chain(selected.suffix_reading.iter())
             {
                 forms_by_reading
                     .entry(reading.clone())
                     .or_default()
-                    .insert(record.hanja.clone());
+                    .insert(form.to_string());
             }
         }
-        Some(Self { forms_by_reading })
+        Some(Self {
+            forms_by_reading,
+            lexemes,
+        })
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        let lexeme = self.lexemes.homophone_canonical(hanja, reading);
         self.forms_by_reading
             .get(reading)
-            .is_some_and(|forms| forms.iter().any(|form| form != hanja))
+            .is_some_and(|forms| forms.iter().any(|form| form != lexeme))
     }
 }
 
@@ -3381,6 +3723,7 @@ fn mark_homophones_in_context<S, D>(
     tokens: &mut [OutputToken<S>],
     index: Option<&HomophoneIndex>,
     lookup_fallback: Option<&D>,
+    lexemes: Option<&LexemeIndex>,
 ) where
     D: HanjaDictionary + ?Sized,
 {
@@ -3390,10 +3733,18 @@ fn mark_homophones_in_context<S, D>(
         if let OutputToken::Annotated(annotation) = token
             && annotation.from_dictionary
         {
+            let form = lexemes.map_or_else(
+                || annotation.canonical_hanja().to_string(),
+                |lexemes| {
+                    lexemes
+                        .homophone_canonical(annotation.canonical_hanja(), &annotation.reading)
+                        .to_string()
+                },
+            );
             forms_by_reading
                 .entry(annotation.reading.clone())
                 .or_default()
-                .insert(annotation.canonical_hanja().to_string());
+                .insert(form);
         }
     }
 
@@ -3411,12 +3762,18 @@ fn mark_homophones_in_context<S, D>(
     }
 }
 
-fn filter_first_occurrences_in_context<S>(tokens: &mut [OutputToken<S>]) {
+fn filter_first_occurrences_in_context<S>(
+    tokens: &mut [OutputToken<S>],
+    lexemes: Option<&LexemeIndex>,
+) {
     let mut seen = BTreeSet::new();
 
     for token in tokens.iter_mut() {
         if let OutputToken::Annotated(annotation) = token {
-            if seen.insert(annotation.canonical_hanja().to_string()) {
+            let lexeme = lexemes.map_or(annotation.canonical_hanja(), |lexemes| {
+                lexemes.canonical(annotation.canonical_hanja(), &annotation.reading)
+            });
+            if seen.insert(lexeme.to_string()) {
                 annotation.first_in_context = true;
             } else {
                 annotation.first_in_context = false;

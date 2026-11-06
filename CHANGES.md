@@ -25,9 +25,31 @@ To be released.
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it
     keep their streaming word bound.  [[#33], [#34]]
+ -  Bundled compound aliases now render as one dictionary-backed annotation, no
+    longer split by the engine or by the parenthetical collapser, and sibling
+    spellings no longer trigger false homophone glosses. The standard
+    dictionary data now carries the full automatically derived corpus plus the
+    reviewed seed.  [[#38], [#39]]
+ -  Re-exported the user alias insertion APIs and `reverse_hanja()` from the
+    umbrella crate.  [[#38], [#39]]
 
 [#33]: https://github.com/dahlia/gukhanmun/issues/33
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
+[#38]: https://github.com/dahlia/gukhanmun/issues/38
+[#39]: https://github.com/dahlia/gukhanmun/pull/39
+
+### gukhanmun-cdb
+
+ -  Read dictionary format version 3 candidate payloads with alias metadata.
+    [[#38], [#39]]
+
+### gukhanmun-cli
+
+ -  Canonical literals in the require-hanja directive and related directives
+    now reach reviewed alias spellings. The streaming plain-text path keeps
+    streaming and applies each directive with the dictionary's lexeme index, so
+    a reviewed alias resolves without buffering the whole document.
+    [[#38], [#39]]
 
 ### gukhanmun-core
 
@@ -40,6 +62,48 @@ To be released.
  -  Changed `MapDictionary::max_word_chars()` to report `Some(0)` while the map
     is empty, so an empty user dictionary no longer hides the word bound of the
     dictionaries chained after it while streaming.  [[#33], [#34]]
+ -  Added candidate-level alias metadata (`AliasKind`, `AliasTarget`,
+    `ReadingCandidate::alias`) and `LexemeIndex`, and made homophone marking,
+    first-occurrence filtering, and literal directives resolve sibling and
+    reviewed spellings to one canonical lexeme. [[#38], [#39]]
+ -  Added `MapDictionary::insert_alias()`,
+    `MapDictionary::insert_alias_with_suffix()`, and `reverse_hanja()` for
+    reviewed user aliases and canonical hangul-to-hanja lookup.  [[#38], [#39]]
+ -  Added `CandidateRecord::homophone_key()` and
+    `LexemeIndex::homophone_canonical()` so every alias kind shares one
+    homophone identity. A canonical compound is no longer glossed as a
+    homophone merely because a derived alias exists for it, while
+    first-occurrence filtering and literal directives still use lexical
+    identity.  [[#38], [#39]]
+
+### gukhanmun-dict-extract
+
+ -  Added `aliases::align_morphemes()`, `aliases::derive_aliases()`, and
+    `aliases::sibling_relations()` for aligning marked compound headwords,
+    applying the same-source-id ambiguity gate, and emitting recognition
+    aliases plus sibling relations.  [[#38], [#39]]
+ -  Added `aliases::grid_aliases()` to reconstruct omitted position-wise
+    combinations inside multi-spelling headwords, limited to single-reading
+    groups.  [[#38], [#39]]
+ -  Substitute every licensed constituent of a compound, taking the bounded
+    Cartesian product instead of one chunk at a time, and match a non-initial
+    constituent whose reading differs only by the word-initial sound law.
+    Reviewed suffix readings such as `욕`, `암`, and `리` may act as
+    single-character donors, and reviewed `역사` compounds can opt back in
+    through `AliasPolicy::approved_compounds`.  [[#38], [#39]]
+ -  Bound the Cartesian enumeration at `AliasPolicy::max_combinations` so a
+    pathological spelling group is skipped instead of exhausting memory.
+    [[#38], [#39]]
+
+### gukhanmun-fst
+
+ -  Read dictionary format version 3 candidate payloads with alias metadata.
+    [[#38], [#39]]
+
+### gukhanmun-mkdict
+
+ -  Accept `canonical` and `alias_kind` columns plus a `--relations` input, and
+    emit format version 3 when alias metadata is present. [[#38], [#39]]
 
 ### gukhanmun-napi
 
@@ -48,6 +112,21 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+
+### gukhanmun-opendict
+
+ -  Derive per-category compound aliases and sibling relations from the Open
+    Korean Dictionary dump. The bundled data now carries 1,561 general
+    recognition aliases and 2,343 sibling relations. This dump produced 10
+    recognition aliases and 103 sibling relations for North Korean, and no
+    derived aliases for dialect or archaic.  [[#38], [#39]]
+
+### gukhanmun-stdict
+
+ -  Derive compound aliases from the dump's marked morphemes and explicit
+    spelling groups, bundling 2,054 recognition aliases, the seven reviewed
+    lexical aliases, 2,875 sibling relations, and a JSONL provenance manifest.
+    [[#38], [#39]]
 
 ### gukhanmun-wasm
 
@@ -63,6 +142,30 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Recognize reviewed compound aliases and stop treating sibling spellings as
+    homophones or separate first occurrences. [[#38], [#39]]
+
+### @gukhanmun/opendict-cdb
+
+ -  Ship the general and North Korean Open Korean Dictionary data as format
+    version 3 with per-category compound alias metadata. Load it with a reader
+    that understands version 3.  [[#38], [#39]]
+
+### @gukhanmun/opendict-fst
+
+ -  Ship the general and North Korean Open Korean Dictionary data as format
+    version 3 with per-category compound alias metadata. Load it with a reader
+    that understands version 3.  [[#38], [#39]]
+
+### @gukhanmun/stdict-cdb
+
+ -  Ship format version 3 dictionary data carrying compound alias metadata.
+    Load it with a reader that understands version 3. [[#38], [#39]]
+
+### @gukhanmun/stdict-fst
+
+ -  Ship format version 3 dictionary data carrying compound alias metadata.
+    Load it with a reader that understands version 3. [[#38], [#39]]
 
 ### @gukhanmun/types
 
@@ -77,6 +180,8 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Recognize reviewed compound aliases and stop treating sibling spellings as
+    homophones or separate first occurrences. [[#38], [#39]]
 
 <!-- sacho:unreleased:end -->
 
