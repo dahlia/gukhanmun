@@ -300,6 +300,7 @@ pub fn derive_aliases(
     let readings = readings_by_spelling(sources);
     let mut aliases = grid_aliases(sources, &readings, policy);
     let (donors, ambiguous) = donor_groups(sources, policy);
+    let by_hanja = donor_hanja_index(&donors, &ambiguous);
     let siblings = sibling_relations(sources, &donors, &ambiguous);
     for compound in sources {
         let spellings = dedup(&compound.spellings);
@@ -328,7 +329,7 @@ pub fn derive_aliases(
             if chunk.hanja.is_empty() {
                 continue;
             }
-            let Some((group, ids)) = donor_lookup(&donors, &ambiguous, &chunk) else {
+            let Some((group, ids)) = donor_lookup(&donors, &ambiguous, &by_hanja, &chunk) else {
                 continue;
             };
             substitutable.push((chunk, group.clone(), ids.clone()));
@@ -402,6 +403,21 @@ pub fn derive_aliases(
     }
     aliases
         .sort_by(|left, right| (&left.hanja, &left.reading).cmp(&(&right.hanja, &right.reading)));
+    // Two compounds can derive the same alias from different canonical
+    // spellings.  Keeping either would make the canonical depend on input
+    // order, so the key is quarantined instead.
+    let mut canonicals = BTreeMap::<(String, String), BTreeSet<String>>::new();
+    for alias in &aliases {
+        canonicals
+            .entry((alias.hanja.clone(), alias.reading.clone()))
+            .or_default()
+            .insert(alias.canonical.clone());
+    }
+    aliases.retain(|alias| {
+        canonicals
+            .get(&(alias.hanja.clone(), alias.reading.clone()))
+            .is_some_and(|set| set.len() == 1)
+    });
     aliases.dedup_by(|left, right| left.hanja == right.hanja && left.reading == right.reading);
     (aliases, siblings)
 }
@@ -451,6 +467,24 @@ pub fn sibling_relations(
     relations
 }
 
+type DonorHanjaIndex = BTreeMap<String, Vec<String>>;
+
+/// Groups every donor and ambiguous reading by hanja.
+///
+/// The sound-law fallback only consults entries whose hanja matches the
+/// chunk, so indexing once keeps the lookup proportional to that hanja rather
+/// than to the whole dictionary.
+fn donor_hanja_index(donors: &DonorMap, ambiguous: &BTreeSet<DonorKey>) -> DonorHanjaIndex {
+    let mut index = DonorHanjaIndex::new();
+    for (reading, hanja) in donors.keys().chain(ambiguous.iter()) {
+        index
+            .entry(hanja.clone())
+            .or_default()
+            .push(reading.clone());
+    }
+    index
+}
+
 /// Looks up the donor group that licenses substitutions for one chunk.
 ///
 /// The exact `(reading, hanja)` key wins.  A non-initial chunk may instead
@@ -460,6 +494,7 @@ pub fn sibling_relations(
 fn donor_lookup<'a>(
     donors: &'a DonorMap,
     ambiguous: &BTreeSet<DonorKey>,
+    by_hanja: &DonorHanjaIndex,
     chunk: &Chunk,
 ) -> Option<&'a DonorGroup> {
     let key = (chunk.reading.clone(), chunk.hanja.clone());
@@ -472,25 +507,23 @@ fn donor_lookup<'a>(
     if chunk.start == 0 {
         return None;
     }
-    let law_related = |reading: &str, hanja: &str| {
-        hanja == chunk.hanja
-            && (is_initial_sound_law_pair(reading, &chunk.reading)
-                || is_initial_sound_law_pair(&chunk.reading, reading))
+    let law_related = |reading: &str| {
+        is_initial_sound_law_pair(reading, &chunk.reading)
+            || is_initial_sound_law_pair(&chunk.reading, reading)
     };
     let mut found = None;
-    for (reading, hanja) in ambiguous {
-        if law_related(reading, hanja) {
-            return None;
-        }
-    }
-    for ((reading, hanja), group) in donors {
-        if !law_related(reading, hanja) {
+    for reading in by_hanja.get(&chunk.hanja)? {
+        if !law_related(reading) {
             continue;
+        }
+        let key = (reading.clone(), chunk.hanja.clone());
+        if ambiguous.contains(&key) {
+            return None;
         }
         if found.is_some() {
             return None;
         }
-        found = Some(group);
+        found = donors.get(&key);
     }
     found
 }
@@ -713,6 +746,28 @@ mod tests {
             source("련가-철", "련가철", &["連枷鐵"], &[2]),
         ];
         let (aliases, _) = derive_aliases(&sources, &AliasPolicy::default());
+        assert!(aliases.is_empty());
+    }
+
+    #[test]
+    fn quarantines_aliases_with_conflicting_canonical_spellings() {
+        let donor = source("가나", "가나", &["甲乙", "丙丁", "戊己"], &[1]);
+        let single = source("가나-무", "가나무", &["甲乙무"], &[2]);
+        let (aliases, _) =
+            derive_aliases(&[donor.clone(), single.clone()], &AliasPolicy::default());
+        let spellings = aliases
+            .iter()
+            .map(|alias| (alias.hanja.as_str(), alias.canonical.as_str()))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            spellings,
+            BTreeSet::from([("丙丁무", "甲乙무"), ("戊己무", "甲乙무")])
+        );
+
+        // The second compound derives 丙丁무 from a different canonical
+        // spelling, so neither canonical claim can be trusted.
+        let other = source("가나-무", "가나무", &["戊己무"], &[3]);
+        let (aliases, _) = derive_aliases(&[donor, single, other], &AliasPolicy::default());
         assert!(aliases.is_empty());
     }
 
