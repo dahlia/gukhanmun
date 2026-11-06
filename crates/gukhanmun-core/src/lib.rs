@@ -2899,10 +2899,12 @@ where
     /// Creates a homophone marker for the selected context window and detection
     /// strategy.
     ///
-    /// With [`HomophoneDetection::ContextLocal`] no dictionary index is built;
-    /// only readings that collide within the context window are marked.  With
-    /// [`HomophoneDetection::DictionaryWide`] a homophone index (or
-    /// [`HanjaDictionary::has_homophone`] fallback) is consulted as well.
+    /// With [`HomophoneDetection::ContextLocal`] no dictionary-wide homophone
+    /// index is built; only readings that collide within the context window are
+    /// marked, and lexeme identity is resolved anyway so those comparisons use
+    /// canonical spellings.  With [`HomophoneDetection::DictionaryWide`] a
+    /// homophone index (or [`HanjaDictionary::has_homophone`] fallback) is
+    /// consulted as well.  A [`ContextWindow::Off`] marker resolves nothing.
     pub fn with_detection<D>(
         dictionary: &'a D,
         window: ContextWindow,
