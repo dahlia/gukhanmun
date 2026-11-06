@@ -909,6 +909,28 @@ fn recognition_rows_survive_metadata_decode() {
 }
 
 #[test]
+fn rejects_control_characters_in_jsonl_alias_values() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("alias.jsonl");
+    let output = temp.path().join("dict.gukfst");
+    fs::write(
+        &input,
+        "{\"hanja\":\"記念館\",\"hangul\":\"기념관\",\"canonical\":\"紀念\\t館\",\"aliasKind\":\"lexical\"}\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("gukhanmun-mkdict")
+        .unwrap()
+        .args(["-o", output.to_str().unwrap(), input.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "`canonical` must not contain tabs or line breaks",
+        ));
+    assert!(!output.exists());
+}
+
+#[test]
 fn conflicting_alias_rows_are_rejected() {
     let temp = tempdir().unwrap();
     let input = temp.path().join("aliases.tsv");

@@ -901,6 +901,20 @@ fn parse_jsonl(
             "empty suffix reading at {}:{line_number}",
             path.display()
         );
+        for (field, value) in [
+            ("hanja", Some(record.hanja.as_str())),
+            ("hangul", Some(record.hangul.as_str())),
+            ("suffix_reading", record.suffix_reading.as_deref()),
+            ("canonical", record.canonical.as_deref()),
+        ] {
+            if let Some(value) = value {
+                ensure!(
+                    !value.contains(['\t', '\n', '\r']),
+                    "{}:{line_number}: `{field}` must not contain tabs or line breaks",
+                    path.display()
+                );
+            }
+        }
         entry.suffix_reading = record.suffix_reading;
         entry.preference = record.preference;
         entry.canonical = record.canonical.filter(|value| !value.is_empty());
