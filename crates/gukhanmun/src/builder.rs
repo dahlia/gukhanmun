@@ -443,9 +443,14 @@ impl<'a> Builder<'a> {
             options.punctuation != gukhanmun_core::PunctuationProfile::preserve(),
         );
         let chain = ChainDictionary::from_iter(dictionaries);
+        let lexemes = chain
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(&chain))
+            .unwrap_or_default();
         Ok(Converter {
             options,
             dictionary: chain,
+            lexemes,
             directives,
             #[cfg(feature = "html")]
             html_reader_options,
@@ -462,6 +467,7 @@ impl<'a> Builder<'a> {
 pub struct Converter<'a> {
     options: ConversionOptions,
     dictionary: ChainDictionary<BoxedDictionary<'a>>,
+    lexemes: LexemeIndex,
     directives: UserDirectives<'a>,
     #[cfg(feature = "html")]
     html_reader_options: HtmlReaderOptions<'a>,
@@ -663,24 +669,20 @@ impl<'a> Converter<'a> {
         );
         let homophone_iter = MiddlewareIter::new(
             collapse_iter,
-            HomophoneMarker::with_detection(
+            HomophoneMarker::with_detection_and_lexemes(
                 &self.dictionary,
                 self.options.homophone_window,
                 self.options.homophone_detection,
+                &self.lexemes,
             ),
             HomophoneMarker::push_token,
             HomophoneMarker::finish,
         );
-        let lexemes = self
-            .dictionary
-            .lexemes()
-            .or_else(|| LexemeIndex::from_dictionary(&self.dictionary))
-            .unwrap_or_default();
         let first_occurrence_iter = MiddlewareIter::new(
             homophone_iter,
             FirstOccurrenceFilter::with_lexemes(
                 self.options.first_occurrence_window,
-                lexemes.clone(),
+                self.lexemes.clone(),
             ),
             FirstOccurrenceFilter::push_token,
             FirstOccurrenceFilter::finish,
@@ -688,7 +690,7 @@ impl<'a> Converter<'a> {
         let directives_iter = apply_user_directives_iter_with_lexemes(
             first_occurrence_iter,
             &self.directives,
-            lexemes,
+            self.lexemes.clone(),
         );
         let punctuation_iter = MiddlewareIter::new(
             directives_iter,

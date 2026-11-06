@@ -2810,7 +2810,7 @@ where
 
     let index = match detection {
         HomophoneDetection::ContextLocal => None,
-        HomophoneDetection::DictionaryWide => HomophoneIndex::from_dictionary(dictionary),
+        HomophoneDetection::DictionaryWide => HomophoneIndex::from_dictionary(dictionary, None),
     };
     let lexemes = match &index {
         Some(index) => Some(index.lexemes.clone()),
@@ -2911,16 +2911,59 @@ where
     where
         D: HanjaDictionary + ?Sized,
     {
+        if window == ContextWindow::Off {
+            return Self::disabled(window);
+        }
+        let lexemes = dictionary
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(dictionary));
+        Self::assemble(dictionary, window, detection, lexemes)
+    }
+
+    /// Creates a homophone marker that reuses an already resolved lexeme index.
+    ///
+    /// The caller resolves the index once, for example when the umbrella crate
+    /// fixes its dictionary chain at build time, so conversions do not merge
+    /// the chain index again.
+    pub fn with_detection_and_lexemes<D>(
+        dictionary: &'a D,
+        window: ContextWindow,
+        detection: HomophoneDetection,
+        lexemes: &LexemeIndex,
+    ) -> Self
+    where
+        D: HanjaDictionary + ?Sized,
+    {
+        if window == ContextWindow::Off {
+            return Self::disabled(window);
+        }
+        Self::assemble(dictionary, window, detection, Some(lexemes.clone()))
+    }
+
+    fn disabled(window: ContextWindow) -> Self {
+        Self {
+            inner: ContextMiddleware::new(window, Box::new(|_| {})),
+        }
+    }
+
+    fn assemble<D>(
+        dictionary: &'a D,
+        window: ContextWindow,
+        detection: HomophoneDetection,
+        lexemes: Option<LexemeIndex>,
+    ) -> Self
+    where
+        D: HanjaDictionary + ?Sized,
+    {
         let index = match detection {
-            _ if window == ContextWindow::Off => None,
             HomophoneDetection::ContextLocal => None,
-            HomophoneDetection::DictionaryWide => HomophoneIndex::from_dictionary(dictionary),
+            HomophoneDetection::DictionaryWide => {
+                HomophoneIndex::from_dictionary(dictionary, lexemes.clone())
+            }
         };
         let lexemes = match &index {
             Some(index) => Some(index.lexemes.clone()),
-            None => dictionary
-                .lexemes()
-                .or_else(|| LexemeIndex::from_dictionary(dictionary)),
+            None => lexemes,
         };
         let lookup_fallback = match detection {
             HomophoneDetection::ContextLocal => None,
@@ -3638,14 +3681,17 @@ struct HomophoneIndex {
 }
 
 impl HomophoneIndex {
-    fn from_dictionary<D>(dictionary: &D) -> Option<Self>
+    fn from_dictionary<D>(dictionary: &D, lexemes: Option<LexemeIndex>) -> Option<Self>
     where
         D: HanjaDictionary + ?Sized,
     {
         let mut forms_by_reading = BTreeMap::<String, BTreeSet<String>>::new();
-        let lexemes = dictionary
-            .lexemes()
-            .or_else(|| LexemeIndex::from_dictionary(dictionary))?;
+        let lexemes = match lexemes {
+            Some(lexemes) => lexemes,
+            None => dictionary
+                .lexemes()
+                .or_else(|| LexemeIndex::from_dictionary(dictionary))?,
+        };
         for record in dictionary.candidate_entries()? {
             let selected = select_default_reading(&record.candidates);
             let form = record.homophone_key();

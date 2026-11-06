@@ -524,3 +524,52 @@ fn positional_alias_participates_in_reverse_lookup() {
     assert_eq!(matched.reading, "연락처");
     assert_eq!(matched.suffix_reading.as_deref(), Some("련락처"));
 }
+
+#[test]
+fn off_window_does_not_resolve_lexemes() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Counting<'a> {
+        inner: &'a MapDictionary,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl HanjaDictionary for Counting<'_> {
+        fn candidate_matches_at<'a>(
+            &'a self,
+            s: &'a str,
+        ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+            self.inner.candidate_matches_at(s)
+        }
+
+        fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            self.inner.matches_at(s)
+        }
+
+        fn lexemes(&self) -> Option<LexemeIndex> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.inner.lexemes()
+        }
+    }
+
+    let mut dictionary = MapDictionary::new();
+    dictionary.insert("連絡", "연락");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counting = Counting {
+        inner: &dictionary,
+        calls: calls.clone(),
+    };
+    let mut marker: HomophoneMarker<PlainScopeData> = HomophoneMarker::with_detection(
+        &counting,
+        ContextWindow::Off,
+        HomophoneDetection::DictionaryWide,
+    );
+    let _ = marker.push_token(OutputToken::Annotated(annotation("連絡", "연락")));
+    let _ = marker.finish();
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "a disabled window must not build or clone a lexeme index"
+    );
+}
