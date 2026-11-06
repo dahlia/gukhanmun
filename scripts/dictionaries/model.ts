@@ -20,7 +20,14 @@ export const kinds = ["stdict", "opendict"] as const;
 export type Kind = typeof kinds[number];
 /** Canonical generated files, excluding editorial decisions. */
 export const outputs: Record<Kind, string[]> = {
-  stdict: ["stdict.tsv", "suffix.tsv", "aliases.tsv", "relations.tsv", "aliases-manifest.jsonl"],
+  stdict: [
+    "stdict.tsv",
+    "suffix.tsv",
+    "aliases.tsv",
+    "relations.tsv",
+    "aliases-manifest.jsonl",
+    "source-evidence.json",
+  ],
   opendict: [
     "general.tsv",
     "north-korean.tsv",

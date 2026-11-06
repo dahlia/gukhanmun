@@ -49,16 +49,17 @@ echo '香港' | gukhanmun
 
 Use `--no-loanwords` to disable only loanword examples while keeping the
 preset's other dictionaries. The `ko-kp` preset leaves loanword examples off;
-pass `--loanwords` to enable them explicitly. Custom dictionaries take priority,
-followed by loanword examples, then the preset's other dictionaries.
+pass `--loanwords` to enable them explicitly. Custom dictionaries override
+bundled candidates for the same spelling and consumed length. Bundled reference
+and loanword sources cooperate under `--source-policy reference-authorized`.
 `--loanwords` cannot be combined with `--no-bundled-dictionaries`.
 
 
 Custom dictionaries
 -------------------
 
-Supply one or more custom dictionaries with `-d` (or `--dictionary`).  The
-flag can be repeated:
+Supply one or more custom dictionaries with `-d` (or `--dictionary`).  The flag
+can be repeated:
 
 ~~~~ sh
 gukhanmun -d legal.gukfst input.txt
@@ -136,3 +137,66 @@ gukhanmun -d legal.gukfst input.txt
 CSV and JSON Lines inputs are also accepted, and a few more advanced options
 are available.  See [the internals section](/internals/dictionary-format) for
 the full dictionary file format specification.
+
+
+Cooperating sources
+-------------------
+
+The default `reference-authorized` policy keeps reference and loanword
+candidate sets separate. A reference candidate authorizes a foreign form only
+when the source dictionary explicitly records the relevant synonym or formal
+redirect. The offline compiler intersects the permissions of every contributing
+sense; a shared hanja key or reading alone grants no permission. Missing
+evidence retains the reference form. Thus `東扶餘` reads `동부여`, while the
+reference entry for `香港` authorizes `홍콩`.
+
+The resolver ranks complete forms before applying particle evidence once to the
+whole pool. An independent loanword can still match a particle even when it is
+not the default: `平` reads `평`, but `平를` can select `다이라를`. Dictionary
+preferences apply within each source; they are not comparable across sources.
+The lattice objective is unchanged.
+
+| Policy                 | Source behavior                                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `reference-authorized` | Authorized loanword forms, reference redirect/original forms, then independent loanwords |
+| `reference-first`      | Original reference forms before independent loanwords                                    |
+| `loanword-first`       | Independent loanwords before original reference forms                                    |
+| `ordered`              | Legacy dictionary order; ignores roles and authorization                                 |
+
+An authored override is exclusive for the same spelling and consumed length
+under every cooperating policy. It does not remove a longer dictionary match.
+For cooperating policies, `--reference-only` removes independent loanwords from
+eligibility but retains reference-authorized forms, including forms supplied by
+a loanword dictionary.
+
+Selected forms carry their own lexical identity, alias, positional form and
+annotation marks. First-occurrence handling uses the reference anchor when a
+reference authorizes a foreign form; homophone handling compares the reading
+actually emitted. Source-aware dictionary matches keep separate annotation
+boundaries, including matches next to fallback characters. This can change
+parenthetical grouping compared with `ordered`.
+
+Set the policy and eligibility with `--source-policy` and `--reference-only`:
+
+~~~~ sh
+gukhanmun --source-policy reference-authorized --reference-only input.txt
+gukhanmun --source-policy ordered input.txt
+~~~~
+
+`-d` always registers an authored override, even when the file embeds a
+reference/loanword role. Register additional cooperating dictionaries with
+`--reference-dictionary reference.gukfst` or
+`--loanword-dictionary names.gukcdb`. Later `-d` values retain priority over
+earlier `-d` values.
+
+`gukhanmun-mkdict --evidence source-evidence.json` attaches compiled typed
+source evidence to a dictionary. This produces a version 4 container; older
+readers reject it. Evidence-free builds retain their existing container format
+and have unknown source evidence. The evidence must match the final canonical
+keys and complete reading/suffix pairs; stale links fail the build before an
+output is created.
+
+With lattice segmentation, overlapping paths can remain unresolved beyond the
+maximum dictionary word length. Streaming retains their shared uncertainty until
+a word boundary or EOF settles the path, while already settled prefixes can
+still be emitted. Dictionary roles do not change the lattice scoring objective.

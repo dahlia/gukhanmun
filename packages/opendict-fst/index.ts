@@ -35,7 +35,7 @@
 
 import type { FileDictionarySource } from "@gukhanmun/types";
 
-export type { FileDictionarySource } from "@gukhanmun/types";
+export type { FileDictionarySource, SourceRole } from "@gukhanmun/types";
 
 /** URL of the bundled Open Korean Dictionary 일반어 FST binary. */
 export const opendictGeneralFstUrl: URL = new URL(
@@ -166,35 +166,35 @@ export function opendictArchaicFstBytes(
 /**
  * Loads the bundled Open Korean Dictionary 일반어 dictionary.
  *
- * @returns A `FileDictionarySource` with `format: "fst"`.
+ * @returns A `FileDictionarySource` with `format: "fst"` and `role: "reference"`.
  */
 export async function opendictGeneralFst(): Promise<FileDictionarySource> {
-  return { data: await opendictGeneralFstBytes(), format: "fst" };
+  return { data: await opendictGeneralFstBytes(), format: "fst", role: "reference" };
 }
 
 /**
  * Loads the bundled Open Korean Dictionary 북한어 dictionary.
  *
- * @returns A `FileDictionarySource` with `format: "fst"`.
+ * @returns A `FileDictionarySource` with `format: "fst"` and `role: "reference"`.
  */
 export async function opendictNorthKoreanFst(): Promise<FileDictionarySource> {
-  return { data: await opendictNorthKoreanFstBytes(), format: "fst" };
+  return { data: await opendictNorthKoreanFstBytes(), format: "fst", role: "reference" };
 }
 
 /**
  * Loads the bundled Open Korean Dictionary 방언 dictionary.
  *
- * @returns A `FileDictionarySource` with `format: "fst"`.
+ * @returns A `FileDictionarySource` with `format: "fst"` and `role: "reference"`.
  */
 export async function opendictDialectFst(): Promise<FileDictionarySource> {
-  return { data: await opendictDialectFstBytes(), format: "fst" };
+  return { data: await opendictDialectFstBytes(), format: "fst", role: "reference" };
 }
 
 /**
  * Loads the bundled Open Korean Dictionary 옛말 dictionary.
  *
- * @returns A `FileDictionarySource` with `format: "fst"`.
+ * @returns A `FileDictionarySource` with `format: "fst"` and `role: "reference"`.
  */
 export async function opendictArchaicFst(): Promise<FileDictionarySource> {
-  return { data: await opendictArchaicFstBytes(), format: "fst" };
+  return { data: await opendictArchaicFstBytes(), format: "fst", role: "reference" };
 }

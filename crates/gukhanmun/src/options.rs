@@ -18,7 +18,7 @@
 
 use gukhanmun_core::{
     ContextWindow, EngineOptions, HomophoneDetection, NumeralStrategy, Recovery, RenderOptions,
-    SegmentationStrategy,
+    SegmentationStrategy, SourcePolicy,
 };
 
 /// Conversion preset that selects the orthographic conventions of a Korean
@@ -33,8 +33,8 @@ pub enum Preset {
     ///
     /// Defaults: bundled NIKL loanword examples and *Standard Korean Language
     /// Dictionary* enabled, initial sound law on, per-block homophone
-    /// disambiguation. Loanword readings take priority over the standard
-    /// dictionary, with user dictionaries taking priority over both.
+    /// disambiguation. Reference evidence authorizes cooperative loanword forms;
+    /// authored user dictionaries take priority over both sources.
     ///
     /// Building this preset requires the `loanwords` and `stdict` features
     /// unless the caller disables the corresponding bundled dictionaries.
@@ -71,6 +71,8 @@ impl Preset {
                 first_occurrence_window: ContextWindow::Off,
                 collapse_redundant_parens: true,
                 recovery: Recovery::Strict,
+                source_policy: SourcePolicy::ReferenceAuthorized,
+                reference_only: false,
             },
             Preset::KoKp => ConversionOptions {
                 punctuation: gukhanmun_core::PunctuationProfile::preserve(),
@@ -85,6 +87,8 @@ impl Preset {
                 first_occurrence_window: ContextWindow::Off,
                 collapse_redundant_parens: true,
                 recovery: Recovery::Strict,
+                source_policy: SourcePolicy::ReferenceAuthorized,
+                reference_only: false,
             },
         }
     }
@@ -117,6 +121,14 @@ impl Preset {
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct ConversionOptions {
+    /// How reference and loanword sources cooperate; authored overrides remain
+    /// exclusive. Defaults to [`SourcePolicy::ReferenceAuthorized`].
+    pub source_policy: SourcePolicy,
+
+    /// Excludes independent loanword choices while keeping forms authorized by
+    /// reference evidence. Ignored by the legacy [`SourcePolicy::Ordered`] policy.
+    pub reference_only: bool,
+
     /// Independent output punctuation profile, defaulting to preservation.
     pub punctuation: gukhanmun_core::PunctuationProfile,
 

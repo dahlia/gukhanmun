@@ -30,6 +30,7 @@ const fragments = sections.map((section) => `changes.d/${section}/loanword-data-
 export const updatePaths = [
   `${data}/snapshot.json`,
   `${data}/loanwords.tsv`,
+  `${data}/source-evidence.json`,
   `${data}/report.json`,
   `${data}/metadata.json`,
   `${data}/pending-update.json`,
@@ -64,6 +65,45 @@ export function canonical(value: unknown): string {
   }
   return JSON.stringify(value);
 }
+/** Compiles all original decimal source IDs into candidate-linked loanword evidence. */
+export function sourceEvidence(tsv: string): Uint8Array {
+  const rows = tsv.trimEnd().split("\n").map((line) => line.replace(/\r$/, "").split("\t"));
+  const columns = rows.shift() ?? [];
+  const indexes = ["hanja", "hangul", "suffix_reading", "source_ids"].map((name) => {
+    const index = columns.indexOf(name);
+    if (index < 0) throw new Error(`missing loanword evidence column ${name}`);
+    return index;
+  });
+  const entries: Record<string, unknown[]> = Object.create(null);
+  const candidates = new Set<string>();
+  for (const row of rows) {
+    if (row.length !== columns.length) throw new Error("malformed loanword evidence row");
+    const [key, reading, suffix, ids] = indexes.map((index) => row[index]);
+    if (!key || !reading || !ids) throw new Error("incomplete loanword source evidence");
+    const identity = JSON.stringify([key, reading, suffix]);
+    if (candidates.has(identity)) throw new Error("duplicate loanword evidence candidate");
+    candidates.add(identity);
+    const sourceIds = ids.split(",");
+    if (new Set(sourceIds).size !== sourceIds.length) {
+      throw new Error("duplicate loanword source ID");
+    }
+    const contributors = sourceIds.map((id) => {
+      if (!/^(0|[1-9][0-9]*)$/.test(id) || BigInt(id) > 18446744073709551615n) {
+        throw new Error("loanword source ID is not a canonical u64");
+      }
+      return { word_id: sourceJSON.rawJSON(id), sense_id: null, origin: "foreign" };
+    });
+    (entries[key] ??= []).push({
+      reading,
+      suffix_reading: suffix || null,
+      contributors,
+      authorized_forms: [],
+      diagnostics: [],
+    });
+  }
+  return encoder.encode(canonical({ schema_version: 1, role: "loanword", entries }) + "\n");
+}
+
 async function optional(path: string): Promise<Uint8Array | null> {
   try {
     if ((await Deno.lstat(path)).isSymlink) throw new Error("symlink update path refused");
@@ -234,6 +274,7 @@ async function transaction(
 export async function generationFingerprint(
   snapshot: Record<string, unknown>,
   report: Record<string, unknown>,
+  evidence?: Uint8Array,
 ): Promise<string> {
   return await hash(
     encoder.encode(
@@ -242,6 +283,7 @@ export async function generationFingerprint(
         decisions: report.decisions_sha256,
         tsv: report.tsv_sha256,
         audit: report.audit,
+        ...(evidence ? { evidence: await hash(evidence) } : {}),
       }),
     ),
   );
@@ -367,12 +409,17 @@ export async function update(
     const generated = new Map<string, Uint8Array | null>([
       [`${data}/snapshot.json`, await Deno.readFile(incoming)],
       [`${data}/loanwords.tsv`, await Deno.readFile(tsv)],
+      [`${data}/source-evidence.json`, sourceEvidence(await Deno.readTextFile(tsv))],
       [`${data}/report.json`, await Deno.readFile(report)],
       [`${data}/metadata.json`, encoder.encode(JSON.stringify(metadata(current), null, 2) + "\n")],
       [`${data}/pending-update.json`, null],
     ]);
     const reportValue = JSON.parse(decoder.decode(generated.get(`${data}/report.json`)!));
-    const fingerprint = await generationFingerprint(current, reportValue);
+    const fingerprint = await generationFingerprint(
+      current,
+      reportValue,
+      generated.get(`${data}/source-evidence.json`)!,
+    );
     let changed = false;
     for (const [path, bytes] of generated) {
       const previous = await optional(`${root}/${path}`);
@@ -401,7 +448,19 @@ export async function update(
   }
 }
 async function main(): Promise<void> {
-  const [mode = "check", source] = Deno.args;
+  const [mode = "check", source, destination, ...options] = Deno.args;
+  if (mode === "evidence") {
+    if (!source || !destination || options.some((option) => option !== "--check")) {
+      throw new Error("evidence requires TSV and JSON destinations and optional --check");
+    }
+    const bytes = sourceEvidence(await Deno.readTextFile(source));
+    if (options.includes("--check")) {
+      if (await hash(await Deno.readFile(destination)) !== await hash(bytes)) {
+        throw new Error("loanword source evidence is stale");
+      }
+    } else await Deno.writeFile(destination, bytes);
+    return;
+  }
   if (mode === "collect") {
     if (!source) throw new Error("external source destination required");
     if (!await cli(["collect", "--rows", "1000", "--output", source])) {

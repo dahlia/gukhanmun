@@ -192,7 +192,8 @@ TSV/CSV의 `preference`와 `suffix_reading` 列로 여러 讀音과 候補別 �
 記錄한다. `preference`가 빈칸이 아니면(`0`도 包含) 같은 파일의 그 키 行들을
 하나의 候補 集合으로 다룬다. 같은 키에 빈칸과 數値를 섞으면 誤謬이다.
 JSONL도 `preference`와 `suffixReading`/`suffix_reading`을 받는다.
-`source_ids`는 出處 確認用이며 바이너리에는 들어가지 않는다.
+`source_ids` 列만으로는 바이너리에 들어가지 않는다. 컴파일된 出處 根據는
+別途의 `--evidence` 入力으로 傳達한다.
 
 큰 選好度가 優先하고, 同率이면 讀音·接尾 讀音 byte 順으로 고른다. 같은 쌍의
 標識만 OR로 合치고 最小 選好度를 빼서 正規化한다. 파일 사이의
@@ -216,3 +217,38 @@ payload 標識는 拒否한다. `--validate`는 키 數와 全體 候補 集合�
 提供한다. 單一 候補·接尾 없음은 scalar 配置를 써야 한다. 詳細 配置는
 [英語 明細](../../en/internals/dictionary-format.md#version-2-candidate-payloads)도
 參考한다.
+
+
+버전 4의 必須 出處 根據
+-----------------------
+
+`--evidence source-evidence.json`을 指定하면 scalar 單一 候補도 버전 4
+컨테이너로 만든다. 根據가 없으면 scalar는 버전 1, 候補 集合은 버전 2,
+別稱은 버전 3을 維持한다. 새 리더는 1–4를 支援하며, 옛 리더는 버전 4를
+拒否한다. JSON 根據의 `schema_version`은 컨테이너와 別途이며 現在 `1`이다.
+
+CBOR 메타데이터의 豫約 키 `candidate_evidence`는 문자열이 아닌 다음 tuple이다:
+
+~~~~ text
+[schema_version, role, {
+  key: [[reading, suffix_or_null,
+         [[word_id, sense_id_or_null, origin], ...],
+         authorized_forms, diagnostics], ...], ...
+}]
+~~~~
+
+初聲形/位置形 쌍으로 正準 候補와 連結하고, 各 寄與 記錄의 word/sense ID와
+原語 分類, 許容 形式·typed 關係·診斷을 保存한다. word ID와 sense ID는 같은
+數値라도 別個이며, unsigned 64-bit 精度를 維持해야 한다. 數値 優先度·標識·
+別稱은 旣存 候補 payload를 그대로 使用한다.
+
+리더는 tuple 構造·스키마·役割·重複·候補 連結을 檢證한 뒤 根據를 公開한다.
+버전 4의 根據 缺落, 옛 컨테이너에 根據가 存在하는 境遇, 未支援 스키마,
+重複된 必須 메타데이터나 오래된 候補 連結은 모두 誤謬이다. 一部 候補의
+根據만 記錄할 수 있으며, 記錄하지 않은 候補의 根據는 未知이다.
+`HanjaDictionary::source_evidence()`로 typed 根據를 確認하며, 문자열
+메타데이터 API에는 이 項目을 넣지 않는다.
+
+《標準國語大辭典》 抽出器의 `--evidence-output`과 外來語 更新 태스크가
+再現 可能한 JSON 根據를 만든다. 更新 도구는 JavaScript의 安全한 整數 範圍를
+넘는 ID도 正確한 數値 토큰으로 比較한다.

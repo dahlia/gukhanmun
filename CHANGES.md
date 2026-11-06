@@ -25,6 +25,11 @@ To be released.
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it
     keep their streaming word bound.  [[#33], [#34]]
+ -  `Builder` and presets now default to reference-authorized source
+    cooperation, retaining reference readings unless typed dictionary relations
+    authorize another form. Configure `source_policy()` and `reference_only()`,
+    or select `SourcePolicy::Ordered` for legacy precedence.
+    `push_dictionary()` remains an authored override. [[#42], [#44]]
  -  Bundled compound aliases now render as one dictionary-backed annotation, no
     longer split by the engine or by the parenthetical collapser, and sibling
     spellings no longer trigger false homophone glosses. The standard
@@ -69,6 +74,10 @@ To be released.
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
+ -  The CLI now defaults to reference-authorized source cooperation. Use
+    `--source-policy` to select a policy and `--reference-only` to exclude
+    independent loanwords; custom `-d` dictionaries remain authored overrides.
     [[#42], [#44]]
 
 ### gukhanmun-core
@@ -144,6 +153,12 @@ To be released.
  -  Read dictionary format version 3 candidate payloads with alias metadata.
     [[#38], [#39]]
 
+### gukhanmun-loanwords
+
+ -  The bundled loanword dictionary now declares its source role and preserves
+    all contributing source IDs for cooperation with reference dictionaries.
+    [[#42], [#44]]
+
 ### gukhanmun-mkdict
 
  -  Accept `canonical` and `alias_kind` columns plus a `--relations` input, and
@@ -165,6 +180,9 @@ To be released.
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
+ -  Native converters now default to reference-authorized source cooperation
+    and expose policy, reference-only eligibility and explicit dictionary roles
+    through their JavaScript options. [[#42], [#44]]
 
 ### gukhanmun-opendict
 
@@ -183,6 +201,10 @@ To be released.
     spelling groups, bundling 2,054 recognition aliases, the seven reviewed
     lexical aliases, 2,875 sibling relations, and a JSONL provenance manifest.
     [[#38], [#39]]
+ -  The bundled reference dictionary now carries reproducible typed source
+    evidence. Explicit dictionary synonyms and formal redirects authorize
+    alternate forms without per-entry overrides or reading-based inference.
+    [[#42], [#44]]
 
 ### gukhanmun-wasm
 
@@ -197,6 +219,21 @@ To be released.
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
+ -  WebAssembly converters now default to reference-authorized source
+    cooperation and expose policy, reference-only eligibility and explicit
+    dictionary roles through their JavaScript options. [[#42], [#44]]
+
+### @gukhanmun/loanwords-cdb
+
+ -  The official CDB loader now declares the loanword role and ships typed
+    contributor evidence for reference-authorized cooperation. Evidence-bearing
+    dictionaries require version 4 readers. [[#42], [#44]]
+
+### @gukhanmun/loanwords-fst
+
+ -  The official FST loader now declares the loanword role and ships typed
+    contributor evidence for reference-authorized cooperation. Evidence-bearing
+    dictionaries require version 4 readers. [[#42], [#44]]
 
 ### @gukhanmun/napi
 
@@ -206,6 +243,9 @@ To be released.
     [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Converters now default to reference-authorized source cooperation.
+    Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
+    `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -218,25 +258,43 @@ To be released.
  -  Ship the general and North Korean Open Korean Dictionary data as format
     version 3 with per-category compound alias metadata. Load it with a reader
     that understands version 3.  [[#38], [#39]]
+ -  The official category CDB loader now declares the reference role. Legacy
+    artifacts without typed relation evidence retain conservative reference
+    readings under cooperating policies. [[#42], [#44]]
 
 ### @gukhanmun/opendict-fst
 
  -  Ship the general and North Korean Open Korean Dictionary data as format
     version 3 with per-category compound alias metadata. Load it with a reader
     that understands version 3.  [[#38], [#39]]
+ -  The official category FST loader now declares the reference role. Legacy
+    artifacts without typed relation evidence retain conservative reference
+    readings under cooperating policies. [[#42], [#44]]
 
 ### @gukhanmun/stdict-cdb
 
  -  Ship format version 3 dictionary data carrying compound alias metadata.
     Load it with a reader that understands version 3. [[#38], [#39]]
+ -  The official CDB loader now declares the reference role and ships typed
+    source evidence. It loads compressed *stdict.cdb.gz* by default and accepts
+    raw or gzip custom URLs; the npm package retains the raw *stdict.cdb*
+    export. Evidence-bearing dictionaries require version 4 readers.
+    [[#42], [#44]]
 
 ### @gukhanmun/stdict-fst
 
  -  Ship format version 3 dictionary data carrying compound alias metadata.
     Load it with a reader that understands version 3. [[#38], [#39]]
+ -  The official FST loader now declares the reference role and ships typed
+    source evidence for dictionary-authorized alternate forms. Evidence-bearing
+    dictionaries require version 4 readers. [[#42], [#44]]
 
 ### @gukhanmun/types
 
+ -  Added `sourcePolicy`, `referenceOnly` and explicit dictionary `role`
+    options. File descriptors can inherit roles from embedded evidence; entry
+    descriptors and untagged legacy files default to authored overrides.
+    [[#42], [#44]]
  -  Added the `MapDictionarySource` dictionary variant for entries computed at
     runtime, and added the `suffixReading` and `preference` fields to
     `DictionaryEntry`. `DictionarySource` now accepts either the file or the
@@ -250,6 +308,9 @@ To be released.
     [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Converters now default to reference-authorized source cooperation.
+    Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
+    `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.

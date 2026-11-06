@@ -147,17 +147,23 @@ fn candidate_sets_survive_builder_boxes_and_user_override() {
         .push_dictionary(dictionary.clone())
         .build()
         .unwrap();
-    assert_eq!(
-        converter
-            .dictionary()
-            .candidate_matches_at("東京")
-            .next()
-            .unwrap()
-            .candidates
-            .as_slice()
-            .len(),
-        2
-    );
+    // Legacy candidate enumeration projects the cooperative default; the
+    // source pool retains both readings for particle-driven selection.
+    let projected = converter
+        .dictionary()
+        .candidate_matches_at("東京")
+        .next()
+        .unwrap();
+    assert_eq!(projected.candidates.as_slice().len(), 1);
+    assert_eq!(projected.select_default().reading, "도쿄");
+    let raw = converter
+        .dictionary()
+        .source_matches_at("東京")
+        .unwrap()
+        .next()
+        .unwrap();
+    assert_eq!(raw.groups.len(), 1);
+    assert_eq!(raw.groups[0].candidates.as_slice().len(), 2);
     assert_eq!(
         converter.convert_text_to_string("東京을").unwrap(),
         "동경을"
@@ -327,6 +333,7 @@ fn conversions_reuse_the_resolved_lexeme_index() {
     let converter = Builder::new()
         .no_bundled_dictionaries()
         .push_dictionary(dictionary)
+        .source_policy(gukhanmun::SourcePolicy::Ordered)
         .build()
         .expect("builder");
     let after_build = calls.load(Ordering::SeqCst);

@@ -2001,8 +2001,19 @@ fn html_directive_reaches_reviewed_alias() {
 
 #[test]
 fn plain_stream_with_directive_writes_before_eof() {
+    // Test alias-aware streaming without charging the full bundled corpus's
+    // startup decoding to the two-second before-EOF deadline.
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("aliases.tsv"),
+        temp.path().join("aliases.gukfst"),
+        "hanja\thangul\tcanonical\talias_kind\n連絡處\t연락처\t\t\n聯絡處\t연락처\t連絡處\tlexical\n",
+    );
     assert_plain_stdin_writes_before_eof(
         [
+            "--no-bundled-dictionaries",
+            "--dictionary",
+            dictionary.to_str().unwrap(),
             "--disambiguation",
             "off",
             "--first-occurrence",
@@ -2013,4 +2024,89 @@ fn plain_stream_with_directive_writes_before_eof() {
         "聯絡處\n",
         "연락처(聯絡處)\n",
     );
+}
+
+#[test]
+fn source_policy_cli_flags_register_cooperative_sources_and_filter_independent_loans() {
+    let temp = tempdir().unwrap();
+    let reference = build_dictionary_fixture(
+        temp.path().join("reference.tsv"),
+        temp.path().join("reference.gukfst"),
+        "hanja\thangul\n宙名\t가온\n",
+    );
+    let loanword = build_dictionary_fixture(
+        temp.path().join("loanword.tsv"),
+        temp.path().join("loanword.gukfst"),
+        "hanja\thangul\n宙名\t누리\n",
+    );
+    for (policy, reference_only, expected) in [
+        ("reference-authorized", false, "가온\n"),
+        ("reference-first", false, "가온\n"),
+        ("loanword-first", false, "누리\n"),
+        ("loanword-first", true, "가온\n"),
+        ("ordered", true, "누리\n"),
+    ] {
+        let mut command = Command::cargo_bin("gukhanmun").unwrap();
+        command
+            .args([
+                "--no-bundled-dictionaries",
+                "--disambiguation",
+                "off",
+                "--source-policy",
+                policy,
+            ])
+            .arg("--reference-dictionary")
+            .arg(&reference)
+            .arg("--loanword-dictionary")
+            .arg(&loanword);
+        if reference_only {
+            command.arg("--reference-only");
+        }
+        command
+            .write_stdin("宙名\n")
+            .assert()
+            .success()
+            .stdout(expected);
+    }
+}
+
+#[test]
+fn dictionary_flag_forces_authored_override_over_binary_reference_role() {
+    let temp = tempdir().unwrap();
+    let input = temp.path().join("override.tsv");
+    let output = temp.path().join("override.gukfst");
+    fs::write(&input, "hanja\thangul\n宙名\t다솜\n").unwrap();
+    gukhanmun_mkdict::build_dictionary_with_evidence(
+        &[input],
+        &output,
+        &BuildOptions::default(),
+        &gukhanmun::DictionaryEvidence {
+            schema_version: 1,
+            role: gukhanmun::SourceRole::Reference,
+            entries: BTreeMap::new(),
+        },
+    )
+    .unwrap();
+    let loanword = build_dictionary_fixture(
+        temp.path().join("loan.tsv"),
+        temp.path().join("loan.gukfst"),
+        "hanja\thangul\n宙名\t누리\n",
+    );
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args([
+            "--no-bundled-dictionaries",
+            "--source-policy",
+            "loanword-first",
+            "--disambiguation",
+            "off",
+        ])
+        .arg("--loanword-dictionary")
+        .arg(loanword)
+        .arg("-d")
+        .arg(output)
+        .write_stdin("宙名\n")
+        .assert()
+        .success()
+        .stdout("다솜\n");
 }

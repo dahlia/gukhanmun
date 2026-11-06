@@ -33,7 +33,7 @@
 
 import type { FileDictionarySource } from "@gukhanmun/types";
 
-export type { FileDictionarySource } from "@gukhanmun/types";
+export type { FileDictionarySource, SourceRole } from "@gukhanmun/types";
 
 /** URL of the bundled Standard Korean Language Dictionary FST binary. */
 export const stdictFstUrl: URL = new URL("./stdict.fst", import.meta.url);
@@ -92,8 +92,8 @@ export async function stdictFstBytes(
  * Loads the bundled Standard Korean Language Dictionary as a
  * {@link FileDictionarySource} ready to pass to `load({ dictionaries: [...] })`.
  *
- * @returns A `FileDictionarySource` with `format: "fst"`.
+ * @returns A `FileDictionarySource` with `format: "fst"` and `role: "reference"`.
  */
 export async function stdictFst(): Promise<FileDictionarySource> {
-  return { data: await stdictFstBytes(), format: "fst" };
+  return { data: await stdictFstBytes(), format: "fst", role: "reference" };
 }

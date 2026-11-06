@@ -62,21 +62,20 @@ three formats, and what makes adding a new format a contained piece of work.
 *Responsibilities are split into independently selectable pipeline stages*. The
 *Reader* parses an input format into the IR. The *Engine* finds
 hanja-containing lexical spans, segments them, and emits annotations.
-*Middlewares* transform the IR stream by adjusting
-annotation flags. The *Renderer* turns annotations into concrete text or
-markup. The *Writer* serializes the IR back to the target format. A user
-replacing one stage does not perturb the others; the boundaries are explicit
-values, not method calls.
+*Middlewares* transform the IR stream by adjusting annotation flags. The
+*Renderer* turns annotations into concrete text or markup. The *Writer*
+serializes the IR back to the target format. A user replacing one stage does
+not perturb the others; the boundaries are explicit values, not method calls.
 
 *Streaming is the default where correctness allows it*. Operations that
 fundamentally require lookahead buffer until the relevant context boundary. In
 HTML and Markdown, the default per-block homophone window usually reaches that
-boundary at paragraphs, list items, headings, and similar scopes. Plain text has
-no block scopes, so the same default window is document-wide: an annotation on a
-later line can force disambiguating hanja on an earlier line, and a byte stream
-cannot revise text already written to stdout. Callers that require immediate
-plain-text output can disable homophone marking, accepting the corresponding
-loss of disambiguation.
+boundary at paragraphs, list items, headings, and similar scopes. Plain text
+has no block scopes, so the same default window is document-wide: an annotation
+on a later line can force disambiguating hanja on an earlier line, and a byte
+stream cannot revise text already written to stdout. Callers that require
+immediate plain-text output can disable homophone marking, accepting the
+corresponding loss of disambiguation.
 
 Streaming conversion also preserves fallback annotation spans exactly. A
 trailing run of fallback hanja is held until a following non-convertible
@@ -136,8 +135,8 @@ The token coming out of the engine is one of:
  -  `Annotated(Annotation)`: a position in the stream where the engine
     converted a hanja word. The annotation carries the original hanja, the
     canonical dictionary spelling when one matched, the hangul reading, and
-    flags describing why the conversion happened and what
-    subsequent stages might want to do with it.
+    flags describing why the conversion happened and what subsequent stages
+    might want to do with it.
 
 The `Annotation` carries policy flags. `homophone` is set when the effective
 dictionary entry set or the active context indicates another hanja word shares
@@ -157,8 +156,8 @@ for debugging.
 
 `dictionary_hanja` is `Some` for dictionary-backed annotations and `None` for
 fallback annotations. Variant spellings retain the source in `hanja`, while
-middlewares use the canonical spelling as lexical identity and renderers use
-it as the input to their variant set.
+middlewares use the canonical spelling as lexical identity and renderers use it
+as the input to their variant set.
 
 The split between `InputToken` and `OutputToken` is the most consequential
 shape decision in the IR. The alternative we considered was a single `Token`
@@ -242,10 +241,10 @@ On the input `行事場所`, eager segmentation produces `行事場` + `所`, wh
 leaves `所` to the character-by-character fallback even though the segmentation
 `行事` + `場所` would have covered both segments with the dictionary.
 
-The span is not limited to hanja-only text. Some entries in the *Standard Korean
-Language Dictionary* mix native Korean and hanja, such as `汽車길` for
-`기찻길`, `祭祀날` for `제삿날`, `洗手대야` for `세숫대야`, `火김` for
-`홧김`, and `色깔論` for `색깔론`. A dictionary edge may therefore consume a
+The span is not limited to hanja-only text. Some entries in the *Standard
+Korean Language Dictionary* mix native Korean and hanja, such as `汽車길` for
+`기찻길`, `祭祀날` for `제삿날`, `洗手대야` for `세숫대야`, `火김` for `홧김`,
+and `色깔論` for `색깔론`. A dictionary edge may therefore consume a
 mixed-script prefix from the current text cursor. Fallback edges, however, are
 still created only for hanja characters that no dictionary edge covers; hangul
 that is not part of a dictionary match passes through as ordinary text.
@@ -268,12 +267,12 @@ dictionary coverage and then prefers fewer segments, so a whole-word match such
 as `天地` beats the component split `天` + `地`. Remaining ties are kept
 deterministic by preserving the first candidate that reached the same score.
 
-The cost of lattice segmentation is bounded by the conversion-span length
-times the maximum dictionary entry length. In normal Korean text, spans that
-contain hanja are short: most are one to four characters, almost never more
-than ten, except for rare mixed-script dictionary entries. The dictionary's
-maximum entry length is on the order of ten characters. The per-span runtime is
-therefore tens of dictionary lookups, which the FST and CDB backends handle in
+The cost of lattice segmentation is bounded by the conversion-span length times
+the maximum dictionary entry length. In normal Korean text, spans that contain
+hanja are short: most are one to four characters, almost never more than ten,
+except for rare mixed-script dictionary entries. The dictionary's maximum entry
+length is on the order of ten characters. The per-span runtime is therefore
+tens of dictionary lookups, which the FST and CDB backends handle in
 microseconds.
 
 An *eager* segmentation strategy remains available as an option for callers who
@@ -324,23 +323,23 @@ exposes a `NumeralStrategy` option with four variants:
 | `smart`             | 2016년                | 11월              | 1234                      |
 
 The `hangul-phonetic` strategy is Seonbi's behavior and the default for both
-the `ko-kr` and `ko-kp` presets. The command-line interface uses `smart` as
-its own default when `--numerals` is omitted, because CLI output is usually a
-final human-facing rendering. The `positional-arabic` strategy treats a
-digit-only sequence (`〇一二三四五六七八九`, plus their variants) as positional
-notation and converts it to Arabic. The `additive-arabic` strategy parses
-sequences that contain place markers (`十百千萬億兆京`) using stack-based
-accumulation and produces Arabic, handling the Korean convention that `一` is
-elidable before `十` (`十一` means 11, not `一十一`). The `smart` strategy
-looks at the surrounding context: additive numerals that begin with a digit use
+the `ko-kr` and `ko-kp` presets. The command-line interface uses `smart` as its
+own default when `--numerals` is omitted, because CLI output is usually a final
+human-facing rendering. The `positional-arabic` strategy treats a digit-only
+sequence (`〇一二三四五六七八九`, plus their variants) as positional notation
+and converts it to Arabic. The `additive-arabic` strategy parses sequences that
+contain place markers (`十百千萬億兆京`) using stack-based accumulation and
+produces Arabic, handling the Korean convention that `一` is elidable before
+`十` (`十一` means 11, not `一十一`). The `smart` strategy looks at the
+surrounding context: additive numerals that begin with a digit use
 `additive-arabic`, and runs that begin with a small place marker such as `十`,
 `百`, or `千` use `additive-arabic` only when the next character is not an
 ambiguous non-unit hanja word character. Pure digit runs use
 `positional-arabic` when they have length four or more (matching the year
-convention) or a unit hanja follows (`年月日時分秒號世紀` and so on). Standalone
-large place markers such as `萬` or `京`, and small-place-marker words such as
-`百濟` or `十長生`, fall back to `hangul-phonetic`, which prevents unknown
-words from being split as numbers.
+convention) or a unit hanja follows (`年月日時分秒號世紀` and so on).
+Standalone large place markers such as `萬` or `京`, and small-place-marker
+words such as `百濟` or `十長生`, fall back to `hangul-phonetic`, which
+prevents unknown words from being split as numbers.
 
 The `hangul-phonetic` strategy runs inside the fallback path on segments that
 the lattice has identified as not matching the dictionary. It emits a fallback
@@ -353,10 +352,10 @@ only recognized unit hanja, the plain-text edge covers that suffix too and
 renders it with fallback context; `六月` can therefore normalize to `6월` even
 when `月` is not a separate dictionary entry. A numeral edge only starts at the
 beginning of a numeral run, so `positional-arabic` does not split additive
-forms such as `十一月` by converting only the trailing `一`. A longer dictionary
-match that extends beyond the numeral plus recognized unit hanja still protects
-the word, so `smart` does not split ordinary dictionary entries such as `北京`
-or `一分錢`.
+forms such as `十一月` by converting only the trailing `一`. A longer
+dictionary match that extends beyond the numeral plus recognized unit hanja
+still protects the word, so `smart` does not split ordinary dictionary entries
+such as `北京` or `一分錢`.
 
 
 Dictionaries
@@ -438,9 +437,55 @@ mmap-friendly loading, or large static dictionaries should use the
 
 `ChainDictionary` composes a sequence of dictionaries with a precedence policy.
 A caller can chain a small user dictionary (highest priority), a
-domain-specific dictionary, the *Standard Korean Language Dictionary*, and, when
-canonical single-character dictionary matches are desired, `UnihanCharDict`
-(lowest priority).
+domain-specific dictionary, the *Standard Korean Language Dictionary*, and,
+when canonical single-character dictionary matches are desired,
+`UnihanCharDict` (lowest priority).
+
+### Cooperative source resolution
+
+`Builder` defaults to `ReferenceAuthorized`. Authored dictionaries replace the
+whole candidate set for the same matched spelling and consumed length.
+Reference and loanword sources instead retain separate local candidate sets,
+preferences, marks and aliases. The source role changes candidate eligibility
+and ranking; it adds no bonus to the lattice path score. Direct
+`ChainDictionary` construction retains the legacy `Ordered` default.
+
+The offline source graph distinguishes word IDs from sense IDs and retains all
+contributors to a merged reading. Only direct foreign-name synonyms and typed
+formal redirects authorize another complete initial/suffix form, and a grant
+must survive intersection over every contributor. Unknown or conflicting
+relations retain the original form. Formal redirects can provide a reference
+form without a matching loanword record; prose descriptions and language labels
+do not infer grants.
+
+For each reference anchor, `ReferenceAuthorized` ranks authorized loanword
+realizations, a unique redirect terminal if present, and the original form.
+Independent loans follow every reference anchor. One particle filter runs over
+this ranked pool, falling back to its first member when no candidate fits.
+`ReferenceFirst` and `LoanwordFirst` expose the simpler source-class orders.
+`Ordered` branches before role handling and uses the legacy query contract.
+Reference-only eligibility excludes independent loans while retaining
+reference-authorized realizations. Strict error/preserve-hanja ambiguity modes
+remain deferred until there is an explicit fallible conversion contract.
+
+A selected form carries its source-local lexical identity, anchor reading,
+alias, positional form and marks through segmentation and middleware. First
+occurrence uses lexical canonical spelling plus anchor reading; homophones use
+actual emitted reading plus selected homophone canonical spelling. Source IDs
+alone do not distinguish either. A parenthetical reading override revalidates
+the retained ranked pool or resets to an authorial identity without stale
+aliases. Source-aware dictionary edges retain independent annotation boundaries
+instead of merging into trivial dictionary/fallback runs. The engine caches
+immutable resolution results under bounded key and byte budgets. Lattice
+streaming commits only prefixes shared by every still-viable frontier path;
+overlapping paths can require a boundary or EOF even with a known maximum word
+length.
+
+The evidence JSON is a reproducible extractor output. FST/CDB containers with
+critical evidence use version 4 and encode the typed data compactly as CBOR
+tuples. Readers validate schema, tuple structure and exact canonical candidate
+links before exposing the evidence. Evidence-free versions 1–3 remain readable
+with unknown evidence; older readers reject version 4.
 
 ### External backends
 
@@ -465,11 +510,11 @@ Lookup walks one character at a time from the cursor position. On a miss, no
 longer match is possible from this position and the walk terminates. On a hit
 with `is_complete = 1`, the match is yielded; on a hit with `is_complete = 0`,
 the walk continues to look for longer matches. The cost is
-$O(\text{max_word_chars})$ CDB lookups per position, and each CDB lookup
-is $O(1)$. The size cost is real: every prefix of every entry occupies a
-record, so the bundled stdict CDB is roughly twice the size of the source TSV.
-The trade-off is that CDB's simplicity (six syscalls of file format,
-public-domain reference implementations) makes the backend trivially auditable.
+$O(\text{max_word_chars})$ CDB lookups per position, and each CDB lookup is
+$O(1)$. The size cost is real: every prefix of every entry occupies a record,
+so the bundled stdict CDB is roughly twice the size of the source TSV. The
+trade-off is that CDB's simplicity (six syscalls of file format, public-domain
+reference implementations) makes the backend trivially auditable.
 
 *gukhanmun-fst* wraps an `fst::Map` as a `HanjaDictionary`. The FST (finite
 state transducer) supports prefix iteration natively and compresses better than
@@ -506,18 +551,17 @@ OPTIONS:
 ~~~~
 
 A rules file is a TSV with columns `kind`, `pattern`, `require_hanja`,
-`require_hangul`, `reason`. The `kind` selects one of three matchers:
-`entry` (exact hanja key), `contains` (any entry whose hanja key contains
-the hanja substring `pattern`), or `reading` (any entry whose hangul reading
-equals `pattern`). `contains` patterns must be hanja-only because dictionary
-keys can be mixed-script (e.g. `布告하다`); accepting a hangul substring
-would silently mark unrelated entries. Multiple rules touching the same
-entry are OR-merged on the mark bits. A rule must set at least one of
-`require_hanja` / `require_hangul`, must carry a non-empty `reason`, and
-must match at least one entry; unmatched rules fail the build by default so
-that the rules file does not drift away from the dictionary it annotates.
-`--allow-unmatched-rules` is a hatch for partial dictionaries that share a
-rules file with a larger build.
+`require_hangul`, `reason`. The `kind` selects one of three matchers: `entry`
+(exact hanja key), `contains` (any entry whose hanja key contains the hanja
+substring `pattern`), or `reading` (any entry whose hangul reading equals
+`pattern`). `contains` patterns must be hanja-only because dictionary keys can
+be mixed-script (e.g. `布告하다`); accepting a hangul substring would silently
+mark unrelated entries. Multiple rules touching the same entry are OR-merged on
+the mark bits. A rule must set at least one of `require_hanja` /
+`require_hangul`, must carry a non-empty `reason`, and must match at least one
+entry; unmatched rules fail the build by default so that the rules file does
+not drift away from the dictionary it annotates. `--allow-unmatched-rules` is a
+hatch for partial dictionaries that share a rules file with a larger build.
 
 The same binary is invoked by *gukhanmun-stdict*'s build script to produce the
 bundled *Standard Korean Language Dictionary* FST file, so end-users and the
@@ -530,13 +574,13 @@ Candidate readings
 ------------------
 
 Dictionary keys can retain several lexical readings. `ReadingCandidate` keeps
-its word-initial reading, optional suffix reading, annotation marks and relative
-default preference together. `ReadingCandidates` validates and deduplicates
-these pairs, merging marks only for identical pairs. It normalizes the minimum
-preference to zero and sorts by descending preference, then reading and suffix.
-`select_default_reading` chooses the first candidate without consulting text.
-Profiles remain future work; the engine applies the conservative particle
-filter below by default.
+its word-initial reading, optional suffix reading, annotation marks and
+relative default preference together. `ReadingCandidates` validates and
+deduplicates these pairs, merging marks only for identical pairs. It normalizes
+the minimum preference to zero and sorts by descending preference, then reading
+and suffix. `select_default_reading` chooses the first candidate without
+consulting text. Profiles remain future work; the engine applies the
+conservative particle filter below by default.
 
 `HanjaDictionary::candidate_matches_at()` and `candidate_entries()` expose the
 full sets. Their default implementations wrap each existing `Match` or
@@ -548,9 +592,9 @@ for a key with the first dictionary's set, so lower-priority alternatives
 cannot undo an explicit override.
 
 Variant resolution compares canonical spellings and their complete candidate
-sets before choosing a reading. Selection happens before segmentation scores
-or classifies a dictionary edge, because the chosen marks and positional forms
-can affect fallback coalescing. The existing positional-reading step runs after
+sets before choosing a reading. Selection happens before segmentation scores or
+classifies a dictionary edge, because the chosen marks and positional forms can
+affect fallback coalescing. The existing positional-reading step runs after
 segmentation. The engine retains four additional source scalars beyond
 dictionary lookahead so eager, lattice, streaming and one-shot conversion use
 the same evidence.
@@ -596,8 +640,8 @@ scalars for particle lookahead in its tail, never in the dictionary lookup
 bound.
 
 The following examples assume a controlled dictionary containing `東京` but no
-longer `東京이` key. The bundled dictionary has `東京이` → `동경이`, which takes
-precedence and makes `東京이다` become `동경이다`.
+longer `東京이` key. The bundled dictionary has `東京이` → `동경이`, which
+takes precedence and makes `東京이다` become `동경이다`.
 
 The engine does not connect particle evidence across inline tokens. Markdown
 soft/hard line breaks and links, HTML `br`, literal entities such as `&nbsp;`,
@@ -616,17 +660,17 @@ block boundaries to plain-text middleware contexts.
 Variant normalization
 ---------------------
 
-Variant recognition is always enabled and does not change the
-`HanjaDictionary` trait or the FST/CDB formats. At each source position the
-engine first asks the dictionary for exact prefixes. For each prefix length
-without an exact match, each source character produces a bounded set of forms
-through the directional compatibility, Joyo, traditional, simplified, and
-Asahi projections used by the output variant sets. Reverse relations are used
-only when an exact target has one source. The engine enumerates the Cartesian
-product of those per-character forms, and the dictionary remains the oracle: a
-generated spelling is accepted only when it is itself a complete dictionary
-key. An exact match blocks expansion only at the same length, so a direct match
-for `芸` does not hide a longer `藝術` match for source `芸術`.
+Variant recognition is always enabled and does not change the `HanjaDictionary`
+trait or the FST/CDB formats. At each source position the engine first asks the
+dictionary for exact prefixes. For each prefix length without an exact match,
+each source character produces a bounded set of forms through the directional
+compatibility, Joyo, traditional, simplified, and Asahi projections used by the
+output variant sets. Reverse relations are used only when an exact target has
+one source. The engine enumerates the Cartesian product of those per-character
+forms, and the dictionary remains the oracle: a generated spelling is accepted
+only when it is itself a complete dictionary key. An exact match blocks
+expansion only at the same length, so a direct match for `芸` does not hide a
+longer `藝術` match for source `芸術`.
 
 The generated directional tables use Unicode 17.0.0 `kZVariant`,
 `kSimplifiedVariant`, `kTraditionalVariant`, and `kCompatibilityVariant`, the
@@ -636,15 +680,14 @@ spoofing relations are deliberately excluded. Multi-target Unicode relations
 are not traversed as equivalence classes, so characters that only meet through
 a shared simplified form do not become interchangeable. Non-self simplified
 mappings remain directional even when their source is also another mapping's
-target. Prefixes are limited to 32 characters and 256 Cartesian candidates.
-The per-character form sets are computed once for each lookup window, and
-generated reverse/target indexes keep every table lookup logarithmic.
-Expansion is skipped for a prefix that exceeds either bound. After identical
-duplicates are removed, a variant-derived match is accepted only when exactly
-one complete dictionary match remains. Distinct canonical spellings or
-distinct match metadata are ambiguous even when their readings agree, because
-choosing either spelling would invent a lexical identity that the source does
-not establish.
+target. Prefixes are limited to 32 characters and 256 Cartesian candidates. The
+per-character form sets are computed once for each lookup window, and generated
+reverse/target indexes keep every table lookup logarithmic. Expansion is
+skipped for a prefix that exceeds either bound. After identical duplicates are
+removed, a variant-derived match is accepted only when exactly one complete
+dictionary match remains. Distinct canonical spellings or distinct match
+metadata are ambiguous even when their readings agree, because choosing either
+spelling would invent a lexical identity that the source does not establish.
 
 Compatibility folding also applies to character fallback readings, so a
 compatibility form such as `神` inherits the reading of `神`. Parenthetical
@@ -683,14 +726,14 @@ single reading-to-hanja index from `HanjaDictionary::entries()` when the
 backend exposes entries; lookup-only dictionaries fall back to
 `has_homophone()` and still get context-local marking. The window is one of
 `per-block` (default), `per-document`, or `off`. Per-block windows buffer only
-until the next scope whose
-`is_block_boundary()` returns true, which is typically a paragraph or a list
-item. Per-document windows buffer the whole stream and are appropriate only
-when the input is small or when full accuracy matters more than latency.
-Plain text has no block scopes, so `per-block` is document-wide there. This is
-intentional: if `漢字` appears on line 1 and `翰字` appears on line 100, both
-lines must render with disambiguating hanja, and a streaming writer cannot
-retroactively rewrite line 1 after line 100 is seen.
+until the next scope whose `is_block_boundary()` returns true, which is
+typically a paragraph or a list item. Per-document windows buffer the whole
+stream and are appropriate only when the input is small or when full accuracy
+matters more than latency. Plain text has no block scopes, so `per-block` is
+document-wide there. This is intentional: if `漢字` appears on line 1 and
+`翰字` appears on line 100, both lines must render with disambiguating hanja,
+and a streaming writer cannot retroactively rewrite line 1 after line 100 is
+seen.
 
 `FirstOccurrenceFilter` clears `require_hanja` and `require_hangul` on
 annotations after their first occurrence within a configurable context, leaving
@@ -716,9 +759,9 @@ and double citation delimiters. There is no input-style detection or bracket
 repair. `preserve` bypasses normalization by default; custom profiles may leave
 individual roles unchanged. If a custom profile emits a character outside the
 recognized input alphabet, a later conversion does not recognize that character
-as the role it came from. Idempotence
-does not imply reversibility between arbitrary profiles. The punctuation guide
-in *docs/en/guide/punctuation.md* provides the profile and API reference.
+as the role it came from. Idempotence does not imply reversibility between
+arbitrary profiles. The punctuation guide in *docs/en/guide/punctuation.md*
+provides the profile and API reference.
 
 `PunctuationNormalizer` runs after annotation policies and before rendering. It
 rewrites only ordinary `OutputToken::Text`, leaving `Annotated` payloads and
@@ -751,13 +794,12 @@ preservation. Writers must keep this effective preservation information until
 serialization, even when lowering scopes into another event representation.
 
 A single normalizer instance persists across all input batches for a document.
-Upstream stages
-must finish and drain before its `finish()` runs; an I/O flush is not EOF.
-Adjacent text chunks share context, so chunk boundaries must not change output.
-Space lookahead crosses at most 256 structural events and falls back to keeping
-existing spaces when that limit is reached. This is not a constant-memory
-promise: unfinished HTML numeric references and runs of differently spelled
-encoded spaces can still require unbounded buffering.
+Upstream stages must finish and drain before its `finish()` runs; an I/O flush
+is not EOF. Adjacent text chunks share context, so chunk boundaries must not
+change output. Space lookahead crosses at most 256 structural events and falls
+back to keeping existing spaces when that limit is reached. This is not a
+constant-memory promise: unfinished HTML numeric references and runs of
+differently spelled encoded spaces can still require unbounded buffering.
 
 ### Custom middlewares
 
@@ -774,8 +816,9 @@ The renderer expands `Annotated` tokens into concrete `Annotated`, `Ruby`,
 `Open`, and `Close` tokens according to its mode and the annotation's flags.
 `Annotated` marks text the renderer generated from annotation data, as opposed
 to `Text`, which is source text that is already valid for the output format.
-Every writer serializes `Annotated` as literal text, so a dictionary reading can
-never become markup (GHSA-j87h-8h88-wm6g). Five renderers ship with the library.
+Every writer serializes `Annotated` as literal text, so a dictionary reading
+can never become markup (GHSA-j87h-8h88-wm6g). Five renderers ship with the
+library.
 
 The `HangulOnly` renderer emits the hangul reading alone. If `require_hanja` or
 `homophone` is set, it emits `한글(한자)`. If `require_hangul` is set, the
@@ -792,9 +835,9 @@ The `Ruby` renderer emits a `<ruby>` element with a sub-mode that determines
 which side is the base: `<ruby>한글<rp>(</rp><rt>한자</rt><rp>)</rp></ruby>`
 for `on-hangul`, and `<ruby>한자<rp>(</rp><rt>한글</rt><rp>)</rp></ruby>` for
 `on-hanja`. The `<rp>` elements carry parenthesized fallback text so that
-browsers without `<ruby>` support render the annotation inline as
-`base(gloss)` (`한글(한자)` for `on-hangul`, `한자(한글)` for `on-hanja`)
-rather than running it into the base. If the current scope returns false from
+browsers without `<ruby>` support render the annotation inline as `base(gloss)`
+(`한글(한자)` for `on-hangul`, `한자(한글)` for `on-hanja`) rather than running
+it into the base. If the current scope returns false from
 `allows_inline_markup()`, the renderer falls back to parens.
 
 The `Original` renderer emits the original hanja as plain text. Only
@@ -805,24 +848,23 @@ characters”, which is the style this very design document uses on its Korean
 edition.
 
 Every mode applies a separate `HanjaVariantSet` whenever it emits hanja.
-`AsDictionary` is the default and preserves `dictionary_hanja`, or source
-hanja for fallback annotations. `Shinjitai` applies the Joyo new forms,
-`Kanxi` prefers compatibility-folded traditional forms, `Simplified` uses the
-Chinese simplified representative, and `Asahimoji` applies shinjitai plus the
-verified Asahi subset. These conversions compose directional source/target
-relations. Within each connected `kZVariant` component, `Kanxi` chooses the
-lowest Unicode scalar value as a deterministic representative, so reciprocal
-rows produce stable, idempotent output. Compatibility folding is reapplied
-after traditional projection so that a directional mapping cannot reintroduce
-a compatibility ideograph. A reverse relation is used only when the exact
-target has one source, so a connected equivalence class never transfers a form
-across different senses that merely share a simplified character. A direct
-mapping for the requested set takes precedence over cross-set projection, and
-characters already recorded as Joyo or Asahi targets remain in that set. A
-cross-set reverse projection for simplified output is retained only when it
-reaches a direct simplified mapping; otherwise the existing character remains
-unchanged. This is an output policy only; all sets share the same recognition
-and reading.
+`AsDictionary` is the default and preserves `dictionary_hanja`, or source hanja
+for fallback annotations. `Shinjitai` applies the Joyo new forms, `Kanxi`
+prefers compatibility-folded traditional forms, `Simplified` uses the Chinese
+simplified representative, and `Asahimoji` applies shinjitai plus the verified
+Asahi subset. These conversions compose directional source/target relations.
+Within each connected `kZVariant` component, `Kanxi` chooses the lowest Unicode
+scalar value as a deterministic representative, so reciprocal rows produce
+stable, idempotent output. Compatibility folding is reapplied after traditional
+projection so that a directional mapping cannot reintroduce a compatibility
+ideograph. A reverse relation is used only when the exact target has one
+source, so a connected equivalence class never transfers a form across
+different senses that merely share a simplified character. A direct mapping for
+the requested set takes precedence over cross-set projection, and characters
+already recorded as Joyo or Asahi targets remain in that set. A cross-set
+reverse projection for simplified output is retained only when it reaches a
+direct simplified mapping; otherwise the existing character remains unchanged.
+This is an output policy only; all sets share the same recognition and reading.
 
 Renderers are pure functions over a single `Annotated` token plus the current
 scope's `allows_inline_markup()` value. They produce a small fixed-size
@@ -883,23 +925,23 @@ does not reproduce either rule.
 Punctuation processing uses an adapter-owned `PunctuationTextCodec`: each unit
 keeps its raw source spelling and a once-decoded value for classification and
 context. Unchanged units retain their spelling. `&amp;period;` is not decoded
-twice, and `&lt;script&gt;` never becomes markup. Plain text and already-decoded
-Markdown use the literal codec. The core stays independent of HTML tables;
-WHATWG character-reference data and Unicode punctuation categories are pinned,
-vendored inputs with offline regeneration checks. Recognition follows decoded
-Unicode values rather than entity names: WHATWG `&lang;`/`&rang;` denote
-mathematical delimiters U+27E8/U+27E9, outside the citation delimiter input set,
-whereas U+2329/U+232A and their canonical equivalents U+3008/U+3009 are
-recognized.
+twice, and `&lt;script&gt;` never becomes markup. Plain text and
+already-decoded Markdown use the literal codec. The core stays independent of
+HTML tables; WHATWG character-reference data and Unicode punctuation categories
+are pinned, vendored inputs with offline regeneration checks. Recognition
+follows decoded Unicode values rather than entity names: WHATWG
+`&lang;`/`&rang;` denote mathematical delimiters U+27E8/U+27E9, outside the
+citation delimiter input set, whereas U+2329/U+232A and their canonical
+equivalents U+3008/U+3009 are recognized.
 
 Safe output depends on adjacent source text as well as the replacement
 character. Generated HTML `;` and `#` use numeric references so they cannot
-complete a neighboring character reference. In `&notin。`, the parser recognizes
-the legacy `&not` and renders `¬in。`. Replacing `。` with a literal `;` would
-serialize as `&notin;`, rendering `∉` instead of the intended `¬in;`. Generated
-`!`, `?`, and `/` also use numeric references to avoid forming markup after a
-recovered literal `<`. Unmatched end tags need separate protection: escaping
-them as ordinary text would change existing HTML semantics. The
+complete a neighboring character reference. In `&notin。`, the parser
+recognizes the legacy `&not` and renders `¬in。`. Replacing `。` with a literal
+`;` would serialize as `&notin;`, rendering `∉` instead of the intended `¬in;`.
+Generated `!`, `?`, and `/` also use numeric references to avoid forming markup
+after a recovered literal `<`. Unmatched end tags need separate protection:
+escaping them as ordinary text would change existing HTML semantics. The
 punctuation-enabled facade therefore asks the reader to preserve them as
 `Verbatim`. Low-level pipelines must select both these reader options and the
 HTML codec, including for rootless fragments.
@@ -937,8 +979,8 @@ retaining their original destinations. Code, raw HTML, and effectively
 preserved text must bypass these escapes; raw-text elements such as `script` do
 not decode character references.
 
-The writer preserves the structure represented by `pulldown-cmark`, while source
-spelling may change. Hosting-site extensions such as implicit bare-URL,
+The writer preserves the structure represented by `pulldown-cmark`, while
+source spelling may change. Hosting-site extensions such as implicit bare-URL,
 mention, and issue-reference linking are outside that contract; explicit links
 retain their destinations. Downstream formatters also need integration tests:
 the Hongdown formatter can strip inline HTML from headings, so the CLI protects
@@ -950,12 +992,11 @@ formatting pass.
 
 The plain-text adapter wraps the entire input in a single scope and emits one
 `Text` token. The output is the concatenation of `Text` and `Annotated` tokens.
-Ruby rendering
-is not meaningful in plain text and falls back to parens.  The CLI can stream
-plain text before EOF only when no document-wide middleware can change already
-rendered output. In practice, the `ko-kp` preset streams because homophone
-marking is off, while the default `ko-kr` preset keeps the plain-text output
-until EOF so cross-line homophones are rendered correctly.
+Ruby rendering is not meaningful in plain text and falls back to parens.  The
+CLI can stream plain text before EOF only when no document-wide middleware can
+change already rendered output. In practice, the `ko-kp` preset streams because
+homophone marking is off, while the default `ko-kr` preset keeps the plain-text
+output until EOF so cross-line homophones are rendered correctly.
 
 
 Distribution
@@ -1056,11 +1097,11 @@ split at chunk boundaries, because render modes that show source hanja expose
 annotation grouping; those runs flush at a later non-convertible boundary or
 EOF.
 
-Stateful middlewares can add their own lookahead requirement. A homophone marker
-with a document-wide context, including plain-text `per-block` where no block
-scopes exist, must buffer until EOF to preserve exact rendering. Disabling that
-middleware restores early streaming but also disables cross-line homophone
-disambiguation.
+Stateful middlewares can add their own lookahead requirement. A homophone
+marker with a document-wide context, including plain-text `per-block` where no
+block scopes exist, must buffer until EOF to preserve exact rendering.
+Disabling that middleware restores early streaming but also disables cross-line
+homophone disambiguation.
 
 We chose strings rather than `Uint8Array` for the streaming type because the
 engine fundamentally works on Unicode scalar values: byte-level chunking would
@@ -1097,10 +1138,13 @@ per-source options such as the reading profiles of #17. The file form remains
 the route for shipped dictionaries, and the reserved `"tsv"` member is gone:
 entries that exist only in memory go through `MapDictionarySource` instead.
 
-Both variants are handed to `Builder::push_dictionary()` in array order, so an
-entry list placed before a compiled dictionary overrides that dictionary for the
-keys it carries, and entry lists become `MapDictionary` values in
-`gukhanmun-core` with no text parser in the bindings.
+Each descriptor can specify a source `role`: `"override"`, `"reference"`, or
+`"loanword"`. Entry lists default to overrides; compiled dictionaries use their
+embedded role, falling back to override when absent. Official loaders declare
+their roles explicitly. Overrides replace cooperating candidates for the same
+spelling and consumed length; earlier overrides take priority. Entry lists
+become `MapDictionary` values in `gukhanmun-core` with no text parser in the
+bindings.
 
 ### Registry matrix
 
@@ -1280,19 +1324,20 @@ The `ko-kr` preset matches the orthographic and lexical conventions of South
 Korea: dictionary-driven readings, lattice segmentation, the initial sound law
 applied to fallback fragments, and per-block homophone disambiguation that
 emits hanja in parentheses when the reading is ambiguous within a paragraph.
-Its bundled loanword spelling examples take priority over stdict, while user
-dictionaries take priority over both. The `ko-kp` preset matches the North
-Korean convention of writing Sino-Korean words in hangul without the initial
-sound law applied (래일, 류행, 녀자). It includes the *Open Korean Dictionary*
-North Korean category, with loanword examples disabled by default. JavaScript
-presets configure the linguistic options but require callers to load dictionary
-packages explicitly.
+Bundled sources cooperate under `ReferenceAuthorized`: stdict keeps lexical
+identity and admits loanword forms only with compiled source evidence. User
+dictionaries override both for the same spelling and consumed length. The
+`ko-kp` preset matches the North Korean convention of writing Sino-Korean words
+in hangul without the initial sound law applied (래일, 류행, 녀자). It includes
+the *Open Korean Dictionary* North Korean category, with loanword examples
+disabled by default. JavaScript presets configure the linguistic options but
+require callers to load dictionary packages explicitly.
 
 The CLI exposes both as `--preset ko-kr` and `--preset ko-kp`. Individual
 options remain settable to override the preset, for example
-`--preset ko-kr --no-loanwords` disables loanword examples while keeping
-stdict and the other South Korean defaults. `--preset ko-kp --loanwords`
-enables loanword examples explicitly.
+`--preset ko-kr --no-loanwords` disables loanword examples while keeping stdict
+and the other South Korean defaults. `--preset ko-kp --loanwords` enables
+loanword examples explicitly.
 
 
 Initial sound law table
@@ -1377,14 +1422,14 @@ Users who want to extend the list (for example, to add a project-specific
 receives an `HtmlElementInfo` view of each opened element—its canonical tag
 name, the raw attribute slice from the start tag, and the inherited `lang`
 value—and returns `true` to preserve the scope. A predicate-matched scope
-inherits its preserve flag to descendants, mirroring how the built-in
-preserved tags propagate, so callers do not have to re-assert the rule on
-every child. The CLI exposes the two most common shapes of this hook as
+inherits its preserve flag to descendants, mirroring how the built-in preserved
+tags propagate, so callers do not have to re-assert the rule on every child.
+The CLI exposes the two most common shapes of this hook as
 `--html-preserve-class CLASS` and `--html-preserve-attr KEY[=VALUE]` (both
 repeatable, OR-composed, valid only with `--format text/html`). A
 format-neutral skip closure on `EngineOptions` is contemplated for a future
-release; it is not implemented today because every adapter that currently
-ships can satisfy its preserve needs through its own `ScopeData`.
+release; it is not implemented today because every adapter that currently ships
+can satisfy its preserve needs through its own `ScopeData`.
 
 
 CDB-trie key scheme

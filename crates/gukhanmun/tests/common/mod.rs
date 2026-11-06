@@ -33,6 +33,7 @@ use std::path::{Path, PathBuf};
 
 use gukhanmun::{
     Builder, ContextWindow, MapDictionary, MatchMark, Preset, Recovery, RenderMode, RubyBase,
+    SourcePolicy,
 };
 use serde::Deserialize;
 
@@ -104,6 +105,9 @@ pub struct Sidecar {
     /// Preset used to seed the [`Builder`].  Defaults to `ko-kr`.
     #[serde(default)]
     pub preset: Option<PresetName>,
+    /// Source cooperation profile. Defaults to the preset's policy.
+    #[serde(default)]
+    pub source_policy: Option<SourcePolicyName>,
     /// Render mode override.  Defaults to the preset's mode (`hangul-only`).
     #[serde(default)]
     pub rendering: Option<RenderingName>,
@@ -133,6 +137,31 @@ pub struct Sidecar {
     /// Markdown variant for `.md` fixtures.  Ignored for HTML / text inputs.
     #[serde(default)]
     pub markdown: SidecarMarkdown,
+}
+
+/// Kebab-case source policies accepted by fixture sidecars.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SourcePolicyName {
+    /// Prefer reference readings and their authorized foreign realizations.
+    ReferenceAuthorized,
+    /// Prefer reference readings before independent loanwords.
+    ReferenceFirst,
+    /// Prefer loanwords before reference readings.
+    LoanwordFirst,
+    /// Preserve dictionary registration order and legacy segmentation.
+    Ordered,
+}
+
+impl SourcePolicyName {
+    fn into_source_policy(self) -> SourcePolicy {
+        match self {
+            Self::ReferenceAuthorized => SourcePolicy::ReferenceAuthorized,
+            Self::ReferenceFirst => SourcePolicy::ReferenceFirst,
+            Self::LoanwordFirst => SourcePolicy::LoanwordFirst,
+            Self::Ordered => SourcePolicy::Ordered,
+        }
+    }
 }
 
 /// `recovery = "strict" | "lenient"`.
@@ -541,6 +570,9 @@ pub fn run_fixture(fixture: &Fixture) -> RunResult {
         && let Some(collapse) = opts.collapse_redundant_parens
     {
         builder = builder.collapse_redundant_parens(collapse);
+    }
+    if let Some(policy) = sidecar.and_then(|s| s.source_policy) {
+        builder = builder.source_policy(policy.into_source_policy());
     }
     if let Some(rendering) = sidecar.and_then(|s| s.rendering) {
         builder = builder.rendering(rendering.into_render_mode());

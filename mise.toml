@@ -263,19 +263,13 @@ wasm-pack build crates/gukhanmun-wasm --release --target deno --out-dir $"($out)
 """
 
 [tasks.stdict-fst-data]
-description = "Build gukhanmun-stdict (release) and copy FST binary to packages/stdict-fst/"
+description = "Generate the standard dictionary FST with candidate source evidence"
 extends = "nu"
 depends = ["rust-init"]
 run = """
-cargo build -p gukhanmun-stdict --release
-let matches = (
-  glob "target/release/build/**/out/stdict.gukfst"
-  | where { |p| $p | str contains "gukhanmun-stdict" }
-)
-if ($matches | is-empty) {
-  error make { msg: "stdict.gukfst not found after release build" }
-}
-cp ($matches | first) packages/stdict-fst/stdict.fst
+let manifest_dir = $"(pwd)/crates/gukhanmun-stdict"
+let metadata = (open $"($manifest_dir)/data/metadata.json" | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
+cargo run --locked --release -p gukhanmun-mkdict -- --validate --format fst --output packages/stdict-fst/stdict.fst --evidence $"($manifest_dir)/data/source-evidence.json" ...$metadata --rules $"($manifest_dir)/data/rules.tsv" --relations $"($manifest_dir)/data/relations.tsv" $"($manifest_dir)/data/stdict.tsv" $"($manifest_dir)/data/aliases.tsv"
 """
 
 [tasks.napi-build]
@@ -298,7 +292,8 @@ depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-stdict"
 let metadata = (open $"($manifest_dir)/data/metadata.json" | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
-cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb ...$metadata --rules $"($manifest_dir)/data/rules.tsv" --relations $"($manifest_dir)/data/relations.tsv" $"($manifest_dir)/data/stdict.tsv" $"($manifest_dir)/data/aliases.tsv"
+cargo run --release -p gukhanmun-mkdict -- --format cdb --validate --output packages/stdict-cdb/stdict.cdb --evidence $"($manifest_dir)/data/source-evidence.json" ...$metadata --rules $"($manifest_dir)/data/rules.tsv" --relations $"($manifest_dir)/data/relations.tsv" $"($manifest_dir)/data/stdict.tsv" $"($manifest_dir)/data/aliases.tsv"
+gzip -9 -n -k -f packages/stdict-cdb/stdict.cdb
 """
 
 [tasks.opendict-fst-data]
@@ -508,7 +503,7 @@ extends = "nu"
 depends = ["rust-init"]
 run = """
 let output = ($env.GUKHANMUN_DICTS_OUTPUT_DIR? | default "crates/gukhanmun-stdict/data")
-cargo run --locked -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output $"($output)/stdict.tsv" --suffix-output $"($output)/suffix.tsv" --aliases-output $"($output)/aliases.tsv" --relations-output $"($output)/relations.tsv" --manifest-output $"($output)/aliases-manifest.jsonl" --seed-aliases "crates/gukhanmun-stdict/data/aliases-seed.tsv"
+cargo run --locked -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output $"($output)/stdict.tsv" --suffix-output $"($output)/suffix.tsv" --aliases-output $"($output)/aliases.tsv" --relations-output $"($output)/relations.tsv" --manifest-output $"($output)/aliases-manifest.jsonl" --evidence-output $"($output)/source-evidence.json" --seed-aliases "crates/gukhanmun-stdict/data/aliases-seed.tsv"
 """
 
 [tasks.stdict-extract-check]
@@ -516,7 +511,7 @@ description = "Check stdict extraction against a pinned dump without modifying f
 usage = 'arg "<input>" help="JSON file, shard directory, or ZIP archive"'
 extends = "nu"
 depends = ["rust-init"]
-run = 'cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output crates/gukhanmun-stdict/data/stdict.tsv --suffix-output crates/gukhanmun-stdict/data/suffix.tsv --aliases-output crates/gukhanmun-stdict/data/aliases.tsv --relations-output crates/gukhanmun-stdict/data/relations.tsv --manifest-output crates/gukhanmun-stdict/data/aliases-manifest.jsonl --seed-aliases crates/gukhanmun-stdict/data/aliases-seed.tsv --check'
+run = 'cargo run -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output crates/gukhanmun-stdict/data/stdict.tsv --suffix-output crates/gukhanmun-stdict/data/suffix.tsv --aliases-output crates/gukhanmun-stdict/data/aliases.tsv --relations-output crates/gukhanmun-stdict/data/relations.tsv --manifest-output crates/gukhanmun-stdict/data/aliases-manifest.jsonl --evidence-output crates/gukhanmun-stdict/data/source-evidence.json --seed-aliases crates/gukhanmun-stdict/data/aliases-seed.tsv --check'
 
 [tasks.opendict-extract]
 description = "Regenerate Open Korean Dictionary candidates from a pinned dump"
@@ -548,17 +543,25 @@ run = [
 
 [tasks.loanwords-extract]
 description = "Extract an explicitly supplied loanword snapshot and editorial decisions"
-usage = 'arg "<snapshot>" help="Authorized versioned snapshot"; arg "<decisions>" help="Editorial decisions JSON"; arg "<output>" help="TSV destination"; arg "<report>" help="Hashed report destination"'
+usage = 'arg "<snapshot>" help="Authorized versioned snapshot"; arg "<decisions>" help="Editorial decisions JSON"; arg "<output>" help="TSV destination"; arg "<report>" help="Hashed report destination"; flag "--evidence <path>" help="Source evidence JSON destination (defaults to TSV.evidence.json)"'
 extends = "nu"
 depends = ["rust-init"]
-run = 'cargo run -p gukhanmun-dict-extract --features loanwords-cli --bin gukhanmun-loanwords -- extract --snapshot $env.usage_snapshot --decisions $env.usage_decisions --output $env.usage_output --report $env.usage_report'
+run = """
+cargo run -p gukhanmun-dict-extract --features loanwords-cli --bin gukhanmun-loanwords -- extract --snapshot $env.usage_snapshot --decisions $env.usage_decisions --output $env.usage_output --report $env.usage_report
+let evidence = ($env.usage_evidence? | default $"($env.usage_output).evidence.json")
+deno run -A scripts/loanwords/update.ts evidence $env.usage_output $evidence
+"""
 
 [tasks.loanwords-extract-check]
 description = "Check explicit loanword extraction artifacts without modifying files"
-usage = 'arg "<snapshot>"; arg "<decisions>"; arg "<output>"; arg "<report>"'
+usage = 'arg "<snapshot>"; arg "<decisions>"; arg "<output>"; arg "<report>"; flag "--evidence <path>"'
 extends = "nu"
 depends = ["rust-init"]
-run = 'cargo run -p gukhanmun-dict-extract --features loanwords-cli --bin gukhanmun-loanwords -- check --snapshot $env.usage_snapshot --decisions $env.usage_decisions --output $env.usage_output --report $env.usage_report'
+run = """
+cargo run -p gukhanmun-dict-extract --features loanwords-cli --bin gukhanmun-loanwords -- check --snapshot $env.usage_snapshot --decisions $env.usage_decisions --output $env.usage_output --report $env.usage_report
+let evidence = ($env.usage_evidence? | default $"($env.usage_output).evidence.json")
+deno run -A scripts/loanwords/update.ts evidence $env.usage_output $evidence --check
+"""
 
 [tasks.loanwords-collect]
 description = "Experimentally collect two full sweeps to an explicit external snapshot"
@@ -573,7 +576,7 @@ depends = ["rust-init"]
 extends = "nu"
 run = """
 let metadata = (open crates/gukhanmun-loanwords/data/metadata.json | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
-cargo run --locked --release -p gukhanmun-mkdict -- --validate --format fst --output packages/loanwords-fst/loanwords.fst ...$metadata crates/gukhanmun-loanwords/data/loanwords.tsv
+cargo run --locked --release -p gukhanmun-mkdict -- --validate --format fst --output packages/loanwords-fst/loanwords.fst --evidence crates/gukhanmun-loanwords/data/source-evidence.json ...$metadata crates/gukhanmun-loanwords/data/loanwords.tsv
 """
 
 [tasks.loanwords-cdb-data]
@@ -582,7 +585,7 @@ depends = ["rust-init"]
 extends = "nu"
 run = """
 let metadata = (open crates/gukhanmun-loanwords/data/metadata.json | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
-cargo run --locked --release -p gukhanmun-mkdict -- --validate --format cdb --output packages/loanwords-cdb/loanwords.cdb ...$metadata crates/gukhanmun-loanwords/data/loanwords.tsv
+cargo run --locked --release -p gukhanmun-mkdict -- --validate --format cdb --output packages/loanwords-cdb/loanwords.cdb --evidence crates/gukhanmun-loanwords/data/source-evidence.json ...$metadata crates/gukhanmun-loanwords/data/loanwords.tsv
 """
 
 [tasks.loanwords-regenerate]

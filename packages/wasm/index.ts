@@ -52,6 +52,8 @@ import type {
   RenderMode,
   ResolvedPunctuationProfile,
   Segmentation,
+  SourcePolicy,
+  SourceRole,
 } from "@gukhanmun/types";
 
 export type {
@@ -79,6 +81,8 @@ export type {
   RenderMode,
   ResolvedPunctuationProfile,
   Segmentation,
+  SourcePolicy,
+  SourceRole,
   SpaceAfter,
   StopStyle,
 } from "@gukhanmun/types";
@@ -257,6 +261,7 @@ function ensureWasm(): Promise<WasmGlue> {
 
 /** A compiled-dictionary record passed to the WASM constructor. */
 interface RawBinaryDictInput {
+  role?: SourceRole;
   format: string;
   bytes: Uint8Array;
 }
@@ -267,6 +272,7 @@ interface RawBinaryDictInput {
  * `invalid-input` errors.
  */
 interface RawEntryDictInput {
+  role?: SourceRole;
   entriesJson: string;
 }
 
@@ -341,6 +347,10 @@ async function resolveDictionary(
       "Each dictionary must be an object",
     );
   }
+  const role = source.role;
+  if (role !== undefined && role !== "override" && role !== "reference" && role !== "loanword") {
+    throw new GukhanmunError("invalid-input", `Unknown dictionary source role: ${String(role)}`);
+  }
   if ("entries" in source) {
     if ("format" in source || "data" in source) {
       throw new GukhanmunError(
@@ -348,15 +358,16 @@ async function resolveDictionary(
         "A dictionary must not combine 'entries' with 'format' or 'data'",
       );
     }
-    return { entriesJson: encodeEntries(source.entries) };
+    return { entriesJson: encodeEntries(source.entries), role };
   }
   if (source.data instanceof ArrayBuffer) {
-    return { format: source.format, bytes: new Uint8Array(source.data) };
+    return { format: source.format, role, bytes: new Uint8Array(source.data) };
   }
   if (ArrayBuffer.isView(source.data)) {
     const view = source.data as ArrayBufferView;
     return {
       format: source.format,
+      role,
       bytes: new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
     };
   }
@@ -398,6 +409,7 @@ async function resolveDictionary(
     }
     return {
       format: source.format,
+      role,
       bytes: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength),
     };
   }
@@ -418,6 +430,7 @@ async function resolveDictionary(
   }
   return {
     format: source.format,
+    role,
     bytes: new Uint8Array(await response.arrayBuffer()),
   };
 }
@@ -431,6 +444,8 @@ interface ResolvedOptions {
   readonly rendering: RenderMode;
   readonly hanjaVariantSet: HanjaVariantSet;
   readonly segmentation: Segmentation;
+  readonly sourcePolicy: SourcePolicy;
+  readonly referenceOnly: boolean;
   readonly numerals: NumeralStrategy;
   readonly initialSoundLaw: boolean;
   readonly homophoneWindow: ContextWindow;
@@ -533,6 +548,8 @@ function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
     rendering: opts.rendering ?? "hangul-only",
     hanjaVariantSet: opts.hanjaVariantSet ?? "as-dictionary",
     segmentation: opts.segmentation ?? "lattice",
+    sourcePolicy: opts.sourcePolicy ?? "reference-authorized",
+    referenceOnly: opts.referenceOnly ?? false,
     numerals: opts.numerals ?? "hangul-phonetic",
     initialSoundLaw: opts.initialSoundLaw ?? (koKp ? false : true),
     homophoneWindow: opts.homophoneWindow ?? (koKp ? "off" : "per-block"),
@@ -603,6 +620,8 @@ function buildRawOptions(
     rendering: resolved.rendering,
     hanjaVariantSet: resolved.hanjaVariantSet,
     segmentation: resolved.segmentation,
+    sourcePolicy: resolved.sourcePolicy,
+    referenceOnly: resolved.referenceOnly,
     numerals: resolved.numerals,
     initialSoundLaw: resolved.initialSoundLaw,
     homophoneWindow: resolved.homophoneWindow,

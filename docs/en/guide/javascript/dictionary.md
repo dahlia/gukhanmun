@@ -9,8 +9,9 @@ Dictionaries
 
 Pass an array of `DictionarySource` objects in the `dictionaries` option.
 Dictionary sources are either compiled artifacts (`FileDictionarySource`) or
-entry lists computed at runtime (`MapDictionarySource`).  Dictionaries are
-probed in order; the first match wins.
+entry lists computed at runtime (`MapDictionarySource`). The default
+`reference-authorized` policy ranks candidates by source role and explicit
+dictionary relations. Use `sourcePolicy: "ordered"` for legacy array precedence.
 
 
 Standard Korean Dictionary packages
@@ -80,7 +81,9 @@ Loanword spelling examples packages
 `@gukhanmun/loanwords-fst` and `@gukhanmun/loanwords-cdb` provide the National
 Institute of Korean Language's *Loanword spelling examples* dictionary. Both
 `"ko-kr"` and `"ko-kp"` require explicit loading; presets never add it for you.
-Place it after any user dictionaries and before stdict or opendict:
+The official loaders identify reference and loanword sources, so their relative
+order does not change which source class takes priority under the default
+`"reference-authorized"` policy:
 
 ~~~~ ts twoslash
 import { load } from "@gukhanmun/wasm";
@@ -199,9 +202,9 @@ as shown in the next section.
 Entries computed at runtime
 ---------------------------
 
-A `MapDictionarySource` carries entries in memory.  Use it when a caller derives
-readings while building a document, in a browser, or in an edge runtime where
-neither a TSV file nor `gukhanmun-mkdict` is available:
+A `MapDictionarySource` carries entries in memory.  Use it when a caller
+derives readings while building a document, in a browser, or in an edge runtime
+where neither a TSV file nor `gukhanmun-mkdict` is available:
 
 ~~~~ ts twoslash
 import { load } from "@gukhanmun/wasm";
@@ -232,13 +235,15 @@ The fields mirror the Rust `ReadingCandidate` type plus the hanja key:
 | `requireHanja`  | Always show the original hanja alongside the reading                   |
 | `requireHangul` | Always show a hangul gloss alongside the original hanja                |
 
-Sources keep the precedence they have in `dictionaries`, so an entry list placed
-before a compiled dictionary overrides it for the keys it carries; placing it
-after the compiled dictionary leaves that dictionary in charge.
+Entry lists default to the `"override"` role. Cooperating policies consider
+them before reference and loanword sources for the same spelling and consumed
+length; earlier overrides win. With `sourcePolicy: "ordered"`, all sources
+follow array precedence, so place the entry list before a compiled dictionary
+to override that dictionary's keys in this mode.
 
-Repeating a `hanja` key appends another reading instead of replacing the earlier
-one.  Several readings for one headword stay available to the engine, which then
-selects one from a following particle when the particle is decisive:
+Repeating a `hanja` key appends another reading instead of replacing the
+earlier one.  Several readings for one headword stay available to the engine,
+which then selects one from a following particle when the particle is decisive:
 
 ~~~~ ts twoslash
 import { load } from "@gukhanmun/wasm";
@@ -264,3 +269,73 @@ distinct preferences when the choice matters.
 
 An empty `entries` list contributes nothing, which makes `{ entries: [] }` a
 convenient placeholder for a document without overrides.
+
+
+Cooperating sources
+-------------------
+
+The default `reference-authorized` policy keeps reference and loanword
+candidate sets separate. A reference candidate authorizes a foreign form only
+when the source dictionary explicitly records the relevant synonym or formal
+redirect. The offline compiler intersects the permissions of every contributing
+sense; a shared hanja key or reading alone grants no permission. Missing
+evidence retains the reference form. Thus `東扶餘` reads `동부여`, while the
+reference entry for `香港` authorizes `홍콩`.
+
+The resolver ranks complete forms before applying particle evidence once to the
+whole pool. An independent loanword can still match a particle even when it is
+not the default: `平` reads `평`, but `平를` can select `다이라를`. Dictionary
+preferences apply within each source; they are not comparable across sources.
+The lattice objective is unchanged.
+
+| Policy                 | Source behavior                                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `reference-authorized` | Authorized loanword forms, reference redirect/original forms, then independent loanwords |
+| `reference-first`      | Original reference forms before independent loanwords                                    |
+| `loanword-first`       | Independent loanwords before original reference forms                                    |
+| `ordered`              | Legacy dictionary array order; ignores roles and authorization                           |
+
+An authored override is exclusive for the same spelling and consumed length
+under every cooperating policy. It does not remove a longer dictionary match.
+For cooperating policies, `referenceOnly` removes independent loanwords from
+eligibility but retains reference-authorized forms, including forms supplied by
+a loanword dictionary.
+
+Selected forms carry their own lexical identity, alias, positional form and
+annotation marks. First-occurrence handling uses the reference anchor when a
+reference authorizes a foreign form; homophone handling compares the reading
+actually emitted. Source-aware dictionary matches keep separate annotation
+boundaries, including matches next to fallback characters. This can change
+parenthetical grouping compared with `ordered`.
+
+Set the policy and eligibility on the converter:
+
+~~~~ ts twoslash
+import { load } from "@gukhanmun/wasm";
+import { stdictFst } from "@gukhanmun/stdict-fst";
+import { loanwordsFst } from "@gukhanmun/loanwords-fst";
+// ---cut-before---
+const converter = await load({
+  sourcePolicy: "reference-authorized",
+  referenceOnly: true,
+  dictionaries: [await stdictFst(), await loanwordsFst()],
+});
+~~~~
+
+Both file and entry descriptors accept
+`role: "override" | "reference" | "loanword"`. Entry descriptors default to
+`"override"`. File descriptors use the binary's embedded role when present,
+otherwise `"override"`; an explicit `role` replaces that metadata. Official
+loaders declare their roles. Overrides are considered before cooperating
+sources regardless of their array position; earlier overrides win. Set
+`sourcePolicy: "ordered"` to restore legacy array precedence for all
+descriptors.
+
+The standard CDB loader downloads *stdict.cdb.gz* and decompresses it before
+returning a dictionary descriptor. A custom URL can serve either gzip or raw
+CDB bytes. The npm package retains the raw *stdict.cdb* export.
+
+With lattice segmentation, overlapping paths can remain unresolved beyond the
+maximum dictionary word length. Streaming retains their shared uncertainty until
+a word boundary or EOF settles the path, while already settled prefixes can
+still be emitted. Dictionary roles do not change the lattice scoring objective.

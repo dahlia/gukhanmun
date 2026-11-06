@@ -33,10 +33,16 @@
 
 import type { FileDictionarySource } from "@gukhanmun/types";
 
-export type { FileDictionarySource } from "@gukhanmun/types";
+export type { FileDictionarySource, SourceRole } from "@gukhanmun/types";
 
-/** URL of the bundled Standard Korean Language Dictionary CDB binary. */
-export const stdictCdbUrl: URL = new URL("./stdict.cdb", import.meta.url);
+/**
+ * URL of the bundled, gzip-compressed Standard Korean Language Dictionary CDB.
+ *
+ * The URL now points to `stdict.cdb.gz` to fit registry per-file limits.
+ * {@link stdictCdbBytes} transparently returns the decompressed CDB bytes.
+ * The npm package also retains its raw `stdict.cdb` file export.
+ */
+export const stdictCdbUrl: URL = new URL("./stdict.cdb.gz", import.meta.url);
 
 // Minimal typing for the Node.js Buffer returned by readFile.
 interface NodeBuffer {
@@ -64,7 +70,10 @@ interface NodeFsPromises {
  * wrongly take the `node:fs` path and `readFile` would reject the `https:`
  * URL with "The URL must be of scheme file".
  *
- * @param url Location of the CDB binary to read.  Defaults to the bundled
+ * Gzip is detected from the payload's magic bytes, so compressed files are
+ * inflated transparently and relocated raw CDB files remain supported.
+ *
+ * @param url Location of the raw or gzip-compressed CDB to read. Defaults to the bundled
  *   {@link stdictCdbUrl}; pass another URL to load a relocated copy.
  * @returns The CDB binary as a `Uint8Array`.
  */
@@ -79,21 +88,29 @@ export async function stdictCdbBytes(
       /* webpackIgnore: true */ specifier
     )) as unknown as NodeFsPromises;
     const buf = await fs.readFile(url);
-    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    return inflateIfGzip(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
   }
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch stdict CDB: HTTP ${response.status}`);
   }
-  return new Uint8Array(await response.arrayBuffer());
+  return inflateIfGzip(new Uint8Array(await response.arrayBuffer()));
+}
+
+// Detect compression from the payload rather than a URL suffix. HTTP clients
+// may already have decoded Content-Encoding before returning response bytes.
+async function inflateIfGzip(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
+  if (bytes.length < 2 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) return bytes;
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 /**
  * Loads the bundled Standard Korean Language Dictionary as a
  * {@link FileDictionarySource} ready to pass to `load({ dictionaries: [...] })`.
  *
- * @returns A `FileDictionarySource` with `format: "cdb"`.
+ * @returns A `FileDictionarySource` with `format: "cdb"` and `role: "reference"`.
  */
 export async function stdictCdb(): Promise<FileDictionarySource> {
-  return { data: await stdictCdbBytes(), format: "cdb" };
+  return { data: await stdictCdbBytes(), format: "cdb", role: "reference" };
 }
