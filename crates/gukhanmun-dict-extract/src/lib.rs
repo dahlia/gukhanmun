@@ -27,6 +27,7 @@
 use serde::Deserialize;
 
 pub mod aliases;
+pub mod evidence;
 pub mod loanwords;
 
 /// One `original_language_info` record from a dictionary dump item.

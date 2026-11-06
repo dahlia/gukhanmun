@@ -59,6 +59,10 @@ struct Cli {
     #[arg(long, value_name = "PATH")]
     seed_aliases: Option<PathBuf>,
 
+    /// Path to write additive typed source evidence JSON.
+    #[arg(long, value_name = "PATH")]
+    evidence_output: Option<PathBuf>,
+
     /// Check that output files match extraction without modifying them.
     #[arg(long, requires = "output")]
     check: bool,
@@ -115,6 +119,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         gukhanmun_stdict::extract::extract_path_to_tsv(&cli.input, &mut output)?
     };
+    if let Some(path) = cli.evidence_output {
+        let mut evidence = Vec::new();
+        gukhanmun_stdict::extract::extract_path_to_evidence_json(&cli.input, &mut evidence)?;
+        write_or_check(path, &evidence, cli.check)?;
+    }
     if let Some(path) = cli.output {
         write_or_check(path, &output, cli.check)?;
     } else {

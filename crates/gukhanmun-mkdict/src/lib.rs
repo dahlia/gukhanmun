@@ -39,7 +39,8 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 use gukhanmun_core::{
-    AliasKind, AliasTarget, MatchMark, ReadingCandidate, ReadingCandidates, select_default_reading,
+    AliasKind, AliasTarget, CandidateRecord, DictionaryEvidence, MatchMark, ReadingCandidate,
+    ReadingCandidates, select_default_reading,
 };
 
 const MAGIC: &[u8; 8] = b"GUKHMFST";
@@ -54,6 +55,7 @@ const RESERVED_METADATA_KEYS: &[&str] = &[
     "max_key_bytes",
     "prefix_count",
     "aliases",
+    "candidate_evidence",
 ];
 const CDB_META_KEY: &[u8] = b"__gukhanmun_meta__";
 
@@ -618,13 +620,37 @@ pub fn build_dictionary(
     output_path: impl AsRef<Path>,
     options: &BuildOptions,
 ) -> Result<()> {
+    build_dictionary_internal(input_paths, output_path.as_ref(), options, None)
+}
+
+/// Builds a dictionary carrying critical, candidate-linked source evidence.
+///
+/// Evidence is validated against the final candidates after rules, aliases and
+/// input merging. The output uses container version 4 so older readers reject
+/// evidence they cannot interpret. Canonical reading payloads remain unchanged.
+/// Use [`build_dictionary`] when no source evidence is available.
+pub fn build_dictionary_with_evidence(
+    input_paths: &[PathBuf],
+    output_path: impl AsRef<Path>,
+    options: &BuildOptions,
+    evidence: &DictionaryEvidence,
+) -> Result<()> {
+    build_dictionary_internal(input_paths, output_path.as_ref(), options, Some(evidence))
+}
+
+fn build_dictionary_internal(
+    input_paths: &[PathBuf],
+    output_path: &Path,
+    options: &BuildOptions,
+    evidence: Option<&DictionaryEvidence>,
+) -> Result<()> {
     ensure!(
         !input_paths.is_empty(),
         "at least one input file is required"
     );
     tracing::info!(
         input_count = input_paths.len(),
-        output = %output_path.as_ref().display(),
+        output = %output_path.display(),
         ?options.format,
         "building dictionary"
     );
@@ -650,28 +676,36 @@ pub fn build_dictionary(
     if !options.relations.is_empty() {
         apply_relations(&mut entries, &options.relations)?;
     }
-    let metadata = build_metadata(&options.metadata, &entries)?;
+    let mut metadata = build_metadata(&options.metadata, &entries)?;
+    if let Some(evidence) = evidence {
+        evidence
+            .validate_records(
+                candidate_groups(&entries)?
+                    .into_iter()
+                    .map(|(hanja, candidates)| CandidateRecord { hanja, candidates }),
+            )
+            .context("source evidence does not match final dictionary candidates")?;
+        metadata.insert("version".into(), "4".into());
+    }
     match options.format {
         DictionaryFormat::Fst => {
-            let bytes = build_fst_bytes(&entries, &metadata)?;
-            fs::write(output_path.as_ref(), &bytes)
-                .with_context(|| format!("failed to write {}", output_path.as_ref().display()))?;
+            let bytes = build_fst_bytes(&entries, &metadata, evidence)?;
+            fs::write(output_path, &bytes)
+                .with_context(|| format!("failed to write {}", output_path.display()))?;
 
             if options.validate {
-                let dictionary = FstDictionary::open(output_path.as_ref()).with_context(|| {
-                    format!("failed to validate {}", output_path.as_ref().display())
-                })?;
+                let dictionary = FstDictionary::open(output_path)
+                    .with_context(|| format!("failed to validate {}", output_path.display()))?;
                 validate_fst_round_trip(&entries, &dictionary)?;
             }
         }
         DictionaryFormat::Cdb => {
             reject_reserved_cdb_keys(&entries)?;
-            build_cdb_file(&entries, &metadata, output_path.as_ref())?;
+            build_cdb_file(&entries, &metadata, output_path, evidence)?;
 
             if options.validate {
-                let dictionary = CdbDictionary::open(output_path.as_ref()).with_context(|| {
-                    format!("failed to validate {}", output_path.as_ref().display())
-                })?;
+                let dictionary = CdbDictionary::open(output_path)
+                    .with_context(|| format!("failed to validate {}", output_path.display()))?;
                 validate_cdb_round_trip(&entries, &dictionary)?;
             }
         }
@@ -1297,12 +1331,62 @@ fn default_build_date() -> String {
         .unwrap_or_else(|| "1970-01-01T00:00:00Z".to_owned())
 }
 
+struct EvidencePayload<'a>(&'a DictionaryEvidence);
+impl Serialize for EvidencePayload<'_> {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        gukhanmun_core::serialize_dictionary_evidence(self.0, serializer)
+    }
+}
+
+struct EvidenceMetadata<'a> {
+    strings: &'a BTreeMap<String, String>,
+    evidence: &'a DictionaryEvidence,
+}
+
+impl Serialize for EvidenceMetadata<'_> {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap as _;
+        let mut map = serializer.serialize_map(Some(self.strings.len() + 1))?;
+        for (key, value) in self.strings {
+            map.serialize_entry(key, value)?;
+        }
+        map.serialize_entry("candidate_evidence", &EvidencePayload(self.evidence))?;
+        map.end()
+    }
+}
+
+fn encode_metadata(
+    metadata: &BTreeMap<String, String>,
+    evidence: Option<&DictionaryEvidence>,
+) -> Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    if let Some(evidence) = evidence {
+        into_writer(
+            &EvidenceMetadata {
+                strings: metadata,
+                evidence,
+            },
+            &mut bytes,
+        )
+        .context("failed to encode dictionary source metadata")?;
+    } else {
+        into_writer(metadata, &mut bytes).context("failed to encode dictionary metadata")?;
+    }
+    Ok(bytes)
+}
+
 fn build_fst_bytes(
     entries: &[DictionaryEntry],
     metadata: &BTreeMap<String, String>,
+    evidence: Option<&DictionaryEvidence>,
 ) -> Result<Vec<u8>> {
-    let mut metadata_bytes = Vec::new();
-    into_writer(metadata, &mut metadata_bytes).context("failed to encode dictionary metadata")?;
+    let metadata_bytes = encode_metadata(metadata, evidence)?;
 
     let mut readings = Vec::new();
     let mut builder = MapBuilder::memory();
@@ -1360,12 +1444,12 @@ fn build_cdb_file(
     entries: &[DictionaryEntry],
     metadata: &BTreeMap<String, String>,
     output_path: &Path,
+    evidence: Option<&DictionaryEvidence>,
 ) -> Result<()> {
     let records = build_cdb_records(entries)?;
     let mut metadata = metadata.clone();
     metadata.insert("prefix_count".to_owned(), records.len().to_string());
-    let mut metadata_bytes = Vec::new();
-    into_writer(&metadata, &mut metadata_bytes).context("failed to encode dictionary metadata")?;
+    let metadata_bytes = encode_metadata(&metadata, evidence)?;
 
     let output_name = output_path.to_str().ok_or_else(|| {
         Error::message(format!(

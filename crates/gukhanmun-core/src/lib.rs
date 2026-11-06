@@ -28,6 +28,9 @@
 extern crate alloc;
 
 mod candidates;
+mod evidence;
+#[cfg(feature = "serde")]
+pub use evidence::{deserialize_dictionary_evidence, serialize_dictionary_evidence};
 mod fallback;
 mod particles;
 mod punctuation;
@@ -38,6 +41,11 @@ pub use candidates::{
     AliasKind, AliasTarget, CandidateError, CandidateMatch, CandidateRecord, LexemeIndex,
     ReadingCandidate, ReadingCandidates, candidate_matches_at_spellings, select_default_reading,
 };
+pub use evidence::{
+    AuthorizationKind, AuthorizedForm, CandidateEvidence, DictionaryEvidence, EvidenceDiagnostic,
+    EvidenceDiagnosticKind, EvidenceError, ReadingForm, RelationWitness, SenseId,
+    SourceContribution, SourceReference, SourceRole, WordId, WordOrigin,
+};
 mod generated;
 mod segment;
 mod variants;
@@ -45,6 +53,7 @@ mod variants;
 use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::{String, ToString};
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
@@ -462,6 +471,14 @@ pub struct Match {
 /// supplied string. This shape supports lattice segmentation because the
 /// engine must consider every candidate path through a hanja run.
 pub trait HanjaDictionary {
+    /// Returns validated source evidence without copying the evidence graph.
+    ///
+    /// Missing evidence means unknown provenance. This optional capability does
+    /// not alter legacy candidate selection or infer a source role from its name.
+    fn source_evidence(&self) -> Option<&DictionaryEvidence> {
+        None
+    }
+
     /// Yields candidate sets before reading selection. Legacy implementations
     /// are lifted one match at a time, preserving their order and values.
     fn candidate_matches_at<'a>(
@@ -562,6 +579,10 @@ impl<D> HanjaDictionary for &D
 where
     D: HanjaDictionary + ?Sized,
 {
+    fn source_evidence(&self) -> Option<&DictionaryEvidence> {
+        (**self).source_evidence()
+    }
+
     fn candidate_matches_at<'a>(
         &'a self,
         s: &'a str,
@@ -604,6 +625,56 @@ impl<D> HanjaDictionary for Box<D>
 where
     D: HanjaDictionary + ?Sized,
 {
+    fn source_evidence(&self) -> Option<&DictionaryEvidence> {
+        (**self).source_evidence()
+    }
+
+    fn candidate_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+        (**self).candidate_matches_at(s)
+    }
+    fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
+        (**self).candidate_matches_at_spellings(spellings)
+    }
+    fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
+        (**self).candidate_entries()
+    }
+
+    fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+        (**self).matches_at(s)
+    }
+
+    fn matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, Match)> {
+        (**self).matches_at_spellings(spellings)
+    }
+
+    fn max_word_chars(&self) -> Option<usize> {
+        (**self).max_word_chars()
+    }
+
+    fn entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = DictionaryRecord> + 'a>> {
+        (**self).entries()
+    }
+
+    fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        (**self).has_homophone(hanja, reading)
+    }
+
+    fn lexemes(&self) -> Option<LexemeIndex> {
+        (**self).lexemes()
+    }
+}
+
+impl<D> HanjaDictionary for Arc<D>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    fn source_evidence(&self) -> Option<&DictionaryEvidence> {
+        (**self).source_evidence()
+    }
+
     fn candidate_matches_at<'a>(
         &'a self,
         s: &'a str,
@@ -969,12 +1040,33 @@ pub struct MapDictionary {
     entries: BTreeMap<String, ReadingCandidates>,
     max_word_chars: Option<usize>,
     lexemes: LexemeIndex,
+    evidence: Option<DictionaryEvidence>,
 }
 
 impl MapDictionary {
     /// Creates an empty map dictionary.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Attaches source evidence after validating its exact candidate links.
+    ///
+    /// Evidence may cover only part of the dictionary. A rejected replacement
+    /// leaves the previous evidence intact. Subsequent edits remove evidence
+    /// for the edited key, retaining the source role and other keys' evidence.
+    pub fn set_source_evidence(
+        &mut self,
+        evidence: DictionaryEvidence,
+    ) -> Result<(), EvidenceError> {
+        evidence.validate_records(self.candidate_entries().unwrap())?;
+        self.evidence = Some(evidence);
+        Ok(())
+    }
+
+    fn invalidate_source_evidence(&mut self, hanja: &str) {
+        if let Some(evidence) = &mut self.evidence {
+            evidence.entries.remove(hanja);
+        }
     }
 
     /// Inserts an entry with no special rendering constraints.
@@ -1018,6 +1110,7 @@ impl MapDictionary {
             if word_chars > max { word_chars } else { max }
         }));
         let candidates = ReadingCandidates::from_legacy(reading.into(), suffix_reading, mark);
+        self.invalidate_source_evidence(&hanja);
         self.lexemes.set_key(&hanja, &candidates);
         self.entries.insert(hanja, candidates);
     }
@@ -1026,6 +1119,7 @@ impl MapDictionary {
     /// Lower-priority dictionaries cannot contribute alternatives to this key.
     pub fn insert_candidates(&mut self, hanja: impl Into<String>, candidates: ReadingCandidates) {
         let hanja = hanja.into();
+        self.invalidate_source_evidence(&hanja);
         let chars = hanja.chars().count();
         self.max_word_chars = Some(self.max_word_chars.map_or(chars, |max| max.max(chars)));
         self.lexemes.set_key(&hanja, &candidates);
@@ -1087,6 +1181,7 @@ impl MapDictionary {
             }),
         });
         let candidates = ReadingCandidates::new(candidates)?;
+        self.invalidate_source_evidence(&hanja);
         let chars = hanja.chars().count();
         self.max_word_chars = Some(self.max_word_chars.map_or(chars, |max| max.max(chars)));
         self.lexemes.set_key(&hanja, &candidates);
@@ -1179,6 +1274,10 @@ where
 }
 
 impl HanjaDictionary for MapDictionary {
+    fn source_evidence(&self) -> Option<&DictionaryEvidence> {
+        self.evidence.as_ref()
+    }
+
     fn candidate_matches_at<'a>(
         &'a self,
         s: &'a str,

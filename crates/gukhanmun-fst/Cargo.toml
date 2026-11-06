@@ -9,9 +9,10 @@ repository.workspace = true
 description = "FST dictionary backend for gukhanmun."
 
 [dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
 ciborium = "0.2.2"
 fst = "0.4.7"
-gukhanmun-core.workspace = true
+gukhanmun-core = { workspace = true, features = ["serde"] }
 thiserror = "2.0.18"
 tracing = "0.1.41"
 
