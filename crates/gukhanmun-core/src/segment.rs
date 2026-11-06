@@ -35,6 +35,7 @@ pub(crate) enum Segment {
         mark: MatchMark,
         dictionary_hanja: String,
         pending_selection: bool,
+        selection: Option<crate::SelectedReading>,
     },
     TrivialDictionary {
         byte_start: usize,
@@ -44,6 +45,7 @@ pub(crate) enum Segment {
         mark: MatchMark,
         dictionary_hanja: String,
         pending_selection: bool,
+        selection: Option<crate::SelectedReading>,
     },
     Fallback {
         byte_start: usize,
@@ -114,9 +116,12 @@ fn segment_for_dictionary_match(
             },
         dictionary_hanja,
         pending_selection,
+        selection,
         ..
     } = resolved;
-    if is_trivial_single_char_match(source, &reading, suffix_reading.as_deref(), mark) {
+    if selection.is_none()
+        && is_trivial_single_char_match(source, &reading, suffix_reading.as_deref(), mark)
+    {
         Segment::TrivialDictionary {
             byte_start,
             byte_end,
@@ -125,6 +130,7 @@ fn segment_for_dictionary_match(
             mark,
             dictionary_hanja,
             pending_selection,
+            selection,
         }
     } else {
         Segment::Dictionary {
@@ -135,6 +141,7 @@ fn segment_for_dictionary_match(
             mark,
             dictionary_hanja,
             pending_selection,
+            selection,
         }
     }
 }
@@ -205,11 +212,67 @@ impl Score {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn segment_text<D>(
     text: &str,
     dictionary: &D,
     options: EngineOptions,
     final_end: bool,
+) -> Vec<Segment>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    segment_text_cached(
+        text,
+        dictionary,
+        options,
+        final_end,
+        &mut crate::resolution::ResolutionCache::default(),
+    )
+}
+
+pub(crate) fn segment_text_cached<D>(
+    text: &str,
+    dictionary: &D,
+    options: EngineOptions,
+    final_end: bool,
+    cache: &mut crate::resolution::ResolutionCache,
+) -> Vec<Segment>
+where
+    D: HanjaDictionary + ?Sized,
+{
+    segment_text_with_frontier(text, dictionary, options, final_end, cache, None)
+}
+
+pub(crate) fn segment_text_stable_cached<D>(
+    text: &str,
+    dictionary: &D,
+    options: EngineOptions,
+    final_end: bool,
+    cache: &mut crate::resolution::ResolutionCache,
+) -> (Vec<Segment>, usize)
+where
+    D: HanjaDictionary + ?Sized,
+{
+    let mut stable_end = text.len();
+    let segments = segment_text_with_frontier(
+        text,
+        dictionary,
+        options,
+        final_end,
+        cache,
+        Some(&mut stable_end),
+    );
+    (segments, stable_end)
+}
+
+fn segment_text_with_frontier<D>(
+    text: &str,
+    dictionary: &D,
+    options: EngineOptions,
+    final_end: bool,
+    cache: &mut crate::resolution::ResolutionCache,
+    mut stable_end: Option<&mut usize>,
 ) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
@@ -231,6 +294,12 @@ where
                 dictionary,
                 options,
                 span_end < text.len() || final_end,
+                cache,
+                if span_end == text.len() && !final_end {
+                    stable_end.as_deref_mut()
+                } else {
+                    None
+                },
             ));
         } else {
             segments.push(Segment::Text {
@@ -250,16 +319,24 @@ fn segment_span_with_strategy<D>(
     dictionary: &D,
     options: EngineOptions,
     final_end: bool,
+    cache: &mut crate::resolution::ResolutionCache,
+    stable_end: Option<&mut usize>,
 ) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
 {
     match options.segmentation {
-        SegmentationStrategy::Lattice => {
-            segment_span_lattice(span, byte_offset, dictionary, options, final_end)
-        }
+        SegmentationStrategy::Lattice => segment_span_lattice(
+            span,
+            byte_offset,
+            dictionary,
+            options,
+            final_end,
+            cache,
+            stable_end,
+        ),
         SegmentationStrategy::Eager => {
-            segment_span_eager(span, byte_offset, dictionary, options, final_end)
+            segment_span_eager(span, byte_offset, dictionary, options, final_end, cache)
         }
     }
 }
@@ -270,6 +347,8 @@ fn segment_span_lattice<D>(
     dictionary: &D,
     options: EngineOptions,
     final_end: bool,
+    cache: &mut crate::resolution::ResolutionCache,
+    stable_end: Option<&mut usize>,
 ) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
@@ -295,7 +374,7 @@ where
         let byte_start = boundaries[start_char];
         let lookup = lookup_suffix(span, &boundaries, start_char, max_word_chars);
         let dictionary_matches = if lookup.chars().any(is_hanja) {
-            variants::matches_at(lookup, dictionary, &span[byte_start..], final_end)
+            variants::matches_at(lookup, dictionary, &span[byte_start..], final_end, cache)
         } else {
             Vec::new()
         };
@@ -388,6 +467,32 @@ where
         }
     }
 
+    if let Some(stable_end) = stable_end {
+        let frontier_start = char_count.saturating_sub(
+            max_word_chars
+                .unwrap_or(char_count.saturating_add(1))
+                .saturating_sub(1),
+        );
+        let numeral_start = (options.numeral_strategy != crate::NumeralStrategy::HangulPhonetic)
+            .then(|| {
+                chars
+                    .iter()
+                    .rposition(|ch| !is_hanja_numeral(*ch))
+                    .map_or(0, |index| index + 1)
+            })
+            .filter(|start| *start < char_count)
+            .map(|start| {
+                // A preceding hanja or ordinal marker can suppress Arabic
+                // conversion. Keep that witness too when it affects admission.
+                if can_start_arabic_numeral(&chars, start) {
+                    start
+                } else {
+                    start.saturating_sub(1)
+                }
+            });
+        let common = common_frontier_ancestor(&best, frontier_start, numeral_start);
+        *stable_end = byte_offset + boundaries[common];
+    }
     backtrack(&best)
 }
 
@@ -397,6 +502,7 @@ fn segment_span_eager<D>(
     dictionary: &D,
     options: EngineOptions,
     final_end: bool,
+    cache: &mut crate::resolution::ResolutionCache,
 ) -> Vec<Segment>
 where
     D: HanjaDictionary + ?Sized,
@@ -416,7 +522,7 @@ where
             && let Some(matched) = arabic_numeral_at(&chars, start_char, options.numeral_strategy)
         {
             let dictionary_matches = if lookup.chars().any(is_hanja) {
-                variants::matches_at(lookup, dictionary, &span[byte_start..], final_end)
+                variants::matches_at(lookup, dictionary, &span[byte_start..], final_end, cache)
             } else {
                 Vec::new()
             };
@@ -440,8 +546,15 @@ where
         }
 
         if lookup.chars().any(is_hanja)
-            && let Some((matched, end_char)) =
-                longest_match(span, &boundaries, start_char, lookup, dictionary, final_end)
+            && let Some((matched, end_char)) = longest_match(
+                span,
+                &boundaries,
+                start_char,
+                lookup,
+                dictionary,
+                final_end,
+                cache,
+            )
         {
             let Some(byte_end) = byte_start.checked_add(matched.source_byte_len) else {
                 continue;
@@ -576,6 +689,7 @@ fn longest_match<D>(
     lookup: &str,
     dictionary: &D,
     final_end: bool,
+    cache: &mut crate::resolution::ResolutionCache,
 ) -> Option<(variants::ResolvedMatch, usize)>
 where
     D: HanjaDictionary + ?Sized,
@@ -584,7 +698,7 @@ where
     let char_count = boundaries.len().saturating_sub(1);
     let mut best: Option<(variants::ResolvedMatch, usize)> = None;
 
-    for matched in variants::matches_at(lookup, dictionary, &span[byte_start..], final_end) {
+    for matched in variants::matches_at(lookup, dictionary, &span[byte_start..], final_end, cache) {
         let Some(byte_end) = byte_start.checked_add(matched.source_byte_len) else {
             continue;
         };
@@ -717,6 +831,40 @@ fn propose(slot: &mut Option<BestPath>, score: Score, previous: usize, segment: 
         previous,
         segment,
     });
+}
+
+// Every future bounded dictionary edge must begin at one of these frontier
+// states. Count their ancestors in one reverse backpointer walk, retaining only
+// the deepest prefix shared by all of them. The scoring/tie order stays intact.
+fn common_frontier_ancestor(
+    best: &[Option<BestPath>],
+    start: usize,
+    open_numeral: Option<usize>,
+) -> usize {
+    let mut descendants = alloc::vec![0usize; best.len()];
+    let mut total = 0;
+    for index in start..best.len() {
+        if best[index].is_some() {
+            descendants[index] = 1;
+            total += 1;
+        }
+    }
+    if let Some(index) = open_numeral
+        && descendants[index] == 0
+        && best[index].is_some()
+    {
+        descendants[index] = 1;
+        total += 1;
+    }
+    for index in (1..best.len()).rev() {
+        if descendants[index] == total {
+            return index;
+        }
+        if let Some(path) = &best[index] {
+            descendants[path.previous] += descendants[index];
+        }
+    }
+    0
 }
 
 fn backtrack(best: &[Option<BestPath>]) -> Vec<Segment> {

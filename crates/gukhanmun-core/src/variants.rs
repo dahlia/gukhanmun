@@ -23,7 +23,7 @@ use crate::generated::hanja_variants::{
     COMPATIBILITY_REVERSE_FORMS, JOYO_FORMS, JOYO_REVERSE_FORMS, JOYO_TARGETS, SIMPLIFIED_FORMS,
     SIMPLIFIED_REVERSE_FORMS, TRADITIONAL_FORMS, Z_CANONICAL_FORMS, Z_FORMS, Z_REVERSE_FORMS,
 };
-use crate::{CandidateMatch, HanjaDictionary, Match};
+use crate::{CandidateMatch, HanjaDictionary, Match, SelectedReading, SourceMatch};
 
 pub(crate) const MAX_VARIANT_PREFIX_CHARS: usize = 32;
 pub(crate) const MAX_VARIANT_CANDIDATES: usize = 256;
@@ -34,6 +34,60 @@ pub(crate) struct ResolvedMatch {
     pub(crate) source_byte_len: usize,
     pub(crate) dictionary_hanja: String,
     pub(crate) pending_selection: bool,
+    pub(crate) selection: Option<SelectedReading>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum PendingMatch {
+    Legacy(CandidateMatch),
+    Source(SourceMatch),
+}
+impl PendingMatch {
+    fn byte_len(&self) -> usize {
+        match self {
+            Self::Legacy(matched) => matched.byte_len,
+            Self::Source(matched) => matched.byte_len,
+        }
+    }
+    fn choices(&self) -> usize {
+        match self {
+            Self::Legacy(matched) => matched.candidates.as_slice().len(),
+            Self::Source(matched) => matched.ranked.len(),
+        }
+    }
+    fn resolve(
+        self,
+        context: &str,
+        source_byte_len: usize,
+        final_end: bool,
+        dictionary_hanja: &str,
+    ) -> ResolvedMatch {
+        let pending_selection = selection_pending(&self, context, source_byte_len, final_end);
+        let (matched, selection, dictionary_hanja) = match self {
+            Self::Legacy(matched) => (
+                crate::particles::select(
+                    &matched.candidates,
+                    &context[source_byte_len..],
+                    final_end,
+                    matched.byte_len,
+                ),
+                None,
+                dictionary_hanja.into(),
+            ),
+            Self::Source(source) => {
+                let (matched, selection) = source.select(&context[source_byte_len..], final_end);
+                let key = selection.choice.anchor.key.clone();
+                (matched, Some(selection), key)
+            }
+        };
+        ResolvedMatch {
+            matched,
+            selection,
+            dictionary_hanja,
+            source_byte_len,
+            pending_selection,
+        }
+    }
 }
 
 pub(crate) fn matches_at<D>(
@@ -41,30 +95,36 @@ pub(crate) fn matches_at<D>(
     dictionary: &D,
     context: &str,
     final_end: bool,
+    cache: &mut crate::resolution::ResolutionCache,
 ) -> Vec<ResolvedMatch>
 where
     D: HanjaDictionary + ?Sized,
 {
-    let exact = dictionary.candidate_matches_at(source).collect::<Vec<_>>();
+    if let Some(matches) = cache.exact(dictionary, source) {
+        // Cooperative dictionaries resolve complete glyph alternatives within
+        // each source before ranking, so repeating the legacy global pass could
+        // discard the selected source's variant identity.
+        return matches
+            .into_iter()
+            .filter_map(|matched| {
+                let len = matched.byte_len;
+                source
+                    .get(..len)
+                    .map(|key| PendingMatch::Source(matched).resolve(context, len, final_end, key))
+            })
+            .collect();
+    }
+    let exact = dictionary
+        .candidate_matches_at(source)
+        .map(PendingMatch::Legacy)
+        .collect::<Vec<_>>();
     let mut resolved = exact
         .into_iter()
         .filter_map(|matched| {
-            source.get(..matched.byte_len).map(|hanja| ResolvedMatch {
-                source_byte_len: matched.byte_len,
-                dictionary_hanja: hanja.into(),
-                pending_selection: selection_pending(
-                    &matched,
-                    context,
-                    matched.byte_len,
-                    final_end,
-                ),
-                matched: crate::particles::select(
-                    &matched.candidates,
-                    &context[matched.byte_len..],
-                    final_end,
-                    matched.byte_len,
-                ),
-            })
+            let len = matched.byte_len();
+            source
+                .get(..len)
+                .map(|key| matched.resolve(context, len, final_end, key))
         })
         .collect::<Vec<_>>();
     let mut candidates: Option<Vec<(String, usize)>> = None;
@@ -140,7 +200,17 @@ where
             .iter()
             .map(|(candidate, _)| candidate.as_str())
             .collect::<Vec<_>>();
-        let mut selected = dictionary.candidate_matches_at_spellings(&spellings);
+        let mut selected = match cache.spellings(dictionary, &spellings) {
+            Some(matches) => matches
+                .into_iter()
+                .map(|(index, matched)| (index, PendingMatch::Source(matched)))
+                .collect::<Vec<_>>(),
+            None => dictionary
+                .candidate_matches_at_spellings(&spellings)
+                .into_iter()
+                .map(|(index, matched)| (index, PendingMatch::Legacy(matched)))
+                .collect(),
+        };
         selected.retain(|(candidate_index, _)| *candidate_index < candidates.len());
         if selected.is_empty() {
             continue;
@@ -148,26 +218,11 @@ where
         if selected.iter().any(|(index, _)| *index == 0) {
             resolved.retain(|matched| matched.source_byte_len != source_byte_len);
             resolved.extend(selected.into_iter().filter(|(index, _)| *index == 0).map(
-                |(_, matched)| ResolvedMatch {
-                    pending_selection: selection_pending(
-                        &matched,
-                        context,
-                        source_byte_len,
-                        final_end,
-                    ),
-                    matched: crate::particles::select(
-                        &matched.candidates,
-                        &context[source_byte_len..],
-                        final_end,
-                        matched.byte_len,
-                    ),
-                    source_byte_len,
-                    dictionary_hanja: source_prefix.into(),
-                },
+                |(_, matched)| matched.resolve(context, source_byte_len, final_end, source_prefix),
             ));
             continue;
         }
-        let mut matches = Vec::<(usize, &str, CandidateMatch)>::new();
+        let mut matches = Vec::<(usize, &str, PendingMatch)>::new();
         for (candidate_index, matched) in selected {
             let (candidate, substitutions) = &candidates[candidate_index];
             matches.push((*substitutions, candidate.as_str(), matched));
@@ -179,20 +234,56 @@ where
         }
         if let Some((_, dictionary_hanja, matched)) = matches.into_iter().next() {
             resolved.retain(|matched| matched.source_byte_len != source_byte_len);
-            resolved.push(ResolvedMatch {
-                pending_selection: selection_pending(&matched, context, source_byte_len, final_end),
-                matched: crate::particles::select(
-                    &matched.candidates,
-                    &context[source_byte_len..],
-                    final_end,
-                    matched.byte_len,
-                ),
-                source_byte_len,
-                dictionary_hanja: dictionary_hanja.into(),
-            });
+            resolved.push(matched.resolve(context, source_byte_len, final_end, dictionary_hanja));
         }
     }
     resolved
+}
+
+// Enumerate the same bounded whole-spelling recognition alternatives used by
+// lookup. Long/overflowing complete keys retain exact-only admission, as lookup
+// itself cannot recognize a full alternative beyond these bounds.
+pub(crate) fn complete_spellings(source: &str) -> Option<Vec<String>> {
+    if source.chars().count() > MAX_VARIANT_PREFIX_CHARS {
+        return None;
+    }
+    let mut spellings = alloc::vec![String::new()];
+    for ch in source.chars() {
+        extend_spellings(&mut spellings, ch)?;
+    }
+    Some(spellings)
+}
+
+// Extend an existing prefix pool in the same Cartesian order as full-spelling
+// enumeration. Reject overflow before mutating any already accepted prefix.
+pub(crate) fn extend_spellings(spellings: &mut Vec<String>, ch: char) -> Option<()> {
+    let variants = recognition_variants(ch);
+    let alternatives = variants.as_slice();
+    let capacity = spellings.len().checked_mul(alternatives.len())?;
+    if capacity > MAX_VARIANT_CANDIDATES {
+        return None;
+    }
+    if alternatives.len() == 1 {
+        for spelling in spellings {
+            spelling.push(alternatives[0]);
+        }
+        return Some(());
+    }
+    let (last, others) = alternatives
+        .split_last()
+        .expect("recognition includes the source character");
+    let mut next = Vec::with_capacity(capacity);
+    for mut prefix in core::mem::take(spellings) {
+        for alternative in others {
+            let mut spelling = prefix.clone();
+            spelling.push(*alternative);
+            next.push(spelling);
+        }
+        prefix.push(*last);
+        next.push(prefix);
+    }
+    *spellings = next;
+    Some(())
 }
 
 fn map_char(ch: char, table: &[(char, char)]) -> char {
@@ -386,13 +477,13 @@ pub(crate) fn render_hanja(source: &str, variant_set: crate::HanjaVariantSet) ->
 }
 
 fn selection_pending(
-    matched: &CandidateMatch,
+    matched: &PendingMatch,
     context: &str,
     source_byte_len: usize,
     final_end: bool,
 ) -> bool {
     !final_end
-        && matched.candidates.as_slice().len() > 1
+        && matched.choices() > 1
         && context[source_byte_len..]
             .chars()
             .take(crate::particles::LOOKAHEAD)
@@ -406,6 +497,23 @@ mod tests {
 
     use super::render_hanja;
     use crate::HanjaVariantSet;
+
+    #[test]
+    fn incremental_spellings_preserve_order_single_branch_storage_and_budget() {
+        let mut spellings = alloc::vec![alloc::string::String::new()];
+        super::extend_spellings(&mut spellings, '年').unwrap();
+        assert_eq!(spellings, ["年", "年"]);
+        let storage = spellings.as_ptr();
+        super::extend_spellings(&mut spellings, 'a').unwrap();
+        assert_eq!(spellings.as_ptr(), storage);
+        assert_eq!(spellings, ["年a", "年a"]);
+        assert_eq!(super::complete_spellings("年a").unwrap(), spellings);
+        let mut full =
+            alloc::vec![alloc::string::String::from("甲"); super::MAX_VARIANT_CANDIDATES];
+        let before = full.clone();
+        assert!(super::extend_spellings(&mut full, '年').is_none());
+        assert_eq!(full, before);
+    }
 
     #[test]
     fn as_dictionary_borrows_the_source() {

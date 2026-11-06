@@ -34,6 +34,14 @@ To be released.
     umbrella crate.  [[#38], [#39]]
  -  Exposed typed dictionary source evidence and validation APIs through the
     Rust facade. [[#42], [#44]]
+ -  The exported core pipeline preserves source-aware selection metadata through
+    annotations and middleware, including aliases, particles, authorial glosses,
+    and first-occurrence/homophone identity. Source-aware dictionary matches
+    retain their own annotation boundaries. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
 
 [#33]: https://github.com/dahlia/gukhanmun/issues/33
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
@@ -58,6 +66,10 @@ To be released.
     [[#38], [#39]]
  -  Custom FST/CDB dictionaries can carry version 4 source evidence; older
     dictionary files remain supported. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
 
 ### gukhanmun-core
 
@@ -83,6 +95,22 @@ To be released.
     homophone merely because a derived alias exists for it, while
     first-occurrence filtering and literal directives still use lexical
     identity.  [[#38], [#39]]
+ -  Added opt-in `ChainDictionary` source policies and role-aware registration.
+    Reference-authorized forms and independent loanword candidates keep their
+    own identities, marks, and positional readings, with one particle filter
+    over the ranked pool. Direct chains retain `Ordered` by default.
+    [[#42], [#44]]
+ -  Preserved selected source identity through annotations, homophone and
+    first-occurrence handling, directives, and parenthetical reading changes.
+    Source-aware dictionary matches retain separate annotation boundaries
+    beside fallback characters. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
+ -  Reduced cooperative lookup overhead for dictionaries with unknown maximum
+    word lengths without truncating their queries or limiting long matches.
+    [[#42], [#44]]
  -  Added typed source evidence, candidate-link validation, and
     `HanjaDictionary::source_evidence()` for inspecting dictionary provenance
     without changing legacy reading selection. [[#42], [#44]]
@@ -133,6 +161,10 @@ To be released.
     with the offending entry index.  [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
 
 ### gukhanmun-opendict
 
@@ -161,6 +193,10 @@ To be released.
     with the offending entry index.  [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
 
 ### @gukhanmun/napi
 
@@ -170,6 +206,10 @@ To be released.
     [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
  -  Recognize reviewed compound aliases and stop treating sibling spellings as
     homophones or separate first occurrences. [[#38], [#39]]
 
@@ -210,6 +250,10 @@ To be released.
     [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
  -  Recognize reviewed compound aliases and stop treating sibling spellings as
     homophones or separate first occurrences. [[#38], [#39]]
 

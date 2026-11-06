@@ -35,6 +35,7 @@ mod fallback;
 mod particles;
 mod punctuation;
 mod punctuation_categories;
+mod resolution;
 pub use punctuation::*;
 
 pub use candidates::{
@@ -45,6 +46,10 @@ pub use evidence::{
     AuthorizationKind, AuthorizedForm, CandidateEvidence, DictionaryEvidence, EvidenceDiagnostic,
     EvidenceDiagnosticKind, EvidenceError, ReadingForm, RelationWitness, SenseId,
     SourceContribution, SourceReference, SourceRole, WordId, WordOrigin,
+};
+pub use resolution::{
+    ChoiceReason, SelectedReading, SelectionDiagnostic, SourceAnchor, SourceChoice, SourceGroup,
+    SourceId, SourceMatch, SourcePolicy,
 };
 mod generated;
 mod segment;
@@ -64,7 +69,7 @@ use fallback::{
     reading_matches_with_initial_sound_law, should_apply_yeol_yul,
 };
 use generated::unihan_readings::KHANGUL_READINGS;
-use segment::{Segment, segment_text};
+use segment::{Segment, segment_text_cached, segment_text_stable_cached};
 
 /// Error returned by fallible core pipeline entry points.
 ///
@@ -363,6 +368,10 @@ pub struct Annotation {
     /// used by policy middlewares and variant-set rendering.
     pub dictionary_hanja: Option<String>,
 
+    /// Actual source-aware choice, including anchor identity and retained ranked forms.
+    /// Legacy and fallback annotations leave this absent.
+    pub selection: Option<SelectedReading>,
+
     /// The hangul reading selected for the hanja text.
     pub reading: String,
 
@@ -399,6 +408,32 @@ pub struct Annotation {
 }
 
 impl Annotation {
+    fn lexical_identity<'a>(&'a self, lexemes: Option<&'a LexemeIndex>) -> (&'a str, &'a str) {
+        if let Some(selected) = &self.selection {
+            (
+                &selected.choice.anchor.lexical_canonical,
+                &selected.choice.anchor.reading,
+            )
+        } else {
+            (
+                lexemes.map_or(self.canonical_hanja(), |lexemes| {
+                    lexemes.canonical(self.canonical_hanja(), &self.reading)
+                }),
+                "",
+            )
+        }
+    }
+
+    fn homophone_canonical<'a>(&'a self, lexemes: Option<&'a LexemeIndex>) -> &'a str {
+        if let Some(selected) = &self.selection {
+            &selected.choice.anchor.homophone_canonical
+        } else {
+            lexemes.map_or(self.canonical_hanja(), |lexemes| {
+                lexemes.homophone_canonical(self.canonical_hanja(), &self.reading)
+            })
+        }
+    }
+
     /// Returns the canonical hanja spelling used by policy and rendering.
     ///
     /// Dictionary-backed annotations use the spelling that produced the
@@ -479,8 +514,45 @@ pub trait HanjaDictionary {
         None
     }
 
+    /// Returns inspectable cooperative source pools, when this dictionary uses them.
+    /// `None` selects the unchanged legacy candidate path. Implementations must
+    /// keep groups and ranking stable for the lifetime of an immutable dictionary
+    /// borrow. Engines memoize only these source-aware pools, independently of
+    /// following particle context; legacy candidate queries are never cached.
+    fn source_matches_at<'a>(
+        &'a self,
+        _s: &'a str,
+    ) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        None
+    }
+
+    /// Resolves complete glyph alternatives within each source before cooperation.
+    /// `None` preserves custom legacy spelling-resolution implementations.
+    fn source_matches_at_spellings(
+        &self,
+        _spellings: &[&str],
+    ) -> Option<Vec<(usize, SourceMatch)>> {
+        None
+    }
+
+    /// Enumerates cooperative context-free defaults with their original raw groups.
+    fn source_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        None
+    }
+
+    /// Tests an already selected homophone canonical against effective defaults.
+    /// Unlike `has_homophone`, this does not remap the query through a global alias index.
+    fn has_homophone_canonical(&self, hanja: &str, reading: &str) -> bool {
+        match self.candidate_entries() {
+            Some(mut entries) => entries.any(|record| record.has_homophone(hanja, reading)),
+            None => self.has_homophone(hanja, reading),
+        }
+    }
+
     /// Yields candidate sets before reading selection. Legacy implementations
     /// are lifted one match at a time, preserving their order and values.
+    /// Cooperative composites project their context-free effective default as a
+    /// canonical singleton; use `source_matches_at` to inspect their raw pool.
     fn candidate_matches_at<'a>(
         &'a self,
         s: &'a str,
@@ -583,6 +655,22 @@ where
         (**self).source_evidence()
     }
 
+    fn source_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        (**self).source_matches_at(s)
+    }
+    fn source_matches_at_spellings(&self, spellings: &[&str]) -> Option<Vec<(usize, SourceMatch)>> {
+        (**self).source_matches_at_spellings(spellings)
+    }
+    fn source_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        (**self).source_entries()
+    }
+    fn has_homophone_canonical(&self, hanja: &str, reading: &str) -> bool {
+        (**self).has_homophone_canonical(hanja, reading)
+    }
+
     fn candidate_matches_at<'a>(
         &'a self,
         s: &'a str,
@@ -629,6 +717,22 @@ where
         (**self).source_evidence()
     }
 
+    fn source_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        (**self).source_matches_at(s)
+    }
+    fn source_matches_at_spellings(&self, spellings: &[&str]) -> Option<Vec<(usize, SourceMatch)>> {
+        (**self).source_matches_at_spellings(spellings)
+    }
+    fn source_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        (**self).source_entries()
+    }
+    fn has_homophone_canonical(&self, hanja: &str, reading: &str) -> bool {
+        (**self).has_homophone_canonical(hanja, reading)
+    }
+
     fn candidate_matches_at<'a>(
         &'a self,
         s: &'a str,
@@ -673,6 +777,22 @@ where
 {
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         (**self).source_evidence()
+    }
+
+    fn source_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        (**self).source_matches_at(s)
+    }
+    fn source_matches_at_spellings(&self, spellings: &[&str]) -> Option<Vec<(usize, SourceMatch)>> {
+        (**self).source_matches_at_spellings(spellings)
+    }
+    fn source_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        (**self).source_entries()
+    }
+    fn has_homophone_canonical(&self, hanja: &str, reading: &str) -> bool {
+        (**self).has_homophone_canonical(hanja, reading)
     }
 
     fn candidate_matches_at<'a>(
@@ -776,6 +896,9 @@ impl HanjaDictionary for UnihanCharDict {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ChainDictionary<D> {
     dictionaries: Vec<D>,
+    roles: Vec<SourceRole>,
+    source_policy: SourcePolicy,
+    reference_only: bool,
 }
 
 impl<D> ChainDictionary<D> {
@@ -783,12 +906,54 @@ impl<D> ChainDictionary<D> {
     pub fn new() -> Self {
         Self {
             dictionaries: Vec::new(),
+            roles: Vec::new(),
+            source_policy: SourcePolicy::Ordered,
+            reference_only: false,
         }
     }
 
     /// Appends a dictionary with lower priority than the existing entries.
     pub fn push(&mut self, dictionary: D) {
+        self.push_with_role(dictionary, SourceRole::Override);
+    }
+
+    /// Appends a source with an explicit role, independent of its file metadata.
+    pub fn push_with_role(&mut self, dictionary: D, role: SourceRole) {
         self.dictionaries.push(dictionary);
+        self.roles.push(role);
+    }
+
+    /// Chooses a source policy while retaining the registered source order.
+    pub fn with_source_policy(mut self, policy: SourcePolicy) -> Self {
+        self.set_source_policy(policy);
+        self
+    }
+
+    /// Changes source policy; Ordered ignores roles and restores legacy behavior.
+    pub fn set_source_policy(&mut self, policy: SourcePolicy) {
+        self.source_policy = policy;
+    }
+
+    /// Returns the selected source ranking policy.
+    pub fn source_policy(&self) -> SourcePolicy {
+        self.source_policy
+    }
+
+    /// Excludes independent loanword choices without changing reference ranking.
+    /// Explicitly authorized loanword realizations and authored overrides remain
+    /// eligible. Ordered ignores this filter.
+    pub fn set_reference_only(&mut self, reference_only: bool) {
+        self.reference_only = reference_only;
+    }
+
+    /// Whether independent loanword choices are excluded while authorized forms remain.
+    pub fn reference_only(&self) -> bool {
+        self.reference_only
+    }
+
+    /// Returns explicit roles in dictionary registration order.
+    pub fn source_roles(&self) -> &[SourceRole] {
+        &self.roles
     }
 
     /// Returns the number of dictionaries in the chain.
@@ -814,8 +979,28 @@ impl<D> ChainDictionary<D> {
 
 impl<D> FromIterator<D> for ChainDictionary<D> {
     fn from_iter<T: IntoIterator<Item = D>>(iter: T) -> Self {
+        let dictionaries = Vec::from_iter(iter);
+        let roles = alloc::vec![SourceRole::Override; dictionaries.len()];
         Self {
-            dictionaries: Vec::from_iter(iter),
+            dictionaries,
+            roles,
+            source_policy: SourcePolicy::Ordered,
+            reference_only: false,
+        }
+    }
+}
+
+impl<D: HanjaDictionary> ChainDictionary<D> {
+    fn source_entry_for_key(&self, key: &str) -> Option<SourceMatch> {
+        if let Some(spellings) = variants::complete_spellings(key) {
+            let spellings = spellings.iter().map(String::as_str).collect::<Vec<_>>();
+            self.source_matches_at_spellings(&spellings)?
+                .into_iter()
+                .map(|(_, matched)| matched)
+                .next()
+        } else {
+            self.source_matches_at(key)?
+                .find(|matched| matched.byte_len == key.len())
         }
     }
 }
@@ -824,10 +1009,143 @@ impl<D> HanjaDictionary for ChainDictionary<D>
 where
     D: HanjaDictionary,
 {
+    fn source_matches_at<'a>(
+        &'a self,
+        s: &'a str,
+    ) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        if self.source_policy == SourcePolicy::Ordered {
+            return None;
+        }
+        let mut groups = BTreeMap::<usize, Vec<SourceGroup>>::new();
+        for (index, dictionary) in self.dictionaries.iter().enumerate() {
+            for matched in dictionary.candidate_matches_at(s) {
+                let Some(key) = s.get(..matched.byte_len) else {
+                    continue;
+                };
+                groups
+                    .entry(matched.byte_len)
+                    .or_default()
+                    .push(SourceGroup::from_dictionary(
+                        dictionary,
+                        SourceId(index),
+                        self.roles[index],
+                        key.into(),
+                        matched.candidates,
+                    ));
+            }
+        }
+        let mut resolved: BTreeMap<usize, SourceMatch> = groups
+            .into_iter()
+            .filter_map(|(len, groups)| {
+                SourceMatch::rank(
+                    len,
+                    s[..len].into(),
+                    groups,
+                    self.source_policy,
+                    self.reference_only,
+                )
+                .map(|matched| (len, matched))
+            })
+            .collect();
+        let mut prefix_end = 0;
+        let mut prefixes = alloc::vec![String::new()];
+        for ch in s.chars().take(variants::MAX_VARIANT_PREFIX_CHARS) {
+            prefix_end += ch.len_utf8();
+            if variants::extend_spellings(&mut prefixes, ch).is_none() {
+                break;
+            }
+            let spellings = &prefixes;
+            if spellings.len() == 1 {
+                continue;
+            }
+            let spellings = spellings.iter().map(String::as_str).collect::<Vec<_>>();
+            if let Some((_, matched)) = self
+                .source_matches_at_spellings(&spellings)
+                .and_then(|matches| matches.into_iter().next())
+            {
+                resolved.insert(prefix_end, matched);
+            }
+        }
+        Some(Box::new(resolved.into_values()))
+    }
+
+    fn source_matches_at_spellings(&self, spellings: &[&str]) -> Option<Vec<(usize, SourceMatch)>> {
+        if self.source_policy == SourcePolicy::Ordered {
+            return None;
+        }
+        let mut groups = Vec::new();
+        let mut representative = 0;
+        for (index, dictionary) in self.dictionaries.iter().enumerate() {
+            let mut matches = dictionary.candidate_matches_at_spellings(spellings);
+            matches.retain(|(spelling, matched)| {
+                spellings
+                    .get(*spelling)
+                    .is_some_and(|key| key.len() == matched.byte_len)
+            });
+            // Existing variant resolution refuses ambiguous non-exact spellings.
+            if !matches.iter().any(|(spelling, _)| *spelling == 0) && matches.len() > 1 {
+                continue;
+            }
+            if let Some((spelling, matched)) = matches.into_iter().next() {
+                if groups.is_empty() {
+                    representative = spelling;
+                }
+                groups.push(SourceGroup::from_dictionary(
+                    dictionary,
+                    SourceId(index),
+                    self.roles[index],
+                    spellings[spelling].into(),
+                    matched.candidates,
+                ));
+            }
+        }
+        let len = spellings.get(representative).map_or(0, |key| key.len());
+        Some(
+            SourceMatch::rank(
+                len,
+                spellings.first().copied().unwrap_or("").into(),
+                groups,
+                self.source_policy,
+                self.reference_only,
+            )
+            .into_iter()
+            .map(|mut matched| {
+                let selected_key = &matched.default_choice().anchor.key;
+                let selected_index = spellings
+                    .iter()
+                    .position(|key| *key == selected_key)
+                    .unwrap_or(representative);
+                matched.byte_len = spellings.first().map_or(0, |key| key.len());
+                (selected_index, matched)
+            })
+            .collect(),
+        )
+    }
+
+    fn source_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        if self.source_policy == SourcePolicy::Ordered {
+            return None;
+        }
+        let mut keys = BTreeSet::new();
+        for dictionary in &self.dictionaries {
+            keys.extend(dictionary.candidate_entries()?.map(|record| record.hanja));
+        }
+        // Keep only the key set resident. Resolve one group's evidence and
+        // ranked pool as the caller consumes it, rather than retaining every
+        // source pool while a default-projection index is being constructed.
+        Some(Box::new(
+            keys.into_iter()
+                .filter_map(move |key| self.source_entry_for_key(&key)),
+        ))
+    }
+
     fn candidate_matches_at<'a>(
         &'a self,
         s: &'a str,
     ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+        if let Some(matches) = self.source_matches_at(s) {
+            return Box::new(matches.map(|matched| matched.default_match()));
+        }
         let mut seen = BTreeSet::new();
         let mut matches = Vec::new();
         for dictionary in &self.dictionaries {
@@ -841,6 +1159,16 @@ where
         Box::new(matches.into_iter())
     }
     fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
+        if let Some(matches) = self.source_matches_at_spellings(spellings) {
+            return matches
+                .into_iter()
+                .map(|(index, matched)| {
+                    let mut projected = matched.default_match();
+                    projected.byte_len = spellings[index].len();
+                    (index, projected)
+                })
+                .collect();
+        }
         for dictionary in &self.dictionaries {
             let matches = dictionary.candidate_matches_at_spellings(spellings);
             if !matches.is_empty() {
@@ -850,6 +1178,14 @@ where
         Vec::new()
     }
     fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
+        if self.source_policy != SourcePolicy::Ordered {
+            return Some(Box::new(self.source_entries()?.map(|matched| {
+                CandidateRecord {
+                    hanja: matched.hanja.clone(),
+                    candidates: matched.default_match().candidates,
+                }
+            })));
+        }
         let mut records = BTreeMap::<String, CandidateRecord>::new();
         for dictionary in &self.dictionaries {
             for record in dictionary.candidate_entries()? {
@@ -888,7 +1224,69 @@ where
         ))
     }
 
+    fn has_homophone_canonical(&self, hanja: &str, reading: &str) -> bool {
+        if self.source_policy != SourcePolicy::Ordered
+            && let Some(entries) = self.source_entries()
+        {
+            return entries
+                .filter(|entry| !entry.ranked.is_empty())
+                .any(|entry| {
+                    let selected = entry.default_choice();
+                    selected.anchor.homophone_canonical != hanja
+                        && (selected.form.reading == reading
+                            || selected.form.suffix_reading.as_deref() == Some(reading))
+                });
+        }
+        if let Some(mut entries) = self.candidate_entries() {
+            return entries.any(|record| record.has_homophone(hanja, reading));
+        }
+        let mut keys = BTreeSet::new();
+        let mut fallback = false;
+        for (source_index, dictionary) in self.dictionaries.iter().enumerate() {
+            if self.source_policy != SourcePolicy::Ordered
+                && self.reference_only
+                && self.roles[source_index] == SourceRole::Loanword
+            {
+                continue;
+            }
+            if let Some(entries) = dictionary.candidate_entries() {
+                keys.extend(entries.map(|record| record.hanja));
+            } else {
+                fallback |= dictionary.has_homophone_canonical(hanja, reading);
+            }
+        }
+        fallback
+            || keys.into_iter().any(|key| {
+                if self.source_policy != SourcePolicy::Ordered {
+                    return self.source_entry_for_key(&key).is_some_and(|entry| {
+                        let selected = entry.default_choice();
+                        selected.anchor.homophone_canonical != hanja
+                            && (selected.form.reading == reading
+                                || selected.form.suffix_reading.as_deref() == Some(reading))
+                    });
+                }
+                self.candidate_matches_at(&key)
+                    .filter(|matched| matched.byte_len == key.len())
+                    .any(|matched| {
+                        CandidateRecord {
+                            hanja: key.clone(),
+                            candidates: matched.candidates,
+                        }
+                        .has_homophone(hanja, reading)
+                    })
+            })
+    }
+
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
+        if self.source_policy != SourcePolicy::Ordered {
+            let canonical = self.source_entry_for_key(hanja).and_then(|entry| {
+                let choice = entry.default_choice();
+                (choice.form.reading == reading
+                    || choice.form.suffix_reading.as_deref() == Some(reading))
+                .then(|| choice.anchor.homophone_canonical.clone())
+            });
+            return self.has_homophone_canonical(canonical.as_deref().unwrap_or(hanja), reading);
+        }
         let lexemes = self
             .lexemes()
             .or_else(|| LexemeIndex::from_dictionary(self));
@@ -917,6 +1315,9 @@ where
     }
 
     fn lexemes(&self) -> Option<LexemeIndex> {
+        if self.source_policy != SourcePolicy::Ordered {
+            return LexemeIndex::from_dictionary(self);
+        }
         let mut merged = LexemeIndex::default();
         let mut any = false;
         for (index, dictionary) in self.dictionaries.iter().enumerate() {
@@ -1579,9 +1980,10 @@ where
 ///
 /// `Engine` is the low-level streaming surface. Call [`Engine::push_token`] for
 /// each incoming token and then [`Engine::finish`] once the upstream reader is
-/// exhausted. When the dictionary reports a maximum word length, text chunks are
-/// buffered only at the tail so dictionary matches can cross chunk boundaries
-/// without requiring the whole document in memory. A trailing fallback hanja run
+/// exhausted. With a maximum dictionary word length, the engine emits prefixes
+/// once every still-viable lattice path agrees on them. Unresolved overlapping
+/// paths can retain longer runs; settled prefixes do not require the whole
+/// document in memory. A trailing fallback hanja run
 /// is also kept buffered until a non-convertible boundary or EOF so render modes
 /// that expose annotation spans match one-shot conversion. Dictionaries with an
 /// unknown maximum keep hanja-containing text until a non-convertible boundary
@@ -1592,6 +1994,7 @@ where
     D: HanjaDictionary + ?Sized,
 {
     dictionary: &'a D,
+    resolution_cache: resolution::ResolutionCache,
     options: EngineOptions,
     scopes: Vec<Scope<S>>,
     pending_text: String,
@@ -1631,6 +2034,7 @@ where
         );
         Self {
             dictionary,
+            resolution_cache: resolution::ResolutionCache::default(),
             options,
             scopes: Vec::new(),
             pending_text: String::new(),
@@ -1743,8 +2147,9 @@ where
     /// Returns the number of Unicode scalar values currently buffered.
     ///
     /// Particle lookahead adds four scalars to the dictionary tail allowance.
-    /// This is not a universal buffer ceiling: fallback annotation grouping
-    /// and dictionaries with an unknown maximum may retain longer runs.
+    /// This is not a universal buffer ceiling: fallback annotation grouping,
+    /// unresolved lattice frontiers, open numeral spans, and dictionaries with an
+    /// unknown maximum may retain longer runs.
     pub fn buffered_chars(&self) -> usize {
         self.pending_text.chars().count()
     }
@@ -1809,7 +2214,13 @@ where
         }
 
         let safe_chars = buffered_chars.saturating_sub(bound).saturating_add(1);
-        let segments = segment_text(&self.pending_text, self.dictionary, self.options, false);
+        let (segments, stable_end) = segment_text_stable_cached(
+            &self.pending_text,
+            self.dictionary,
+            self.options,
+            false,
+            &mut self.resolution_cache,
+        );
         let mut flush_end = 0;
         let mut flush_segments = Vec::new();
         for segment in &segments {
@@ -1819,7 +2230,7 @@ where
             if byte_start > flush_end || (start_chars > safe_chars && flush_end > 0) {
                 break;
             }
-            if end_chars > safe_chars {
+            if end_chars > safe_chars || byte_end > stable_end {
                 break;
             }
             flush_end = byte_end;
@@ -1850,7 +2261,7 @@ where
         }
     }
 
-    fn extends_unflushable_fallback_run(&self, bound: usize) -> bool {
+    fn extends_unflushable_fallback_run(&mut self, bound: usize) -> bool {
         let Some(previous_bytes) = self.pending_unflushable_fallback_run_bytes else {
             return false;
         };
@@ -1877,14 +2288,20 @@ where
             bound.saturating_sub(1),
         );
         let probe = &self.pending_text[probe_start..];
-        segment_text(probe, self.dictionary, self.options, false)
-            .iter()
-            .all(|segment| {
-                matches!(
-                    segment,
-                    Segment::Fallback { .. } | Segment::TrivialDictionary { .. }
-                )
-            })
+        segment_text_cached(
+            probe,
+            self.dictionary,
+            self.options,
+            false,
+            &mut self.resolution_cache,
+        )
+        .iter()
+        .all(|segment| {
+            matches!(
+                segment,
+                Segment::Fallback { .. } | Segment::TrivialDictionary { .. }
+            )
+        })
     }
 
     fn flush_non_hanja_safe_into(&mut self, output: &mut Vec<OutputToken<S>>) {
@@ -1904,11 +2321,12 @@ where
         }
         self.pending_unflushable_fallback_run_bytes = None;
         let prefix = self.pending_text[..flush_end].to_string();
-        let segments = segment_text(
+        let segments = segment_text_cached(
             &prefix,
             self.dictionary,
             self.options,
             prefix.chars().last().is_some_and(char::is_whitespace),
+            &mut self.resolution_cache,
         );
         self.flush_segments_prefix_into(flush_end, &segments, output);
     }
@@ -1944,6 +2362,7 @@ where
             &mut self.fallback_state,
             output,
             final_end,
+            &mut self.resolution_cache,
         );
     }
 
@@ -2049,10 +2468,11 @@ fn process_text_with_state<S, D>(
     fallback_state: &mut FallbackState,
     output: &mut Vec<OutputToken<S>>,
     final_end: bool,
+    cache: &mut resolution::ResolutionCache,
 ) where
     D: HanjaDictionary + ?Sized,
 {
-    let segments = segment_text(text, dictionary, options, final_end);
+    let segments = segment_text_cached(text, dictionary, options, final_end, cache);
     process_segments_with_state(text, &segments, dictionary, options, fallback_state, output);
 }
 
@@ -2111,6 +2531,7 @@ fn process_trivial_fallback_run<S>(
                         skip_annotation: false,
                         from_dictionary: has_dictionary,
                         from_source_gloss: false,
+                        selection: None,
                     }));
                 }
                 hanja.push_str(source);
@@ -2155,6 +2576,7 @@ fn process_trivial_fallback_run<S>(
                                         skip_annotation: false,
                                         from_dictionary: has_dictionary,
                                         from_source_gloss: false,
+                                        selection: None,
                                     }));
                                     has_dictionary = false;
                                 }
@@ -2169,6 +2591,7 @@ fn process_trivial_fallback_run<S>(
                                     skip_annotation: false,
                                     from_dictionary: false,
                                     from_source_gloss: false,
+                                    selection: None,
                                 }));
                             } else {
                                 hanja.push_str(&part_hanja);
@@ -2192,6 +2615,7 @@ fn process_trivial_fallback_run<S>(
                                     skip_annotation: false,
                                     from_dictionary: has_dictionary,
                                     from_source_gloss: false,
+                                    selection: None,
                                 }));
                                 has_dictionary = false;
                             }
@@ -2216,6 +2640,7 @@ fn process_trivial_fallback_run<S>(
             skip_annotation: false,
             from_dictionary: has_dictionary,
             from_source_gloss: false,
+            selection: None,
         }));
     }
 }
@@ -2250,6 +2675,7 @@ fn process_segments_with_state<S, D>(
                 suffix_reading,
                 mark,
                 dictionary_hanja,
+                selection,
                 ..
             } => {
                 let source = &text[*byte_start..*byte_end];
@@ -2272,6 +2698,7 @@ fn process_segments_with_state<S, D>(
                     skip_annotation: false,
                     from_dictionary: true,
                     from_source_gloss: false,
+                    selection: selection.clone(),
                 }));
                 if should_preserve_dictionary_context(source, &effective, options) {
                     update_fallback_state_for_reading(&effective, fallback_state);
@@ -2390,6 +2817,7 @@ fn process_fallback_text<S>(
                     skip_annotation: false,
                     from_dictionary: false,
                     from_source_gloss: false,
+                    selection: None,
                 }));
             }
             FallbackPart::ReadingText(text) => push_text(output, &text),
@@ -2827,8 +3255,18 @@ impl<'a> UserDirectives<'a> {
                         continue;
                     }
                     match rule.action {
-                        DirectiveAction::RequireHanja => annotation.require_hanja = true,
-                        DirectiveAction::RequireHangul => annotation.require_hangul = true,
+                        DirectiveAction::RequireHanja => {
+                            annotation.require_hanja = true;
+                            if let Some(selected) = &mut annotation.selection {
+                                selected.directive_mark.require_hanja = true;
+                            }
+                        }
+                        DirectiveAction::RequireHangul => {
+                            annotation.require_hangul = true;
+                            if let Some(selected) = &mut annotation.selection {
+                                selected.directive_mark.require_hangul = true;
+                            }
+                        }
                         DirectiveAction::SkipAnnotation => annotation.skip_annotation = true,
                     }
                 }
@@ -2855,10 +3293,14 @@ impl UserDirectivePredicate<'_> {
             Self::Literal(hanja) => {
                 annotation.hanja == *hanja
                     || annotation.dictionary_hanja.as_ref() == Some(hanja)
-                    || lexemes.is_some_and(|lexemes| {
-                        lexemes.canonical(annotation.canonical_hanja(), &annotation.reading)
-                            == hanja
-                    })
+                    || if annotation.selection.is_some() {
+                        annotation.lexical_identity(None).0 == hanja
+                    } else {
+                        lexemes.is_some_and(|lexemes| {
+                            lexemes.canonical(annotation.canonical_hanja(), &annotation.reading)
+                                == hanja
+                        })
+                    }
             }
             Self::Predicate(predicate) => predicate(annotation),
         }
@@ -3409,7 +3851,7 @@ fn hangul_first_tail_start(text: &str) -> usize {
     let mut held = 0;
     while held < MAX_PRECEDING_READING_CHARS {
         match chars.peek() {
-            Some(&(index, ch)) if is_hangul_syllable(ch) => {
+            Some(&(index, ch)) if is_hangul_syllable(ch) || ch == ' ' => {
                 start = index;
                 held += 1;
                 chars.next();
@@ -3461,6 +3903,21 @@ fn classify_reading(hanja: &str, reading: &str, candidate: &str) -> Option<Readi
     } else {
         None
     }
+}
+
+fn classify_annotation_reading(annotation: &Annotation, candidate: &str) -> Option<ReadingMatch> {
+    if candidate == annotation.reading {
+        return Some(ReadingMatch::Keep);
+    }
+    if annotation.selection.as_ref().is_some_and(|selected| {
+        selected.ranked.iter().any(|choice| {
+            choice.form.reading == candidate
+                || choice.form.suffix_reading.as_deref() == Some(candidate)
+        })
+    }) {
+        return Some(ReadingMatch::Override(candidate.to_string()));
+    }
+    classify_reading(&annotation.hanja, &annotation.reading, candidate)
 }
 
 /// Returns whether `candidate` is a valid Sino-Korean reading of `hanja`: one
@@ -3516,6 +3973,13 @@ fn reading_is_syllable(reading: &str, syllable: char) -> bool {
 /// reading overridden when the parenthetical pinned an alternative one.
 fn collapse_annotation(mut annotation: Annotation, reading_match: ReadingMatch) -> Annotation {
     if let ReadingMatch::Override(reading) = reading_match {
+        if let Some(selected) = &mut annotation.selection {
+            let marks = selected.revalidate(&reading);
+            annotation.dictionary_hanja = Some(selected.choice.anchor.key.clone());
+            annotation.require_hanja = marks.require_hanja || selected.directive_mark.require_hanja;
+            annotation.require_hangul =
+                marks.require_hangul || selected.directive_mark.require_hangul;
+        }
         annotation.reading = reading;
     }
     annotation.require_hanja = true;
@@ -3580,7 +4044,7 @@ fn classify_following(
             match content.find(')') {
                 Some(close) => {
                     let candidate = &content[..close];
-                    match classify_reading(&annotation.hanja, &annotation.reading, candidate) {
+                    match classify_annotation_reading(annotation, candidate) {
                         Some(reading_match) => FollowingMatch::HanjaFirst {
                             collapsed: collapse_annotation(annotation.clone(), reading_match),
                             leftover: content[close + ')'.len_utf8()..].to_string(),
@@ -3592,9 +4056,21 @@ fn classify_following(
                     // A reading is at most max(reading, hanja) syllables long, so
                     // once the unclosed content exceeds that it cannot match.
                     let max_reading = annotation
-                        .reading
-                        .chars()
-                        .count()
+                        .selection
+                        .as_ref()
+                        .map_or(0, |selected| {
+                            selected
+                                .ranked
+                                .iter()
+                                .flat_map(|choice| {
+                                    core::iter::once(choice.form.reading.as_str())
+                                        .chain(choice.form.suffix_reading.as_deref())
+                                })
+                                .map(|reading| reading.chars().count())
+                                .max()
+                                .unwrap_or(0)
+                        })
+                        .max(annotation.reading.chars().count())
                         .max(annotation.hanja.chars().count());
                     if flush || content.chars().count() > max_reading {
                         FollowingMatch::NoMatch
@@ -3629,6 +4105,25 @@ fn match_hangul_first(
         return Some((remaining.to_string(), collapsed));
     }
 
+    if let Some(selected) = &annotation.selection {
+        let reading = selected
+            .ranked
+            .iter()
+            .flat_map(|choice| {
+                core::iter::once(choice.form.reading.as_str())
+                    .chain(choice.form.suffix_reading.as_deref())
+            })
+            .filter(|reading| !reading.is_empty() && before.ends_with(reading))
+            .max_by_key(|reading| reading.len());
+        if let Some(reading) = reading {
+            let remaining = before.strip_suffix(reading)?;
+            return Some((
+                remaining.to_string(),
+                collapse_annotation(annotation.clone(), ReadingMatch::Override(reading.into())),
+            ));
+        }
+    }
+
     // Tier 2: the trailing hanja-character count of hangul syllables form a
     // valid alternative reading.  Slice `before` directly at the byte boundary
     // of those trailing syllables rather than collecting it into a `Vec<char>`.
@@ -3638,7 +4133,7 @@ fn match_hangul_first(
     }
     let (split, _) = before.char_indices().rev().nth(syllable_count - 1)?;
     let candidate = &before[split..];
-    let reading_match = classify_reading(&annotation.hanja, &annotation.reading, candidate)?;
+    let reading_match = classify_annotation_reading(annotation, candidate)?;
     Some((
         before[..split].to_string(),
         collapse_annotation(annotation.clone(), reading_match),
@@ -3793,15 +4288,30 @@ impl HomophoneIndex {
                 .lexemes()
                 .or_else(|| LexemeIndex::from_dictionary(dictionary))?,
         };
-        for record in dictionary.candidate_entries()? {
-            let selected = select_default_reading(&record.candidates);
-            let form = record.homophone_key();
-            for reading in core::iter::once(&selected.reading).chain(selected.suffix_reading.iter())
-            {
-                forms_by_reading
-                    .entry(reading.clone())
-                    .or_default()
-                    .insert(form.to_string());
+        if let Some(entries) = dictionary.source_entries() {
+            for record in entries.filter(|record| !record.ranked.is_empty()) {
+                let selected = record.default_choice();
+                for reading in core::iter::once(&selected.form.reading)
+                    .chain(selected.form.suffix_reading.iter())
+                {
+                    forms_by_reading
+                        .entry(reading.clone())
+                        .or_default()
+                        .insert(selected.anchor.homophone_canonical.clone());
+                }
+            }
+        } else {
+            for record in dictionary.candidate_entries()? {
+                let selected = select_default_reading(&record.candidates);
+                let form = record.homophone_key();
+                for reading in
+                    core::iter::once(&selected.reading).chain(selected.suffix_reading.iter())
+                {
+                    forms_by_reading
+                        .entry(reading.clone())
+                        .or_default()
+                        .insert(form.to_string());
+                }
             }
         }
         Some(Self {
@@ -3811,10 +4321,13 @@ impl HomophoneIndex {
     }
 
     fn has_homophone(&self, hanja: &str, reading: &str) -> bool {
-        let lexeme = self.lexemes.homophone_canonical(hanja, reading);
+        self.has_canonical(self.lexemes.homophone_canonical(hanja, reading), reading)
+    }
+
+    fn has_canonical(&self, canonical: &str, reading: &str) -> bool {
         self.forms_by_reading
             .get(reading)
-            .is_some_and(|forms| forms.iter().any(|form| form != lexeme))
+            .is_some_and(|forms| forms.iter().any(|form| form != canonical))
     }
 }
 
@@ -3832,14 +4345,7 @@ fn mark_homophones_in_context<S, D>(
         if let OutputToken::Annotated(annotation) = token
             && annotation.from_dictionary
         {
-            let form = lexemes.map_or_else(
-                || annotation.canonical_hanja().to_string(),
-                |lexemes| {
-                    lexemes
-                        .homophone_canonical(annotation.canonical_hanja(), &annotation.reading)
-                        .to_string()
-                },
-            );
+            let form = annotation.homophone_canonical(lexemes).to_string();
             forms_by_reading
                 .entry(annotation.reading.clone())
                 .or_default()
@@ -3851,9 +4357,23 @@ fn mark_homophones_in_context<S, D>(
         if let OutputToken::Annotated(annotation) = token {
             annotation.homophone = annotation.from_dictionary
                 && (index.is_some_and(|index| {
-                    index.has_homophone(annotation.canonical_hanja(), &annotation.reading)
+                    if annotation.selection.is_some() {
+                        index.has_canonical(
+                            annotation.homophone_canonical(None),
+                            &annotation.reading,
+                        )
+                    } else {
+                        index.has_homophone(annotation.canonical_hanja(), &annotation.reading)
+                    }
                 }) || lookup_fallback.is_some_and(|dictionary| {
-                    dictionary.has_homophone(annotation.canonical_hanja(), &annotation.reading)
+                    if annotation.selection.is_some() {
+                        dictionary.has_homophone_canonical(
+                            annotation.homophone_canonical(None),
+                            &annotation.reading,
+                        )
+                    } else {
+                        dictionary.has_homophone(annotation.canonical_hanja(), &annotation.reading)
+                    }
                 }) || forms_by_reading
                     .get(&annotation.reading)
                     .is_some_and(|forms| forms.len() > 1));
@@ -3869,10 +4389,8 @@ fn filter_first_occurrences_in_context<S>(
 
     for token in tokens.iter_mut() {
         if let OutputToken::Annotated(annotation) = token {
-            let lexeme = lexemes.map_or(annotation.canonical_hanja(), |lexemes| {
-                lexemes.canonical(annotation.canonical_hanja(), &annotation.reading)
-            });
-            if seen.insert(lexeme.to_string()) {
+            let (lexeme, anchor_reading) = annotation.lexical_identity(lexemes);
+            if seen.insert((lexeme.to_string(), anchor_reading.to_string())) {
                 annotation.first_in_context = true;
             } else {
                 annotation.first_in_context = false;

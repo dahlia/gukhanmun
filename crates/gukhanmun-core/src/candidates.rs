@@ -661,7 +661,8 @@ impl LexemeIndex {
 /// A lexical prefix and all of its allowed readings before selection.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CandidateMatch {
-    /// Matched dictionary key length in UTF-8 bytes.
+    /// Matched source prefix length in UTF-8 bytes.
+    /// Spelling-indexed queries use the selected indexed spelling's length.
     pub byte_len: usize,
     /// Allowed readings of this one lexical key.
     pub candidates: ReadingCandidates,
