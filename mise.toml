@@ -353,7 +353,18 @@ depends = [
 # Serialize package lifecycles, including the docs' nested dependency builds.
 # Parallel bundlers exhaust smaller runners; concurrent prebuilds also start
 # independent rust-init processes that can conflict on Windows.
-run = "pnpm -r --workspace-concurrency=1 run build"
+run = """
+status=0
+pnpm -r --workspace-concurrency=1 run build || status=$?
+if [ "$status" -eq 0 ]; then exit 0; fi
+# tsdown (rolldown) aborts with status 134 on the macOS 26 arm64 runners after
+# printing "Build complete": the bundles are written, but pnpm reports the
+# abort.  Retry that exit path once instead of failing the gate; every other
+# failure is reported immediately.
+if [ "$status" -ne 134 ]; then exit "$status"; fi
+echo "js-build aborted with status 134; retrying once" >&2
+pnpm -r --workspace-concurrency=1 run build
+"""
 
 [tasks.js-test]
 description = "Run JavaScript integration tests on Node.js, Deno, and Bun"
