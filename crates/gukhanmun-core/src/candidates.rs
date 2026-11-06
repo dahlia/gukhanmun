@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::string::{String, ToString};
+use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -486,7 +487,7 @@ type LexemeReadings = alloc::collections::BTreeMap<String, (AliasKind, String)>;
 /// marking.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct LexemeIndex {
-    by_hanja: alloc::collections::BTreeMap<String, LexemeReadings>,
+    by_hanja: Arc<alloc::collections::BTreeMap<String, LexemeReadings>>,
 }
 
 impl LexemeIndex {
@@ -515,7 +516,9 @@ impl LexemeIndex {
                 }
             }
         }
-        Some(Self { by_hanja })
+        Some(Self {
+            by_hanja: Arc::new(by_hanja),
+        })
     }
 
     /// Returns the canonical spelling for a matched key and reading.
@@ -554,7 +557,7 @@ impl LexemeIndex {
     /// Each line is `hanja<TAB>reading<TAB>kind<TAB>canonical`.
     pub fn encode(&self) -> String {
         let mut output = String::new();
-        for (hanja, readings) in &self.by_hanja {
+        for (hanja, readings) in self.by_hanja.iter() {
             for (reading, (kind, canonical)) in readings {
                 output.push_str(hanja);
                 output.push('\t');
@@ -597,16 +600,19 @@ impl LexemeIndex {
                 .or_default()
                 .insert(reading.to_string(), (kind, canonical.to_string()));
         }
-        Self { by_hanja }
+        Self {
+            by_hanja: Arc::new(by_hanja),
+        }
     }
 
     pub(crate) fn set_key(&mut self, hanja: &str, candidates: &ReadingCandidates) {
-        self.by_hanja.remove(hanja);
+        let by_hanja = Arc::make_mut(&mut self.by_hanja);
+        by_hanja.remove(hanja);
         for candidate in candidates.as_slice() {
             let Some(alias) = &candidate.alias else {
                 continue;
             };
-            let readings = self.by_hanja.entry(hanja.to_string()).or_default();
+            let readings = by_hanja.entry(hanja.to_string()).or_default();
             readings.insert(
                 candidate.reading.clone(),
                 (alias.kind, alias.canonical.clone()),
@@ -615,17 +621,16 @@ impl LexemeIndex {
                 readings.insert(suffix.clone(), (alias.kind, alias.canonical.clone()));
             }
         }
-        if self
-            .by_hanja
+        if by_hanja
             .get(hanja)
             .is_some_and(alloc::collections::BTreeMap::is_empty)
         {
-            self.by_hanja.remove(hanja);
+            by_hanja.remove(hanja);
         }
     }
 
     pub(crate) fn insert(&mut self, hanja: &str, reading: &str, kind: AliasKind, canonical: &str) {
-        self.by_hanja
+        Arc::make_mut(&mut self.by_hanja)
             .entry(hanja.to_string())
             .or_default()
             .insert(reading.to_string(), (kind, canonical.to_string()));
@@ -641,8 +646,9 @@ impl LexemeIndex {
 
     /// Merges another index into this one, preferring this index's entries.
     pub fn merge(&mut self, other: &Self) {
-        for (hanja, readings) in &other.by_hanja {
-            let target = self.by_hanja.entry(hanja.clone()).or_default();
+        let by_hanja = Arc::make_mut(&mut self.by_hanja);
+        for (hanja, readings) in other.by_hanja.iter() {
+            let target = by_hanja.entry(hanja.clone()).or_default();
             for (reading, value) in readings {
                 target
                     .entry(reading.clone())
