@@ -39,8 +39,8 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 use gukhanmun_core::{
-    AliasKind, AliasTarget, CandidateRecord, DictionaryEvidence, MatchMark, ReadingCandidate,
-    ReadingCandidates, select_default_reading,
+    AliasKind, AliasTarget, CandidateRecord, DictionaryEvidence, MatchMark, PhraseEvidence,
+    ReadingCandidate, ReadingCandidates, select_default_reading,
 };
 
 const MAGIC: &[u8; 8] = b"GUKHMFST";
@@ -56,6 +56,7 @@ const RESERVED_METADATA_KEYS: &[&str] = &[
     "prefix_count",
     "aliases",
     "candidate_evidence",
+    "phrase_evidence",
 ];
 const CDB_META_KEY: &[u8] = b"__gukhanmun_meta__";
 
@@ -620,7 +621,7 @@ pub fn build_dictionary(
     output_path: impl AsRef<Path>,
     options: &BuildOptions,
 ) -> Result<()> {
-    build_dictionary_internal(input_paths, output_path.as_ref(), options, None)
+    build_dictionary_internal(input_paths, output_path.as_ref(), options, None, None)
 }
 
 /// Builds a dictionary carrying critical, candidate-linked source evidence.
@@ -635,7 +636,34 @@ pub fn build_dictionary_with_evidence(
     options: &BuildOptions,
     evidence: &DictionaryEvidence,
 ) -> Result<()> {
-    build_dictionary_internal(input_paths, output_path.as_ref(), options, Some(evidence))
+    build_dictionary_internal(
+        input_paths,
+        output_path.as_ref(),
+        options,
+        Some(evidence),
+        None,
+    )
+}
+
+/// Builds a dictionary with independently optional candidate and phrase evidence.
+///
+/// Both collections are checked against the final normalized candidates before
+/// any output is written. Either collection requires a version 4 container;
+/// older readers reject unsupported critical phrase metadata.
+pub fn build_dictionary_with_all_evidence(
+    input_paths: &[PathBuf],
+    output_path: impl AsRef<Path>,
+    options: &BuildOptions,
+    evidence: Option<&DictionaryEvidence>,
+    phrase_evidence: Option<&PhraseEvidence>,
+) -> Result<()> {
+    build_dictionary_internal(
+        input_paths,
+        output_path.as_ref(),
+        options,
+        evidence,
+        phrase_evidence,
+    )
 }
 
 fn build_dictionary_internal(
@@ -643,6 +671,7 @@ fn build_dictionary_internal(
     output_path: &Path,
     options: &BuildOptions,
     evidence: Option<&DictionaryEvidence>,
+    phrase_evidence: Option<&PhraseEvidence>,
 ) -> Result<()> {
     ensure!(
         !input_paths.is_empty(),
@@ -687,9 +716,19 @@ fn build_dictionary_internal(
             .context("source evidence does not match final dictionary candidates")?;
         metadata.insert("version".into(), "4".into());
     }
+    if let Some(phrase_evidence) = phrase_evidence {
+        phrase_evidence
+            .validate_records(
+                candidate_groups(&entries)?
+                    .into_iter()
+                    .map(|(hanja, candidates)| CandidateRecord { hanja, candidates }),
+            )
+            .context("phrase evidence does not match final dictionary candidates")?;
+        metadata.insert("version".into(), "4".into());
+    }
     match options.format {
         DictionaryFormat::Fst => {
-            let bytes = build_fst_bytes(&entries, &metadata, evidence)?;
+            let bytes = build_fst_bytes(&entries, &metadata, evidence, phrase_evidence)?;
             fs::write(output_path, &bytes)
                 .with_context(|| format!("failed to write {}", output_path.display()))?;
 
@@ -701,7 +740,7 @@ fn build_dictionary_internal(
         }
         DictionaryFormat::Cdb => {
             reject_reserved_cdb_keys(&entries)?;
-            build_cdb_file(&entries, &metadata, output_path, evidence)?;
+            build_cdb_file(&entries, &metadata, output_path, evidence, phrase_evidence)?;
 
             if options.validate {
                 let dictionary = CdbDictionary::open(output_path)
@@ -1343,7 +1382,8 @@ impl Serialize for EvidencePayload<'_> {
 
 struct EvidenceMetadata<'a> {
     strings: &'a BTreeMap<String, String>,
-    evidence: &'a DictionaryEvidence,
+    evidence: Option<&'a DictionaryEvidence>,
+    phrase_evidence: Option<&'a PhraseEvidence>,
 }
 
 impl Serialize for EvidenceMetadata<'_> {
@@ -1352,11 +1392,20 @@ impl Serialize for EvidenceMetadata<'_> {
         serializer: S,
     ) -> std::result::Result<S::Ok, S::Error> {
         use serde::ser::SerializeMap as _;
-        let mut map = serializer.serialize_map(Some(self.strings.len() + 1))?;
+        let mut map = serializer.serialize_map(Some(
+            self.strings.len()
+                + usize::from(self.evidence.is_some())
+                + usize::from(self.phrase_evidence.is_some()),
+        ))?;
         for (key, value) in self.strings {
             map.serialize_entry(key, value)?;
         }
-        map.serialize_entry("candidate_evidence", &EvidencePayload(self.evidence))?;
+        if let Some(evidence) = self.evidence {
+            map.serialize_entry("candidate_evidence", &EvidencePayload(evidence))?;
+        }
+        if let Some(evidence) = self.phrase_evidence {
+            map.serialize_entry("phrase_evidence", evidence)?;
+        }
         map.end()
     }
 }
@@ -1364,13 +1413,15 @@ impl Serialize for EvidenceMetadata<'_> {
 fn encode_metadata(
     metadata: &BTreeMap<String, String>,
     evidence: Option<&DictionaryEvidence>,
+    phrase_evidence: Option<&PhraseEvidence>,
 ) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    if let Some(evidence) = evidence {
+    if evidence.is_some() || phrase_evidence.is_some() {
         into_writer(
             &EvidenceMetadata {
                 strings: metadata,
                 evidence,
+                phrase_evidence,
             },
             &mut bytes,
         )
@@ -1378,6 +1429,10 @@ fn encode_metadata(
     } else {
         into_writer(metadata, &mut bytes).context("failed to encode dictionary metadata")?;
     }
+    ensure!(
+        bytes.len() <= gukhanmun_core::MAX_EVIDENCE_METADATA_BYTES,
+        "metadata exceeds host byte limit"
+    );
     Ok(bytes)
 }
 
@@ -1385,8 +1440,9 @@ fn build_fst_bytes(
     entries: &[DictionaryEntry],
     metadata: &BTreeMap<String, String>,
     evidence: Option<&DictionaryEvidence>,
+    phrase_evidence: Option<&PhraseEvidence>,
 ) -> Result<Vec<u8>> {
-    let metadata_bytes = encode_metadata(metadata, evidence)?;
+    let metadata_bytes = encode_metadata(metadata, evidence, phrase_evidence)?;
 
     let mut readings = Vec::new();
     let mut builder = MapBuilder::memory();
@@ -1445,11 +1501,12 @@ fn build_cdb_file(
     metadata: &BTreeMap<String, String>,
     output_path: &Path,
     evidence: Option<&DictionaryEvidence>,
+    phrase_evidence: Option<&PhraseEvidence>,
 ) -> Result<()> {
     let records = build_cdb_records(entries)?;
     let mut metadata = metadata.clone();
     metadata.insert("prefix_count".to_owned(), records.len().to_string());
-    let metadata_bytes = encode_metadata(&metadata, evidence)?;
+    let metadata_bytes = encode_metadata(&metadata, evidence, phrase_evidence)?;
 
     let output_name = output_path.to_str().ok_or_else(|| {
         Error::message(format!(

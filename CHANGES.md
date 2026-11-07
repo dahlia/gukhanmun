@@ -39,6 +39,8 @@ To be released.
     umbrella crate.  [[#38], [#39]]
  -  Exposed typed dictionary source evidence and validation APIs through the
     Rust facade. [[#42], [#44]]
+ -  Re-exported phrase evidence types for constructing and validating custom
+    dictionary constraints. [[#41]]
  -  The exported core pipeline preserves source-aware selection metadata through
     annotations and middleware, including aliases, particles, authorial glosses,
     and first-occurrence/homophone identity. Source-aware dictionary matches
@@ -52,6 +54,7 @@ To be released.
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
 [#38]: https://github.com/dahlia/gukhanmun/issues/38
 [#39]: https://github.com/dahlia/gukhanmun/pull/39
+[#41]: https://github.com/dahlia/gukhanmun/issues/41
 [#42]: https://github.com/dahlia/gukhanmun/issues/42
 [#44]: https://github.com/dahlia/gukhanmun/pull/44
 
@@ -59,6 +62,8 @@ To be released.
 
  -  Added version 4 dictionary support for validated, candidate-linked source
     evidence; evidence-free version 1–3 files remain readable. [[#42], [#44]]
+ -  CDB dictionaries can load candidate-linked phrase evidence from critical
+    version 4 metadata, rejecting unsupported or stale constraints. [[#41]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
     [[#38], [#39]]
 
@@ -123,6 +128,9 @@ To be released.
  -  Added typed source evidence, candidate-link validation, and
     `HanjaDictionary::source_evidence()` for inspecting dictionary provenance
     without changing legacy reading selection. [[#42], [#44]]
+ -  Added validated phrase evidence types and
+    `HanjaDictionary::phrase_evidence()` for transporting source-attested
+    constraints independently of word candidates. [[#41]]
 
 ### gukhanmun-dict-extract
 
@@ -150,6 +158,8 @@ To be released.
 
  -  Added version 4 dictionary support for validated, candidate-linked source
     evidence; evidence-free version 1–3 files remain readable. [[#42], [#44]]
+ -  FST dictionaries can load candidate-linked phrase evidence from critical
+    version 4 metadata, rejecting unsupported or stale constraints. [[#41]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
     [[#38], [#39]]
 
@@ -166,6 +176,9 @@ To be released.
  -  Added `--evidence` and `build_dictionary_with_evidence()` to compile source
     evidence into version 4 FST/CDB files while retaining canonical reading
     payloads. [[#42], [#44]]
+ -  Added `--phrase-evidence` and `build_dictionary_with_all_evidence()` to
+    embed validated phrase constraints without adding phrase keys to word
+    candidates. [[#41]]
 
 ### gukhanmun-napi
 

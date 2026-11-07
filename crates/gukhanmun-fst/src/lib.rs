@@ -32,8 +32,8 @@ use fst::automaton::Automaton;
 use fst::{IntoStreamer, Map, Streamer};
 use gukhanmun_core::{
     CandidateError, CandidateMatch, CandidateRecord, DictionaryEvidence, DictionaryRecord,
-    HanjaDictionary, LexemeIndex, Match, MatchMark, ReadingCandidate, ReadingCandidates,
-    candidate_matches_at_spellings, select_default_reading,
+    HanjaDictionary, LexemeIndex, Match, MatchMark, PhraseEvidence, ReadingCandidate,
+    ReadingCandidates, candidate_matches_at_spellings, select_default_reading,
 };
 
 const MAGIC: &[u8; 8] = b"GUKHMFST";
@@ -61,6 +61,7 @@ pub struct FstDictionary {
     max_word_chars: Option<usize>,
     lexemes: LexemeIndex,
     evidence: Option<Arc<DictionaryEvidence>>,
+    phrase_evidence: Option<Arc<PhraseEvidence>>,
 }
 
 impl FstDictionary {
@@ -97,7 +98,11 @@ impl FstDictionary {
             .ok_or(Error::SectionOutOfBounds {
                 section: "metadata",
             })?;
-        let (metadata, evidence) = decode_metadata(metadata_bytes)?;
+        let StoredMetadata {
+            strings: metadata,
+            evidence,
+            phrase_evidence,
+        } = decode_metadata(metadata_bytes)?;
         let fst_bytes = source
             .section(header.fst_offset, header.fst_len)
             .ok_or(Error::SectionOutOfBounds { section: "FST" })?;
@@ -122,7 +127,7 @@ impl FstDictionary {
             ?max_word_chars,
             "decoded FST dictionary"
         );
-        if (format_version == 4) != evidence.is_some() {
+        if (format_version == 4) != (evidence.is_some() || phrase_evidence.is_some()) {
             return Err(Error::SourceEvidence {
                 reason: "source evidence requires container version 4 and must be present in that version".into(),
             });
@@ -141,6 +146,7 @@ impl FstDictionary {
             max_word_chars,
             lexemes,
             evidence: evidence.map(Arc::new),
+            phrase_evidence: phrase_evidence.map(Arc::new),
         };
         if let Some(evidence) = dictionary.evidence.as_ref() {
             let mut lookup_error = None;
@@ -170,6 +176,28 @@ impl FstDictionary {
             validation.map_err(|error| Error::SourceEvidence {
                 reason: error.to_string(),
             })?;
+        }
+        if let Some(evidence) = dictionary.phrase_evidence.as_ref() {
+            let records = evidence
+                .candidate_keys()
+                .into_iter()
+                .map(|key| {
+                    let entry = dictionary
+                        .lookup(key)?
+                        .ok_or_else(|| Error::SourceEvidence {
+                            reason: format!("phrase evidence references absent key {key:?}"),
+                        })?;
+                    Ok(CandidateRecord {
+                        hanja: key.into(),
+                        candidates: entry.candidates,
+                    })
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            evidence
+                .validate_records(records)
+                .map_err(|error| Error::SourceEvidence {
+                    reason: error.to_string(),
+                })?;
         }
         Ok(dictionary)
     }
@@ -284,6 +312,10 @@ impl AsRef<[u8]> for ByteSection {
 impl HanjaDictionary for FstDictionary {
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         self.evidence.as_deref()
+    }
+
+    fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
+        self.phrase_evidence.as_deref()
     }
 
     fn candidate_matches_at<'a>(
@@ -584,6 +616,7 @@ impl<'de> serde::Deserialize<'de> for EvidencePayload {
 struct StoredMetadata {
     strings: BTreeMap<String, String>,
     evidence: Option<DictionaryEvidence>,
+    phrase_evidence: Option<PhraseEvidence>,
 }
 
 impl<'de> serde::Deserialize<'de> for StoredMetadata {
@@ -601,26 +634,39 @@ impl<'de> serde::Deserialize<'de> for StoredMetadata {
                 use serde::de::Error as _;
                 let mut strings = BTreeMap::new();
                 let mut evidence = None;
+                let mut phrase_evidence = None;
                 while let Some(key) = map.next_key::<String>()? {
                     if key == "candidate_evidence" {
                         if evidence.is_some() {
                             return Err(A::Error::custom("duplicate candidate evidence"));
                         }
                         evidence = Some(map.next_value::<EvidencePayload>()?.0);
+                    } else if key == "phrase_evidence" {
+                        if phrase_evidence.is_some() {
+                            return Err(A::Error::custom("duplicate phrase evidence"));
+                        }
+                        phrase_evidence = Some(map.next_value::<PhraseEvidence>()?);
                     } else if strings.insert(key, map.next_value::<String>()?).is_some() {
                         return Err(A::Error::custom("duplicate metadata field"));
                     }
                 }
-                Ok(StoredMetadata { strings, evidence })
+                Ok(StoredMetadata {
+                    strings,
+                    evidence,
+                    phrase_evidence,
+                })
             }
         }
         deserializer.deserialize_map(MetadataVisitor)
     }
 }
 
-fn decode_metadata(
-    bytes: &[u8],
-) -> Result<(BTreeMap<String, String>, Option<DictionaryEvidence>), Error> {
+fn decode_metadata(bytes: &[u8]) -> Result<StoredMetadata, Error> {
+    if bytes.len() > gukhanmun_core::MAX_EVIDENCE_METADATA_BYTES {
+        return Err(Error::SourceEvidence {
+            reason: "metadata exceeds host byte limit".into(),
+        });
+    }
     let mut reader = std::io::Cursor::new(bytes);
     let decoded: StoredMetadata =
         from_reader(&mut reader).map_err(|source| Error::MetadataDecode { source })?;
@@ -628,13 +674,20 @@ fn decode_metadata(
         evidence.validate().map_err(|error| Error::SourceEvidence {
             reason: error.to_string(),
         })?;
-        if reader.position() != bytes.len() as u64 {
-            return Err(Error::SourceEvidence {
-                reason: "trailing bytes in critical metadata".into(),
-            });
-        }
     }
-    Ok((decoded.strings, decoded.evidence))
+    if let Some(evidence) = decoded.phrase_evidence.as_ref() {
+        evidence.validate().map_err(|error| Error::SourceEvidence {
+            reason: error.to_string(),
+        })?;
+    }
+    if (decoded.evidence.is_some() || decoded.phrase_evidence.is_some())
+        && reader.position() != bytes.len() as u64
+    {
+        return Err(Error::SourceEvidence {
+            reason: "trailing bytes in critical metadata".into(),
+        });
+    }
+    Ok(decoded)
 }
 
 fn parse_u64_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Option<u64> {

@@ -29,8 +29,10 @@ extern crate alloc;
 
 mod candidates;
 mod evidence;
+mod phrase_evidence;
 #[cfg(feature = "serde")]
 pub use evidence::{deserialize_dictionary_evidence, serialize_dictionary_evidence};
+pub use phrase_evidence::*;
 mod fallback;
 mod particles;
 mod punctuation;
@@ -514,6 +516,14 @@ pub trait HanjaDictionary {
         None
     }
 
+    /// Returns validated phrase constraints owned by this dictionary leaf.
+    ///
+    /// A composite must preserve leaf ownership rather than attaching these
+    /// constraints to an unrelated winning source with the same key.
+    fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
+        None
+    }
+
     /// Returns inspectable cooperative source pools, when this dictionary uses them.
     /// `None` selects the unchanged legacy candidate path. Implementations must
     /// keep groups and ranking stable for the lifetime of an immutable dictionary
@@ -655,6 +665,10 @@ where
         (**self).source_evidence()
     }
 
+    fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
+        (**self).phrase_evidence()
+    }
+
     fn source_matches_at<'a>(
         &'a self,
         s: &'a str,
@@ -717,6 +731,10 @@ where
         (**self).source_evidence()
     }
 
+    fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
+        (**self).phrase_evidence()
+    }
+
     fn source_matches_at<'a>(
         &'a self,
         s: &'a str,
@@ -777,6 +795,10 @@ where
 {
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         (**self).source_evidence()
+    }
+
+    fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
+        (**self).phrase_evidence()
     }
 
     fn source_matches_at<'a>(
@@ -1442,6 +1464,7 @@ pub struct MapDictionary {
     max_word_chars: Option<usize>,
     lexemes: LexemeIndex,
     evidence: Option<DictionaryEvidence>,
+    phrase_evidence: Option<PhraseEvidence>,
 }
 
 impl MapDictionary {
@@ -1464,7 +1487,21 @@ impl MapDictionary {
         Ok(())
     }
 
+    /// Attaches phrase evidence after validating all exact candidate links.
+    ///
+    /// Invalid replacements leave prior evidence intact. Any later dictionary
+    /// edit clears the phrase collection so stale cross-key rules cannot survive.
+    pub fn set_phrase_evidence(
+        &mut self,
+        evidence: PhraseEvidence,
+    ) -> Result<(), PhraseEvidenceError> {
+        evidence.validate_records(self.candidate_entries().unwrap())?;
+        self.phrase_evidence = Some(evidence);
+        Ok(())
+    }
+
     fn invalidate_source_evidence(&mut self, hanja: &str) {
+        self.phrase_evidence = None;
         if let Some(evidence) = &mut self.evidence {
             evidence.entries.remove(hanja);
         }
@@ -1677,6 +1714,10 @@ where
 impl HanjaDictionary for MapDictionary {
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         self.evidence.as_ref()
+    }
+
+    fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
+        self.phrase_evidence.as_ref()
     }
 
     fn candidate_matches_at<'a>(
