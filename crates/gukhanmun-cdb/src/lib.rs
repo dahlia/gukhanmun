@@ -206,12 +206,13 @@ impl CdbDictionary {
                 .map_err(|error| Error::SourceEvidence {
                     reason: error.to_string(),
                 })?;
-            dictionary.phrase_index =
-                Some(Arc::new(PhraseIndex::new(evidence).map_err(|error| {
+            dictionary.phrase_index = Some(Arc::new(
+                PhraseIndex::from_shared_evidence(evidence.clone()).map_err(|error| {
                     Error::SourceEvidence {
                         reason: error.to_string(),
                     }
-                })?));
+                })?,
+            ));
         }
         Ok(dictionary)
     }
@@ -845,6 +846,12 @@ mod tests {
         );
         let dictionary = std::sync::Arc::new(CdbDictionary::open(&path).unwrap());
         assert!(dictionary.has_owned_phrase_evidence());
+        // The dictionary and index retain the same immutable graph, allowing
+        // engines to reuse its validation without rescanning all phrase rules.
+        assert_eq!(
+            std::sync::Arc::strong_count(dictionary.phrase_evidence.as_ref().unwrap()),
+            2
+        );
         let index = dictionary.phrase_index().unwrap();
         assert_eq!(
             index,

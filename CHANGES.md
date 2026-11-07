@@ -53,6 +53,14 @@ To be released.
     implementations can check for owned phrase constraints without collecting
     them. Built-in dictionaries and nested chains avoid temporary evidence
     vectors during repeated source lookups. [[#41], [#45]]
+ -  Invalid phrase evidence supplied by custom dictionaries is now ignored
+    with a warning instead of causing a panic. The same applies to evidence
+    whose shared index is incompatible with it; compatible indexes remain
+    shared. Binary dictionary loaders still reject invalid evidence.
+    [[#41], [#45]]
+ -  Added `PhraseIndex::from_shared_evidence()` to share an immutable phrase
+    collection with its index. Engines reuse validation for that collection
+    without scanning it again. [[#41], [#45]]
  -  Re-exported phrase indexes, source choices, and resolution reports;
     embedded phrase constraints now run through the shared conversion engine.
     [[#41], [#45]]
@@ -166,6 +174,14 @@ To be released.
     implementations can check for owned phrase constraints without collecting
     them. Built-in dictionaries and nested chains avoid temporary evidence
     vectors during repeated source lookups. [[#41], [#45]]
+ -  Invalid phrase evidence supplied by custom dictionaries is now ignored
+    with a warning instead of causing a panic. The same applies to evidence
+    whose shared index is incompatible with it; compatible indexes remain
+    shared. Binary dictionary loaders still reject invalid evidence.
+    [[#41], [#45]]
+ -  Added `PhraseIndex::from_shared_evidence()` to share an immutable phrase
+    collection with its index. Engines reuse validation for that collection
+    without scanning it again. [[#41], [#45]]
  -  Preserve legacy single-character annotation merging and particle decisions
     when phrase evidence is present, including nested source policies.
     `LegacySelection` keeps policy fallbacks separate from leaf-owned phrase

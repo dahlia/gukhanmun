@@ -83,6 +83,8 @@ impl<'a> OwnedPhraseEvidence<'a> {
     /// Custom composite dictionaries use this descriptor when forwarding leaf
     /// ownership. The collection must already match that leaf's candidates;
     /// this constructor does not authenticate original source records.
+    /// Engines check structure before use and ignore invalid collections with a
+    /// warning.
     pub fn new(owner: SourceId, evidence: &'a PhraseEvidence) -> Self {
         Self {
             owner,
@@ -94,7 +96,9 @@ impl<'a> OwnedPhraseEvidence<'a> {
     /// Reuses the immutable index compiled for this exact evidence collection.
     ///
     /// Callers must keep the index and evidence paired. Without an index the
-    /// engine compiles a private fallback index for its own lifetime.
+    /// engine compiles a private fallback index for its own lifetime. Engines
+    /// ignore the entire collection and emit a warning if this index is
+    /// structurally incompatible with it.
     pub fn with_index(mut self, index: &'a PhraseIndex) -> Self {
         self.index = Some(index);
         self
@@ -607,6 +611,10 @@ pub trait HanjaDictionary {
     ///
     /// A composite must preserve leaf ownership rather than attaching these
     /// constraints to an unrelated winning source with the same key.
+    /// Engines ignore the collection and emit a warning if its structure is
+    /// invalid or its index is incompatible with it. Implementations remain
+    /// responsible for authenticating the collection's candidate links and source
+    /// provenance before returning it.
     fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
         None
     }
@@ -616,6 +624,10 @@ pub trait HanjaDictionary {
     /// Custom dictionaries may return `None`; engines then build a private index
     /// once per engine. A supplied index must have been constructed from the exact
     /// current [`Self::phrase_evidence`] collection and must not outlive it.
+    /// Engines check structural compatibility with that collection. If the index
+    /// is incompatible, they ignore the evidence and emit a warning.
+    /// Build the index with [`PhraseIndex::from_shared_evidence`] to let engines
+    /// reuse validation of the exact retained collection in constant time.
     fn phrase_index(&self) -> Option<&PhraseIndex> {
         None
     }
@@ -1717,7 +1729,7 @@ pub struct MapDictionary {
     max_word_chars: Option<usize>,
     lexemes: LexemeIndex,
     evidence: Option<DictionaryEvidence>,
-    phrase_evidence: Option<PhraseEvidence>,
+    phrase_evidence: Option<Arc<PhraseEvidence>>,
     phrase_index: Option<PhraseIndex>,
 }
 
@@ -1745,12 +1757,15 @@ impl MapDictionary {
     ///
     /// Invalid replacements leave prior evidence intact. Any later dictionary
     /// edit clears the phrase collection so stale cross-key rules cannot survive.
+    /// The dictionary and its index share the validated immutable collection;
+    /// constructing engines or cloning dictionaries does not copy or revalidate it.
     pub fn set_phrase_evidence(
         &mut self,
         evidence: PhraseEvidence,
     ) -> Result<(), PhraseEvidenceError> {
         evidence.validate_records(self.candidate_entries().unwrap())?;
-        let index = PhraseIndex::new(&evidence)?;
+        let evidence = Arc::new(evidence);
+        let index = PhraseIndex::from_shared_evidence(evidence.clone())?;
         self.phrase_evidence = Some(evidence);
         self.phrase_index = Some(index);
         Ok(())
@@ -1979,7 +1994,7 @@ impl HanjaDictionary for MapDictionary {
     }
 
     fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
-        self.phrase_evidence.as_ref()
+        self.phrase_evidence.as_deref()
     }
 
     fn phrase_index(&self) -> Option<&PhraseIndex> {

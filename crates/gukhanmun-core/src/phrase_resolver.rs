@@ -130,27 +130,32 @@ pub(crate) struct PhraseResolver<'a> {
 
 impl<'a> PhraseResolver<'a> {
     pub(crate) fn new(bundles: Vec<OwnedPhraseEvidence<'a>>) -> Self {
-        let indices: Vec<Cow<'a, crate::PhraseIndex>> = bundles
-            .iter()
-            .map(|bundle| {
-                bundle.index.map_or_else(
-                    || {
-                        Cow::Owned(
-                            crate::PhraseIndex::new(bundle.evidence)
-                                .expect("dictionary phrase evidence must be validated"),
-                        )
-                    },
-                    Cow::Borrowed,
-                )
-            })
-            .collect();
+        let mut retained = Vec::with_capacity(bundles.len());
+        let mut indices = Vec::with_capacity(bundles.len());
+        for bundle in bundles {
+            let index = match bundle.index {
+                Some(index) => index
+                    .validate_evidence(bundle.evidence)
+                    .map(|()| Cow::Borrowed(index)),
+                None => crate::PhraseIndex::new(bundle.evidence).map(Cow::Owned),
+            };
+            match index {
+                Ok(index) => {
+                    retained.push(bundle);
+                    indices.push(index);
+                }
+                Err(error) => {
+                    tracing::warn!(?error, owner = ?bundle.owner, "ignoring invalid phrase evidence");
+                }
+            }
+        }
         let horizon = indices
             .iter()
             .map(|index| index.max_span_chars())
             .max()
             .unwrap_or(0);
         Self {
-            bundles,
+            bundles: retained,
             indices,
             horizon,
             history: String::new(),
@@ -460,13 +465,33 @@ impl<'a> PhraseResolver<'a> {
             return;
         }
         *budget -= 1;
-        let bundle = &self.bundles[handle.bundle];
-        let rule = &bundle.evidence.rules[handle.rule];
-        let chunk = &rule.chunks[chunk_index];
+        let Some(bundle) = self.bundles.get(handle.bundle) else {
+            *budget = 0;
+            return;
+        };
+        let Some(rule) = bundle.evidence.rules.get(handle.rule) else {
+            *budget = 0;
+            return;
+        };
+        let Some(chunk) = rule.chunks.get(chunk_index) else {
+            *budget = 0;
+            return;
+        };
         let terminal = chunk_index + 1 == rule.chunks.len();
-        let extension = terminal
-            .then(|| handle.extension.map(|i| &rule.terminal_extensions[i]))
-            .flatten();
+        let extension = if terminal {
+            match handle.extension {
+                Some(index) => {
+                    let Some(extension) = rule.terminal_extensions.get(index) else {
+                        *budget = 0;
+                        return;
+                    };
+                    Some(extension)
+                }
+                None => None,
+            }
+        } else {
+            None
+        };
         let spellings = extension.map_or(&chunk.spellings, |extension| &extension.spellings);
         let mut literal = chunk.reading.clone();
         if let Some(extension) = extension {
@@ -848,6 +873,200 @@ fn unshift(mut segment: Segment, amount: usize) -> Segment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        CandidateMatch, Engine, HanjaDictionary, InputToken, MapDictionary, Match, OutputToken,
+        PhraseCandidateLink, PhraseChunk, PhraseEvidence, PhraseIndex, PhraseRule, PhraseSpelling,
+        PlainScopeData, ReadingCandidate, ReadingCandidates, WordId,
+    };
+    use alloc::{boxed::Box, vec};
+
+    fn custom_evidence() -> PhraseEvidence {
+        PhraseEvidence::new(vec![PhraseRule::new(
+            vec![WordId(1)],
+            vec![
+                PhraseChunk::new(
+                    "무조건".into(),
+                    vec![PhraseSpelling::new("無條件".into(), vec![])],
+                ),
+                PhraseChunk::new(
+                    "항복".into(),
+                    vec![PhraseSpelling::new(
+                        "降服".into(),
+                        vec![PhraseCandidateLink::new("항복".into(), None)],
+                    )],
+                ),
+            ],
+        )])
+    }
+
+    struct CustomDictionary<'a> {
+        inner: MapDictionary,
+        evidence: &'a PhraseEvidence,
+        index: Option<&'a PhraseIndex>,
+    }
+
+    impl HanjaDictionary for CustomDictionary<'_> {
+        fn matches_at<'a>(&'a self, text: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            self.inner.matches_at(text)
+        }
+
+        fn candidate_matches_at<'a>(
+            &'a self,
+            text: &'a str,
+        ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+            self.inner.candidate_matches_at(text)
+        }
+
+        fn candidate_matches_at_spellings(
+            &self,
+            spellings: &[&str],
+        ) -> Vec<(usize, CandidateMatch)> {
+            self.inner.candidate_matches_at_spellings(spellings)
+        }
+
+        fn max_word_chars(&self) -> Option<usize> {
+            self.inner.max_word_chars()
+        }
+
+        fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
+            Some(self.evidence)
+        }
+
+        fn phrase_index(&self) -> Option<&PhraseIndex> {
+            self.index
+        }
+    }
+
+    fn custom_dictionary<'a>(
+        evidence: &'a PhraseEvidence,
+        index: Option<&'a PhraseIndex>,
+    ) -> CustomDictionary<'a> {
+        let mut inner = MapDictionary::new();
+        inner.insert_candidates(
+            "降服",
+            ReadingCandidates::new(vec![
+                ReadingCandidate {
+                    reading: "강복".into(),
+                    preference: 10,
+                    ..ReadingCandidate::default()
+                },
+                ReadingCandidate {
+                    reading: "항복".into(),
+                    ..ReadingCandidate::default()
+                },
+            ])
+            .unwrap(),
+        );
+        CustomDictionary {
+            inner,
+            evidence,
+            index,
+        }
+    }
+
+    fn custom_output(dictionary: &CustomDictionary<'_>, input: &[&str]) -> String {
+        let mut engine = Engine::<PlainScopeData, _>::new(dictionary);
+        let mut output = Vec::new();
+        for chunk in input {
+            output.extend(engine.push_token(InputToken::Text((*chunk).into())));
+        }
+        output.extend(engine.finish());
+        output
+            .into_iter()
+            .filter_map(|token| match token {
+                OutputToken::Annotated(annotation) => Some(annotation.reading),
+                OutputToken::Text(text) | OutputToken::Verbatim(text) => Some(text),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn invalid_custom_evidence_falls_back_without_panicking() {
+        let valid = custom_evidence();
+        let index = PhraseIndex::new(&valid).unwrap();
+        let mut no_chunks = valid.clone();
+        no_chunks.rules[0].chunks.clear();
+        let mut future_policy = valid.clone();
+        future_policy.policy_version += 1;
+        for evidence in [&no_chunks, &future_policy] {
+            for index in [None, Some(&index)] {
+                let dictionary = custom_dictionary(evidence, index);
+                let resolver = PhraseResolver::new(dictionary.owned_phrase_evidence());
+                assert!(!resolver.active());
+                for input in [vec!["무조건 降服"], vec!["무", "조건 ", "降", "服"]] {
+                    assert_eq!(custom_output(&dictionary, &input), "무조건 강복");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn mismatched_custom_index_is_rejected_and_valid_bundles_stay_borrowed() {
+        let valid = custom_evidence();
+        let mut stale = valid.clone();
+        stale.rules[0].chunks[0].reading = "무조항".into();
+        let stale_index = PhraseIndex::new(&stale).unwrap();
+        let dictionary = custom_dictionary(&valid, Some(&stale_index));
+        assert_eq!(custom_output(&dictionary, &["무조건 降服"]), "무조건 강복");
+
+        let mut extra_rule = valid.clone();
+        let mut extra = valid.rules[0].clone();
+        extra.source_ids = vec![WordId(2)];
+        extra_rule.rules.push(extra);
+        let extra_index = PhraseIndex::new(&extra_rule).unwrap();
+        let dictionary = custom_dictionary(&valid, Some(&extra_index));
+        assert_eq!(custom_output(&dictionary, &["무조건 降服"]), "무조건 강복");
+
+        let equivalent = valid.clone();
+        let index = PhraseIndex::new(&equivalent).unwrap();
+        let resolver = PhraseResolver::new(vec![
+            OwnedPhraseEvidence::new(SourceId(0), &valid).with_index(&stale_index),
+            OwnedPhraseEvidence::new(SourceId(7), &valid).with_index(&index),
+        ]);
+        assert_eq!(resolver.bundles.len(), 1);
+        assert_eq!(resolver.bundles[0].owner, SourceId(7));
+        assert!(matches!(resolver.indices[0], Cow::Borrowed(_)));
+        assert!(core::ptr::eq(resolver.indices[0].as_ref(), &index));
+        for index in [None, Some(&index)] {
+            let dictionary = custom_dictionary(&valid, index);
+            assert_eq!(custom_output(&dictionary, &["무조건 降服"]), "무조건 항복");
+        }
+    }
+
+    #[test]
+    fn invalid_matcher_positions_discard_partial_matches() {
+        let evidence = custom_evidence();
+        let resolver = PhraseResolver::new(vec![OwnedPhraseEvidence::new(SourceId(0), &evidence)]);
+        for (bundle, rule, extension, chunk) in [
+            (1, 0, None, 0),
+            (0, 1, None, 0),
+            (0, 0, None, 2),
+            (0, 0, Some(0), 1),
+        ] {
+            let mut budget = MAX_MATCHER_STEPS;
+            let mut matches = Vec::new();
+            resolver.match_chunks(
+                "",
+                &[],
+                RuleRef {
+                    bundle,
+                    rule,
+                    extension,
+                },
+                chunk,
+                0,
+                &mut Vec::new(),
+                &mut matches,
+                &mut budget,
+                true,
+                true,
+            );
+            // The caller discards every accumulated match when budget is zero.
+            assert_eq!(budget, 0);
+            assert!(matches.is_empty());
+        }
+    }
 
     #[test]
     fn engines_borrow_the_dictionary_index_without_rebuilding_it() {
