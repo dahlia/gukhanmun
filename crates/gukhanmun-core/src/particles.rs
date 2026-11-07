@@ -123,3 +123,25 @@ pub(crate) fn select_form_index<'a>(
         })
         .unwrap_or(0)
 }
+
+// Phrase constraints need every compatible choice, rather than the first one.
+pub(crate) fn compatible_form_mask<'a>(
+    forms: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,
+    following: &str,
+    final_end: bool,
+) -> Option<alloc::vec::Vec<bool>> {
+    let required = requirement(following, final_end)?;
+    Some(
+        forms
+            .into_iter()
+            .map(|(reading, suffix)| {
+                compatible(reading, required)
+                    || suffix.is_some_and(|suffix| compatible(suffix, required))
+            })
+            .collect(),
+    )
+}
+
+pub(crate) fn has_witnessed_particle(following: &str, final_end: bool) -> bool {
+    requirement(following, final_end).is_some()
+}

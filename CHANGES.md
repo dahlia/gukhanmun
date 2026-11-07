@@ -41,6 +41,9 @@ To be released.
     Rust facade. [[#42], [#44]]
  -  Re-exported phrase evidence types for constructing and validating custom
     dictionary constraints. [[#41]]
+ -  Re-exported phrase indexes, source choices, and resolution reports;
+    embedded phrase constraints now run through the shared conversion engine.
+    [[#41], [#45]]
  -  The exported core pipeline preserves source-aware selection metadata through
     annotations and middleware, including aliases, particles, authorial glosses,
     and first-occurrence/homophone identity. Source-aware dictionary matches
@@ -57,6 +60,7 @@ To be released.
 [#41]: https://github.com/dahlia/gukhanmun/issues/41
 [#42]: https://github.com/dahlia/gukhanmun/issues/42
 [#44]: https://github.com/dahlia/gukhanmun/pull/44
+[#45]: https://github.com/dahlia/gukhanmun/pull/45
 
 ### gukhanmun-cdb
 
@@ -64,11 +68,16 @@ To be released.
     evidence; evidence-free version 1–3 files remain readable. [[#42], [#44]]
  -  CDB dictionaries can load candidate-linked phrase evidence from critical
     version 4 metadata, rejecting unsupported or stale constraints. [[#41]]
+ -  Cached validated phrase indexes per dictionary so repeated engines reuse
+    the compiled constraint lookup. [[#41], [#45]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
     [[#38], [#39]]
 
 ### gukhanmun-cli
 
+ -  Apply source-attested constraints carried by custom dictionaries after
+    segmentation, retaining existing selection when evidence conflicts or
+    exceeds limits. [[#41], [#45]]
  -  Canonical literals in the require-hanja directive and related directives
     now reach reviewed alias spellings. The streaming plain-text path keeps
     streaming and applies each directive with the dictionary's lexeme index, so
@@ -125,6 +134,11 @@ To be released.
  -  Reduced cooperative lookup overhead for dictionaries with unknown maximum
     word lengths without truncating their queries or limiting long matches.
     [[#42], [#44]]
+ -  Added source-attested phrase resolution over fixed segmentation paths, with
+    complete-form intersections, source ownership, conservative particle-aware
+    fallback, and finite additional streaming context. [[#41], [#45]]
+ -  Added cached `PhraseIndex` support and opt-in `Engine` resolution reports,
+    including policy defaults and bounded-work limits. [[#41], [#45]]
  -  Added typed source evidence, candidate-link validation, and
     `HanjaDictionary::source_evidence()` for inspecting dictionary provenance
     without changing legacy reading selection. [[#42], [#44]]
@@ -156,12 +170,12 @@ To be released.
     evidence from word/sense identifiers, direct foreign-name synonyms, and
     formal redirects. [[#42], [#44]]
 
-[#45]: https://github.com/dahlia/gukhanmun/pull/45
-
 ### gukhanmun-fst
 
  -  Added version 4 dictionary support for validated, candidate-linked source
     evidence; evidence-free version 1–3 files remain readable. [[#42], [#44]]
+ -  Cached validated phrase indexes per dictionary so repeated engines reuse
+    the compiled constraint lookup. [[#41], [#45]]
  -  FST dictionaries can load candidate-linked phrase evidence from critical
     version 4 metadata, rejecting unsupported or stale constraints. [[#41]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
@@ -193,6 +207,9 @@ To be released.
     with the offending entry index.  [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Apply embedded phrase constraints in conversion and streaming, preserving
+    complete selected candidate metadata and source-policy eligibility.
+    [[#41], [#45]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -235,6 +252,9 @@ To be released.
     with the offending entry index.  [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Apply embedded phrase constraints in conversion and streaming, preserving
+    complete selected candidate metadata and source-policy eligibility.
+    [[#41], [#45]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -272,6 +292,9 @@ To be released.
     [[#42], [#44]]
  -  Recognize reviewed compound aliases and stop treating sibling spellings as
     homophones or separate first occurrences. [[#38], [#39]]
+ -  Use source-attested constraints embedded in dictionaries for conversion and
+    streaming, including licensed complete verb forms and strict phrase
+    spacing. [[#41], [#45]]
 
 ### @gukhanmun/opendict-cdb
 
@@ -337,6 +360,9 @@ To be released.
     [[#42], [#44]]
  -  Recognize reviewed compound aliases and stop treating sibling spellings as
     homophones or separate first occurrences. [[#38], [#39]]
+ -  Use source-attested constraints embedded in dictionaries for conversion and
+    streaming, including licensed complete verb forms and strict phrase
+    spacing. [[#41], [#45]]
 
 <!-- sacho:unreleased:end -->
 

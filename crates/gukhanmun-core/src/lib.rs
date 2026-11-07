@@ -30,9 +30,11 @@ extern crate alloc;
 mod candidates;
 mod evidence;
 mod phrase_evidence;
+mod phrase_index;
 #[cfg(feature = "serde")]
 pub use evidence::{deserialize_dictionary_evidence, serialize_dictionary_evidence};
 pub use phrase_evidence::*;
+pub use phrase_index::PhraseIndex;
 mod fallback;
 mod particles;
 mod punctuation;
@@ -54,6 +56,51 @@ pub use resolution::{
     SourceId, SourceMatch, SourcePolicy,
 };
 mod generated;
+mod phrase_resolver;
+mod phrase_sources;
+pub use phrase_resolver::{
+    MAX_PHRASE_CANDIDATES, PhraseRuleId, ResolutionEvent, ResolutionOutcome, ResolutionReport,
+};
+
+/// Phrase evidence borrowed from one registered dictionary leaf.
+///
+/// Owners share the same flattened registration numbering as source choices;
+/// equal dictionary bytes in different registrations have different owners.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct OwnedPhraseEvidence<'a> {
+    /// Registered leaf supplying the evidence and candidate anchors.
+    pub owner: SourceId,
+    /// Validated rules, borrowed without copying the collection.
+    pub evidence: &'a PhraseEvidence,
+    /// Reusable index built from this exact collection, when supplied by its leaf.
+    pub index: Option<&'a PhraseIndex>,
+}
+
+impl<'a> OwnedPhraseEvidence<'a> {
+    /// Borrows validated evidence under a registered source owner.
+    ///
+    /// Custom composite dictionaries use this descriptor when forwarding leaf
+    /// ownership. The collection must already match that leaf's candidates;
+    /// this constructor does not authenticate original source records.
+    pub fn new(owner: SourceId, evidence: &'a PhraseEvidence) -> Self {
+        Self {
+            owner,
+            evidence,
+            index: None,
+        }
+    }
+
+    /// Reuses the immutable index compiled for this exact evidence collection.
+    ///
+    /// Callers must keep the index and evidence paired. Without an index the
+    /// engine compiles a private fallback index for its own lifetime.
+    pub fn with_index(mut self, index: &'a PhraseIndex) -> Self {
+        self.index = Some(index);
+        self
+    }
+}
+
 mod segment;
 mod variants;
 
@@ -508,6 +555,34 @@ pub struct Match {
 /// supplied string. This shape supports lattice segmentation because the
 /// engine must consider every candidate path through a hanja run.
 pub trait HanjaDictionary {
+    /// Number of registered source slots, used to qualify phrase ownership.
+    ///
+    /// Composite dictionaries must preserve this numbering in source choices
+    /// and [`Self::owned_phrase_evidence`]. A plain dictionary owns slot zero.
+    /// An opaque nested loanword projection uses its range's first slot while
+    /// reserving the remaining descendant slots; it exports no descendant phrase
+    /// authority. Registering such a projection never renumbers later sources.
+    fn source_count(&self) -> usize {
+        1
+    }
+
+    /// Borrows phrase collections with their registered leaf owners.
+    ///
+    /// A wrapper must forward this capability alongside source matches. The
+    /// default exposes this dictionary's own collection as source zero.
+    fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
+        self.phrase_evidence()
+            .filter(|e| !e.rules.is_empty())
+            .map(|evidence| {
+                alloc::vec![OwnedPhraseEvidence {
+                    owner: SourceId(0),
+                    evidence,
+                    index: self.phrase_index(),
+                }]
+            })
+            .unwrap_or_default()
+    }
+
     /// Returns validated source evidence without copying the evidence graph.
     ///
     /// Missing evidence means unknown provenance. This optional capability does
@@ -524,6 +599,15 @@ pub trait HanjaDictionary {
         None
     }
 
+    /// Borrows a reusable index for this leaf's exact immutable phrase evidence.
+    ///
+    /// Custom dictionaries may return `None`; engines then build a private index
+    /// once per engine. A supplied index must have been constructed from the exact
+    /// current [`Self::phrase_evidence`] collection and must not outlive it.
+    fn phrase_index(&self) -> Option<&PhraseIndex> {
+        None
+    }
+
     /// Returns inspectable cooperative source pools, when this dictionary uses them.
     /// `None` selects the unchanged legacy candidate path. Implementations must
     /// keep groups and ranking stable for the lifetime of an immutable dictionary
@@ -531,18 +615,70 @@ pub trait HanjaDictionary {
     /// following particle context; legacy candidate queries are never cached.
     fn source_matches_at<'a>(
         &'a self,
-        _s: &'a str,
+        s: &'a str,
     ) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
-        None
+        self.phrase_evidence()
+            .filter(|evidence| !evidence.rules.is_empty())?;
+        let matches = self
+            .candidate_matches_at(s)
+            .filter_map(move |matched| {
+                let key = s.get(..matched.byte_len)?;
+                let group = SourceGroup::from_dictionary(
+                    self,
+                    SourceId(0),
+                    SourceRole::Reference,
+                    key.into(),
+                    matched.candidates,
+                );
+                SourceMatch::rank(
+                    matched.byte_len,
+                    key.into(),
+                    alloc::vec![group],
+                    SourcePolicy::ReferenceFirst,
+                    false,
+                )
+            })
+            .collect();
+        Some(Box::new(
+            phrase_sources::complete_variants(self, s, matches).into_iter(),
+        ))
     }
 
     /// Resolves complete glyph alternatives within each source before cooperation.
     /// `None` preserves custom legacy spelling-resolution implementations.
-    fn source_matches_at_spellings(
-        &self,
-        _spellings: &[&str],
-    ) -> Option<Vec<(usize, SourceMatch)>> {
-        None
+    fn source_matches_at_spellings(&self, spellings: &[&str]) -> Option<Vec<(usize, SourceMatch)>> {
+        self.phrase_evidence()
+            .filter(|evidence| !evidence.rules.is_empty())?;
+        let mut matches = self.candidate_matches_at_spellings(spellings);
+        if matches.iter().any(|(index, _)| *index == 0) {
+            matches.retain(|(index, _)| *index == 0);
+        } else if matches.len() > 1 {
+            // Distinct non-exact spellings are ambiguous even if readings agree.
+            matches.clear();
+        }
+        Some(
+            matches
+                .into_iter()
+                .filter_map(|(index, matched)| {
+                    let key = *spellings.get(index)?;
+                    let group = SourceGroup::from_dictionary(
+                        self,
+                        SourceId(0),
+                        SourceRole::Reference,
+                        key.into(),
+                        matched.candidates,
+                    );
+                    SourceMatch::rank(
+                        spellings.first().map_or(0, |key| key.len()),
+                        spellings.first().copied().unwrap_or_default().into(),
+                        alloc::vec![group],
+                        SourcePolicy::ReferenceFirst,
+                        false,
+                    )
+                    .map(|matched| (index, matched))
+                })
+                .collect(),
+        )
     }
 
     /// Enumerates cooperative context-free defaults with their original raw groups.
@@ -661,12 +797,23 @@ impl<D> HanjaDictionary for &D
 where
     D: HanjaDictionary + ?Sized,
 {
+    fn source_count(&self) -> usize {
+        (**self).source_count()
+    }
+    fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
+        (**self).owned_phrase_evidence()
+    }
+
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         (**self).source_evidence()
     }
 
     fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
         (**self).phrase_evidence()
+    }
+
+    fn phrase_index(&self) -> Option<&PhraseIndex> {
+        (**self).phrase_index()
     }
 
     fn source_matches_at<'a>(
@@ -727,12 +874,23 @@ impl<D> HanjaDictionary for Box<D>
 where
     D: HanjaDictionary + ?Sized,
 {
+    fn source_count(&self) -> usize {
+        (**self).source_count()
+    }
+    fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
+        (**self).owned_phrase_evidence()
+    }
+
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         (**self).source_evidence()
     }
 
     fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
         (**self).phrase_evidence()
+    }
+
+    fn phrase_index(&self) -> Option<&PhraseIndex> {
+        (**self).phrase_index()
     }
 
     fn source_matches_at<'a>(
@@ -793,12 +951,23 @@ impl<D> HanjaDictionary for Arc<D>
 where
     D: HanjaDictionary + ?Sized,
 {
+    fn source_count(&self) -> usize {
+        (**self).source_count()
+    }
+    fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
+        (**self).owned_phrase_evidence()
+    }
+
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         (**self).source_evidence()
     }
 
     fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
         (**self).phrase_evidence()
+    }
+
+    fn phrase_index(&self) -> Option<&PhraseIndex> {
+        (**self).phrase_index()
     }
 
     fn source_matches_at<'a>(
@@ -1031,10 +1200,38 @@ impl<D> HanjaDictionary for ChainDictionary<D>
 where
     D: HanjaDictionary,
 {
+    fn source_count(&self) -> usize {
+        self.dictionaries
+            .iter()
+            .map(HanjaDictionary::source_count)
+            .sum()
+    }
+    fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
+        let mut offset = 0;
+        let mut result = Vec::new();
+        for (index, dictionary) in self.dictionaries.iter().enumerate() {
+            if !phrase_sources::opaque_loanword(dictionary, self.roles[index]) {
+                for mut owned in dictionary.owned_phrase_evidence() {
+                    owned.owner.0 += offset;
+                    result.push(owned);
+                }
+            }
+            offset += dictionary.source_count();
+        }
+        result
+    }
+
     fn source_matches_at<'a>(
         &'a self,
         s: &'a str,
     ) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
+        if !self.owned_phrase_evidence().is_empty() {
+            let matches = phrase_sources::matches_at(self, s);
+            return Some(Box::new(
+                phrase_sources::complete_variants(self, s, matches).into_iter(),
+            ));
+        }
+
         if self.source_policy == SourcePolicy::Ordered {
             return None;
         }
@@ -1092,6 +1289,10 @@ where
     }
 
     fn source_matches_at_spellings(&self, spellings: &[&str]) -> Option<Vec<(usize, SourceMatch)>> {
+        if !self.owned_phrase_evidence().is_empty() {
+            return Some(phrase_sources::matches_spellings(self, spellings));
+        }
+
         if self.source_policy == SourcePolicy::Ordered {
             return None;
         }
@@ -1165,7 +1366,9 @@ where
         &'a self,
         s: &'a str,
     ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
-        if let Some(matches) = self.source_matches_at(s) {
+        if self.source_policy != SourcePolicy::Ordered
+            && let Some(matches) = self.source_matches_at(s)
+        {
             return Box::new(matches.map(|matched| matched.default_match()));
         }
         let mut seen = BTreeSet::new();
@@ -1181,7 +1384,9 @@ where
         Box::new(matches.into_iter())
     }
     fn candidate_matches_at_spellings(&self, spellings: &[&str]) -> Vec<(usize, CandidateMatch)> {
-        if let Some(matches) = self.source_matches_at_spellings(spellings) {
+        if self.source_policy != SourcePolicy::Ordered
+            && let Some(matches) = self.source_matches_at_spellings(spellings)
+        {
             return matches
                 .into_iter()
                 .map(|(index, matched)| {
@@ -1465,6 +1670,7 @@ pub struct MapDictionary {
     lexemes: LexemeIndex,
     evidence: Option<DictionaryEvidence>,
     phrase_evidence: Option<PhraseEvidence>,
+    phrase_index: Option<PhraseIndex>,
 }
 
 impl MapDictionary {
@@ -1496,12 +1702,15 @@ impl MapDictionary {
         evidence: PhraseEvidence,
     ) -> Result<(), PhraseEvidenceError> {
         evidence.validate_records(self.candidate_entries().unwrap())?;
+        let index = PhraseIndex::new(&evidence)?;
         self.phrase_evidence = Some(evidence);
+        self.phrase_index = Some(index);
         Ok(())
     }
 
     fn invalidate_source_evidence(&mut self, hanja: &str) {
         self.phrase_evidence = None;
+        self.phrase_index = None;
         if let Some(evidence) = &mut self.evidence {
             evidence.entries.remove(hanja);
         }
@@ -1718,6 +1927,10 @@ impl HanjaDictionary for MapDictionary {
 
     fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
         self.phrase_evidence.as_ref()
+    }
+
+    fn phrase_index(&self) -> Option<&PhraseIndex> {
+        self.phrase_index.as_ref()
     }
 
     fn candidate_matches_at<'a>(
@@ -2043,6 +2256,7 @@ where
     fallback_state: FallbackState,
     incremental_flush: bool,
     deferred_root_close: bool,
+    phrase_resolver: phrase_resolver::PhraseResolver<'a>,
 }
 
 impl<'a, S, D> Engine<'a, S, D>
@@ -2083,7 +2297,24 @@ where
             fallback_state: FallbackState::default(),
             incremental_flush,
             deferred_root_close: false,
+            phrase_resolver: phrase_resolver::PhraseResolver::new(
+                dictionary.owned_phrase_evidence(),
+            ),
         }
+    }
+
+    /// Enables inspection of phrase and policy-default decisions for this engine.
+    ///
+    /// Reporting is opt-in so a long stream does not accumulate a report unless
+    /// requested. Call [`Self::take_resolution_report`] periodically to drain it.
+    pub fn with_resolution_reporting(mut self) -> Self {
+        self.phrase_resolver.reporting = true;
+        self
+    }
+
+    /// Takes the accumulated source phrase decisions, leaving an empty report.
+    pub fn take_resolution_report(&mut self) -> ResolutionReport {
+        self.phrase_resolver.take_report()
     }
 
     /// Pushes one input token and returns output tokens that are now safe to
@@ -2166,7 +2397,8 @@ where
     ///
     /// The endpoint is not EOF evidence for particle selection. Calling this
     /// inside a word can forfeit evidence that a later chunk would supply;
-    /// textual whitespace and punctuation witnesses remain effective.
+    /// textual whitespace and punctuation witnesses remain effective. Source
+    /// phrase matching ends at this explicit flush and cannot bridge it.
     pub fn flush(&mut self) -> Vec<OutputToken<S>> {
         let mut output = Vec::new();
         self.resolve_root_close(&mut output, false);
@@ -2178,16 +2410,27 @@ where
     ///
     /// Unlike [`Self::flush`], this proves EOF for particle selection and emits
     /// any deferred root `Close` after the remaining text.
-    pub fn finish(mut self) -> Vec<OutputToken<S>> {
+    pub fn finish(self) -> Vec<OutputToken<S>> {
+        self.finish_with_report().0
+    }
+
+    /// Finishes the stream and returns output together with remaining decisions.
+    ///
+    /// This includes phrase decisions first established by EOF, which cannot be
+    /// drained through [`Self::take_resolution_report`] after `finish` consumes
+    /// the engine. Reporting must be enabled with [`Self::with_resolution_reporting`].
+    pub fn finish_with_report(mut self) -> (Vec<OutputToken<S>>, ResolutionReport) {
         let mut output = Vec::new();
         self.resolve_root_close(&mut output, true);
         self.flush_into(&mut output, true);
-        output
+        (output, self.phrase_resolver.take_report())
     }
 
     /// Returns the number of Unicode scalar values currently buffered.
     ///
     /// Particle lookahead adds four scalars to the dictionary tail allowance.
+    /// Active source phrase rules add their maximum surface span and boundary
+    /// witnesses; bounded committed context is retained separately.
     /// This is not a universal buffer ceiling: fallback annotation grouping,
     /// unresolved lattice frontiers, open numeral spans, and dictionaries with an
     /// unknown maximum may retain longer runs.
@@ -2212,6 +2455,10 @@ where
     }
 
     fn flush_safe_into(&mut self, output: &mut Vec<OutputToken<S>>) {
+        if self.phrase_resolver.active() {
+            self.flush_phrase_safe_into(output);
+            return;
+        }
         if self.pending_text.is_empty() {
             return;
         }
@@ -2302,6 +2549,92 @@ where
         }
     }
 
+    // Every automatic phrase emission goes through the same cutoff. In
+    // particular, U+0020 cannot use the legacy whitespace fast paths.
+    fn flush_phrase_safe_into(&mut self, output: &mut Vec<OutputToken<S>>) {
+        let horizon = self.phrase_resolver.horizon();
+        let count = self.buffered_chars();
+        let tail_cut = if let Some(dictionary_tail) = self.tail_bound() {
+            let keep = dictionary_tail.saturating_add(horizon);
+            if count <= keep {
+                return;
+            }
+            if self.extends_unflushable_fallback_run(
+                dictionary_tail.saturating_sub(particles::LOOKAHEAD),
+            ) {
+                self.pending_unflushable_fallback_run_bytes = Some(self.pending_text.len());
+                return;
+            }
+            self.pending_text
+                .char_indices()
+                .nth(count - keep)
+                .map_or(self.pending_text.len(), |(index, _)| index)
+        } else {
+            // The legacy unknown-word bound proves completed lexical spans at
+            // whitespace. Keep the phrase horizon as well, since one U+0020
+            // may join phrase chunks across that otherwise settled boundary.
+            let Some(delimited_end) = safe_unknown_bound_flush_end(&self.pending_text) else {
+                return;
+            };
+            if count <= horizon {
+                return;
+            }
+            delimited_end
+        };
+        let (mut segments, stable_end) = segment_text_stable_cached(
+            &self.pending_text,
+            self.dictionary,
+            self.options,
+            false,
+            &mut self.resolution_cache,
+        );
+        let stable_cut = suffix_start_for_char_count(&self.pending_text[..stable_end], horizon);
+        let cutoff = tail_cut.min(stable_cut);
+        let mut emit_end = 0;
+        for segment in &mut segments {
+            let (start, end) = segment_bounds(segment);
+            if end <= cutoff {
+                emit_end = end;
+                continue;
+            }
+            if start < cutoff && matches!(segment, Segment::Text { .. }) {
+                // Text has no lexical identity and can be emitted in pieces.
+                emit_end = cutoff;
+            }
+            break;
+        }
+        if let Some(fallback_start) = trailing_fallback_run_start(&segments, emit_end) {
+            emit_end = fallback_start;
+        }
+        if emit_end == 0 {
+            if trailing_fallback_run_start(&segments, self.pending_text.len()) == Some(0) {
+                self.pending_unflushable_fallback_run_bytes = Some(self.pending_text.len());
+            }
+            return;
+        }
+        self.phrase_resolver
+            .resolve(&self.pending_text, &mut segments, emit_end, false, false);
+        let emitted: Vec<Segment> = segments
+            .iter()
+            .filter_map(|segment| {
+                let (start, end) = segment_bounds(segment);
+                if end <= emit_end {
+                    Some(segment.clone())
+                } else if start < emit_end && matches!(segment, Segment::Text { .. }) {
+                    Some(Segment::Text {
+                        byte_start: start,
+                        byte_end: emit_end,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+        self.phrase_resolver
+            .remember(&self.pending_text, &emitted, emit_end);
+        self.flush_segments_prefix_into(emit_end, &emitted, output);
+    }
+
     fn extends_unflushable_fallback_run(&mut self, bound: usize) -> bool {
         let Some(previous_bytes) = self.pending_unflushable_fallback_run_bytes else {
             return false;
@@ -2356,7 +2689,9 @@ where
     }
 
     fn flush_prefix_into(&mut self, flush_end: usize, output: &mut Vec<OutputToken<S>>) {
-        if flush_end == self.pending_text.len() {
+        if flush_end == self.pending_text.len()
+            && (!self.phrase_resolver.reporting || self.phrase_resolver.active())
+        {
             self.flush_into(output, false);
             return;
         }
@@ -2379,6 +2714,22 @@ where
         output: &mut Vec<OutputToken<S>>,
     ) {
         let prefix = self.pending_text[..flush_end].to_string();
+        let mut reported_segments;
+        let segments = if self.phrase_resolver.reporting && !self.phrase_resolver.active() {
+            reported_segments = segments.to_vec();
+            self.phrase_resolver.resolve(
+                &self.pending_text,
+                &mut reported_segments,
+                flush_end,
+                false,
+                false,
+            );
+            self.phrase_resolver
+                .remember(&self.pending_text, &reported_segments, flush_end);
+            &reported_segments
+        } else {
+            segments
+        };
         process_segments_with_state(
             &prefix,
             segments,
@@ -2392,10 +2743,32 @@ where
 
     fn flush_into(&mut self, output: &mut Vec<OutputToken<S>>, final_end: bool) {
         if self.pending_text.is_empty() {
+            self.phrase_resolver.end_flow();
             return;
         }
         self.pending_unflushable_fallback_run_bytes = None;
         let text = core::mem::take(&mut self.pending_text);
+        if self.phrase_resolver.active() || self.phrase_resolver.reporting {
+            let mut segments = segment_text_cached(
+                &text,
+                self.dictionary,
+                self.options,
+                final_end,
+                &mut self.resolution_cache,
+            );
+            self.phrase_resolver
+                .resolve(&text, &mut segments, text.len(), final_end, final_end);
+            process_segments_with_state(
+                &text,
+                &segments,
+                self.dictionary,
+                self.options,
+                &mut self.fallback_state,
+                output,
+            );
+            self.phrase_resolver.end_flow();
+            return;
+        }
         process_text_with_state(
             &text,
             self.dictionary,

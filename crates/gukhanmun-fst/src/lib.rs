@@ -32,7 +32,7 @@ use fst::automaton::Automaton;
 use fst::{IntoStreamer, Map, Streamer};
 use gukhanmun_core::{
     CandidateError, CandidateMatch, CandidateRecord, DictionaryEvidence, DictionaryRecord,
-    HanjaDictionary, LexemeIndex, Match, MatchMark, PhraseEvidence, ReadingCandidate,
+    HanjaDictionary, LexemeIndex, Match, MatchMark, PhraseEvidence, PhraseIndex, ReadingCandidate,
     ReadingCandidates, candidate_matches_at_spellings, select_default_reading,
 };
 
@@ -62,6 +62,7 @@ pub struct FstDictionary {
     lexemes: LexemeIndex,
     evidence: Option<Arc<DictionaryEvidence>>,
     phrase_evidence: Option<Arc<PhraseEvidence>>,
+    phrase_index: Option<Arc<PhraseIndex>>,
 }
 
 impl FstDictionary {
@@ -137,7 +138,7 @@ impl FstDictionary {
                 reason: "container and metadata versions disagree".into(),
             });
         }
-        let dictionary = Self {
+        let mut dictionary = Self {
             metadata,
             format_version,
             map,
@@ -147,6 +148,7 @@ impl FstDictionary {
             lexemes,
             evidence: evidence.map(Arc::new),
             phrase_evidence: phrase_evidence.map(Arc::new),
+            phrase_index: None,
         };
         if let Some(evidence) = dictionary.evidence.as_ref() {
             let mut lookup_error = None;
@@ -198,6 +200,12 @@ impl FstDictionary {
                 .map_err(|error| Error::SourceEvidence {
                     reason: error.to_string(),
                 })?;
+            dictionary.phrase_index =
+                Some(Arc::new(PhraseIndex::new(evidence).map_err(|error| {
+                    Error::SourceEvidence {
+                        reason: error.to_string(),
+                    }
+                })?));
         }
         Ok(dictionary)
     }
@@ -316,6 +324,10 @@ impl HanjaDictionary for FstDictionary {
 
     fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
         self.phrase_evidence.as_deref()
+    }
+
+    fn phrase_index(&self) -> Option<&PhraseIndex> {
+        self.phrase_index.as_deref()
     }
 
     fn candidate_matches_at<'a>(
@@ -760,6 +772,54 @@ mod tests {
         &'a gukhanmun_core::DictionaryEvidence,
     );
 
+    #[test]
+    fn loaded_phrase_index_is_consistent_and_shared_by_dictionary_clones() {
+        let evidence = phrase_evidence();
+        let bytes = fixture_bytes_with_all_evidence(
+            &[entry("降伏", "항복", false, false)],
+            None,
+            Some(&evidence),
+        );
+        let dictionary = FstDictionary::from_bytes(&bytes).unwrap();
+        let index = dictionary.phrase_index().unwrap();
+        assert_eq!(
+            index,
+            &gukhanmun_core::PhraseIndex::new(dictionary.phrase_evidence().unwrap()).unwrap()
+        );
+        let clone = dictionary.clone();
+        assert!(std::ptr::eq(index, clone.phrase_index().unwrap()));
+        assert!(std::ptr::eq(
+            index,
+            dictionary.owned_phrase_evidence()[0].index.unwrap()
+        ));
+        assert!(
+            FstDictionary::from_bytes(&fixture_bytes(&[entry("降伏", "항복", false, false)]))
+                .unwrap()
+                .phrase_index()
+                .is_none()
+        );
+    }
+    fn phrase_evidence() -> gukhanmun_core::PhraseEvidence {
+        use gukhanmun_core::{
+            PhraseCandidateLink, PhraseChunk, PhraseEvidence, PhraseRule, PhraseSpelling, WordId,
+        };
+        PhraseEvidence::new(vec![PhraseRule::new(
+            vec![WordId(1)],
+            vec![
+                PhraseChunk::new(
+                    "무조건".into(),
+                    vec![PhraseSpelling::new("無條件".into(), vec![])],
+                ),
+                PhraseChunk::new(
+                    "항복".into(),
+                    vec![PhraseSpelling::new(
+                        "降伏".into(),
+                        vec![PhraseCandidateLink::new("항복".into(), None)],
+                    )],
+                ),
+            ],
+        )])
+    }
     fn source_evidence(readings: &[(&str, &str)]) -> gukhanmun_core::DictionaryEvidence {
         use gukhanmun_core::{
             CandidateEvidence, DictionaryEvidence, SourceContribution, SourceRole, WordId,
@@ -1064,7 +1124,15 @@ mod tests {
         entries: &[TestEntry<'_>],
         evidence: Option<&gukhanmun_core::DictionaryEvidence>,
     ) -> Vec<u8> {
-        let format_version = if evidence.is_some() {
+        fixture_bytes_with_all_evidence(entries, evidence, None)
+    }
+
+    fn fixture_bytes_with_all_evidence(
+        entries: &[TestEntry<'_>],
+        evidence: Option<&gukhanmun_core::DictionaryEvidence>,
+        phrases: Option<&gukhanmun_core::PhraseEvidence>,
+    ) -> Vec<u8> {
+        let format_version = if evidence.is_some() || phrases.is_some() {
             4u32
         } else {
             FORMAT_VERSION
@@ -1100,6 +1168,14 @@ mod tests {
             fields.push((
                 ciborium::value::Value::Text("candidate_evidence".into()),
                 ciborium::value::Value::serialized(&EvidencePayload(evidence)).unwrap(),
+            ));
+        }
+        if let (Some(phrases), ciborium::value::Value::Map(fields)) =
+            (phrases, &mut encoded_metadata)
+        {
+            fields.push((
+                ciborium::value::Value::Text("phrase_evidence".into()),
+                ciborium::value::Value::serialized(phrases).unwrap(),
             ));
         }
         let mut metadata_bytes = Vec::new();

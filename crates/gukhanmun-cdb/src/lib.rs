@@ -27,7 +27,7 @@ use std::sync::Arc;
 use ciborium::de::from_reader;
 use gukhanmun_core::{
     CandidateError, CandidateMatch, CandidateRecord, DictionaryEvidence, DictionaryRecord,
-    HanjaDictionary, LexemeIndex, Match, MatchMark, PhraseEvidence, ReadingCandidate,
+    HanjaDictionary, LexemeIndex, Match, MatchMark, PhraseEvidence, PhraseIndex, ReadingCandidate,
     ReadingCandidates, candidate_matches_at_spellings, select_default_reading,
 };
 
@@ -72,6 +72,7 @@ pub struct CdbDictionary {
     lexemes: LexemeIndex,
     evidence: Option<Arc<DictionaryEvidence>>,
     phrase_evidence: Option<Arc<PhraseEvidence>>,
+    phrase_index: Option<Arc<PhraseIndex>>,
 }
 
 impl CdbDictionary {
@@ -144,7 +145,7 @@ impl CdbDictionary {
                 reason: "container and metadata versions disagree".into(),
             });
         }
-        let dictionary = Self {
+        let mut dictionary = Self {
             metadata,
             format_version,
             data,
@@ -153,6 +154,7 @@ impl CdbDictionary {
             lexemes,
             evidence: evidence.map(Arc::new),
             phrase_evidence: phrase_evidence.map(Arc::new),
+            phrase_index: None,
         };
         if let Some(evidence) = dictionary.evidence.as_ref() {
             let mut lookup_error = None;
@@ -204,6 +206,12 @@ impl CdbDictionary {
                 .map_err(|error| Error::SourceEvidence {
                     reason: error.to_string(),
                 })?;
+            dictionary.phrase_index =
+                Some(Arc::new(PhraseIndex::new(evidence).map_err(|error| {
+                    Error::SourceEvidence {
+                        reason: error.to_string(),
+                    }
+                })?));
         }
         Ok(dictionary)
     }
@@ -239,6 +247,10 @@ impl HanjaDictionary for CdbDictionary {
 
     fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
         self.phrase_evidence.as_deref()
+    }
+
+    fn phrase_index(&self) -> Option<&PhraseIndex> {
+        self.phrase_index.as_deref()
     }
 
     fn candidate_matches_at<'a>(
@@ -816,6 +828,58 @@ mod tests {
         &'a gukhanmun_core::DictionaryEvidence,
     );
 
+    #[test]
+    fn loaded_phrase_index_is_consistent_and_shared_by_dictionary_borrowers() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("phrases.cdb");
+        let evidence = phrase_evidence();
+        write_fixture_with_phrases(
+            &path,
+            &[entry("降伏", "항복", false, false)],
+            Some(&evidence),
+        );
+        let dictionary = std::sync::Arc::new(CdbDictionary::open(&path).unwrap());
+        let index = dictionary.phrase_index().unwrap();
+        assert_eq!(
+            index,
+            &gukhanmun_core::PhraseIndex::new(dictionary.phrase_evidence().unwrap()).unwrap()
+        );
+        let clone = dictionary.clone();
+        assert!(std::ptr::eq(index, clone.phrase_index().unwrap()));
+        assert!(std::ptr::eq(
+            index,
+            dictionary.owned_phrase_evidence()[0].index.unwrap()
+        ));
+        let plain_path = temp.path().join("plain.cdb");
+        write_fixture(&plain_path, &[entry("降伏", "항복", false, false)]);
+        assert!(
+            CdbDictionary::open(plain_path)
+                .unwrap()
+                .phrase_index()
+                .is_none()
+        );
+    }
+    fn phrase_evidence() -> gukhanmun_core::PhraseEvidence {
+        use gukhanmun_core::{
+            PhraseCandidateLink, PhraseChunk, PhraseEvidence, PhraseRule, PhraseSpelling, WordId,
+        };
+        PhraseEvidence::new(vec![PhraseRule::new(
+            vec![WordId(1)],
+            vec![
+                PhraseChunk::new(
+                    "무조건".into(),
+                    vec![PhraseSpelling::new("無條件".into(), vec![])],
+                ),
+                PhraseChunk::new(
+                    "항복".into(),
+                    vec![PhraseSpelling::new(
+                        "降伏".into(),
+                        vec![PhraseCandidateLink::new("항복".into(), None)],
+                    )],
+                ),
+            ],
+        )])
+    }
     fn source_evidence(readings: &[(&str, &str)]) -> gukhanmun_core::DictionaryEvidence {
         use gukhanmun_core::{
             CandidateEvidence, DictionaryEvidence, SourceContribution, SourceRole, WordId,
@@ -1125,12 +1189,23 @@ mod tests {
     }
 
     fn write_fixture(path: &Path, entries: &[TestEntry<'_>]) {
+        write_fixture_with_phrases(path, entries, None);
+    }
+
+    fn write_fixture_with_phrases(
+        path: &Path,
+        entries: &[TestEntry<'_>],
+        phrases: Option<&gukhanmun_core::PhraseEvidence>,
+    ) {
         let mut metadata = BTreeMap::new();
         metadata.insert("source".to_owned(), "fixture".to_owned());
         metadata.insert("license".to_owned(), "CC0-1.0".to_owned());
         metadata.insert("build_date".to_owned(), "1970-01-01T00:00:00Z".to_owned());
         metadata.insert("entry_count".to_owned(), entries.len().to_string());
-        metadata.insert("version".to_owned(), "1".to_owned());
+        metadata.insert(
+            "version".to_owned(),
+            if phrases.is_some() { "4" } else { "1" }.to_owned(),
+        );
         metadata.insert(
             "max_word_chars".to_owned(),
             entries
@@ -1162,7 +1237,16 @@ mod tests {
         metadata.insert("prefix_count".to_owned(), records.len().to_string());
 
         let mut metadata_bytes = Vec::new();
-        into_writer(&metadata, &mut metadata_bytes).unwrap();
+        let mut encoded_metadata = ciborium::value::Value::serialized(&metadata).unwrap();
+        if let (Some(phrases), ciborium::value::Value::Map(fields)) =
+            (phrases, &mut encoded_metadata)
+        {
+            fields.push((
+                ciborium::value::Value::Text("phrase_evidence".into()),
+                ciborium::value::Value::serialized(phrases).unwrap(),
+            ));
+        }
+        into_writer(&encoded_metadata, &mut metadata_bytes).unwrap();
         let mut writer = cdb::CDBWriter::create(path.to_string_lossy().as_ref()).unwrap();
         writer.add(META_KEY, &metadata_bytes).unwrap();
         for (key, value) in records {
