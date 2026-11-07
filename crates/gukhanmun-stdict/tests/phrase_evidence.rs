@@ -1,4 +1,4 @@
-// Gukhanmun: Bundled Standard Korean Language Dictionary for Gukhanmun.
+// Gukhanmun: Tests source phrase evidence extraction and its admission audit.
 // Copyright (C) 2026  Hong Minhee
 //
 // This program is free software: you can redistribute it and/or modify
