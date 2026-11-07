@@ -34,6 +34,9 @@ use gukhanmun_dict_extract::{
 use serde::Deserialize;
 use zip::ZipArchive;
 
+mod phrases;
+pub use phrases::{extract_json_reader_to_phrase_files, extract_path_to_phrase_files};
+
 /// Error returned while extracting Standard Korean Language Dictionary data.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -180,6 +183,7 @@ pub struct ExtractStats {
 #[derive(Default)]
 struct Extractor {
     stats: ExtractStats,
+    phrase_sources: Option<Vec<phrases::RawWord>>,
     entries: BTreeMap<String, BTreeMap<String, Entry>>,
     /// Word-initial readings seen for multi-syllable hanja keys.
     initial_forms: BTreeMap<String, BTreeSet<String>>,
@@ -259,6 +263,9 @@ impl Extractor {
 
     fn ingest_item(&mut self, item: Item) {
         let source_id = item.target_code;
+        if let Some(words) = &mut self.phrase_sources {
+            words.push(phrases::RawWord::from_item(&item));
+        }
         if let Some(words) = &mut self.source_words {
             if let Some(id) = source_id {
                 words.push(source_word(WordId(id), item.word_info.as_ref()));
@@ -869,6 +876,8 @@ struct Item {
 
 #[derive(Debug, Deserialize)]
 struct WordInfo {
+    #[serde(default)]
+    relation_info: Vec<LexicalInfo>,
     word: Option<String>,
     word_type: Option<String>,
     #[serde(default)]

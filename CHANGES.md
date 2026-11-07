@@ -134,6 +134,8 @@ To be released.
 
 ### gukhanmun-dict-extract
 
+ -  Added `aliases::SiblingDonors` for reusing validated one-step sibling donor
+    lookup across source compilers. [[#41], [#45]]
  -  Added `aliases::align_morphemes()`, `aliases::derive_aliases()`, and
     `aliases::sibling_relations()` for aligning marked compound headwords,
     applying the same-source-id ambiguity gate, and emitting recognition
@@ -153,6 +155,8 @@ To be released.
  -  Added typed source-graph helpers for compiling conservative candidate
     evidence from word/sense identifiers, direct foreign-name synonyms, and
     formal redirects. [[#42], [#44]]
+
+[#45]: https://github.com/dahlia/gukhanmun/pull/45
 
 ### gukhanmun-fst
 
@@ -210,6 +214,9 @@ To be released.
  -  Added `gukhanmun-stdict-extract --evidence-output` to preserve source
     records, sense identifiers, and supported synonym/redirect evidence
     alongside canonical TSV output. [[#42], [#44]]
+ -  Added phrase evidence and admission-audit exports to the source extractor,
+    preserving word TSV admission while validating caret boundaries, one-step
+    sibling spellings, and typed subheadword projections. [[#41], [#45]]
  -  Derive compound aliases from the dump's marked morphemes and explicit
     spelling groups, bundling 2,054 recognition aliases, the seven reviewed
     lexical aliases, 2,875 sibling relations, and a JSONL provenance manifest.
