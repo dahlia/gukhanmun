@@ -41,6 +41,9 @@ pub enum SourcePolicy {
 
 /// A registered source's position within one composite dictionary.
 ///
+/// An opaque legacy projection occupies the first slot of its registered
+/// source range, identified by [`SelectionDiagnostic::OpaqueLegacyProjection`].
+/// It does not acquire the phrase authority of a leaf in that range.
 /// This is provenance only. Different source IDs alone do not imply different
 /// lexical identities, homophones, or first occurrences.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -98,8 +101,17 @@ pub struct SourceChoice {
 }
 
 /// A conservative source-resolution issue retained alongside the raw groups.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum SelectionDiagnostic {
+    /// A parent selected from a public legacy projection without leaf authority.
+    /// This can identify an anchor or a form supplier. The projection retains
+    /// its old policy role and reason but never contributes phrase witnesses.
+    OpaqueLegacyProjection {
+        /// First reserved source slot of the projected dictionary.
+        source_id: SourceId,
+        /// Number of source slots reserved by that dictionary.
+        source_count: usize,
+    },
     /// A reference candidate has no compiled source evidence.
     UnknownEvidence {
         /// The source with unknown evidence.
@@ -220,11 +232,30 @@ impl SourceGroup {
     }
 }
 
+/// Exact legacy fallback view retained separately from leaf-owned phrase choices.
+///
+/// A parent ranks its children's public legacy projections without borrowing
+/// descendant evidence. A cooperative child's public projection is this view's
+/// first choice; an ordered or plain child's projection is the full view.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LegacySelection {
+    /// Complete fallback choices in legacy particle-selection order.
+    /// Must be nonempty; opaque identities are identified in pool diagnostics.
+    pub choices: Arc<[SourceChoice]>,
+    /// Whether this is a plain/ordered view whose trivial characters may merge.
+    pub merge_eligible: bool,
+}
+
 /// Inspectable source groups and their active ordered choices for one span.
 ///
 /// This pool is deliberately distinct from canonical `ReadingCandidates`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceMatch {
+    /// Exact fallback view when phrase evidence requires a separate proof pool.
+    /// `None` uses `ranked` for ordinary cooperative selection. A present view
+    /// preserves legacy policy and particle decisions, including opaque parent
+    /// projections that need not occur in the leaf-owned `ranked` pool.
+    pub legacy_selection: Option<LegacySelection>,
     /// Queried source spelling, distinct from each source group's dictionary key.
     pub hanja: String,
     /// Consumed queried-source length in UTF-8 bytes; dictionary keys may differ.
@@ -232,8 +263,8 @@ pub struct SourceMatch {
     /// Complete raw groups, in declared source order.
     pub groups: Vec<SourceGroup>,
     /// Active choices after policy and eligibility, before particle filtering.
-    /// This must be nonempty. Built-in lookup and index consumers ignore empty
-    /// pools returned by custom dictionary implementations.
+    /// This may be empty when only an opaque legacy fallback survives policy.
+    /// Built-in consumers ignore pools only when both selection views are empty.
     pub ranked: Arc<[SourceChoice]>,
     /// Structured conservative resolution issues.
     pub diagnostics: Arc<[SelectionDiagnostic]>,
@@ -379,6 +410,7 @@ impl SourceMatch {
             return None;
         }
         Some(Self {
+            legacy_selection: None,
             byte_len,
             hanja,
             groups,
@@ -389,7 +421,15 @@ impl SourceMatch {
 
     /// Selects the context-free effective default without discarding raw groups.
     pub fn default_choice(&self) -> &SourceChoice {
-        &self.ranked[0]
+        &self.selection_choices()[0]
+    }
+
+    pub(crate) fn selection_choices(&self) -> &[SourceChoice] {
+        self.legacy_selection
+            .as_ref()
+            .map(|legacy| legacy.choices.as_ref())
+            .filter(|choices| !choices.is_empty())
+            .unwrap_or(&self.ranked)
     }
 
     /// Projects the effective default as a canonical singleton candidate set.
@@ -404,16 +444,18 @@ impl SourceMatch {
         }
     }
 
-    /// Selects once from the entire ranked pool using witnessed Korean particles.
+    /// Selects using witnessed Korean particles and the legacy view when present.
+    /// The full eligible ranked pool remains available for phrase constraints.
     pub fn select(&self, following: &str, final_end: bool) -> (Match, SelectedReading) {
+        let choices = self.selection_choices();
         let index = crate::particles::select_form_index(
-            self.ranked
+            choices
                 .iter()
                 .map(|choice| (&*choice.form.reading, choice.form.suffix_reading.as_deref())),
             following,
             final_end,
         );
-        let choice = self.ranked[index].clone();
+        let choice = choices[index].clone();
         let matched = Match {
             byte_len: self.byte_len,
             reading: choice.form.reading.clone(),
@@ -423,6 +465,10 @@ impl SourceMatch {
         (
             matched,
             SelectedReading {
+                legacy_merge_eligible: self
+                    .legacy_selection
+                    .as_ref()
+                    .is_some_and(|legacy| legacy.merge_eligible),
                 choice: Box::new(choice),
                 ranked: self.ranked.clone(),
                 diagnostics: self.diagnostics.clone(),
@@ -459,9 +505,17 @@ impl ReadingCandidates {
 /// Selected source metadata retained through positional spelling and middleware.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SelectedReading {
+    /// Preserves the source pool's legacy annotation-merge eligibility.
+    ///
+    /// This controls rendering boundaries, not candidate identity or authority.
+    /// Successful phrase selection preserves its complete attested edge instead.
+    pub legacy_merge_eligible: bool,
     /// The actual selected form and its identity/mark ownership.
+    /// An opaque legacy fallback may be absent from `ranked`; only a successful
+    /// phrase proof replaces it with a complete leaf-owned choice.
     pub choice: Box<SourceChoice>,
-    /// The original active ranked pool, retained for authorial gloss revalidation.
+    /// The complete eligible phrase pool, also used for authorial revalidation.
+    /// Opaque legacy fallback projections never enter this proof pool.
     pub ranked: Arc<[SourceChoice]>,
     /// Resolution issues for inspection, independent of homophone rendering.
     pub diagnostics: Arc<[SelectionDiagnostic]>,
@@ -541,7 +595,11 @@ impl ResolutionCache {
         {
             let result = dictionary.source_matches_at(key);
             self.enabled = Some(result.is_some());
-            return result.map(|matches| matches.filter(|pool| !pool.ranked.is_empty()).collect());
+            return result.map(|matches| {
+                matches
+                    .filter(|pool| !pool.selection_choices().is_empty())
+                    .collect()
+            });
         }
         let cache_key = CacheKey::Exact(key.into());
         if let Some(cached) = self.entries.get(&cache_key) {
@@ -549,7 +607,9 @@ impl ResolutionCache {
         }
         let result = dictionary.source_matches_at(key);
         self.enabled = Some(result.is_some());
-        let matches: Vec<_> = result?.filter(|pool| !pool.ranked.is_empty()).collect();
+        let matches: Vec<_> = result?
+            .filter(|pool| !pool.selection_choices().is_empty())
+            .collect();
         self.insert(
             cache_key,
             matches
@@ -578,7 +638,7 @@ impl ResolutionCache {
         self.spellings_enabled = Some(matches.is_some());
         let matches: Vec<_> = matches?
             .into_iter()
-            .filter(|(_, pool)| !pool.ranked.is_empty())
+            .filter(|(_, pool)| !pool.selection_choices().is_empty())
             .collect();
         self.insert(cache_key, matches.clone());
         Some(matches)
@@ -669,7 +729,15 @@ impl SourceMatch {
                 }
             }
         }
-        for choice in self.ranked.iter() {
+        let extra = self
+            .legacy_selection
+            .as_ref()
+            .filter(|legacy| !Arc::ptr_eq(&legacy.choices, &self.ranked));
+        for choice in self
+            .ranked
+            .iter()
+            .chain(extra.into_iter().flat_map(|legacy| legacy.choices.iter()))
+        {
             bytes += core::mem::size_of::<SourceChoice>()
                 + form_bytes(&choice.form)
                 + choice.anchor.key.capacity()
@@ -695,6 +763,7 @@ impl SourceMatch {
                         reading.capacity()
                     }
                     SelectionDiagnostic::ConflictingAlias { form, .. } => form_bytes(form),
+                    SelectionDiagnostic::OpaqueLegacyProjection { .. } => 0,
                 };
         }
         // Vec/BTreeMap capacities and allocator alignment can exceed payload size.

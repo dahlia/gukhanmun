@@ -195,12 +195,13 @@ class CollectorTests(unittest.TestCase):
             (base / "source.json").write_bytes(c.json_bytes(source))
             (base / "metadata.json").write_bytes(c.json_bytes({"source": "stdict-json-20261012", "build_date": "2026-10-12T00:00:00Z"}))
             self.assertIn("stdict", c.state(root)["dictionaries"])
-            evidence = base / "source-evidence.json"
-            original_evidence = evidence.read_bytes()
-            evidence.write_text("modified source relation evidence")
-            self.assertNotIn("stdict", c.state(root)["dictionaries"])
-            evidence.write_bytes(original_evidence)
-            self.assertIn("stdict", c.state(root)["dictionaries"])
+            for name in ("source-evidence.json", "phrase-evidence.json", "phrase-manifest.json"):
+                evidence = base / name
+                original_evidence = evidence.read_bytes()
+                evidence.write_text("modified source relation evidence")
+                self.assertNotIn("stdict", c.state(root)["dictionaries"])
+                evidence.write_bytes(original_evidence)
+                self.assertIn("stdict", c.state(root)["dictionaries"])
             (base / "stdict.tsv").write_text("modified by human")
             self.assertNotIn("stdict", c.state(root)["dictionaries"])
             (base / "stdict.tsv").write_text("hanja\thangul\n甲\t갑\n")

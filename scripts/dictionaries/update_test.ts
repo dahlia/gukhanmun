@@ -50,7 +50,27 @@ async function fixture() {
     for (const name of outputs[kind]) {
       await Deno.writeFile(
         `${root}/${data(kind)}/${name}`,
-        name === "source-evidence.json"
+        name === "phrase-evidence.json"
+          ? json({
+            schema_version: 1,
+            policy_version: 1,
+            rules: [{
+              source_ids: [1],
+              chunks: [{ reading: new TextDecoder().decode(old), spellings: [{ key: "霧川" }] }],
+            }],
+          })
+          : name === "phrase-manifest.json"
+          ? json({
+            schema_version: 1,
+            policy_version: 1,
+            records: [{
+              source_id: 1,
+              word: "무천",
+              original_spellings: ["霧川"],
+              outcome: new TextDecoder().decode(old),
+            }],
+          })
+          : name === "source-evidence.json"
           ? json({
             schema_version: 1,
             role: "reference",
@@ -123,7 +143,30 @@ Deno.test("two-dictionary transaction, idempotent fragments and rollback after f
       for (const name of outputs[kind]) {
         await Deno.writeFile(
           `${env.GUKHANMUN_DICTS_OUTPUT_DIR}/${name}`,
-          name === "source-evidence.json"
+          name === "phrase-evidence.json"
+            ? json({
+              schema_version: 1,
+              policy_version: 1,
+              rules: [{
+                source_ids: [1],
+                chunks: [{
+                  reading: new TextDecoder().decode(revised),
+                  spellings: [{ key: "霧川" }],
+                }],
+              }],
+            })
+            : name === "phrase-manifest.json"
+            ? json({
+              schema_version: 1,
+              policy_version: 1,
+              records: [{
+                source_id: 1,
+                word: "무천",
+                original_spellings: ["霧川"],
+                outcome: new TextDecoder().decode(revised),
+              }],
+            })
+            : name === "source-evidence.json"
             ? json({
               schema_version: 1,
               role: "reference",
@@ -259,4 +302,73 @@ Deno.test("source evidence audits distinguish adjacent u64 IDs above JavaScript 
     "source-evidence.json",
   );
   assert.equal(unchanged.changed, 0);
+});
+
+Deno.test("phrase rules and audit records preserve exact u64 witnesses and reject unsupported versions", async () => {
+  for (const name of ["phrase-evidence.json", "phrase-manifest.json"]) {
+    const document = (id: string, version = 1, policy = 1) =>
+      encoder.encode(
+        name === "phrase-evidence.json"
+          ? `{"schema_version":${version},"policy_version":${policy},"rules":[{"source_ids":[${id}],"chunks":[{"reading":"무천","spellings":[{"key":"霧川"}]}],"terminal_extensions":[{"witnesses":[{"parent":${id},"child":${id}}]}]}]}`
+          : `{"schema_version":${version},"policy_version":${policy},"limits":{"max_rules":65536},"records":[{"source_id":${id},"word":"무천","original_spellings":["霧川"],"outcome":"admitted"}]}`,
+      );
+    const report = await mappingReport(
+      document("9007199254740992"),
+      document("9007199254740993"),
+      name,
+    );
+    assert.equal(report.changed, 1);
+    assert.equal(report.keys, 2);
+    assert.equal(report.rows, 2);
+    assert.equal(
+      (await mappingReport(
+        document("18446744073709551615"),
+        document("18446744073709551615"),
+        name,
+      )).changed,
+      0,
+    );
+    await assert.rejects(
+      () => mappingReport(document("1"), document("1", 2), name),
+      /schema version/,
+    );
+    await assert.rejects(
+      () => mappingReport(document("1"), document("1", 1, 2), name),
+      /policy version/,
+    );
+    await assert.rejects(
+      () =>
+        mappingReport(
+          document("1"),
+          encoder.encode('{"schema_version":1,"policy_version":1}'),
+          name,
+        ),
+      /invalid phrase/,
+    );
+  }
+  await assert.rejects(
+    () =>
+      mappingReport(
+        encoder.encode('{"schema_version":1,"entries":{}}'),
+        encoder.encode('{"schema_version":2,"entries":{}}'),
+        "source-evidence.json",
+      ),
+    /schema version/,
+  );
+});
+
+Deno.test("terminal parent and child word ID audits are independently lossless", async () => {
+  const document = (parent: string, child: string) =>
+    encoder.encode(
+      `{"schema_version":1,"policy_version":1,"rules":[{"source_ids":[1],"chunks":[{"reading":"무천","spellings":[{"key":"霧川"}]}],"terminal_extensions":[{"witnesses":[{"parent":${parent},"child":${child}}]}]}]}`,
+    );
+  const base = document("9007199254740992", "9007199254740992");
+  for (
+    const after of [
+      document("9007199254740993", "9007199254740992"),
+      document("9007199254740992", "9007199254740993"),
+    ]
+  ) {
+    assert.equal((await mappingReport(base, after, "phrase-evidence.json")).changed, 1);
+  }
 });

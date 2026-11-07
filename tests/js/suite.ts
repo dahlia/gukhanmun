@@ -310,6 +310,83 @@ export function registerSuite(name: string, binding: Binding): void {
           }
         }
       });
+      test(`${backend}: source phrases use local readings across scalar stream splits`, async () => {
+        const positive = [
+          ["無條件降服", "무조건항복"],
+          ["無條件降服하다", "무조건항복하다"],
+          ["無條件 降服", "무조건 항복"],
+          ["무조건降服", "무조건항복"],
+          ["무조건 降服하다", "무조건 항복하다"],
+          ["無條件 항복", "무조건 항복"],
+          ["車間距離", "차간거리"],
+          ["車間 距離", "차간 거리"],
+          ["江門八學士", "강문팔학사"],
+          ["江門 八學士", "강문 팔학사"],
+          ["乾燥警報", "건조경보"],
+          ["待機行列", "대기행렬"],
+          ["對角線行列", "대각선행렬"],
+          ["濕性咳嗽", "습성해수"],
+          ["基準乾板", "기준건판"],
+          ["遊動滑車", "유동활차"],
+          ["乾燥空氣", "건조공기"],
+        ] as const;
+        const negative = [
+          ["車間", "찻간"],
+          ["江門", "장먼"],
+          ["사람의 大腸과 小腸", "사람의 대장과 소장"],
+          ["소의 大腸과 小腸", "소의 대장과 소장"],
+          ["刺殺", "자살"],
+          ["降服", "강복"],
+          ["降服하다", "강복하다"],
+          ["생부에게는 降服되는", "생부에게는 강복되는"],
+          ["無條件  降服", "무조건  강복"],
+          ["無條件\t降服", "무조건\t강복"],
+          ["無條件\n降服", "무조건\n강복"],
+          ["무조건적降服", "무조건적강복"],
+        ] as const;
+        for (const segmentation of ["eager", "lattice"] as const) {
+          const g = await load({
+            dictionaries: [await loadDict()],
+            homophoneWindow: "off",
+            segmentation,
+            html: { preserveAttributes: [{ name: "translate", value: "no" }] },
+          });
+          for (const [input, expected] of [...positive, ...negative]) {
+            assert.equal(g.convert(input), expected, `${segmentation}: ${input}`);
+            assert.equal(await streamAll(g.stream("text"), Array.from(input)), expected);
+            const chars = Array.from(input);
+            for (let split = 0; split <= chars.length; split++) {
+              assert.equal(
+                await streamAll(g.stream("text"), [
+                  chars.slice(0, split).join(""),
+                  chars.slice(split).join(""),
+                ]),
+                expected,
+              );
+            }
+          }
+          assert.equal(g.convert("<p>무조건</p><p>降服</p>", "html"), "<p>무조건</p><p>강복</p>");
+          assert.equal(
+            g.convert('<span translate="no">무조건</span>降服', "html"),
+            '<span translate="no">무조건</span>강복',
+          );
+          assert.equal(
+            g.convert('<span translate="no">無條件降服</span>', "html"),
+            '<span translate="no">無條件降服</span>',
+          );
+          const override = await load({
+            dictionaries: [{
+              entries: [{ hanja: "降服", reading: "강복" }, {
+                hanja: "降服하다",
+                reading: "강복하다",
+              }],
+            }, await loadDict()],
+            homophoneWindow: "off",
+            segmentation,
+          });
+          assert.equal(override.convert("無條件降服 無條件降服하다"), "무조건강복 무조건강복하다");
+        }
+      });
       test(`${backend}: 漢字를 한글로 → 한자를 한글로`, async () => {
         const g = await load({ dictionaries: [await loadDict()] });
         assert.equal(g.convert("漢字를 한글로"), "한자를 한글로");

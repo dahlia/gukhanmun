@@ -706,6 +706,30 @@ fn selection_mut(segment: &mut Segment) -> Option<&mut crate::SelectedReading> {
     }
 }
 fn synchronize(segment: &mut Segment) {
+    // A proved phrase retains each complete lexical edge even if its legacy
+    // single-character form would otherwise join an adjacent fallback run.
+    if let Segment::TrivialDictionary {
+        byte_start,
+        byte_end,
+        reading,
+        suffix_reading,
+        mark,
+        dictionary_hanja,
+        pending_selection,
+        selection,
+    } = segment
+    {
+        *segment = Segment::Dictionary {
+            byte_start: *byte_start,
+            byte_end: *byte_end,
+            reading: core::mem::take(reading),
+            suffix_reading: suffix_reading.take(),
+            mark: *mark,
+            dictionary_hanja: core::mem::take(dictionary_hanja),
+            pending_selection: *pending_selection,
+            selection: selection.take(),
+        };
+    }
     match segment {
         Segment::Dictionary {
             reading,

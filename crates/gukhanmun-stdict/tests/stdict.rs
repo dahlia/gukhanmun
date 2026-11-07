@@ -928,3 +928,88 @@ fn seed_manifest_reports_the_seed_alias_kind() {
     assert!(aliases.contains("記念館\t기념관\tfalse\tfalse\t10\t\t紀念館\tsibling\t紀念>記念"));
     assert!(manifest.contains("\"kind\":\"sibling\""));
 }
+
+#[test]
+fn bundled_source_phrases_preserve_candidates_and_stream_boundaries() {
+    use gukhanmun_core::*;
+    let dictionary = gukhanmun_stdict::ko_kr();
+    assert!(!dictionary.phrase_evidence().unwrap().rules.is_empty());
+    let cases = [
+        ("無條件降服", "무조건항복"),
+        ("無條件降服하다", "무조건항복하다"),
+        ("無條件 降服하다", "무조건 항복하다"),
+        ("무조건 降服", "무조건 항복"),
+        ("無條件 항복", "무조건 항복"),
+        ("車間距離", "차간거리"),
+        ("車間 距離", "차간 거리"),
+        ("車間", "찻간"),
+        ("江門八學士", "강문팔학사"),
+        ("江門 八學士", "강문 팔학사"),
+        ("江門", "장먼"),
+        ("乾燥警報", "건조경보"),
+        ("待機行列", "대기행렬"),
+        ("對角線行列", "대각선행렬"),
+        ("濕性咳嗽", "습성해수"),
+        ("基準乾板", "기준건판"),
+        ("遊動滑車", "유동활차"),
+        ("乾燥空氣", "건조공기"),
+        ("사람의 大腸과 小腸", "사람의 대장과 소장"),
+        ("소의 大腸과 小腸", "소의 대장과 소장"),
+        ("刺殺", "자살"),
+        ("降服", "강복"),
+        ("降服하다", "강복하다"),
+        ("생부에게는 降服되는", "생부에게는 강복되는"),
+        ("無條件  降服", "무조건  강복"),
+        ("無條件\t降服", "무조건\t강복"),
+        ("無條件\n降服", "무조건\n강복"),
+        ("무조건적降服", "무조건적강복"),
+    ];
+    for segmentation in [SegmentationStrategy::Eager, SegmentationStrategy::Lattice] {
+        let options = EngineOptions {
+            segmentation,
+            ..EngineOptions::default()
+        };
+        for (input, expected) in cases {
+            assert_eq!(
+                convert_plain_text_with_options(
+                    input,
+                    &dictionary,
+                    RenderMode::HangulOnly,
+                    options
+                ),
+                expected,
+                "{segmentation:?}: {input}"
+            );
+            let chars = input.chars().collect::<Vec<_>>();
+            for split in 0..=chars.len() {
+                let mut engine = Engine::<PlainScopeData, _>::with_options(&dictionary, options);
+                let mut output =
+                    engine.push_token(InputToken::Text(chars[..split].iter().collect()));
+                output.extend(engine.push_token(InputToken::Text(chars[split..].iter().collect())));
+                output.extend(engine.finish());
+                assert_eq!(
+                    write_plain_text(render_tokens(output, RenderMode::HangulOnly)),
+                    expected,
+                    "{segmentation:?}: {input} split {split}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn bundled_phrase_index_is_shared_through_dictionary_wrappers() {
+    use gukhanmun_core::HanjaDictionary;
+    let first = gukhanmun_stdict::ko_kr();
+    let second = gukhanmun_stdict::ko_kr();
+    let index = first.phrase_index().expect("bundled phrase index");
+    assert!(std::ptr::eq(index, second.phrase_index().unwrap()));
+    let wrapped: Box<dyn HanjaDictionary> = Box::new(second);
+    assert!(std::ptr::eq(index, wrapped.phrase_index().unwrap()));
+    assert!(std::ptr::eq(
+        index,
+        (&wrapped as &dyn HanjaDictionary).owned_phrase_evidence()[0]
+            .index
+            .unwrap()
+    ));
+}

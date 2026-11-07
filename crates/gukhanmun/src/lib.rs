@@ -116,11 +116,11 @@ pub use gukhanmun_core::{
     reverse_hanja, select_default_reading, write_plain_text,
 };
 pub use gukhanmun_core::{
-    ChoiceReason, MAX_PHRASE_CANDIDATES, OwnedPhraseEvidence, PhraseCandidateLink, PhraseChunk,
-    PhraseEvidence, PhraseEvidenceError, PhraseIndex, PhraseRule, PhraseRuleId, PhraseSpelling,
-    ResolutionEvent, ResolutionOutcome, ResolutionReport, SelectedReading, SelectionDiagnostic,
-    SourceAnchor, SourceChoice, SourceGroup, SourceId, SourceMatch, SubheadwordWitness,
-    TerminalExtension,
+    ChoiceReason, LegacySelection, MAX_PHRASE_CANDIDATES, OwnedPhraseEvidence, PhraseCandidateLink,
+    PhraseChunk, PhraseEvidence, PhraseEvidenceError, PhraseIndex, PhraseRule, PhraseRuleId,
+    PhraseSpelling, ResolutionEvent, ResolutionOutcome, ResolutionReport, SelectedReading,
+    SelectionDiagnostic, SourceAnchor, SourceChoice, SourceGroup, SourceId, SourceMatch,
+    SubheadwordWitness, TerminalExtension,
 };
 
 #[cfg(feature = "serde")]

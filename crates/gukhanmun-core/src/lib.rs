@@ -52,8 +52,8 @@ pub use evidence::{
     SourceContribution, SourceReference, SourceRole, WordId, WordOrigin,
 };
 pub use resolution::{
-    ChoiceReason, SelectedReading, SelectionDiagnostic, SourceAnchor, SourceChoice, SourceGroup,
-    SourceId, SourceMatch, SourcePolicy,
+    ChoiceReason, LegacySelection, SelectedReading, SelectionDiagnostic, SourceAnchor,
+    SourceChoice, SourceGroup, SourceId, SourceMatch, SourcePolicy,
 };
 mod generated;
 mod phrase_resolver;
@@ -637,6 +637,13 @@ pub trait HanjaDictionary {
                     SourcePolicy::ReferenceFirst,
                     false,
                 )
+                .map(|mut matched| {
+                    matched.legacy_selection = Some(LegacySelection {
+                        choices: matched.ranked.clone(),
+                        merge_eligible: true,
+                    });
+                    matched
+                })
             })
             .collect();
         Some(Box::new(
@@ -675,7 +682,13 @@ pub trait HanjaDictionary {
                         SourcePolicy::ReferenceFirst,
                         false,
                     )
-                    .map(|matched| (index, matched))
+                    .map(|mut matched| {
+                        matched.legacy_selection = Some(LegacySelection {
+                            choices: matched.ranked.clone(),
+                            merge_eligible: true,
+                        });
+                        (index, matched)
+                    })
                 })
                 .collect(),
         )
@@ -1456,7 +1469,7 @@ where
             && let Some(entries) = self.source_entries()
         {
             return entries
-                .filter(|entry| !entry.ranked.is_empty())
+                .filter(|entry| !entry.selection_choices().is_empty())
                 .any(|entry| {
                     let selected = entry.default_choice();
                     selected.anchor.homophone_canonical != hanja
@@ -4703,7 +4716,7 @@ impl HomophoneIndex {
                 .or_else(|| LexemeIndex::from_dictionary(dictionary))?,
         };
         if let Some(entries) = dictionary.source_entries() {
-            for record in entries.filter(|record| !record.ranked.is_empty()) {
+            for record in entries.filter(|record| !record.selection_choices().is_empty()) {
                 let selected = record.default_choice();
                 for reading in core::iter::once(&selected.form.reading)
                     .chain(selected.form.suffix_reading.iter())

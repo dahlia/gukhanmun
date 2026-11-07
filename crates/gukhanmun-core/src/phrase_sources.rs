@@ -40,17 +40,35 @@ fn remap(mut matched: SourceMatch, offset: usize, role: SourceRole, leaf: bool) 
             group.role = role;
         }
     }
-    let mut ranked = matched.ranked.to_vec();
-    for choice in &mut ranked {
-        if role == SourceRole::Override {
-            choice.reason = crate::ChoiceReason::Override;
-        }
-        choice.anchor.source_id.0 += offset;
-        if let Some(source) = &mut choice.form_source {
-            source.0 += offset;
-        }
+    let remap_choices = |choices: &[crate::SourceChoice]| -> Arc<[crate::SourceChoice]> {
+        choices
+            .iter()
+            .cloned()
+            .map(|mut choice| {
+                if role == SourceRole::Override {
+                    choice.reason = crate::ChoiceReason::Override;
+                }
+                choice.anchor.source_id.0 += offset;
+                if let Some(source) = &mut choice.form_source {
+                    source.0 += offset;
+                }
+                choice
+            })
+            .collect()
+    };
+    // Preserve both complete views without searching or splicing identities.
+    let legacy_is_full = matched
+        .legacy_selection
+        .as_ref()
+        .is_some_and(|legacy| Arc::ptr_eq(&legacy.choices, &matched.ranked));
+    matched.ranked = remap_choices(&matched.ranked);
+    if let Some(legacy) = &mut matched.legacy_selection {
+        legacy.choices = if legacy_is_full {
+            matched.ranked.clone()
+        } else {
+            remap_choices(&legacy.choices)
+        };
     }
-    matched.ranked = Arc::from(ranked);
     matched.diagnostics = matched
         .diagnostics
         .iter()
@@ -59,7 +77,8 @@ fn remap(mut matched: SourceMatch, offset: usize, role: SourceRole, leaf: bool) 
             match &mut diagnostic {
                 crate::SelectionDiagnostic::UnknownEvidence { source_id, .. }
                 | crate::SelectionDiagnostic::ConflictingRedirect { source_id, .. }
-                | crate::SelectionDiagnostic::ConflictingAlias { source_id, .. } => {
+                | crate::SelectionDiagnostic::ConflictingAlias { source_id, .. }
+                | crate::SelectionDiagnostic::OpaqueLegacyProjection { source_id, .. } => {
                     source_id.0 += offset
                 }
             }
@@ -100,9 +119,16 @@ fn legacy<D: HanjaDictionary>(
         SourcePolicy::ReferenceFirst,
         false,
     )
+    .map(|mut matched| {
+        matched.legacy_selection = Some(crate::LegacySelection {
+            choices: matched.ranked.clone(),
+            merge_eligible: true,
+        });
+        matched
+    })
 }
 
-fn combine<D: HanjaDictionary>(
+fn combine_proof<D: HanjaDictionary>(
     chain: &ChainDictionary<D>,
     pools: Vec<(SourceMatch, bool)>,
 ) -> Vec<SourceMatch> {
@@ -147,7 +173,8 @@ fn combine<D: HanjaDictionary>(
     groups
         .into_iter()
         .filter_map(|(len, groups)| {
-            if let Some(matched) = overrides.remove(&len) {
+            if let Some(mut matched) = overrides.remove(&len) {
+                matched.legacy_selection = None;
                 return Some(matched);
             }
             let mut matched = SourceMatch::rank(
@@ -183,36 +210,214 @@ fn combine<D: HanjaDictionary>(
         .collect()
 }
 
+#[derive(Default)]
+struct FallbackPool {
+    hanja: alloc::string::String,
+    groups: Vec<SourceGroup>,
+    opaque_ranges: BTreeMap<SourceId, usize>,
+}
+
+// Mirror the child's public candidate API using its already computed view.
+fn public_projection(matched: &SourceMatch) -> crate::CandidateMatch {
+    let choices = matched.selection_choices();
+    let choices = if matched
+        .legacy_selection
+        .as_ref()
+        .is_some_and(|legacy| legacy.merge_eligible)
+    {
+        choices
+    } else {
+        &choices[..1]
+    };
+    crate::CandidateMatch {
+        byte_len: matched.byte_len,
+        candidates: crate::ReadingCandidates::from_source_choices(choices),
+    }
+}
+
+// Project the already computed child view once, avoiding recursive re-queries.
+// A composite projection is opaque; only its public candidates and its own
+// source evidence participate in the parent's original policy computation.
+fn add_fallback<D: HanjaDictionary>(
+    pools: &mut BTreeMap<usize, FallbackPool>,
+    dictionary: &D,
+    matched: &SourceMatch,
+    key: &str,
+    offset: usize,
+    role: SourceRole,
+    opaque: bool,
+) {
+    if matched.selection_choices().is_empty() {
+        return;
+    }
+    let pool = pools.entry(matched.byte_len).or_default();
+    if pool.groups.is_empty() {
+        pool.hanja = matched.hanja.clone();
+    }
+    pool.groups.push(SourceGroup::from_dictionary(
+        dictionary,
+        SourceId(offset),
+        role,
+        key.into(),
+        public_projection(matched).candidates,
+    ));
+    if opaque {
+        pool.opaque_ranges
+            .insert(SourceId(offset), dictionary.source_count());
+    }
+}
+
+fn combine<D: HanjaDictionary>(
+    chain: &ChainDictionary<D>,
+    pools: Vec<(SourceMatch, bool)>,
+    fallback: BTreeMap<usize, FallbackPool>,
+) -> Vec<SourceMatch> {
+    let mut proof: BTreeMap<_, _> = combine_proof(chain, pools)
+        .into_iter()
+        .map(|matched| (matched.byte_len, matched))
+        .collect();
+    fallback
+        .into_iter()
+        .filter_map(|(len, mut fallback)| {
+            let ordered = chain.source_policy == SourcePolicy::Ordered;
+            if ordered {
+                fallback.groups.truncate(1);
+            }
+            let legacy = SourceMatch::rank(
+                len,
+                fallback.hanja,
+                fallback.groups,
+                if ordered {
+                    SourcePolicy::ReferenceFirst
+                } else {
+                    chain.source_policy
+                },
+                !ordered && chain.reference_only,
+            )?;
+            let mut matched = proof.remove(&len).unwrap_or_else(|| {
+                let mut opaque = legacy.clone();
+                opaque.ranked = Arc::from([]);
+                opaque.groups.clear();
+                opaque.diagnostics = Arc::from([]);
+                opaque
+            });
+            // Opaque ranges describe this parent's fallback projection, not
+            // descendant projections carried by a retained proof-pool clone.
+            let mut diagnostics: Vec<_> = matched
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| {
+                    !matches!(
+                        diagnostic,
+                        crate::SelectionDiagnostic::OpaqueLegacyProjection { .. }
+                    )
+                })
+                .cloned()
+                .collect();
+            diagnostics.extend(legacy.diagnostics.iter().cloned());
+            // Rank first: discarded groups supply neither legacy identities nor
+            // forms, so their opaque projection must not appear in diagnostics.
+            let participating: BTreeSet<_> = legacy
+                .ranked
+                .iter()
+                .flat_map(|choice| {
+                    core::iter::once(choice.anchor.source_id).chain(choice.form_source)
+                })
+                .collect();
+            diagnostics.extend(fallback.opaque_ranges.into_iter().filter_map(
+                |(source_id, source_count)| {
+                    participating.contains(&source_id).then_some(
+                        crate::SelectionDiagnostic::OpaqueLegacyProjection {
+                            source_id,
+                            source_count,
+                        },
+                    )
+                },
+            ));
+            // Both views may describe the same issue. Keep its first occurrence
+            // without conflating distinct source IDs, forms or diagnostic kinds.
+            let mut seen = BTreeSet::new();
+            diagnostics.retain(|diagnostic| seen.insert(diagnostic.clone()));
+            matched.diagnostics = diagnostics.into();
+            matched.legacy_selection = Some(crate::LegacySelection {
+                choices: legacy.ranked,
+                merge_eligible: ordered,
+            });
+            Some(matched)
+        })
+        .collect()
+}
+
 pub(crate) fn matches_at<D: HanjaDictionary>(
     chain: &ChainDictionary<D>,
     source: &str,
 ) -> Vec<SourceMatch> {
     let mut pools = Vec::new();
+    let mut fallback = BTreeMap::new();
     let mut offset = 0;
     for (index, dictionary) in chain.dictionaries.iter().enumerate() {
         let role = chain.roles[index];
         let leaf = dictionary.phrase_evidence().is_some();
-        let source_matches = if opaque_loanword(dictionary, role) {
-            None
-        } else {
-            dictionary.source_matches_at(source)
-        };
+        let opaque_registration = opaque_loanword(dictionary, role);
+        let source_matches = dictionary.source_matches_at(source);
+        let source_aware = source_matches.is_some();
+        let opaque = !leaf && (source_aware || dictionary.source_count() > 1);
         if let Some(matches) = source_matches {
-            pools.extend(matches.map(|matched| (remap(matched, offset, role, leaf), !leaf)));
+            for matched in matches {
+                let Some(key) = source.get(..matched.byte_len) else {
+                    continue;
+                };
+                if matched.selection_choices().is_empty() {
+                    continue;
+                }
+                // A registered opaque supplier exports only its public legacy
+                // projection. Do not query again or retain descendant authority.
+                let matched = if opaque_registration {
+                    let Some(projected) =
+                        legacy(dictionary, public_projection(&matched), key, role)
+                    else {
+                        continue;
+                    };
+                    projected
+                } else {
+                    matched
+                };
+                add_fallback(
+                    &mut fallback,
+                    dictionary,
+                    &matched,
+                    key,
+                    offset,
+                    role,
+                    opaque,
+                );
+                pools.push((
+                    remap(matched, offset, role, leaf || opaque_registration),
+                    !leaf && !opaque_registration,
+                ));
+            }
         } else {
-            pools.extend(
-                dictionary
-                    .candidate_matches_at(source)
-                    .filter_map(|matched| {
-                        let key = source.get(..matched.byte_len)?;
-                        legacy(dictionary, matched, key, role)
-                            .map(|matched| (remap(matched, offset, role, true), false))
-                    }),
-            );
+            for candidate in dictionary.candidate_matches_at(source) {
+                let Some(key) = source.get(..candidate.byte_len) else {
+                    continue;
+                };
+                if let Some(matched) = legacy(dictionary, candidate, key, role) {
+                    add_fallback(
+                        &mut fallback,
+                        dictionary,
+                        &matched,
+                        key,
+                        offset,
+                        role,
+                        opaque,
+                    );
+                    pools.push((remap(matched, offset, role, true), false));
+                }
+            }
         }
         offset += dictionary.source_count();
     }
-    combine(chain, pools)
+    combine(chain, pools, fallback)
 }
 
 pub(crate) fn matches_spellings<D: HanjaDictionary>(
@@ -220,17 +425,16 @@ pub(crate) fn matches_spellings<D: HanjaDictionary>(
     spellings: &[&str],
 ) -> Vec<(usize, SourceMatch)> {
     let mut pools = Vec::new();
+    let mut fallback = BTreeMap::new();
     let mut offset = 0;
     for (index, dictionary) in chain.dictionaries.iter().enumerate() {
         let role = chain.roles[index];
         let leaf = dictionary.phrase_evidence().is_some();
-        let source_matches = if opaque_loanword(dictionary, role) {
-            None
-        } else {
-            dictionary.source_matches_at_spellings(spellings)
-        };
+        let opaque_registration = opaque_loanword(dictionary, role);
+        let source_matches = dictionary.source_matches_at_spellings(spellings);
         let source_aware = source_matches.is_some();
-        let nested = source_aware && !leaf;
+        let nested = source_aware && !leaf && !opaque_registration;
+        let opaque = !leaf && (source_aware || dictionary.source_count() > 1);
         let mut matches = source_matches.unwrap_or_else(|| {
             dictionary
                 .candidate_matches_at_spellings(spellings)
@@ -254,15 +458,46 @@ pub(crate) fn matches_spellings<D: HanjaDictionary>(
         } else if matches.len() > 1 {
             matches.clear();
         }
-        for (_, matched) in matches {
-            let mut matched = remap(matched, offset, role, leaf);
+        for (_, mut matched) in matches {
             matched.byte_len = spellings.first().map_or(0, |key| key.len());
             matched.hanja = spellings.first().copied().unwrap_or_default().into();
+            if matched.selection_choices().is_empty() {
+                continue;
+            }
+            let key = matched.default_choice().anchor.key.clone();
+            let mut matched = if source_aware && opaque_registration {
+                let Some(projected) = legacy(dictionary, public_projection(&matched), &key, role)
+                else {
+                    continue;
+                };
+                projected
+            } else {
+                matched
+            };
+            // The projected group's key can have a different UTF-8 width.
+            // Retain the queried surface before a fallback-only pool is built.
+            matched.byte_len = spellings.first().map_or(0, |key| key.len());
+            matched.hanja = spellings.first().copied().unwrap_or_default().into();
+            add_fallback(
+                &mut fallback,
+                dictionary,
+                &matched,
+                &key,
+                offset,
+                role,
+                opaque,
+            );
+            let matched = remap(
+                matched,
+                offset,
+                role,
+                leaf || !source_aware || opaque_registration,
+            );
             pools.push((matched, nested));
         }
         offset += dictionary.source_count();
     }
-    combine(chain, pools)
+    combine(chain, pools, fallback)
         .into_iter()
         .map(|matched| {
             let index = spellings

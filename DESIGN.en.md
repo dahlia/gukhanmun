@@ -279,6 +279,82 @@ An *eager* segmentation strategy remains available as an option for callers who
 do not need lattice accuracy and want to reduce per-span overhead. The default
 is lattice.
 
+### Source phrase constraints
+
+The bundled *Standard Korean Language Dictionary* also supplies phrase evidence
+for choosing among a word's retained readings. The extractor compiles strictly
+aligned source phrases into `PhraseEvidence`; it does not insert whole phrases
+as TSV keys or change the default preference of their component words. For
+example, `無條件^降服` can constrain the existing `降服` edge to `항복` while
+leaving bare `降服` on its legacy selection path.
+
+The resolver runs after the lattice or eager path is fixed. It cannot split,
+join or add edges, and it does not change segmentation scores. Each source
+chunk matches either its complete hanja spelling, including a recognized glyph
+variant, or its complete attested hangul reading. A caret boundary permits zero
+characters or exactly one `U+0020` space. Repeated spaces, tabs, newlines and
+punctuation cannot replace that internal separator. Dictionary chunks must
+cover whole selected edges. Literal hangul chunks can cover adjacent unchanged
+text segments, but cannot absorb dictionary, numeral or fallback edges. Outer
+word boundaries prevent matching a literal substring inside another word;
+a supported particle with its own boundary witness can follow a dictionary
+terminal chunk.
+
+A terminal extension applies only through a compiled word-to-subheadword
+relationship and complete child candidate links. This permits a source phrase
+ending in `降服` to constrain an existing `降服하다` edge when that exact
+relationship is attested. It does not infer a productive suffix or split an
+unrelated longer word.
+
+Every participating dictionary chunk must have an eligible candidate from the
+leaf source that owns the rule. A higher-priority user reading cannot acquire
+lower-priority evidence merely by sharing a key. For phrase proof, nested
+chains preserve complete choice eligibility, including reference-only
+exclusions and previously authorized forms. Rule links constrain both the
+original anchor and the complete attested initial/suffix output pair. A
+promoted form with a different pair cannot satisfy that phrase. The selected
+choice retains its complete identity and marks. Thus `車間距離` can use
+`차간거리` while bare `車間` retains the policy's redirect default `찻간`.
+
+The resolver validates each rule atomically, then intersects valid restrictions
+per target edge with witnessed particle compatibility. When the remaining
+choices agree on form, lexical identity, alias and marks, the resolver selects
+the first in the existing rank order. If distinct choices remain, if the
+intersection is empty, or if a matcher limit is reached, the resolver keeps the
+legacy particle-aware choice and can produce an opt-in `ResolutionReport`.
+Conflicts remain local to the affected edge; overlapping rules do not create an
+unbounded chain of pending decisions. This is source phrase matching, with no
+frequency prior or general semantic inference.
+
+Rules from different leaf sources can agree when their directly witnessed
+choices have the same complete form, lexical identity, alias and marks. After
+intersecting those agreements, the resolver selects only currently eligible
+choices directly witnessed by at least one applicable rule. An unwitnessed
+duplicate gains no phrase authority from semantic agreement alone.
+
+For `Ordered` and cooperating policies alike, the engine preserves legacy
+parent selection over each child's public canonical projection, including
+particle evidence. The separate leaf proof pool may be wider or different.
+A nested fallback may be an opaque projection at the first slot of the child's
+`SourceId` range, with an explicit diagnostic. Such a projection establishes no
+leaf identity or `WordId` witness and supplies no phrase authority. Only
+eligible complete choices from the ranked leaf pool contribute proof; on
+success, the resolver replaces the whole choice atomically. `SelectedReading`
+can therefore retain a fallback outside its proof pool.
+
+Streaming retains a finite additional tail and committed left context derived
+from the maximum admitted phrase span and boundary/particle lookahead. Ordinary
+text chunk boundaries preserve that context. A scope open/close, a
+preserved/verbatim transition or an explicit `Engine::flush()` ends the phrase
+flow. Inline markup, preserved/verbatim transitions and explicit flushes do not
+themselves prove a lexical right boundary. A rule needs a textual witness
+within its flow, an adapter-reported block boundary or actual EOF; `finish()`
+proves EOF. This additional allowance does not bound the whole engine:
+unresolved lattice frontiers, unknown dictionary maxima, numeral spans,
+fallback annotation grouping and middleware can retain more input. Reporting is
+disabled by default; enabled callers can drain it during a stream and obtain
+EOF decisions with `finish_with_report()`.
+
 ### Fallback phoneticizer
 
 When no dictionary entry covers a hanja character, the fallback phoneticizer
@@ -463,7 +539,18 @@ realizations, a unique redirect terminal if present, and the original form.
 Independent loans follow every reference anchor. One particle filter runs over
 this ranked pool, falling back to its first member when no candidate fits.
 `ReferenceFirst` and `LoanwordFirst` expose the simpler source-class orders.
-`Ordered` branches before role handling and uses the legacy query contract.
+`Ordered` preserves dictionary order without enabling role-based promotion.
+When a dictionary carries phrase evidence, it also retains that winning
+source's candidate pool so its own phrase rules can apply.
+
+Nested registration preserves the child's effective eligibility contract for
+phrase proof.
+`Reference` is transparent to descendant source roles; `Override` keeps the
+complete eligible child pool as an exclusive override. Registering a nested
+chain explicitly as `Loanword` instead exposes its opaque effective candidate
+projection and exports no descendant phrase evidence. This prevents that
+registration from reviving descendants excluded by the child's policy.
+
 Reference-only eligibility excludes independent loans while retaining
 reference-authorized realizations. Strict error/preserve-hanja ambiguity modes
 remain deferred until there is an explicit fallible conversion contract.
@@ -474,9 +561,12 @@ occurrence uses lexical canonical spelling plus anchor reading; homophones use
 actual emitted reading plus selected homophone canonical spelling. Source IDs
 alone do not distinguish either. A parenthetical reading override revalidates
 the retained ranked pool or resets to an authorial identity without stale
-aliases. Source-aware dictionary edges retain independent annotation boundaries
-instead of merging into trivial dictionary/fallback runs. The engine caches
-immutable resolution results under bounded key and byte budgets. Lattice
+aliases. Cooperative source-policy selections keep their existing annotation
+grouping. Plain dictionary views and `Ordered` chains keep legacy grouping,
+regardless of phrase metadata. In those legacy views, only a successful phrase
+proof keeps the selected edge's annotation separate; metadata alone does not
+change grouping. The lattice edges and scores remain unchanged. The engine
+caches immutable resolution results under bounded key and byte budgets. Lattice
 streaming commits only prefixes shared by every still-viable frontier path;
 overlapping paths can require a boundary or EOF even with a known maximum word
 length.
@@ -485,7 +575,11 @@ The evidence JSON is a reproducible extractor output. FST/CDB containers with
 critical evidence use version 4 and encode the typed data compactly as CBOR
 tuples. Readers validate schema, tuple structure and exact canonical candidate
 links before exposing the evidence. Evidence-free versions 1–3 remain readable
-with unknown evidence; older readers reject version 4.
+with unknown evidence; older readers reject version 4. Candidate authorization
+uses the `candidate_evidence` metadata member and its unchanged version 1
+schema. Source phrase constraints use a separate critical `phrase_evidence`
+member in the same container, with independent schema and policy versions.
+Runtime callers load one dictionary artifact; no evidence sidecar is required.
 
 ### External backends
 
@@ -592,12 +686,15 @@ for a key with the first dictionary's set, so lower-priority alternatives
 cannot undo an explicit override.
 
 Variant resolution compares canonical spellings and their complete candidate
-sets before choosing a reading. Selection happens before segmentation scores or
-classifies a dictionary edge, because the chosen marks and positional forms can
-affect fallback coalescing. The existing positional-reading step runs after
-segmentation. The engine retains four additional source scalars beyond
-dictionary lookahead so eager, lattice, streaming and one-shot conversion use
-the same evidence.
+sets before choosing a reading. The legacy particle-aware selection supplies
+the initial choice. Source-aware edges retain the eligible pool through
+segmentation so phrase constraints can revise that choice on the fixed path.
+Positional realization follows reading resolution. Phrase metadata alone
+leaves annotation grouping unchanged; a successful phrase proof keeps its
+selected edge separate. Particle selection alone needs
+four additional source scalars beyond dictionary lookahead. Active phrase
+rules add their finite surface and boundary allowance so ordinary chunk splits
+preserve the same evidence.
 
 Dictionary-wide homophone detection indexes context-free default initial and
 suffix readings, then queries the actual emitted reading. Unused alternatives
@@ -1089,13 +1186,13 @@ concerns (`TextDecoderStream`, `TextEncoderStream`) live outside the gukhanmun
 stream. Within the engine, a chunk that ends in the middle of a conversion
 span, or close enough to a hanja character that a mixed-script dictionary key
 could still cross the boundary, causes that trailing span to be held until the
-next chunk arrives; everything before that point is flushed eagerly. The
-dictionary lookahead part of that buffer is bounded by the dictionary's
-`max_word_chars` plus a small constant for the lattice's outgoing state,
-typically a few dozen characters. Fallback-only hanja runs are deliberately not
-split at chunk boundaries, because render modes that show source hanja expose
-annotation grouping; those runs flush at a later non-convertible boundary or
-EOF.
+next chunk arrives. Already settled prefixes can be emitted. Dictionary
+lookahead uses `max_word_chars` plus particle lookahead; source phrase rules
+add a finite tail and committed left context. Unresolved lattice frontiers can
+retain more input than those allowances. Fallback-only hanja runs are
+deliberately not split at chunk boundaries, because render modes that show
+source hanja expose annotation grouping; those runs flush at a later
+non-convertible boundary or EOF.
 
 Stateful middlewares can add their own lookahead requirement. A homophone
 marker with a document-wide context, including plain-text `per-block` where no

@@ -160,6 +160,25 @@ fn merge_alias(left: Option<AliasTarget>, right: Option<AliasTarget>) -> Option<
 }
 
 impl ReadingCandidates {
+    // Transient public-candidate projection of a previously selected source view.
+    // Preserve complete forms, aliases, marks and order, including legacy empty
+    // forms that the public validated constructor intentionally rejects.
+    pub(crate) fn from_source_choices(choices: &[crate::SourceChoice]) -> Self {
+        Self(
+            choices
+                .iter()
+                .enumerate()
+                .map(|(index, choice)| ReadingCandidate {
+                    reading: choice.form.reading.clone(),
+                    suffix_reading: choice.form.suffix_reading.clone(),
+                    mark: choice.mark,
+                    preference: u32::MAX.saturating_sub(u32::try_from(index).unwrap_or(u32::MAX)),
+                    alias: choice.anchor.alias.clone(),
+                })
+                .collect(),
+        )
+    }
+
     /// Validates and canonicalizes an explicitly supplied candidate set.
     pub fn new(mut candidates: Vec<ReadingCandidate>) -> Result<Self, CandidateError> {
         if candidates.is_empty() {

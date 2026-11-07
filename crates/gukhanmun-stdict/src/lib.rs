@@ -66,6 +66,14 @@ impl KoKrDictionary {
 }
 
 impl HanjaDictionary for KoKrDictionary {
+    fn phrase_index(&self) -> Option<&gukhanmun_core::PhraseIndex> {
+        self.fst.phrase_index()
+    }
+
+    fn phrase_evidence(&self) -> Option<&gukhanmun_core::PhraseEvidence> {
+        self.fst.phrase_evidence()
+    }
+
     fn source_evidence(&self) -> Option<&gukhanmun_core::DictionaryEvidence> {
         self.fst.source_evidence()
     }

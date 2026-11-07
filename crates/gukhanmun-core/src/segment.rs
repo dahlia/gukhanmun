@@ -119,7 +119,9 @@ fn segment_for_dictionary_match(
         selection,
         ..
     } = resolved;
-    if selection.is_none()
+    if selection
+        .as_ref()
+        .is_none_or(|selection| selection.legacy_merge_eligible)
         && is_trivial_single_char_match(source, &reading, suffix_reading.as_deref(), mark)
     {
         Segment::TrivialDictionary {

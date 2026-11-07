@@ -224,7 +224,23 @@ fn nested_override_preserves_its_complete_effective_default() {
     for matched in matches(&outer) {
         assert_eq!(matched.default_choice().form.reading, "새이름");
         assert_eq!(matched.default_choice().anchor.source_id, SourceId(1));
-        assert_eq!(matched.default_choice().form_source, Some(SourceId(2)));
+        assert_eq!(matched.default_choice().form_source, Some(SourceId(1)));
+        assert!(matched.diagnostics.iter().any(|diagnostic| matches!(
+            diagnostic,
+            SelectionDiagnostic::OpaqueLegacyProjection {
+                source_id: SourceId(1),
+                source_count: 2
+            }
+        )));
+        assert!(
+            matched
+                .ranked
+                .iter()
+                .any(|choice| choice.anchor.source_id == SourceId(1)
+                    && choice.form_source == Some(SourceId(2))
+                    && choice.form.reading == "새이름"
+                    && choice.reason == ChoiceReason::Override)
+        );
         assert!(
             matched
                 .ranked

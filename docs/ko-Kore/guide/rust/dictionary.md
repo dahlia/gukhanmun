@@ -207,9 +207,11 @@ let converter = Builder::with_preset(Preset::KoKr)
 代替하며, 더 긴 一致를 除去하지 않습니다. 參照 專用 設定은 獨立 外來語를
 除外하지만, 參照 辭典이 許容한 外來語 實現은 維持합니다.
 
-選擇한 候補의 識別子·別稱·位置形·注釋 標識을 함께 傳達합니다. 出處를 保存하는
-辭典 一致는 隣接한 fallback 漢字와 別途의 注釋으로 남으므로, `ordered`와
-比較하여 括弧로 묶이는 範圍가 달라질 수 있습니다.
+選擇한 候補의 識別子·別稱·位置形·注釋 標識을 함께 傳達합니다. 協力 出處
+政策의 選擇은 從來의 注釋 묶음을 維持합니다. 一般 辭典 뷰와 `ordered` 連鎖는
+句 메타데이터의 有無와 關係없이 從來 묶음을 維持합니다. 이 從來 뷰에서는 句
+根據로 成功的으로 選擇한 邊만 別途의 注釋 境界를 維持하며, 메타데이터만으로
+묶음이 바뀌지는 않습니다. 래티스 邊과 點數는 維持합니다.
 
 `Builder::source_policy(SourcePolicy::ReferenceAuthorized)`로 政策을,
 `Builder::reference_only(true)`로 參照 專用을 設定합니다. `push_dictionary()`와
@@ -223,3 +225,99 @@ let converter = Builder::with_preset(Preset::KoKr)
 남을 수 있습니다. 스트리밍은 單語 境界나 EOF가 經路를 確定할 때까지 해당
 接頭部를 버퍼링하며, 이미 確定한 接頭部는 먼저 出力할 수 있습니다.
 辭典 役割은 격자의 點數 目的 函數를 變更하지 않습니다.
+
+
+原本 句에 따른 讀音 制約
+------------------------
+
+內藏 《標準國語大辭典》은 分節 後에 讀音을 制約하는 原本 句 根據를 包含합니다.
+이 根據가 있으면 `無條件降服`, `無條件 降服`, `무조건 降服`에서 旣存 `降服`
+邊의 `항복`을 選擇할 수 있습니다. 檢證된 單語→부標題語 關係가 있으면 같은
+規則을 `降服하다`로 擴張합니다. 單獨 `降服`의 選擇은 從來대로 維持합니다.
+句 全體를 辭典 키로 넣거나 래티스 點數와 邊 境界를 바꾸지는 않습니다.
+
+各 조각은 完全한 漢字 表記 또는 原本 한글 讀音으로 一致합니다. 原本의 `^`는
+空白 없음 또는 `U+0020` 하나만 許容하므로 두 空白·탭·改行은 一致하지 않습니다.
+辭典 對象은 選擇된 邊 全體를 덮어야 합니다. 한글 리터럴은 바깥 單語 境界를
+確認한 뒤 隣接한 變更 없는 텍스트 조각을 가로지를 수 있지만, 辭典이나 폴백
+邊을 吸收할 수 없습니다.
+
+規則은 根據를 提供한 最下位 辭典 出處에 屬하며 그 出處의 適格 基準 候補에만
+適用합니다. 使用者 덮어쓰기는 維持되고, 中疊 連鎖도 句 根據에 對한 完全한
+候補 許容 條件을 保存합니다. 規則은 原本 基準 候補와 記錄된 語頭/接尾 出力 쌍을
+함께 確認합니다. 政策이 昇格한 形態도 그 쌍을 滿足해야 합니다. 選擇된 讀音은
+出處 同一性과 標識를 完全하게 維持하며, 句 바깥의 基本값은 從來 政策을 따릅니다.
+
+서로 다른 最下位 出處의 規則도 直接 根據가 있는 候補의 完全한 形態·語彙
+同一性·別名·標識가 같으면 合意할 수 있습니다. 그 合意를 交集한 뒤에도, 現在
+適格하며 하나 以上의 有效 規則이 直接 根據를 提供한 候補만 選擇합니다. 形式上
+同一하다는 理由만으로 直接 根據가 없는 候補에 句 權限을 붙이지 않습니다.
+
+`Ordered`와 協力 政策 모두에서 엔진은 各 子 連鎖의 公開 正準 投影에 對한
+부모의 從來 選擇을 助詞 根據까지 그대로 保存합니다. 別途의 最下位 出處 句
+根據用 候補 풀은 더 넓거나 다를 수 있습니다. 中疊 폴백은 子의 `SourceId`
+範圍 첫 칸에 配定된 不透明 投影일 수 있으며, 明示的 診斷으로 이를 區分합니다.
+이 不透明 投影은 最下位 出處의 同一性이나 `WordId` 根據를 確證하지 않고 句
+權限도 提供하지 않습니다. resolver는 整列된 最下位 出處 풀의 完全한 適格 候補만
+句 根據로 쓰며, 成功하면 選擇 全體를 原子的으로 代替합니다. 따라서
+`SelectedReading`의 폴백은 別途의 句 根據用 候補 풀에 屬하지 않을 수 있습니다.
+
+메모리 內 辭典은 候補를 넣은 뒤 `PhraseEvidence`를 檢證하여 붙입니다. 다음은
+애플리케이션 自身의 出處 ID 空間에 句 하나를 記錄하는 예입니다:
+
+~~~~ rust
+use gukhanmun::{
+    MapDictionary, MatchMark, PhraseCandidateLink, PhraseChunk, PhraseEvidence,
+    PhraseRule, PhraseSpelling, ReadingCandidate, ReadingCandidates, RenderMode, WordId,
+    convert_plain_text,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut dictionary = MapDictionary::new();
+    dictionary.insert("無條件", "무조건");
+    let readings = [("강복", 10), ("항복", 0)].map(|(reading, preference)| {
+        ReadingCandidate {
+            reading: reading.into(), suffix_reading: None,
+            mark: MatchMark::default(), preference, alias: None,
+        }
+    });
+    dictionary.insert_candidates("降服", ReadingCandidates::new(readings.to_vec())?);
+    let chunk = |key: &str, reading: &str| PhraseChunk::new(
+        reading.into(),
+        vec![PhraseSpelling::new(
+            key.into(),
+            vec![PhraseCandidateLink::new(reading.into(), None)],
+        )],
+    );
+    let rule = PhraseRule::new(
+        vec![WordId(1)],
+        vec![chunk("無條件", "무조건"), chunk("降服", "항복")],
+    );
+    dictionary.set_phrase_evidence(PhraseEvidence::new(vec![rule]))?;
+    assert_eq!(
+        convert_plain_text("무조건 降服", &dictionary, RenderMode::HangulOnly),
+        "무조건 항복",
+    );
+    Ok(())
+}
+~~~~
+
+setter는 構造와 辭典 候補의 正確한 連結을 檢査하며, 原本 關係의 意味는
+呼出者가 檢證해야 합니다. 나중에 候補를 고치면 붙어 있던 句 根據를 無效化합니다.
+FST/CDB는 이 根據를 必須 메타데이터에 담으므로 普通 로더로 불러오며 別途 根據
+파일이 必要하지 않습니다.
+
+`MapDictionary`, FST와 CDB는 檢證된 根據를 붙이거나 불러올 때 不變
+`PhraseIndex`를 한 番 컴파일합니다. 엔진과 內藏 辭典 래퍼는 選擇的
+`HanjaDictionary::phrase_index()` 機能으로 그 인덱스를 빌립니다. 使用者 具顯體가
+캐시를 提供하지 않으면 엔진이 自身의 存續 期間에 쓸 인덱스를 한 番 만듭니다.
+
+빌드 契約은
+[辭典 形式](../../internals/dictionary-format.md#必須-句-根據)을 參照하십시오.
+
+有效한 句 制約과 助詞 適合 集合을 邊마다 交集합니다. 形態·語彙 同一性·別名·
+標識가 같은 候補들은 같은 結果로 보고 從來 順位의 첫 候補를 고릅니다.
+未解決·衝突이나 matcher 限度에서는 從來의 助詞 考慮 選擇을 維持하며, 다른 邊은
+獨立的으로 處理합니다. 低水準 엔진의 [決定 報告](streaming.md#句-決定-確認)에서
+規則, 남은 候補와 讀音 決定 段階에서 選擇한 메타데이터를 確認할 수 있습니다.
+曖昧性을 嚴格한 誤謬로 내는 모드는 提供하지 않습니다.

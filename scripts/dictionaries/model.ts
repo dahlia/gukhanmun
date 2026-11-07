@@ -27,6 +27,8 @@ export const outputs: Record<Kind, string[]> = {
     "relations.tsv",
     "aliases-manifest.jsonl",
     "source-evidence.json",
+    "phrase-evidence.json",
+    "phrase-manifest.json",
   ],
   opendict: [
     "general.tsv",
