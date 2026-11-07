@@ -49,6 +49,10 @@ To be released.
     Rust facade. [[#42], [#44]]
  -  Re-exported phrase evidence types for constructing and validating custom
     dictionary constraints. [[#41], [#45]]
+ -  Added `HanjaDictionary::has_owned_phrase_evidence()` so dictionary
+    implementations can check for owned phrase constraints without collecting
+    them. Built-in dictionaries and nested chains avoid temporary evidence
+    vectors during repeated source lookups. [[#41], [#45]]
  -  Re-exported phrase indexes, source choices, and resolution reports;
     embedded phrase constraints now run through the shared conversion engine.
     [[#41], [#45]]
@@ -158,6 +162,10 @@ To be released.
  -  Added validated phrase evidence types and
     `HanjaDictionary::phrase_evidence()` for transporting source-attested
     constraints independently of word candidates. [[#41], [#45]]
+ -  Added `HanjaDictionary::has_owned_phrase_evidence()` so dictionary
+    implementations can check for owned phrase constraints without collecting
+    them. Built-in dictionaries and nested chains avoid temporary evidence
+    vectors during repeated source lookups. [[#41], [#45]]
  -  Preserve legacy single-character annotation merging and particle decisions
     when phrase evidence is present, including nested source policies.
     `LegacySelection` keeps policy fallbacks separate from leaf-owned phrase

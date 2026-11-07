@@ -352,6 +352,116 @@ fn source_ownership_survives_nested_ordered_and_cooperative_chains() {
 }
 
 #[test]
+fn owned_phrase_presence_tracks_builtin_leaf_evidence() {
+    assert!(!MapDictionary::new().has_owned_phrase_evidence());
+    assert!(!dictionary(vec![]).has_owned_phrase_evidence());
+    assert!(dictionary(vec![rule(1, "항복")]).has_owned_phrase_evidence());
+    assert!(!UnihanCharDict.has_owned_phrase_evidence());
+}
+
+#[test]
+fn owned_phrase_presence_short_circuits_through_wrappers_and_nested_chains() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Probe {
+        dictionary: MapDictionary,
+        checks: Arc<AtomicUsize>,
+    }
+    impl HanjaDictionary for Probe {
+        fn has_owned_phrase_evidence(&self) -> bool {
+            self.checks.fetch_add(1, Ordering::Relaxed);
+            self.dictionary.has_owned_phrase_evidence()
+        }
+        fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
+            panic!("presence checks and source lookups must not collect evidence")
+        }
+        fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
+            self.dictionary.phrase_evidence()
+        }
+        fn candidate_matches_at<'a>(
+            &'a self,
+            source: &'a str,
+        ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+            self.dictionary.candidate_matches_at(source)
+        }
+        fn matches_at<'a>(&'a self, source: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            self.dictionary.matches_at(source)
+        }
+    }
+
+    let first_checks = Arc::new(AtomicUsize::new(0));
+    let first = Probe {
+        dictionary: dictionary(vec![rule(1, "항복")]),
+        checks: first_checks.clone(),
+    };
+    assert!(HanjaDictionary::has_owned_phrase_evidence(&&first));
+    let boxed: Box<dyn HanjaDictionary + Send + Sync> = Box::new(first);
+    assert!(HanjaDictionary::has_owned_phrase_evidence(&boxed));
+    let shared = Arc::new(boxed);
+    assert!(HanjaDictionary::has_owned_phrase_evidence(&shared));
+    assert_eq!(first_checks.swap(0, Ordering::Relaxed), 3);
+
+    let mut inner = ChainDictionary::<Box<dyn HanjaDictionary>>::new();
+    inner.push(Box::new(shared));
+    let later_checks = Arc::new(AtomicUsize::new(0));
+    inner.push(Box::new(Probe {
+        dictionary: dictionary(vec![rule(1, "항복")]),
+        checks: later_checks.clone(),
+    }));
+    let mut outer = ChainDictionary::new();
+    outer.push(inner);
+    assert!(outer.has_owned_phrase_evidence());
+    assert_eq!(first_checks.load(Ordering::Relaxed), 1);
+    assert_eq!(later_checks.load(Ordering::Relaxed), 0);
+
+    // Both hot lookup paths must use the cheap capability through every layer.
+    assert!(outer.source_matches_at("無關").is_some());
+    assert!(outer.source_matches_at_spellings(&["無關"]).is_some());
+}
+
+#[test]
+fn owned_phrase_presence_preserves_nested_opaque_loanword_exclusion() {
+    let reference = dictionary(vec![rule(1, "항복")]);
+    let mut inner = ChainDictionary::new();
+    inner.push_with_role(reference.clone(), SourceRole::Reference);
+    assert!(inner.has_owned_phrase_evidence());
+    let mut outer = ChainDictionary::new();
+    outer.push_with_role(inner, SourceRole::Loanword);
+    assert!(!outer.has_owned_phrase_evidence());
+    assert!(outer.owned_phrase_evidence().is_empty());
+    assert!(outer.source_matches_at("降服").is_none());
+    assert!(outer.source_matches_at_spellings(&["降服"]).is_none());
+
+    let mut leaf = ChainDictionary::new();
+    leaf.push_with_role(reference, SourceRole::Loanword);
+    assert!(leaf.has_owned_phrase_evidence());
+    assert!(!leaf.owned_phrase_evidence().is_empty());
+}
+
+#[test]
+fn owned_phrase_presence_default_preserves_custom_composite_evidence() {
+    struct Composite(MapDictionary);
+    impl HanjaDictionary for Composite {
+        fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
+            self.0.owned_phrase_evidence()
+        }
+        fn matches_at<'a>(&'a self, source: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            self.0.matches_at(source)
+        }
+    }
+    let composite = Composite(dictionary(vec![rule(1, "항복")]));
+    assert!(composite.phrase_evidence().is_none());
+    assert!(composite.has_owned_phrase_evidence());
+    let mut chain = ChainDictionary::new();
+    chain.push_with_role(composite, SourceRole::Reference);
+    assert!(chain.has_owned_phrase_evidence());
+    assert!(chain.source_matches_at("無關").is_some());
+    assert!(chain.source_matches_at_spellings(&["無關"]).is_some());
+    assert!(!Composite(MapDictionary::new()).has_owned_phrase_evidence());
+}
+
+#[test]
 fn variants_keep_source_owner_and_full_edge_alignment() {
     let dictionary = dictionary(vec![rule(1, "항복")]);
     // Compatibility glyph FA09 normalizes to the complete source key 降服.

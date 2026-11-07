@@ -66,6 +66,10 @@ impl KoKrDictionary {
 }
 
 impl HanjaDictionary for KoKrDictionary {
+    fn has_owned_phrase_evidence(&self) -> bool {
+        self.fst.has_owned_phrase_evidence()
+    }
+
     fn phrase_index(&self) -> Option<&gukhanmun_core::PhraseIndex> {
         self.fst.phrase_index()
     }

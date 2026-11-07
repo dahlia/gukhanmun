@@ -583,6 +583,18 @@ pub trait HanjaDictionary {
             .unwrap_or_default()
     }
 
+    /// Whether this dictionary exports any leaf-owned phrase collections.
+    ///
+    /// This must agree with whether [`Self::owned_phrase_evidence`] is nonempty,
+    /// including composite ownership and opaque source exclusions. Source lookups
+    /// use it to choose the phrase-aware path without collecting evidence.
+    /// The default preserves custom implementations that override only
+    /// `owned_phrase_evidence`; leaves and composites can override this method
+    /// to avoid allocating their evidence collection for a presence check.
+    fn has_owned_phrase_evidence(&self) -> bool {
+        !self.owned_phrase_evidence().is_empty()
+    }
+
     /// Returns validated source evidence without copying the evidence graph.
     ///
     /// Missing evidence means unknown provenance. This optional capability does
@@ -816,6 +828,9 @@ where
     fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
         (**self).owned_phrase_evidence()
     }
+    fn has_owned_phrase_evidence(&self) -> bool {
+        (**self).has_owned_phrase_evidence()
+    }
 
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         (**self).source_evidence()
@@ -893,6 +908,9 @@ where
     fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
         (**self).owned_phrase_evidence()
     }
+    fn has_owned_phrase_evidence(&self) -> bool {
+        (**self).has_owned_phrase_evidence()
+    }
 
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         (**self).source_evidence()
@@ -969,6 +987,9 @@ where
     }
     fn owned_phrase_evidence(&self) -> Vec<OwnedPhraseEvidence<'_>> {
         (**self).owned_phrase_evidence()
+    }
+    fn has_owned_phrase_evidence(&self) -> bool {
+        (**self).has_owned_phrase_evidence()
     }
 
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
@@ -1050,6 +1071,10 @@ where
 pub struct UnihanCharDict;
 
 impl HanjaDictionary for UnihanCharDict {
+    fn has_owned_phrase_evidence(&self) -> bool {
+        false
+    }
+
     fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
         let matched = s.chars().next().and_then(|ch| {
             phoneticize_hanja_char(ch).map(|reading| Match {
@@ -1234,11 +1259,21 @@ where
         result
     }
 
+    fn has_owned_phrase_evidence(&self) -> bool {
+        self.dictionaries
+            .iter()
+            .enumerate()
+            .any(|(index, dictionary)| {
+                !phrase_sources::opaque_loanword(dictionary, self.roles[index])
+                    && dictionary.has_owned_phrase_evidence()
+            })
+    }
+
     fn source_matches_at<'a>(
         &'a self,
         s: &'a str,
     ) -> Option<Box<dyn Iterator<Item = SourceMatch> + 'a>> {
-        if !self.owned_phrase_evidence().is_empty() {
+        if self.has_owned_phrase_evidence() {
             let matches = phrase_sources::matches_at(self, s);
             return Some(Box::new(
                 phrase_sources::complete_variants(self, s, matches).into_iter(),
@@ -1302,7 +1337,7 @@ where
     }
 
     fn source_matches_at_spellings(&self, spellings: &[&str]) -> Option<Vec<(usize, SourceMatch)>> {
-        if !self.owned_phrase_evidence().is_empty() {
+        if self.has_owned_phrase_evidence() {
             return Some(phrase_sources::matches_spellings(self, spellings));
         }
 
@@ -1934,6 +1969,11 @@ where
 }
 
 impl HanjaDictionary for MapDictionary {
+    fn has_owned_phrase_evidence(&self) -> bool {
+        self.phrase_evidence()
+            .is_some_and(|evidence| !evidence.rules.is_empty())
+    }
+
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         self.evidence.as_ref()
     }

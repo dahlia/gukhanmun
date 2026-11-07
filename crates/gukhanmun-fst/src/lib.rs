@@ -318,6 +318,11 @@ impl AsRef<[u8]> for ByteSection {
 }
 
 impl HanjaDictionary for FstDictionary {
+    fn has_owned_phrase_evidence(&self) -> bool {
+        self.phrase_evidence()
+            .is_some_and(|evidence| !evidence.rules.is_empty())
+    }
+
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         self.evidence.as_deref()
     }
@@ -781,6 +786,7 @@ mod tests {
             Some(&evidence),
         );
         let dictionary = FstDictionary::from_bytes(&bytes).unwrap();
+        assert!(dictionary.has_owned_phrase_evidence());
         let index = dictionary.phrase_index().unwrap();
         assert_eq!(
             index,
