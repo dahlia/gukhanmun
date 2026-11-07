@@ -48,7 +48,8 @@ To be released.
  -  Exposed typed dictionary source evidence and validation APIs through the
     Rust facade. [[#42], [#44]]
  -  Re-exported phrase evidence types for constructing and validating custom
-    dictionary constraints. [[#41]]
+    dictionary constraints. Loading dictionaries with phrase evidence uses less
+    memory. [[#41], [#45]]
  -  Re-exported phrase indexes, source choices, and resolution reports;
     embedded phrase constraints now run through the shared conversion engine.
     [[#41], [#45]]
@@ -75,7 +76,8 @@ To be released.
  -  Added version 4 dictionary support for validated, candidate-linked source
     evidence; evidence-free version 1–3 files remain readable. [[#42], [#44]]
  -  CDB dictionaries can load candidate-linked phrase evidence from critical
-    version 4 metadata, rejecting unsupported or stale constraints. [[#41]]
+    version 4 metadata, rejecting unsupported or stale constraints. Loading
+    dictionaries with phrase evidence uses less memory. [[#41], [#45]]
  -  Cached validated phrase indexes per dictionary so repeated engines reuse
     the compiled constraint lookup. [[#41], [#45]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
@@ -89,7 +91,8 @@ To be released.
  -  Bundled source-attested phrase constraints from the *Standard Korean
     Dictionary*. Conversions such as `無條件降服` now use the attested
     `무조건항복` reading, while ambiguous readings without matching phrase
-    evidence keep their existing defaults. [[#41]]
+    evidence keep their existing defaults. Loading dictionaries with phrase
+    evidence uses less memory. [[#41], [#45]]
  -  Canonical literals in the require-hanja directive and related directives
     now reach reviewed alias spellings. The streaming plain-text path keeps
     streaming and applies each directive with the dictionary's lexeme index, so
@@ -156,7 +159,8 @@ To be released.
     without changing legacy reading selection. [[#42], [#44]]
  -  Added validated phrase evidence types and
     `HanjaDictionary::phrase_evidence()` for transporting source-attested
-    constraints independently of word candidates. [[#41]]
+    constraints independently of word candidates. Loading dictionaries with
+    phrase evidence uses less memory. [[#41], [#45]]
  -  Preserve legacy single-character annotation merging and particle decisions
     when phrase evidence is present, including nested source policies.
     `LegacySelection` keeps policy fallbacks separate from leaf-owned phrase
@@ -194,7 +198,8 @@ To be released.
  -  Cached validated phrase indexes per dictionary so repeated engines reuse
     the compiled constraint lookup. [[#41], [#45]]
  -  FST dictionaries can load candidate-linked phrase evidence from critical
-    version 4 metadata, rejecting unsupported or stale constraints. [[#41]]
+    version 4 metadata, rejecting unsupported or stale constraints. Loading
+    dictionaries with phrase evidence uses less memory. [[#41], [#45]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
     [[#38], [#39]]
 
@@ -213,7 +218,8 @@ To be released.
     payloads. [[#42], [#44]]
  -  Added `--phrase-evidence` and `build_dictionary_with_all_evidence()` to
     embed validated phrase constraints without adding phrase keys to word
-    candidates. [[#41]]
+    candidates. Loading dictionaries with phrase evidence uses less memory.
+    [[#41], [#45]]
 
 ### gukhanmun-napi
 
@@ -230,7 +236,8 @@ To be released.
  -  Bundled source-attested phrase constraints from the *Standard Korean
     Dictionary*. Conversions such as `無條件降服` now use the attested
     `무조건항복` reading, while ambiguous readings without matching phrase
-    evidence keep their existing defaults. [[#41]]
+    evidence keep their existing defaults. Loading dictionaries with phrase
+    evidence uses less memory. [[#41], [#45]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -258,7 +265,8 @@ To be released.
  -  Bundled source-attested phrase constraints from the *Standard Korean
     Dictionary*. Conversions such as `無條件降服` now use the attested
     `무조건항복` reading, while ambiguous readings without matching phrase
-    evidence keep their existing defaults. [[#41]]
+    evidence keep their existing defaults. Loading dictionaries with phrase
+    evidence uses less memory. [[#41], [#45]]
  -  Derive compound aliases from the dump's marked morphemes and explicit
     spelling groups, bundling 2,054 recognition aliases, the seven reviewed
     lexical aliases, 2,875 sibling relations, and a JSONL provenance manifest.
@@ -283,7 +291,8 @@ To be released.
  -  Bundled source-attested phrase constraints from the *Standard Korean
     Dictionary*. Conversions such as `無條件降服` now use the attested
     `무조건항복` reading, while ambiguous readings without matching phrase
-    evidence keep their existing defaults. [[#41]]
+    evidence keep their existing defaults. Loading dictionaries with phrase
+    evidence uses less memory. [[#41], [#45]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -315,7 +324,8 @@ To be released.
  -  Bundled source-attested phrase constraints from the *Standard Korean
     Dictionary*. Conversions such as `無條件降服` now use the attested
     `무조건항복` reading, while ambiguous readings without matching phrase
-    evidence keep their existing defaults. [[#41]]
+    evidence keep their existing defaults. Loading dictionaries with phrase
+    evidence uses less memory. [[#41], [#45]]
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
@@ -352,7 +362,8 @@ To be released.
  -  Bundled source-attested phrase constraints from the *Standard Korean
     Dictionary*. Conversions such as `無條件降服` now use the attested
     `무조건항복` reading, while ambiguous readings without matching phrase
-    evidence keep their existing defaults. [[#41]]
+    evidence keep their existing defaults. Loading dictionaries with phrase
+    evidence uses less memory. [[#41], [#45]]
  -  Ship format version 3 dictionary data carrying compound alias metadata.
     Load it with a reader that understands version 3. [[#38], [#39]]
  -  The official CDB loader now declares the reference role and ships typed
@@ -366,7 +377,8 @@ To be released.
  -  Bundled source-attested phrase constraints from the *Standard Korean
     Dictionary*. Conversions such as `無條件降服` now use the attested
     `무조건항복` reading, while ambiguous readings without matching phrase
-    evidence keep their existing defaults. [[#41]]
+    evidence keep their existing defaults. Loading dictionaries with phrase
+    evidence uses less memory. [[#41], [#45]]
  -  Ship format version 3 dictionary data carrying compound alias metadata.
     Load it with a reader that understands version 3. [[#38], [#39]]
  -  The official FST loader now declares the reference role and ships typed
@@ -395,7 +407,8 @@ To be released.
  -  Bundled source-attested phrase constraints from the *Standard Korean
     Dictionary*. Conversions such as `無條件降服` now use the attested
     `무조건항복` reading, while ambiguous readings without matching phrase
-    evidence keep their existing defaults. [[#41]]
+    evidence keep their existing defaults. Loading dictionaries with phrase
+    evidence uses less memory. [[#41], [#45]]
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]

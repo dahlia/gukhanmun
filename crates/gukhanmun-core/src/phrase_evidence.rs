@@ -463,26 +463,61 @@ where
         fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             f.write_str("a bounded phrase evidence sequence")
         }
-        fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Vec<T>, A::Error> {
-            use serde::de::Error as _;
-            if seq.size_hint().is_some_and(|size| size > LIMIT) {
-                return Err(A::Error::custom(
-                    "phrase evidence collection exceeds host limit",
-                ));
-            }
-            let mut values = Vec::new();
-            while let Some(value) = seq.next_element()? {
-                if values.len() == LIMIT {
-                    return Err(A::Error::custom(
-                        "phrase evidence collection exceeds host limit",
-                    ));
-                }
-                values.push(value);
-            }
-            Ok(values)
+        fn visit_seq<A: serde::de::SeqAccess<'de>>(self, seq: A) -> Result<Vec<T>, A::Error> {
+            collect_bounded_sequence::<A, T, LIMIT>(seq, Vec::try_reserve_exact)
         }
     }
     deserializer.deserialize_seq(Visitor::<T, LIMIT>(core::marker::PhantomData))
+}
+
+#[cfg(feature = "serde")]
+fn small_sequence_reservation(hint: Option<usize>, element_size: usize) -> Option<usize> {
+    let count @ 1..=4 = hint? else {
+        return None;
+    };
+    if element_size == 0 || element_size.checked_mul(count)? > 256 {
+        return None;
+    }
+    Some(count)
+}
+
+#[cfg(feature = "serde")]
+fn collect_bounded_sequence<'de, A, T, const LIMIT: usize>(
+    mut seq: A,
+    mut reserve: impl FnMut(&mut Vec<T>, usize) -> Result<(), alloc::collections::TryReserveError>,
+) -> Result<Vec<T>, A::Error>
+where
+    A: serde::de::SeqAccess<'de>,
+    T: serde::Deserialize<'de>,
+{
+    use serde::de::Error as _;
+    // Capture the original length: the size hint for a definite-length CBOR
+    // array decreases as values are read.
+    let hint = seq.size_hint();
+    if hint.is_some_and(|size| size > LIMIT) {
+        return Err(A::Error::custom(
+            "phrase evidence collection exceeds host limit",
+        ));
+    }
+    let mut values = Vec::new();
+    while let Some(value) = seq.next_element()? {
+        if values.len() == LIMIT {
+            return Err(A::Error::custom(
+                "phrase evidence collection exceeds host limit",
+            ));
+        }
+        // Most phrase arrays are singletons. Avoid geometric spare capacity,
+        // but never allocate vector storage from an untrusted length header alone.
+        // Large or unknown hints retain the existing growth policy.
+        if values.is_empty()
+            && let Some(count) = small_sequence_reservation(hint, core::mem::size_of::<T>())
+        {
+            reserve(&mut values, count)
+                .map_err(|_| A::Error::custom("cannot reserve phrase evidence collection"))?;
+        }
+        values.push(value);
+    }
+    Ok(values)
 }
 #[cfg(feature = "serde")]
 fn deserialize_rules<'de, D: serde::Deserializer<'de>, T: serde::Deserialize<'de>>(
@@ -623,5 +658,213 @@ mod tests {
         let mut value = serde_json::to_value(evidence()).unwrap();
         value["future_rule_semantics"] = serde_json::Value::Bool(true);
         assert!(serde_json::from_value::<PhraseEvidence>(value).is_err());
+    }
+
+    #[cfg(feature = "serde")]
+    mod sequence_allocation {
+        use super::*;
+        use alloc::string::ToString;
+        use core::cell::Cell;
+        use serde::de::{DeserializeSeed, Error as _, SeqAccess};
+
+        struct Sequence<'a> {
+            values: alloc::vec::IntoIter<serde_json::Value>,
+            hint: Option<usize>,
+            reads: &'a Cell<usize>,
+            fail_on: Option<usize>,
+        }
+
+        impl<'de> SeqAccess<'de> for Sequence<'_> {
+            type Error = serde_json::Error;
+
+            fn next_element_seed<S: DeserializeSeed<'de>>(
+                &mut self,
+                seed: S,
+            ) -> Result<Option<S::Value>, Self::Error> {
+                let read = self.reads.get();
+                self.reads.set(read + 1);
+                if self.fail_on == Some(read) {
+                    return Err(Self::Error::custom("element failure"));
+                }
+                self.values
+                    .next()
+                    .map(|value| seed.deserialize(value))
+                    .transpose()
+            }
+
+            fn size_hint(&self) -> Option<usize> {
+                self.hint.map(|hint| hint.saturating_sub(self.reads.get()))
+            }
+        }
+
+        fn numbers<'a>(
+            values: &[u64],
+            hint: Option<usize>,
+            reads: &'a Cell<usize>,
+        ) -> Sequence<'a> {
+            Sequence {
+                values: values
+                    .iter()
+                    .copied()
+                    .map(serde_json::Value::from)
+                    .collect::<Vec<_>>()
+                    .into_iter(),
+                hint,
+                reads,
+                fail_on: None,
+            }
+        }
+
+        #[test]
+        fn short_sequences_reserve_original_hint_after_first_actual_element() {
+            for count in 1..=4 {
+                let reads = Cell::new(0);
+                let input = vec![7; count];
+                let mut requests = Vec::new();
+                let result = collect_bounded_sequence::<_, u64, 8>(
+                    numbers(&input, Some(count), &reads),
+                    |values, capacity| {
+                        assert_eq!(reads.get(), 1);
+                        assert!(values.is_empty());
+                        requests.push(capacity);
+                        values.try_reserve_exact(capacity)
+                    },
+                )
+                .unwrap();
+                assert_eq!(result, input);
+                assert_eq!(requests, vec![count]);
+            }
+        }
+
+        #[test]
+        fn headers_and_failed_first_elements_cannot_trigger_reservation() {
+            for (input, hint, fail_on, expected_reads, expected_error) in [
+                (vec![], Some(4), None, 0, "exceeds host limit"),
+                (vec![], Some(3), None, 1, ""),
+                (vec![1], Some(1), Some(0), 1, "element failure"),
+            ] {
+                let reads = Cell::new(0);
+                let mut sequence = numbers(&input, hint, &reads);
+                sequence.fail_on = fail_on;
+                let result = collect_bounded_sequence::<_, u64, 3>(sequence, |_, _| {
+                    panic!("a length header alone must not cause reservation")
+                });
+                assert_eq!(reads.get(), expected_reads);
+                if expected_error.is_empty() {
+                    assert!(result.unwrap().is_empty());
+                } else {
+                    assert!(result.unwrap_err().to_string().contains(expected_error));
+                }
+            }
+        }
+
+        #[test]
+        fn unknown_zero_and_large_hints_keep_existing_growth() {
+            for hint in [None, Some(0), Some(5), Some(8)] {
+                let reads = Cell::new(0);
+                let result = collect_bounded_sequence::<_, u64, 8>(
+                    numbers(&[1, 2], hint, &reads),
+                    |_, _| panic!("this hint must not trigger explicit reservation"),
+                )
+                .unwrap();
+                assert_eq!(result, vec![1, 2]);
+            }
+        }
+
+        #[test]
+        fn misleading_short_hint_does_not_limit_actual_values() {
+            let reads = Cell::new(0);
+            let mut requests = Vec::new();
+            let result = collect_bounded_sequence::<_, u64, 3>(
+                numbers(&[1, 2, 3], Some(1), &reads),
+                |values, capacity| {
+                    requests.push(capacity);
+                    values.try_reserve_exact(capacity)
+                },
+            )
+            .unwrap();
+            assert_eq!(result, vec![1, 2, 3]);
+            assert_eq!(requests, vec![1]);
+        }
+
+        #[test]
+        fn zero_sized_and_large_elements_skip_explicit_reservation() {
+            let reads = Cell::new(0);
+            let sequence = Sequence {
+                values: vec![serde_json::Value::Null].into_iter(),
+                hint: Some(1),
+                reads: &reads,
+                fail_on: None,
+            };
+            assert_eq!(
+                collect_bounded_sequence::<_, (), 4>(sequence, |_, _| {
+                    panic!("zero-sized values need no reservation")
+                })
+                .unwrap(),
+                vec![()]
+            );
+            let reads = Cell::new(0);
+            let sequence = Sequence {
+                values: vec![serde_json::to_value([0u64; 32]).unwrap(); 2].into_iter(),
+                hint: Some(2),
+                reads: &reads,
+                fail_on: None,
+            };
+            assert_eq!(
+                collect_bounded_sequence::<_, [u64; 32], 4>(sequence, |_, _| {
+                    panic!("the explicit reservation would exceed the byte budget")
+                })
+                .unwrap(),
+                vec![[0; 32]; 2]
+            );
+            assert_eq!(small_sequence_reservation(Some(2), usize::MAX), None);
+        }
+
+        #[test]
+        fn element_failure_keeps_precedence_over_actual_length_limit() {
+            let reads = Cell::new(0);
+            let mut sequence = numbers(&[1, 2], None, &reads);
+            sequence.fail_on = Some(1);
+            let error = collect_bounded_sequence::<_, u64, 1>(sequence, Vec::try_reserve_exact)
+                .unwrap_err();
+            assert!(error.to_string().contains("element failure"));
+            assert_eq!(reads.get(), 2);
+            let reads = Cell::new(0);
+            let error = collect_bounded_sequence::<_, u64, 1>(
+                numbers(&[1, 2], None, &reads),
+                Vec::try_reserve_exact,
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("exceeds host limit"));
+            assert_eq!(reads.get(), 2);
+            let reads = Cell::new(0);
+            let error =
+                collect_bounded_sequence::<_, u64, 0>(numbers(&[1], None, &reads), |_, _| {
+                    panic!("limit checked first")
+                })
+                .unwrap_err();
+            assert!(error.to_string().contains("exceeds host limit"));
+            assert_eq!(reads.get(), 1);
+        }
+
+        #[test]
+        fn explicit_reservation_failure_is_returned_without_retry() {
+            let reads = Cell::new(0);
+            let mut attempts = 0;
+            let error = collect_bounded_sequence::<_, u64, 4>(
+                numbers(&[1, 2], Some(2), &reads),
+                |values, _| {
+                    assert_eq!(reads.get(), 1);
+                    assert!(values.is_empty());
+                    attempts += 1;
+                    // Inject a real `TryReserveError` without exhausting memory.
+                    Err(Vec::<u8>::new().try_reserve_exact(usize::MAX).unwrap_err())
+                },
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("cannot reserve phrase evidence"));
+            assert_eq!(attempts, 1);
+            assert_eq!(reads.get(), 1);
+        }
     }
 }
