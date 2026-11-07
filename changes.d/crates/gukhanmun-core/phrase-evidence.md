@@ -12,11 +12,11 @@ links:
     them. Built-in dictionaries and nested chains avoid temporary evidence
     vectors during repeated source lookups. [[#41], [#45]]
 
- -  Invalid phrase evidence supplied by custom dictionaries is ignored
-    with a warning. The same applies to evidence
-    whose shared index is incompatible with it; compatible indexes remain
-    shared. Binary dictionary loaders still reject invalid evidence.
-    [[#41], [#45]]
+ -  For custom dictionaries, engines ignore structurally invalid phrase
+    evidence or evidence with an incompatible index and emit a warning.
+    Providers must validate candidate links with
+    `PhraseEvidence::validate_records()`. Compatible indexes remain shared;
+    binary dictionary loaders still reject invalid evidence. [[#41], [#45]]
 
  -  Added `PhraseIndex::from_shared_evidence()` to share an immutable phrase
     collection with its index. Engines reuse validation for that collection
