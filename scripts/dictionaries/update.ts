@@ -101,6 +101,30 @@ export interface Result {
 function groups(bytes: Uint8Array, name = ""): Map<string, string[]> {
   const text = decoder.decode(bytes).trimEnd();
   const result = new Map<string, string[]>();
+  if (name === "source-evidence.json") {
+    // Preserve exact numeric tokens: source WordId/SenseId values are u64 and
+    // can exceed JavaScript's safe integer range. Stringifying raw JSON numbers
+    // keeps an ID-only change visible to the artifact audit.
+    const rawJSON = JSON as typeof JSON & { rawJSON(source: string): unknown };
+    const evidence = JSON.parse(
+      text,
+      (_key: string, value: unknown, context?: { source: string }) => {
+        if (typeof value !== "number") return value;
+        if (!context) throw new Error("source-aware JSON runtime required");
+        return rawJSON.rawJSON(context.source);
+      },
+    );
+    if (
+      !evidence.entries || typeof evidence.entries !== "object" || Array.isArray(evidence.entries)
+    ) {
+      throw new Error("invalid source evidence artifact");
+    }
+    for (const [key, candidates] of Object.entries(evidence.entries)) {
+      if (!Array.isArray(candidates)) throw new Error("invalid source evidence candidate group");
+      result.set(key, candidates.map((candidate) => JSON.stringify(candidate)).sort());
+    }
+    return result;
+  }
   if (name.endsWith(".jsonl")) {
     for (const line of text.split("\n")) {
       if (!line) continue;

@@ -33,7 +33,7 @@
 
 import type { FileDictionarySource } from "@gukhanmun/types";
 
-export type { FileDictionarySource } from "@gukhanmun/types";
+export type { FileDictionarySource, SourceRole } from "@gukhanmun/types";
 
 /** URL of the bundled NIKL loanword examples CDB binary. */
 export const loanwordsCdbUrl: URL = new URL("./loanwords.cdb", import.meta.url);
@@ -92,8 +92,8 @@ export async function loanwordsCdbBytes(
  * Loads the bundled NIKL loanword examples as a
  * {@link FileDictionarySource} ready to pass to `load({ dictionaries: [...] })`.
  *
- * @returns A `FileDictionarySource` with `format: "cdb"`.
+ * @returns A `FileDictionarySource` with `format: "cdb"` and `role: "loanword"`.
  */
 export async function loanwordsCdb(): Promise<FileDictionarySource> {
-  return { data: await loanwordsCdbBytes(), format: "cdb" };
+  return { data: await loanwordsCdbBytes(), format: "cdb", role: "loanword" };
 }

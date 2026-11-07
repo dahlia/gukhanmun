@@ -53,7 +53,8 @@ Optional `preference` (an unsigned 32-bit integer) and `suffix_reading` columns
 retain competing readings and a candidate's non-word-initial form. A nonempty
 preference, including `0`, opts the row into a candidate set. All rows for that
 key in the same file must opt in together. The `source_ids` column is accepted
-as build-time provenance and is not embedded in the dictionary.
+as build-time provenance; the TSV column alone is not embedded in the
+dictionary. Compiled source evidence is supplied separately with `--evidence`.
 
 ~~~~ tsv
 hanja	hangul	preference
@@ -154,7 +155,7 @@ The fixed header fields are:
 | Field           | Size | Meaning                                  |
 | --------------- | ---- | ---------------------------------------- |
 | magic           | 8    | `GUKHMFST`.                              |
-| version         | 4    | File format version, `1` or `2`.         |
+| version         | 4    | File format version, `1` through `4`.    |
 | header length   | 4    | Fixed header length, currently `64`.     |
 | metadata offset | 8    | Byte offset of the CBOR metadata.        |
 | metadata length | 8    | Byte length of the CBOR metadata.        |
@@ -252,3 +253,49 @@ the selected backend, and checks that every merged entry can be recovered with
 the same full candidate set, including relative preferences, positional forms
 and marks. Entry counts are compared per key, not per candidate. Validation
 failure is fatal.
+
+
+Version 4 critical source evidence
+----------------------------------
+
+`--evidence source-evidence.json` supplies typed source evidence separately from
+canonical candidate rows. The standard dictionary extractor produces this file
+with `--evidence-output`; the loanword update task derives it from every
+candidate's original source IDs. Evidence links use the key plus the complete
+initial/suffix reading pair. Preferences, marks and aliases stay in their
+original candidate payloads.
+
+A build with evidence always writes container version 4, including a scalar-only
+dictionary. Without evidence, the builder retains version 1 for scalar entries,
+version 2 for candidate sets and version 3 for aliases. New readers support all
+four; older readers reject version 4. The public JSON evidence schema has its
+own `schema_version`, currently `1`.
+
+The CBOR metadata adds the reserved, non-string `candidate_evidence` member:
+
+~~~~ text
+[schema_version, role, {
+  key: [[reading, suffix_or_null,
+         [[word_id, sense_id_or_null, origin], ...],
+         authorized_forms, diagnostics], ...], ...
+}]
+~~~~
+
+`role` is `override`, `reference` or `loanword`. Contributions retain unsigned
+64-bit word/sense IDs in separate fields and `native`, `foreign`, `mixed` or
+`unknown` origin. A relation witness distinguishes a word target from a sense
+target even when their numeric values coincide. Authorized forms and diagnostics
+use their typed evidence fields; CBOR tuples compact the repeated candidate and
+contributor fields without changing the separate JSON schema.
+
+Before exposing evidence, readers check tuple structure, schema and role,
+nonempty forms, duplicate identities and exact links to stored candidates.
+Missing critical evidence in version 4, evidence in an older container,
+unsupported schemas, duplicate critical metadata and stale candidate links are
+errors. Partial evidence is allowed; uncovered candidates have unknown evidence.
+The string metadata API omits this typed member; Rust callers inspect it through
+`HanjaDictionary::source_evidence()`.
+
+The dictionary updater preserves exact numeric tokens while comparing evidence
+artifacts, including IDs above JavaScript's safe integer range. Custom JSON
+processing must likewise preserve unsigned 64-bit IDs.

@@ -36,9 +36,10 @@ use gukhanmun::fst::FstDictionary;
 use gukhanmun::html::HtmlElementInfo;
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
-    Builder, ContextWindow, Converter, DirectiveAction, HanjaVariantSet, HomophoneDetection,
-    MapDictionary, MatchMark, NumeralStrategy, OriginalGloss, Preset, ReadingCandidate, Recovery,
-    RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
+    Builder, ContextWindow, Converter, DirectiveAction, HanjaDictionary, HanjaVariantSet,
+    HomophoneDetection, MapDictionary, MatchMark, NumeralStrategy, OriginalGloss, Preset,
+    ReadingCandidate, Recovery, RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
+    SourcePolicy, SourceRole,
 };
 
 // ── Option deserialization structs ──────────────────────────────────────────
@@ -52,6 +53,8 @@ struct JsOptions {
     original_gloss: Option<String>,
     hanja_variant_set: Option<String>,
     segmentation: Option<String>,
+    source_policy: Option<String>,
+    reference_only: Option<bool>,
     numerals: Option<String>,
     initial_sound_law: Option<bool>,
     homophone_window: Option<String>,
@@ -177,6 +180,12 @@ impl WasmGukhanmun {
         if let Some(variant_set) = &opts.hanja_variant_set {
             builder = builder.hanja_variant_set(parse_hanja_variant_set(variant_set)?);
         }
+        if let Some(policy) = &opts.source_policy {
+            builder = builder.source_policy(parse_source_policy(policy)?);
+        }
+        if let Some(enabled) = opts.reference_only {
+            builder = builder.reference_only(enabled);
+        }
         if let Some(s) = &opts.segmentation {
             builder = builder.segmentation(parse_segmentation(s)?);
         }
@@ -247,6 +256,16 @@ impl WasmGukhanmun {
         let dicts_arr = Array::from(&dictionaries);
         for i in 0..dicts_arr.length() {
             let entry = dicts_arr.get(i);
+            let role_value = Reflect::get(&entry, &JsValue::from_str("role"))
+                .map_err(|_| make_error("invalid-input", "cannot read dictionary role"))?;
+            let role = if role_value.is_undefined() {
+                None
+            } else {
+                let value = role_value.as_string().ok_or_else(|| {
+                    make_error("invalid-input", "dictionary role must be a string")
+                })?;
+                Some(parse_source_role(&value)?)
+            };
             let entries_val =
                 Reflect::get(&entry, &JsValue::from_str("entriesJson")).map_err(|_| {
                     make_error(
@@ -267,7 +286,10 @@ impl WasmGukhanmun {
                         "a dictionary must not combine `entries` with `format` or `bytes`",
                     ));
                 }
-                builder = builder.push_dictionary(entry_dictionary(&json)?);
+                builder = builder.push_dictionary_with_role(
+                    entry_dictionary(&json)?,
+                    role.unwrap_or(SourceRole::Override),
+                );
                 continue;
             }
             let fmt = Reflect::get(&entry, &JsValue::from_str("format"))
@@ -288,12 +310,18 @@ impl WasmGukhanmun {
                 "fst" => {
                     let dict = FstDictionary::from_bytes(&bytes)
                         .map_err(|e| make_error("dictionary-load", &e.to_string()))?;
-                    builder = builder.push_dictionary(dict);
+                    let role = role
+                        .or_else(|| dict.source_evidence().map(|evidence| evidence.role))
+                        .unwrap_or(SourceRole::Override);
+                    builder = builder.push_dictionary_with_role(dict, role);
                 }
                 "cdb" => {
                     let dict = CdbDictionary::from_bytes(&bytes)
                         .map_err(|e| make_error("dictionary-load", &e.to_string()))?;
-                    builder = builder.push_dictionary(dict);
+                    let role = role
+                        .or_else(|| dict.source_evidence().map(|evidence| evidence.role))
+                        .unwrap_or(SourceRole::Override);
+                    builder = builder.push_dictionary_with_role(dict, role);
                 }
                 other => {
                     return Err(make_error(
@@ -541,6 +569,31 @@ fn parse_hanja_variant_set(variant_set: &str) -> Result<HanjaVariantSet, JsValue
         other => Err(make_error(
             "invalid-input",
             &format!("unknown hanjaVariantSet: {other}"),
+        )),
+    }
+}
+
+fn parse_source_policy(value: &str) -> Result<SourcePolicy, JsValue> {
+    match value {
+        "reference-authorized" => Ok(SourcePolicy::ReferenceAuthorized),
+        "reference-first" => Ok(SourcePolicy::ReferenceFirst),
+        "loanword-first" => Ok(SourcePolicy::LoanwordFirst),
+        "ordered" => Ok(SourcePolicy::Ordered),
+        _ => Err(make_error(
+            "invalid-input",
+            &format!("unknown source policy: {value}"),
+        )),
+    }
+}
+
+fn parse_source_role(value: &str) -> Result<SourceRole, JsValue> {
+    match value {
+        "override" => Ok(SourceRole::Override),
+        "reference" => Ok(SourceRole::Reference),
+        "loanword" => Ok(SourceRole::Loanword),
+        _ => Err(make_error(
+            "invalid-input",
+            &format!("unknown dictionary source role: {value}"),
         )),
     }
 }

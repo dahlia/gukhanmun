@@ -1,0 +1,8 @@
+description = """
+Reference-authorized conversion preserves the selected identities of 洪 and 民
+instead of merging them with fallback 憙 into a synthetic proper-name entry.
+The dictionary compound 部長 remains one annotation.
+"""
+rendering = "hangul-hanja-parens"
+use_bundled_stdict = true
+source_policy = "reference-authorized"

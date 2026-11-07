@@ -97,13 +97,16 @@ pub use options::{ConversionOptions, Preset};
 // Always-on re-exports from `gukhanmun-core` so that downstream users do not
 // have to depend on the core crate directly.
 pub use gukhanmun_core::{
-    AliasKind, AliasTarget, Annotation, CandidateError, CandidateMatch, CandidateRecord,
-    ChainDictionary, ContextWindow, DictionaryRecord, DirectiveAction, Engine, EngineOptions,
-    FirstOccurrenceFilter, HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker,
-    InputToken, LexemeIndex, MapDictionary, Match, MatchMark, NumeralStrategy, OriginalGloss,
-    OutputToken, PlainScopeData, ReadingCandidate, ReadingCandidates, RecoverableInputError,
-    Recovery, RedundantParenCollapser, RenderMode, RenderOptions, RenderedToken, Renderer,
-    RubyBase, Scope, ScopeData, SegmentationStrategy, UnihanCharDict, UserDirectives,
+    AliasKind, AliasTarget, Annotation, AuthorizationKind, AuthorizedForm, CandidateError,
+    CandidateEvidence, CandidateMatch, CandidateRecord, ChainDictionary, ContextWindow,
+    DictionaryEvidence, DictionaryRecord, DirectiveAction, Engine, EngineOptions,
+    EvidenceDiagnostic, EvidenceDiagnosticKind, EvidenceError, FirstOccurrenceFilter,
+    HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken, LexemeIndex,
+    MapDictionary, Match, MatchMark, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData,
+    ReadingCandidate, ReadingCandidates, ReadingForm, RecoverableInputError, Recovery,
+    RedundantParenCollapser, RelationWitness, RenderMode, RenderOptions, RenderedToken, Renderer,
+    RubyBase, Scope, ScopeData, SegmentationStrategy, SenseId, SourceContribution, SourcePolicy,
+    SourceReference, SourceRole, UnihanCharDict, UserDirectives, WordId, WordOrigin,
     apply_user_directives, apply_user_directives_iter, collapse_redundant_parens,
     convert_plain_text, convert_plain_text_with_options, filter_first_occurrences, is_hanja,
     is_initial_sound_law_pair, mark_homophones, mark_homophones_with_detection,

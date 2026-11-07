@@ -8,18 +8,18 @@ Dictionaries
 ============
 
 Gukhanmun looks up hanja readings from one or more `HanjaDictionary`
-implementations.  The `gukhanmun` crate ships with FST and CDB backends and
-the bundled *Standard Korean Dictionary*, *Loanword spelling examples*, and
-the *Open Korean Dictionary* (우리말샘) North Korean dictionary used by the
-`ko-kp` preset.
+implementations.  The `gukhanmun` crate ships with FST and CDB backends and the
+bundled *Standard Korean Dictionary*, *Loanword spelling examples*, and the
+*Open Korean Dictionary* (우리말샘) North Korean dictionary used by the `ko-kp`
+preset.
 
 
 Using the bundled dictionary
 ----------------------------
 
 The bundled dictionary selected by the preset is included automatically.  To
-disable every bundled dictionary and rely only on user dictionaries or
-fallback readings:
+disable every bundled dictionary and rely only on user dictionaries or fallback
+readings:
 
 ~~~~ rust
 let converter = Builder::with_preset(Preset::KoKr)
@@ -70,11 +70,12 @@ let converter = Builder::with_preset(Preset::KoKr)
 assert_eq!(converter.convert_text_to_string("香港")?, "홍콩");
 ~~~~
 
-`Preset::KoKp` leaves this dictionary off; call `.bundled_loanwords()` to enable
-it explicitly. User dictionaries take priority, followed by loanword examples,
-then the preset's other dictionaries. `.no_bundled_loanwords()` disables only
-this dictionary; `.no_bundled_dictionaries()` disables it along with the other
-bundled dictionaries.
+`Preset::KoKp` leaves this dictionary off; call `.bundled_loanwords()` to
+enable it explicitly. User dictionaries take priority. Bundled reference and
+loanword sources cooperate under the policy described below.
+`.no_bundled_loanwords()` disables only this dictionary;
+`.no_bundled_dictionaries()` disables it along with the other bundled
+dictionaries.
 
 For direct use through `HanjaDictionary`, add the `gukhanmun-loanwords` crate
 and call `gukhanmun_loanwords::dictionary()`. With the umbrella crate's
@@ -97,7 +98,8 @@ let converter = Builder::with_preset(Preset::KoKr)
 ~~~~
 
 Dictionaries added with `push_dictionary` are consulted before the bundled
-dictionary.  The first match across the chain wins.
+dictionary. Earlier user dictionaries replace later candidates for the same
+spelling and consumed length, including candidates from bundled sources.
 
 
 Zero-copy static dictionaries
@@ -114,8 +116,8 @@ static MY_DICT: &[u8] = include_bytes!("../data/custom.gukfst");
 let dict = FstDictionary::from_static_bytes(MY_DICT)?;
 ~~~~
 
-`from_static_bytes` does not copy the data; it creates a zero-copy view
-backed by the static slice.
+`from_static_bytes` does not copy the data; it creates a zero-copy view backed
+by the static slice.
 
 
 Loading from owned bytes
@@ -213,16 +215,16 @@ let mut dictionary = MapDictionary::new();
 dictionary.insert_candidates("東京", candidates);
 ~~~~
 
-The context-free default is `도쿄`. Conversion selects `동경` in `東京을`
-and `도쿄` in `東京를`, leaving the particle unchanged. A higher-priority
+The context-free default is `도쿄`. Conversion selects `동경` in `東京을` and
+`도쿄` in `東京를`, leaving the particle unchanged. A higher-priority
 dictionary replaces the whole set for `東京`. Use `candidate_matches_at()` or
 `candidate_entries()` to inspect alternatives; `matches_at()` and `entries()`
 expose only the selected default. FST/CDB `lookup().candidates()` exposes the
 same sets.
 
 When the readings arrive one per row, `MapDictionary::from_candidates()` groups
-repeated keys into the same candidate set, so a table of `(hanja, reading)` rows
-needs no manual grouping:
+repeated keys into the same candidate set, so a table of `(hanja, reading)`
+rows needs no manual grouping:
 
 ~~~~ rust
 use gukhanmun::{MapDictionary, MatchMark, ReadingCandidate};
@@ -254,8 +256,8 @@ compatible or unknown ending keeps that candidate eligible.
 
 Supported particles are `을/를`, `은/는`, `이/가`, `과/와`, and `으로/로`,
 including the rieul exception. Supported combinations are `으로는`, `으로도`,
-`으로만`, `로는`, `로도`, `로만`, `과는`, `과도`, `과만`, `와는`, `와도`,
-and `와만`. A complete suffix must end at whitespace, EOF, a block boundary
+`으로만`, `로는`, `로도`, `로만`, `과는`, `과도`, `과만`, `와는`, `와도`, and
+`와만`. A complete suffix must end at whitespace, EOF, a block boundary
 reported by the reader, or `.,!?:;)]}。、！？，：；）】」』`. Copulas such as
 `이다`, lexical prefixes such as `이름`, and unsupported combinations keep the
 default.
@@ -277,3 +279,65 @@ window.
 If the document ends right after a root inline close such as `<b>東京을</b>`,
 EOF still supplies evidence. A later token or explicit `flush()` treats that
 boundary as uncertain.
+
+
+Cooperating sources
+-------------------
+
+The default `SourcePolicy::ReferenceAuthorized` policy keeps reference and
+loanword candidate sets separate. A reference candidate authorizes a foreign
+form only when the source dictionary explicitly records the relevant synonym or
+formal redirect. The offline compiler intersects the permissions of every
+contributing sense; a shared hanja key or reading alone grants no permission.
+Missing evidence retains the reference form. Thus `東扶餘` reads `동부여`,
+while the reference entry for `香港` authorizes `홍콩`.
+
+The resolver ranks complete forms before applying particle evidence once to the
+whole pool. An independent loanword can still match a particle even when it is
+not the default: `平` reads `평`, but `平를` can select `다이라를`. Dictionary
+preferences apply within each source; they are not comparable across sources.
+The lattice objective is unchanged.
+
+| Policy                              | Source behavior                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| `SourcePolicy::ReferenceAuthorized` | Authorized loanword forms, reference redirect/original forms, then independent loanwords |
+| `SourcePolicy::ReferenceFirst`      | Original reference forms before independent loanwords                                    |
+| `SourcePolicy::LoanwordFirst`       | Independent loanwords before original reference forms                                    |
+| `SourcePolicy::Ordered`             | Legacy dictionary order; ignores roles and authorization                                 |
+
+An authored override is exclusive for the same spelling and consumed length
+under every cooperating policy. It does not remove a longer dictionary match.
+For cooperating policies, `Builder::reference_only(true)` removes independent
+loanwords from eligibility but retains reference-authorized forms, including
+forms supplied by a loanword dictionary.
+
+Selected forms carry their own lexical identity, alias, positional form and
+annotation marks. First-occurrence handling uses the reference anchor when a
+reference authorizes a foreign form; homophone handling compares the reading
+actually emitted. Source-aware dictionary matches keep separate annotation
+boundaries, including matches next to fallback characters. This can change
+parenthetical grouping compared with `SourcePolicy::Ordered`.
+
+Use `Builder::source_policy()` to select a policy:
+
+~~~~ rust
+use gukhanmun::{Builder, Preset, SourcePolicy, SourceRole};
+
+let converter = Builder::with_preset(Preset::KoKr)
+    .source_policy(SourcePolicy::ReferenceAuthorized)
+    .reference_only(true)
+    .build()?;
+~~~~
+
+`push_dictionary()` and `push_boxed_dictionary()` always register authored
+overrides. To add a cooperating source, use
+`push_dictionary_with_role(dictionary, SourceRole::Reference)` or
+`SourceRole::Loanword`. Direct `ChainDictionary::new()` and
+`ChainDictionary::from_iter()` calls retain `SourcePolicy::Ordered`; opt in
+with `with_source_policy()` and `push_with_role()` when composing the chain
+yourself.
+
+With lattice segmentation, overlapping paths can remain unresolved beyond the
+maximum dictionary word length. Streaming retains their shared uncertainty until
+a word boundary or EOF settles the path, while already settled prefixes can
+still be emitted. Dictionary roles do not change the lattice scoring objective.

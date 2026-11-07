@@ -29,8 +29,8 @@ use gukhanmun::{
     HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken, LexemeIndex, NumeralStrategy,
     OriginalGloss, OutputToken, PlainScopeData, Preset as UmbrellaPreset, RecoverableInputError,
     Recovery, RedundantParenCollapser, RenderMode, RenderOptions, RenderedToken, Renderer,
-    RubyBase, ScopeData, SegmentationStrategy, UserDirectives, recover_input_token,
-    render_tokens_iter, write_plain_text,
+    RubyBase, ScopeData, SegmentationStrategy, SourcePolicy, SourceRole, UserDirectives,
+    recover_input_token, render_tokens_iter, write_plain_text,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -94,6 +94,25 @@ struct IoArgs {
     format: Option<Format>,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum SourcePolicyArg {
+    ReferenceAuthorized,
+    ReferenceFirst,
+    LoanwordFirst,
+    Ordered,
+}
+
+impl From<SourcePolicyArg> for SourcePolicy {
+    fn from(value: SourcePolicyArg) -> Self {
+        match value {
+            SourcePolicyArg::ReferenceAuthorized => Self::ReferenceAuthorized,
+            SourcePolicyArg::ReferenceFirst => Self::ReferenceFirst,
+            SourcePolicyArg::LoanwordFirst => Self::LoanwordFirst,
+            SourcePolicyArg::Ordered => Self::Ordered,
+        }
+    }
+}
+
 #[derive(Debug, Args)]
 #[command(next_help_heading = "Language and dictionaries")]
 struct LanguageArgs {
@@ -110,6 +129,23 @@ struct LanguageArgs {
     /// every bundled dictionary.
     #[arg(short = 'd', long = "dictionary", value_name = "PATH")]
     dictionaries: Vec<PathBuf>,
+
+    /// Additional reference dictionary (.gukfst or .gukcdb). May be repeated.
+    #[arg(long = "reference-dictionary", value_name = "PATH")]
+    reference_dictionaries: Vec<PathBuf>,
+
+    /// Additional loanword dictionary (.gukfst or .gukcdb). May be repeated.
+    #[arg(long = "loanword-dictionary", value_name = "PATH")]
+    loanword_dictionaries: Vec<PathBuf>,
+
+    /// Cooperation policy; ordered restores the original dictionary-order policy.
+    #[arg(long, value_enum, default_value_t = SourcePolicyArg::ReferenceAuthorized)]
+    source_policy: SourcePolicyArg,
+
+    /// Exclude independent loanword choices, retaining reference-authorized forms.
+    /// The ordered policy ignores this filter.
+    #[arg(long)]
+    reference_only: bool,
 
     /// Disable every bundled dictionary selected by the preset.
     #[arg(short = 'S', long)]
@@ -587,6 +623,9 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
     if let Some(first_occurrence) = cli.rendering.first_occurrence {
         builder = builder.first_occurrence_window(first_occurrence.into());
     }
+    builder = builder
+        .source_policy(cli.language.source_policy.into())
+        .reference_only(cli.language.reference_only);
     builder = builder.segmentation(cli.conversion.segmentation.into());
     builder = builder.numerals(cli.conversion.numerals.into());
     if cli.conversion.initial_sound_law {
@@ -610,6 +649,15 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
 
     for path in cli.language.dictionaries.iter().rev() {
         builder = builder.push_boxed_dictionary(open_user_dictionary(path)?);
+    }
+
+    for path in cli.language.loanword_dictionaries.iter().rev() {
+        builder = builder
+            .push_boxed_dictionary_with_role(open_user_dictionary(path)?, SourceRole::Loanword);
+    }
+    for path in cli.language.reference_dictionaries.iter().rev() {
+        builder = builder
+            .push_boxed_dictionary_with_role(open_user_dictionary(path)?, SourceRole::Reference);
     }
 
     builder = builder.directives(build_user_directives(cli)?);
@@ -1035,6 +1083,20 @@ fn convert_document(
     }
 }
 
+// Cooperative selections carry their lexical identities through the CLI's
+// streaming pipelines, just as they do through the umbrella converter.
+fn pipeline_lexemes(converter: &gukhanmun::Converter<'_>) -> LexemeIndex {
+    if converter.options().source_policy == SourcePolicy::Ordered {
+        converter
+            .dictionary()
+            .lexemes()
+            .or_else(|| LexemeIndex::from_dictionary(converter.dictionary()))
+            .unwrap_or_default()
+    } else {
+        LexemeIndex::default()
+    }
+}
+
 fn convert_plain_document(
     input: impl BufRead,
     output: impl Write,
@@ -1044,10 +1106,7 @@ fn convert_plain_document(
     if options.homophone_window == ContextWindow::Off
         && options.first_occurrence_window == ContextWindow::Off
     {
-        let lexemes = converter
-            .dictionary()
-            .lexemes()
-            .or_else(|| LexemeIndex::from_dictionary(converter.dictionary()));
+        let lexemes = pipeline_lexemes(converter);
         let engine =
             Engine::<PlainScopeData, _>::with_options(converter.dictionary(), options.engine);
         return convert_plain_stream_without_homophone_lookahead(
@@ -1057,7 +1116,7 @@ fn convert_plain_document(
             options.rendering,
             Identity {
                 directives: converter.directives(),
-                lexemes: lexemes.as_ref(),
+                lexemes: Some(&lexemes),
             },
             options.collapse_redundant_parens,
             options.punctuation,
@@ -1316,19 +1375,15 @@ fn convert_html_document(
     let mut collapser = options
         .collapse_redundant_parens
         .then(|| RedundantParenCollapser::<HtmlScopeData>::new(true));
-    let mut homophones = HomophoneMarker::with_detection(
+    let lexemes = pipeline_lexemes(converter);
+    let mut homophones = HomophoneMarker::with_detection_and_lexemes(
         converter.dictionary(),
         options.homophone_window,
         options.homophone_detection,
+        &lexemes,
     );
-    let mut first_occurrences = FirstOccurrenceFilter::from_dictionary(
-        options.first_occurrence_window,
-        converter.dictionary(),
-    );
-    let lexemes = converter
-        .dictionary()
-        .lexemes()
-        .or_else(|| LexemeIndex::from_dictionary(converter.dictionary()));
+    let mut first_occurrences =
+        FirstOccurrenceFilter::with_lexemes(options.first_occurrence_window, lexemes.clone());
     let mut normalizer = gukhanmun::PunctuationNormalizer::with_codec(
         options.punctuation,
         gukhanmun::html::HtmlPunctuationTextCodec::new(),
@@ -1353,7 +1408,7 @@ fn convert_html_document(
                 homophones: &mut homophones,
                 first_occurrences: &mut first_occurrences,
                 directives: converter.directives(),
-                lexemes: lexemes.as_ref(),
+                lexemes: Some(&lexemes),
                 normalizer: &mut normalizer,
                 renderer: &mut renderer,
                 writer: &mut writer,
@@ -1373,7 +1428,7 @@ fn convert_html_document(
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
             directives: converter.directives(),
-            lexemes: lexemes.as_ref(),
+            lexemes: Some(&lexemes),
             normalizer: &mut normalizer,
             renderer: &mut renderer,
             writer: &mut writer,
@@ -1391,7 +1446,7 @@ fn convert_html_document(
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
             directives: converter.directives(),
-            lexemes: lexemes.as_ref(),
+            lexemes: Some(&lexemes),
             normalizer: &mut normalizer,
             renderer: &mut renderer,
             writer: &mut writer,
@@ -1410,7 +1465,7 @@ fn convert_html_document(
         &mut first_occurrences,
         Identity {
             directives: converter.directives(),
-            lexemes: lexemes.as_ref(),
+            lexemes: Some(&lexemes),
         },
         &mut normalizer,
         &mut renderer,
@@ -1423,7 +1478,7 @@ fn convert_html_document(
             &mut first_occurrences,
             Identity {
                 directives: converter.directives(),
-                lexemes: lexemes.as_ref(),
+                lexemes: Some(&lexemes),
             },
             &mut normalizer,
             &mut renderer,
@@ -1436,7 +1491,7 @@ fn convert_html_document(
         &mut first_occurrences,
         Identity {
             directives: converter.directives(),
-            lexemes: lexemes.as_ref(),
+            lexemes: Some(&lexemes),
         },
         &mut normalizer,
         &mut renderer,
@@ -1447,7 +1502,7 @@ fn convert_html_document(
         first_occurrence_tail,
         Identity {
             directives: converter.directives(),
-            lexemes: lexemes.as_ref(),
+            lexemes: Some(&lexemes),
         },
         &mut normalizer,
         &mut renderer,
@@ -2002,4 +2057,72 @@ fn has_fst_magic(path: &Path) -> Result<bool> {
         .read(&mut header)
         .with_context(|| format!("failed to load dictionary {}", path.display()))?;
     Ok(bytes_read == FST_MAGIC.len() && &header == FST_MAGIC)
+}
+
+#[cfg(test)]
+mod pipeline_tests {
+    use super::*;
+    use gukhanmun::{CandidateMatch, CandidateRecord, MapDictionary, Match};
+
+    struct LookupOnly(MapDictionary);
+
+    impl HanjaDictionary for LookupOnly {
+        fn matches_at<'a>(&'a self, s: &'a str) -> Box<dyn Iterator<Item = Match> + 'a> {
+            self.0.matches_at(s)
+        }
+
+        fn candidate_matches_at<'a>(
+            &'a self,
+            s: &'a str,
+        ) -> Box<dyn Iterator<Item = CandidateMatch> + 'a> {
+            self.0.candidate_matches_at(s)
+        }
+
+        fn candidate_entries<'a>(
+            &'a self,
+        ) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
+            panic!("context-local CLI pipelines must not enumerate cooperative dictionaries")
+        }
+
+        fn lexemes(&self) -> Option<LexemeIndex> {
+            panic!("cooperative CLI pipelines must use selected lexical identities")
+        }
+    }
+
+    #[test]
+    fn cooperative_plain_and_html_pipelines_do_not_enumerate_sources() {
+        for policy in [
+            SourcePolicy::ReferenceAuthorized,
+            SourcePolicy::ReferenceFirst,
+            SourcePolicy::LoanwordFirst,
+        ] {
+            let dictionary = || {
+                let mut dictionary = MapDictionary::new();
+                dictionary.insert("學校", "학교");
+                LookupOnly(dictionary)
+            };
+            let plain = Builder::new()
+                .no_bundled_dictionaries()
+                .source_policy(policy)
+                .push_dictionary(dictionary())
+                .homophone_window(ContextWindow::Off)
+                .first_occurrence_window(ContextWindow::Off)
+                .directive("學校", DirectiveAction::RequireHanja)
+                .build()
+                .unwrap();
+            let mut output = Vec::new();
+            convert_plain_document(std::io::Cursor::new("學校\n"), &mut output, &plain).unwrap();
+            assert_eq!(String::from_utf8(output).unwrap(), "학교(學校)\n");
+            let html = Builder::new()
+                .no_bundled_dictionaries()
+                .source_policy(policy)
+                .push_dictionary(dictionary())
+                .directive("學校", DirectiveAction::RequireHanja)
+                .build()
+                .unwrap();
+            let mut output = Vec::new();
+            convert_html_document(std::io::Cursor::new("<p>學校</p>"), &mut output, &html).unwrap();
+            assert_eq!(String::from_utf8(output).unwrap(), "<p>학교(學校)</p>");
+        }
+    }
 }

@@ -9,13 +9,14 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./stdict.cdb": "./dist/stdict.cdb"
+    "./stdict.cdb": "./dist/stdict.cdb",
+    "./stdict.cdb.gz": "./dist/stdict.cdb.gz"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsdown && node -e \"require('node:fs').copyFileSync('stdict.cdb','dist/stdict.cdb')\""
+    "build": "tsdown && node -e \"const fs=require('node:fs');for(const f of ['stdict.cdb','stdict.cdb.gz'])fs.copyFileSync(f,'dist/'+f)\""
   },
   "homepage": "https://github.com/dahlia/gukhanmun",
   "bugs": "https://github.com/dahlia/gukhanmun/issues",

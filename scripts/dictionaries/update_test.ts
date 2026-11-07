@@ -47,7 +47,18 @@ async function fixture() {
         license: "synthetic",
       }),
     );
-    for (const name of outputs[kind]) await Deno.writeFile(`${root}/${data(kind)}/${name}`, old);
+    for (const name of outputs[kind]) {
+      await Deno.writeFile(
+        `${root}/${data(kind)}/${name}`,
+        name === "source-evidence.json"
+          ? json({
+            schema_version: 1,
+            role: "reference",
+            entries: { "霧川": [{ reading: new TextDecoder().decode(old) }] },
+          })
+          : old,
+      );
+    }
     for (const path of fragments(kind)) {
       await Deno.mkdir(`${root}/${path.slice(0, path.lastIndexOf("/"))}`, { recursive: true });
       const section = path.replace(/^changes.d\//, "").replace(/\/[^/]+$/, "");
@@ -110,7 +121,16 @@ Deno.test("two-dictionary transaction, idempotent fragments and rollback after f
       }
       const kind = args[1] === "stdict-extract" ? "stdict" : "opendict";
       for (const name of outputs[kind]) {
-        await Deno.writeFile(`${env.GUKHANMUN_DICTS_OUTPUT_DIR}/${name}`, revised);
+        await Deno.writeFile(
+          `${env.GUKHANMUN_DICTS_OUTPUT_DIR}/${name}`,
+          name === "source-evidence.json"
+            ? json({
+              schema_version: 1,
+              role: "reference",
+              entries: { "霧川": [{ reading: new TextDecoder().decode(revised) }] },
+            })
+            : revised,
+        );
       }
       return "";
     }
@@ -201,4 +221,42 @@ Deno.test("JSONL mapping reports do not skip the first record", async () => {
     removed: 0,
     changed: 1,
   });
+});
+
+Deno.test("source evidence mapping reports compare complete contributor groups", async () => {
+  const document = (ids: number[]) =>
+    encoder.encode(
+      JSON.stringify({
+        schema_version: 1,
+        role: "reference",
+        entries: { "霧川": [{ reading: "무천", contributors: ids }] },
+      }),
+    );
+  const report = await mappingReport(document([7]), document([7, 8]), "source-evidence.json");
+  assert.equal(report.keys, 1);
+  assert.equal(report.rows, 1);
+  assert.equal(report.changed, 1);
+  assert.equal(report.added, 0);
+  assert.equal(report.removed, 0);
+});
+
+Deno.test("source evidence audits distinguish adjacent u64 IDs above JavaScript precision", async () => {
+  const document = (id: string) =>
+    encoder.encode(
+      `{"schema_version":1,"role":"reference","entries":{"霧川":[{"reading":"무천","contributors":[{"word_id":${id},"sense_id":${id}}]}]}}`,
+    );
+  const report = await mappingReport(
+    document("9007199254740992"),
+    document("9007199254740993"),
+    "source-evidence.json",
+  );
+  assert.equal(report.changed, 1);
+  assert.equal(report.keys, 1);
+  assert.equal(report.rows, 1);
+  const unchanged = await mappingReport(
+    document("18446744073709551615"),
+    document("18446744073709551615"),
+    "source-evidence.json",
+  );
+  assert.equal(unchanged.changed, 0);
 });

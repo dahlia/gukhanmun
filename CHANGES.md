@@ -25,6 +25,11 @@ To be released.
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it
     keep their streaming word bound.  [[#33], [#34]]
+ -  `Builder` and presets now default to reference-authorized source
+    cooperation, retaining reference readings unless typed dictionary relations
+    authorize another form. Configure `source_policy()` and `reference_only()`,
+    or select `SourcePolicy::Ordered` for legacy precedence.
+    `push_dictionary()` remains an authored override. [[#42], [#44]]
  -  Bundled compound aliases now render as one dictionary-backed annotation, no
     longer split by the engine or by the parenthetical collapser, and sibling
     spellings no longer trigger false homophone glosses. The standard
@@ -32,14 +37,28 @@ To be released.
     reviewed seed.  [[#38], [#39]]
  -  Re-exported the user alias insertion APIs and `reverse_hanja()` from the
     umbrella crate.  [[#38], [#39]]
+ -  Exposed typed dictionary source evidence and validation APIs through the
+    Rust facade. [[#42], [#44]]
+ -  The exported core pipeline preserves source-aware selection metadata through
+    annotations and middleware, including aliases, particles, authorial glosses,
+    and first-occurrence/homophone identity. Source-aware dictionary matches
+    retain their own annotation boundaries. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
 
 [#33]: https://github.com/dahlia/gukhanmun/issues/33
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
 [#38]: https://github.com/dahlia/gukhanmun/issues/38
 [#39]: https://github.com/dahlia/gukhanmun/pull/39
+[#42]: https://github.com/dahlia/gukhanmun/issues/42
+[#44]: https://github.com/dahlia/gukhanmun/pull/44
 
 ### gukhanmun-cdb
 
+ -  Added version 4 dictionary support for validated, candidate-linked source
+    evidence; evidence-free version 1–3 files remain readable. [[#42], [#44]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
     [[#38], [#39]]
 
@@ -50,6 +69,16 @@ To be released.
     streaming and applies each directive with the dictionary's lexeme index, so
     a reviewed alias resolves without buffering the whole document.
     [[#38], [#39]]
+ -  Custom FST/CDB dictionaries can carry version 4 source evidence; older
+    dictionary files remain supported. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
+ -  The CLI now defaults to reference-authorized source cooperation. Use
+    `--source-policy` to select a policy and `--reference-only` to exclude
+    independent loanwords; custom `-d` dictionaries remain authored overrides.
+    [[#42], [#44]]
 
 ### gukhanmun-core
 
@@ -75,6 +104,25 @@ To be released.
     homophone merely because a derived alias exists for it, while
     first-occurrence filtering and literal directives still use lexical
     identity.  [[#38], [#39]]
+ -  Added opt-in `ChainDictionary` source policies and role-aware registration.
+    Reference-authorized forms and independent loanword candidates keep their
+    own identities, marks, and positional readings, with one particle filter
+    over the ranked pool. Direct chains retain `Ordered` by default.
+    [[#42], [#44]]
+ -  Preserved selected source identity through annotations, homophone and
+    first-occurrence handling, directives, and parenthetical reading changes.
+    Source-aware dictionary matches retain separate annotation boundaries
+    beside fallback characters. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
+ -  Reduced cooperative lookup overhead for dictionaries with unknown maximum
+    word lengths without truncating their queries or limiting long matches.
+    [[#42], [#44]]
+ -  Added typed source evidence, candidate-link validation, and
+    `HanjaDictionary::source_evidence()` for inspecting dictionary provenance
+    without changing legacy reading selection. [[#42], [#44]]
 
 ### gukhanmun-dict-extract
 
@@ -94,16 +142,30 @@ To be released.
  -  Bound the Cartesian enumeration at `AliasPolicy::max_combinations` so a
     pathological spelling group is skipped instead of exhausting memory.
     [[#38], [#39]]
+ -  Added typed source-graph helpers for compiling conservative candidate
+    evidence from word/sense identifiers, direct foreign-name synonyms, and
+    formal redirects. [[#42], [#44]]
 
 ### gukhanmun-fst
 
+ -  Added version 4 dictionary support for validated, candidate-linked source
+    evidence; evidence-free version 1–3 files remain readable. [[#42], [#44]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
     [[#38], [#39]]
+
+### gukhanmun-loanwords
+
+ -  The bundled loanword dictionary now declares its source role and preserves
+    all contributing source IDs for cooperation with reference dictionaries.
+    [[#42], [#44]]
 
 ### gukhanmun-mkdict
 
  -  Accept `canonical` and `alias_kind` columns plus a `--relations` input, and
     emit format version 3 when alias metadata is present. [[#38], [#39]]
+ -  Added `--evidence` and `build_dictionary_with_evidence()` to compile source
+    evidence into version 4 FST/CDB files while retaining canonical reading
+    payloads. [[#42], [#44]]
 
 ### gukhanmun-napi
 
@@ -112,6 +174,15 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
+    evidence, while retaining support for older files. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
+ -  Native converters now default to reference-authorized source cooperation
+    and expose policy, reference-only eligibility and explicit dictionary roles
+    through their JavaScript options. [[#42], [#44]]
 
 ### gukhanmun-opendict
 
@@ -123,10 +194,17 @@ To be released.
 
 ### gukhanmun-stdict
 
+ -  Added `gukhanmun-stdict-extract --evidence-output` to preserve source
+    records, sense identifiers, and supported synonym/redirect evidence
+    alongside canonical TSV output. [[#42], [#44]]
  -  Derive compound aliases from the dump's marked morphemes and explicit
     spelling groups, bundling 2,054 recognition aliases, the seven reviewed
     lexical aliases, 2,875 sibling relations, and a JSONL provenance manifest.
     [[#38], [#39]]
+ -  The bundled reference dictionary now carries reproducible typed source
+    evidence. Explicit dictionary synonyms and formal redirects authorize
+    alternate forms without per-entry overrides or reading-based inference.
+    [[#42], [#44]]
 
 ### gukhanmun-wasm
 
@@ -135,6 +213,27 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
+    evidence, while retaining support for older files. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
+ -  WebAssembly converters now default to reference-authorized source
+    cooperation and expose policy, reference-only eligibility and explicit
+    dictionary roles through their JavaScript options. [[#42], [#44]]
+
+### @gukhanmun/loanwords-cdb
+
+ -  The official CDB loader now declares the loanword role and ships typed
+    contributor evidence for reference-authorized cooperation. Evidence-bearing
+    dictionaries require version 4 readers. [[#42], [#44]]
+
+### @gukhanmun/loanwords-fst
+
+ -  The official FST loader now declares the loanword role and ships typed
+    contributor evidence for reference-authorized cooperation. Evidence-bearing
+    dictionaries require version 4 readers. [[#42], [#44]]
 
 ### @gukhanmun/napi
 
@@ -142,6 +241,15 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
+    evidence, while retaining support for older files. [[#42], [#44]]
+ -  Converters now default to reference-authorized source cooperation.
+    Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
+    `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
  -  Recognize reviewed compound aliases and stop treating sibling spellings as
     homophones or separate first occurrences. [[#38], [#39]]
 
@@ -150,25 +258,43 @@ To be released.
  -  Ship the general and North Korean Open Korean Dictionary data as format
     version 3 with per-category compound alias metadata. Load it with a reader
     that understands version 3.  [[#38], [#39]]
+ -  The official category CDB loader now declares the reference role. Legacy
+    artifacts without typed relation evidence retain conservative reference
+    readings under cooperating policies. [[#42], [#44]]
 
 ### @gukhanmun/opendict-fst
 
  -  Ship the general and North Korean Open Korean Dictionary data as format
     version 3 with per-category compound alias metadata. Load it with a reader
     that understands version 3.  [[#38], [#39]]
+ -  The official category FST loader now declares the reference role. Legacy
+    artifacts without typed relation evidence retain conservative reference
+    readings under cooperating policies. [[#42], [#44]]
 
 ### @gukhanmun/stdict-cdb
 
  -  Ship format version 3 dictionary data carrying compound alias metadata.
     Load it with a reader that understands version 3. [[#38], [#39]]
+ -  The official CDB loader now declares the reference role and ships typed
+    source evidence. It loads compressed *stdict.cdb.gz* by default and accepts
+    raw or gzip custom URLs; the npm package retains the raw *stdict.cdb*
+    export. Evidence-bearing dictionaries require version 4 readers.
+    [[#42], [#44]]
 
 ### @gukhanmun/stdict-fst
 
  -  Ship format version 3 dictionary data carrying compound alias metadata.
     Load it with a reader that understands version 3. [[#38], [#39]]
+ -  The official FST loader now declares the reference role and ships typed
+    source evidence for dictionary-authorized alternate forms. Evidence-bearing
+    dictionaries require version 4 readers. [[#42], [#44]]
 
 ### @gukhanmun/types
 
+ -  Added `sourcePolicy`, `referenceOnly` and explicit dictionary `role`
+    options. File descriptors can inherit roles from embedded evidence; entry
+    descriptors and untagged legacy files default to authored overrides.
+    [[#42], [#44]]
  -  Added the `MapDictionarySource` dictionary variant for entries computed at
     runtime, and added the `suffixReading` and `preference` fields to
     `DictionaryEntry`. `DictionarySource` now accepts either the file or the
@@ -180,6 +306,15 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
+    evidence, while retaining support for older files. [[#42], [#44]]
+ -  Converters now default to reference-authorized source cooperation.
+    Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
+    `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
+ -  Fixed lattice streaming for overlapping dictionary matches so chunk
+    boundaries do not change the selected segmentation. Ambiguous prefixes may
+    remain buffered until a word boundary or EOF settles the path.
+    [[#42], [#44]]
  -  Recognize reviewed compound aliases and stop treating sibling spellings as
     homophones or separate first occurrences. [[#38], [#39]]
 

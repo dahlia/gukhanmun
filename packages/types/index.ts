@@ -117,6 +117,23 @@ export type OriginalGloss = "parens" | "ruby";
  */
 export type Segmentation = "lattice" | "eager";
 
+/**
+ * Cooperation between reference dictionaries and independent loanword sources.
+ * `"reference-authorized"` uses typed reference evidence to authorize alternate
+ * forms. `"reference-first"` and `"loanword-first"` select an explicit preference;
+ * `"ordered"` restores the original array-order behavior and ignores roles and
+ * {@link GukhanmunOptions.referenceOnly}. Authored overrides remain exclusive
+ * under every cooperative policy.
+ */
+export type SourcePolicy =
+  | "reference-authorized"
+  | "reference-first"
+  | "loanword-first"
+  | "ordered";
+
+/** A source's role, independent of preference among its own readings. */
+export type SourceRole = "override" | "reference" | "loanword";
+
 // ── Numeral strategy ────────────────────────────────────────────────────────
 
 /**
@@ -278,6 +295,12 @@ export interface DictionaryEntry {
  */
 export interface FileDictionarySource {
   /**
+   * Explicit source role, overriding the binary's evidence metadata. If neither
+   * supplies a role, the file is treated as an authored override. File names
+   * never determine roles. Official dictionary helpers supply their source role.
+   */
+  readonly role?: SourceRole;
+  /**
    * The binary dictionary data or a reference to where it can be loaded.
    *
    * Pass a `BufferSource` for data already in memory, a `URL` for a remote
@@ -330,6 +353,8 @@ export interface FileDictionarySource {
  * ```
  */
 export interface MapDictionarySource {
+  /** Defaults to an authored override; set a role to opt into cooperation. */
+  readonly role?: SourceRole;
   /**
    * The entries of this dictionary.
    *
@@ -347,9 +372,10 @@ export interface MapDictionarySource {
 /**
  * A dictionary source accepted by {@link GukhanmunOptions.dictionaries}.
  *
- * Sources are tried in array order; the first match for a hanja key wins, and
- * every source listed before a compiled dictionary overrides that dictionary
- * for the keys it carries.
+ * Authored overrides take precedence over cooperative reference and loanword
+ * sources. {@link GukhanmunOptions.sourcePolicy} controls cooperation; the
+ * `"ordered"` policy restores first-match array ordering. Source roles do not
+ * infer lexical identity or authorize forms without reference evidence.
  *
  * @example
  * ```ts
@@ -512,6 +538,13 @@ export interface GukhanmunOptions {
    * @see {@link Segmentation}
    */
   readonly segmentation?: Segmentation;
+  /** Source cooperation policy. Defaults to `"reference-authorized"`. */
+  readonly sourcePolicy?: SourcePolicy;
+  /**
+   * Excludes independent loanword choices while retaining reference-authorized
+   * realizations. Defaults to false; ignored by the `"ordered"` policy.
+   */
+  readonly referenceOnly?: boolean;
   /**
    * How runs of hanja numerals are converted.  Defaults to
    * `"hangul-phonetic"`.
@@ -577,8 +610,9 @@ export interface GukhanmunOptions {
    */
   readonly recovery?: Recovery;
   /**
-   * Ordered list of dictionary sources.  Sources are queried in order;
-   * earlier entries take precedence.  When omitted (or empty), only the
+   * Dictionary sources in stable registration order. Roles and `sourcePolicy`
+   * determine precedence; `"ordered"` restores first-match ordering. When omitted
+   * (or empty), only the
    * fallback Unihan character map is used (no bundled dictionaries).
    *
    * JavaScript presets do **not**
@@ -588,7 +622,8 @@ export interface GukhanmunOptions {
    * categories, add `@gukhanmun/opendict-fst` or
    * `@gukhanmun/opendict-cdb` explicitly. For NIKL loanword examples, load
    * `@gukhanmun/loanwords-fst` or `@gukhanmun/loanwords-cdb`. Put user
-   * dictionaries first, then loanwords, then the preset dictionaries.
+   * dictionaries first for stable override precedence. Cooperative reference
+   * and loanword sources use the selected source policy.
    *
    * Entries computed at runtime need no package and no `gukhanmun-mkdict` run:
    * pass {@link MapDictionarySource} (`{ entries: [...] }`) at the position

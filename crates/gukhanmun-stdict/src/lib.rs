@@ -66,6 +66,10 @@ impl KoKrDictionary {
 }
 
 impl HanjaDictionary for KoKrDictionary {
+    fn source_evidence(&self) -> Option<&gukhanmun_core::DictionaryEvidence> {
+        self.fst.source_evidence()
+    }
+
     fn candidate_matches_at<'a>(
         &'a self,
         s: &'a str,

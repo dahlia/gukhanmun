@@ -35,7 +35,7 @@
 
 import type { FileDictionarySource } from "@gukhanmun/types";
 
-export type { FileDictionarySource } from "@gukhanmun/types";
+export type { FileDictionarySource, SourceRole } from "@gukhanmun/types";
 
 /**
  * URL of the bundled Open Korean Dictionary 一般語 CDB binary.
@@ -217,35 +217,35 @@ export function opendictArchaicCdbBytes(
 /**
  * Loads the bundled Open Korean Dictionary 일반어 dictionary.
  *
- * @returns A `FileDictionarySource` with `format: "cdb"`.
+ * @returns A `FileDictionarySource` with `format: "cdb"` and `role: "reference"`.
  */
 export async function opendictGeneralCdb(): Promise<FileDictionarySource> {
-  return { data: await opendictGeneralCdbBytes(), format: "cdb" };
+  return { data: await opendictGeneralCdbBytes(), format: "cdb", role: "reference" };
 }
 
 /**
  * Loads the bundled Open Korean Dictionary 북한어 dictionary.
  *
- * @returns A `FileDictionarySource` with `format: "cdb"`.
+ * @returns A `FileDictionarySource` with `format: "cdb"` and `role: "reference"`.
  */
 export async function opendictNorthKoreanCdb(): Promise<FileDictionarySource> {
-  return { data: await opendictNorthKoreanCdbBytes(), format: "cdb" };
+  return { data: await opendictNorthKoreanCdbBytes(), format: "cdb", role: "reference" };
 }
 
 /**
  * Loads the bundled Open Korean Dictionary 방언 dictionary.
  *
- * @returns A `FileDictionarySource` with `format: "cdb"`.
+ * @returns A `FileDictionarySource` with `format: "cdb"` and `role: "reference"`.
  */
 export async function opendictDialectCdb(): Promise<FileDictionarySource> {
-  return { data: await opendictDialectCdbBytes(), format: "cdb" };
+  return { data: await opendictDialectCdbBytes(), format: "cdb", role: "reference" };
 }
 
 /**
  * Loads the bundled Open Korean Dictionary 옛말 dictionary.
  *
- * @returns A `FileDictionarySource` with `format: "cdb"`.
+ * @returns A `FileDictionarySource` with `format: "cdb"` and `role: "reference"`.
  */
 export async function opendictArchaicCdb(): Promise<FileDictionarySource> {
-  return { data: await opendictArchaicCdbBytes(), format: "cdb" };
+  return { data: await opendictArchaicCdbBytes(), format: "cdb", role: "reference" };
 }

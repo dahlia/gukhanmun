@@ -130,3 +130,46 @@ fn ko_kr_without_loanwords_feature_requires_opt_out() {
     let converter = Builder::new().no_bundled_loanwords().build().unwrap();
     assert_eq!(converter.convert_text_to_string("香港").unwrap(), "샹강");
 }
+
+#[cfg(all(feature = "loanwords", feature = "stdict"))]
+#[test]
+fn bundled_source_policy_covers_unrelated_names_particles_and_redirects() {
+    use gukhanmun::{Builder, ContextWindow, SegmentationStrategy, SourcePolicy};
+    for segmentation in [SegmentationStrategy::Eager, SegmentationStrategy::Lattice] {
+        let cooperative = Builder::new()
+            .segmentation(segmentation)
+            .homophone_window(ContextWindow::Off)
+            .build()
+            .unwrap();
+        for (input, expected) in [
+            ("東扶餘", "동부여"),
+            ("扶餘", "부여"),
+            ("香港", "홍콩"),
+            ("東京", "도쿄"),
+            ("北京", "베이징"),
+            ("伊藤博文", "이토 히로부미"),
+            ("高麗", "고려"),
+            ("東海", "동해"),
+            ("平", "평"),
+            ("平를", "다이라를"),
+            ("平을", "평을"),
+            ("扶餘를", "부여를"),
+            ("一睡", "한숨"),
+            ("三門峽", "싼먼샤"),
+        ] {
+            assert_eq!(
+                cooperative.convert_text_to_string(input).unwrap(),
+                expected,
+                "{input} / {segmentation:?}"
+            );
+        }
+        let legacy = Builder::new()
+            .segmentation(segmentation)
+            .source_policy(SourcePolicy::Ordered)
+            .homophone_window(ContextWindow::Off)
+            .build()
+            .unwrap();
+        assert_eq!(legacy.convert_text_to_string("扶餘").unwrap(), "푸위");
+        assert_eq!(legacy.convert_text_to_string("一睡").unwrap(), "일수");
+    }
+}

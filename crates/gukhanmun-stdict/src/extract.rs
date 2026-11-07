@@ -21,7 +21,13 @@ use std::fs;
 use std::io::{BufReader, Cursor, Read, Seek, Write};
 use std::path::Path;
 
+use gukhanmun_core::{
+    DictionaryEvidence, ReadingForm, SenseId, SourceReference, SourceRole, WordId, WordOrigin,
+};
 use gukhanmun_dict_extract::aliases::{AliasPolicy, AliasSource, derive_aliases};
+use gukhanmun_dict_extract::evidence::{
+    EvidenceBudget, SourceGraph, SourceRedirect, SourceSense, SourceWord, parse_sense_redirect,
+};
 use gukhanmun_dict_extract::{
     OriginalLanguageInfo, foreign_hanja_piece, is_hanja, keys_from_originals, normalize_word,
 };
@@ -124,6 +130,36 @@ pub fn extract_json_reader_to_tsv(reader: impl Read, writer: impl Write) -> Resu
     extractor.write_tsv(writer)
 }
 
+/// Extracts additive source evidence JSON without changing canonical TSV admission.
+///
+/// Raw word and sense IDs are indexed before candidate permissions are compiled,
+/// including phrases and records with no hanja keys. Sense IDs with unidentified
+/// owners remain unresolved rather than disappearing from collision checks.
+/// The original TSV candidates
+/// and their source IDs determine which evidence records are emitted. Missing
+/// contributor IDs leave a candidate uncovered rather than inventing provenance.
+pub fn extract_path_to_evidence_json(path: &Path, writer: impl Write) -> Result<()> {
+    let mut extractor = Extractor {
+        source_words: Some(Vec::new()),
+        ..Extractor::default()
+    };
+    extractor.read_path(path)?;
+    extractor.write_evidence_json(writer)
+}
+
+/// Extracts evidence from one JSON shard for tests and source-processing tools.
+///
+/// Use [`extract_path_to_evidence_json`] when links may point to another shard;
+/// a missing target conservatively invalidates the entire candidate promotion.
+pub fn extract_json_reader_to_evidence_json(reader: impl Read, writer: impl Write) -> Result<()> {
+    let mut extractor = Extractor {
+        source_words: Some(Vec::new()),
+        ..Extractor::default()
+    };
+    extractor.read_json(reader)?;
+    extractor.write_evidence_json(writer)
+}
+
 /// Statistics describing one extraction run.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ExtractStats {
@@ -151,6 +187,12 @@ struct Extractor {
     suffix_forms: BTreeMap<String, BTreeSet<String>>,
     /// Raw headword rows used for compound alias derivation.
     alias_sources: Vec<AliasSource>,
+    /// Complete raw graph, collected only for the additive evidence export.
+    source_words: Option<Vec<SourceWord>>,
+    /// Valid sense IDs on raw rows without a usable owning word identifier.
+    unresolved_senses: BTreeSet<SenseId>,
+    /// Candidates with an unidentifiable contributor cannot claim full coverage.
+    missing_source_forms: BTreeSet<(String, String)>,
 }
 
 impl Extractor {
@@ -217,6 +259,21 @@ impl Extractor {
 
     fn ingest_item(&mut self, item: Item) {
         let source_id = item.target_code;
+        if let Some(words) = &mut self.source_words {
+            if let Some(id) = source_id {
+                words.push(source_word(WordId(id), item.word_info.as_ref()));
+            } else {
+                self.unresolved_senses.extend(
+                    item.word_info
+                        .as_ref()
+                        .into_iter()
+                        .flat_map(|info| &info.pos_info)
+                        .flat_map(|pos| &pos.comm_pattern_info)
+                        .flat_map(|pattern| &pattern.sense_info)
+                        .filter_map(|sense| sense.sense_code.map(SenseId)),
+                );
+            }
+        }
         let Some(word_info) = item.word_info else {
             tracing::debug!(reason = "missing word_info", "skipping dictionary item");
             self.stats.skipped_items += 1;
@@ -297,6 +354,10 @@ impl Extractor {
             } else {
                 base_priority
             };
+            if self.source_words.is_some() && source_id.is_none() {
+                self.missing_source_forms
+                    .insert((key.clone(), reading.clone()));
+            }
             self.track_multisyllable_form(&key, &reading, suffix_headword);
             let entries = self.entries.entry(key).or_default();
             if !entries.is_empty() {
@@ -541,6 +602,50 @@ impl Extractor {
         Ok(())
     }
 
+    fn write_evidence_json(mut self, mut writer: impl Write) -> Result<()> {
+        let graph = SourceGraph::new(self.source_words.take().unwrap_or_default())
+            .with_unresolved_senses(std::mem::take(&mut self.unresolved_senses));
+        let mut entries = BTreeMap::new();
+        for (key, source_entries) in &self.entries {
+            let mut evidence = Vec::new();
+            for candidate in extraction_candidates(key, source_entries) {
+                if candidate.source_ids.is_empty()
+                    || self
+                        .missing_source_forms
+                        .contains(&(key.clone(), candidate.reading.clone()))
+                    || candidate.suffix_reading.as_ref().is_some_and(|suffix| {
+                        self.missing_source_forms
+                            .contains(&(key.clone(), suffix.clone()))
+                    })
+                {
+                    continue;
+                }
+                evidence.push(graph.compile_candidate(
+                    ReadingForm {
+                        reading: candidate.reading,
+                        suffix_reading: candidate.suffix_reading,
+                    },
+                    candidate.source_ids.into_iter().map(WordId),
+                    EvidenceBudget::default(),
+                ));
+            }
+            if !evidence.is_empty() {
+                entries.insert(key.clone(), evidence);
+            }
+        }
+        let evidence = DictionaryEvidence {
+            schema_version: 1,
+            role: SourceRole::Reference,
+            entries,
+        };
+        evidence
+            .validate()
+            .map_err(|error| Error::DefaultDecision(error.to_string()))?;
+        serde_json::to_writer(&mut writer, &evidence)?;
+        writeln!(writer)?;
+        Ok(())
+    }
+
     fn write_tsv(mut self, mut writer: impl Write) -> Result<ExtractStats> {
         let pins = default_decisions()?;
         self.stats.skipped_default_pins = pins
@@ -765,6 +870,9 @@ struct Item {
 #[derive(Debug, Deserialize)]
 struct WordInfo {
     word: Option<String>,
+    word_type: Option<String>,
+    #[serde(default)]
+    lexical_info: Vec<LexicalInfo>,
     word_unit: Option<String>,
     #[serde(default)]
     original_language_info: Option<Vec<OriginalLanguageInfo>>,
@@ -787,6 +895,9 @@ struct CommPatternInfo {
 
 #[derive(Debug, Deserialize)]
 struct SenseInfo {
+    sense_code: Option<u64>,
+    #[serde(default)]
+    lexical_info: Vec<LexicalInfo>,
     definition: Option<String>,
     definition_original: Option<String>,
     #[serde(default)]
@@ -796,6 +907,107 @@ struct SenseInfo {
 #[derive(Debug, Deserialize)]
 struct CatInfo {
     cat: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LexicalInfo {
+    unit: Option<String>,
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    link_target_code: Option<serde_json::Value>,
+}
+
+fn source_synonyms(relations: &[LexicalInfo]) -> Vec<Option<SourceReference>> {
+    relations
+        .iter()
+        .filter(|relation| relation.kind.as_deref() == Some("동의어"))
+        .map(|relation| {
+            let value = relation.link_target_code.as_ref()?;
+            let id = value.as_u64().or_else(|| {
+                let text = value.as_str()?;
+                if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+                    return None;
+                }
+                text.parse().ok()
+            })?;
+            match relation.unit.as_deref() {
+                Some("어휘") => Some(SourceReference::Word(WordId(id))),
+                Some("의미") => Some(SourceReference::Sense(SenseId(id))),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+fn source_word(id: WordId, info: Option<&WordInfo>) -> SourceWord {
+    let Some(info) = info else {
+        return SourceWord {
+            id,
+            reading: String::new(),
+            origin: WordOrigin::Unknown,
+            senses: Vec::new(),
+            synonyms: Vec::new(),
+        };
+    };
+    let origin = match info.word_type.as_deref() {
+        Some("한자어" | "고유어") => WordOrigin::Native,
+        Some("외래어") => WordOrigin::Foreign,
+        Some("혼종어") => {
+            let mut native = false;
+            let mut foreign = false;
+            let mut unknown = false;
+            for original in info.original_language_info.as_deref().unwrap_or(&[]) {
+                match original.language_type.as_deref() {
+                    Some("한자" | "고유어") => native = true,
+                    Some(language) if language.contains("병기") => {}
+                    Some("") | None => unknown = true,
+                    Some(_) => foreign = true,
+                }
+            }
+            match (native, foreign, unknown) {
+                (true, false, false) => WordOrigin::Native,
+                (true, true, false) => WordOrigin::Mixed,
+                _ => WordOrigin::Unknown,
+            }
+        }
+        _ => WordOrigin::Unknown,
+    };
+    SourceWord {
+        id,
+        // normalize_word removes only editorial hyphens/carets and trailing
+        // homograph digits. Literal phrase boundaries remain intact.
+        reading: info.word.as_deref().map(normalize_word).unwrap_or_default(),
+        origin,
+        synonyms: source_synonyms(&info.lexical_info),
+        senses: info
+            .pos_info
+            .iter()
+            .flat_map(|pos| &pos.comm_pattern_info)
+            .flat_map(|pattern| &pattern.sense_info)
+            .map(|sense| {
+                let mut redirect = parse_sense_redirect(sense.definition_original.as_deref());
+                if redirect == SourceRedirect::None
+                    && sense
+                        .definition
+                        .as_deref()
+                        .is_some_and(is_redirect_definition)
+                {
+                    // A visible arrow without a machine target must not become a
+                    // substantive terminal merely because the markup is absent.
+                    redirect = SourceRedirect::Invalid;
+                }
+                SourceSense {
+                    id: sense.sense_code.map(SenseId),
+                    foreign_name: sense
+                        .cat_info
+                        .iter()
+                        .any(|category| matches!(category.cat.as_deref(), Some("인명" | "지명"))),
+                    redirect,
+                    synonyms: source_synonyms(&sense.lexical_info),
+                }
+            })
+            .collect(),
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

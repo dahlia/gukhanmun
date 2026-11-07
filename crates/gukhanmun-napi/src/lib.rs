@@ -35,9 +35,10 @@ use gukhanmun::fst::FstDictionary;
 use gukhanmun::html::HtmlElementInfo;
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
-    Builder, ContextWindow, Converter, DirectiveAction, HanjaVariantSet, HomophoneDetection,
-    MapDictionary, MatchMark, NumeralStrategy, OriginalGloss, Preset, ReadingCandidate, Recovery,
-    RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
+    Builder, ContextWindow, Converter, DirectiveAction, HanjaDictionary, HanjaVariantSet,
+    HomophoneDetection, MapDictionary, MatchMark, NumeralStrategy, OriginalGloss, Preset,
+    ReadingCandidate, Recovery, RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
+    SourcePolicy, SourceRole,
 };
 
 // ── Option deserialization structs ──────────────────────────────────────────
@@ -51,6 +52,8 @@ struct JsOptions {
     original_gloss: Option<String>,
     hanja_variant_set: Option<String>,
     segmentation: Option<String>,
+    source_policy: Option<String>,
+    reference_only: Option<bool>,
     numerals: Option<String>,
     initial_sound_law: Option<bool>,
     homophone_window: Option<String>,
@@ -98,6 +101,8 @@ enum JsPreserveAttr {
 /// wrapper constructs the record, so the two shapes never mix.
 #[napi(object)]
 pub struct RawDictInput {
+    /// Explicit source role, taking precedence over binary evidence metadata.
+    pub role: Option<String>,
     /// Dictionary format: `"fst"` or `"cdb"` for a compiled artifact.
     pub format: Option<String>,
     /// Raw binary data of the compiled artifact.
@@ -201,6 +206,12 @@ impl NapiGukhanmun {
         if let Some(variant_set) = &opts.hanja_variant_set {
             builder = builder.hanja_variant_set(parse_hanja_variant_set(variant_set)?);
         }
+        if let Some(policy) = &opts.source_policy {
+            builder = builder.source_policy(parse_source_policy(policy)?);
+        }
+        if let Some(enabled) = opts.reference_only {
+            builder = builder.reference_only(enabled);
+        }
         if let Some(s) = &opts.segmentation {
             builder = builder.segmentation(parse_segmentation(s)?);
         }
@@ -266,6 +277,7 @@ impl NapiGukhanmun {
         }
 
         for dict in dictionaries.unwrap_or_default() {
+            let role = dict.role.as_deref().map(parse_source_role).transpose()?;
             if let Some(json) = dict.entries_json.as_deref() {
                 if dict.format.is_some() || dict.bytes.is_some() {
                     return Err(napi_err(
@@ -273,7 +285,10 @@ impl NapiGukhanmun {
                         "a dictionary must not combine `entries` with `format` or `bytes`",
                     ));
                 }
-                builder = builder.push_dictionary(entry_dictionary(json)?);
+                builder = builder.push_dictionary_with_role(
+                    entry_dictionary(json)?,
+                    role.unwrap_or(SourceRole::Override),
+                );
                 continue;
             }
             let (Some(format), Some(bytes)) = (dict.format.as_deref(), dict.bytes.as_deref())
@@ -287,13 +302,19 @@ impl NapiGukhanmun {
                 "fst" => {
                     let d = FstDictionary::from_bytes(bytes)
                         .map_err(|e| napi_err("dictionary-load", &e.to_string()))?;
-                    builder = builder.push_dictionary(d);
+                    let role = role
+                        .or_else(|| d.source_evidence().map(|evidence| evidence.role))
+                        .unwrap_or(SourceRole::Override);
+                    builder = builder.push_dictionary_with_role(d, role);
                 }
                 "cdb" => {
                     use gukhanmun::cdb::CdbDictionary;
                     let d = CdbDictionary::from_bytes(bytes)
                         .map_err(|e| napi_err("dictionary-load", &e.to_string()))?;
-                    builder = builder.push_dictionary(d);
+                    let role = role
+                        .or_else(|| d.source_evidence().map(|evidence| evidence.role))
+                        .unwrap_or(SourceRole::Override);
+                    builder = builder.push_dictionary_with_role(d, role);
                 }
                 other => {
                     return Err(napi_err(
@@ -547,6 +568,31 @@ fn parse_hanja_variant_set(variant_set: &str) -> napi::Result<HanjaVariantSet> {
         other => Err(napi_err(
             "invalid-input",
             &format!("unknown hanjaVariantSet: {other}"),
+        )),
+    }
+}
+
+fn parse_source_policy(value: &str) -> napi::Result<SourcePolicy> {
+    match value {
+        "reference-authorized" => Ok(SourcePolicy::ReferenceAuthorized),
+        "reference-first" => Ok(SourcePolicy::ReferenceFirst),
+        "loanword-first" => Ok(SourcePolicy::LoanwordFirst),
+        "ordered" => Ok(SourcePolicy::Ordered),
+        _ => Err(napi_err(
+            "invalid-input",
+            &format!("unknown source policy: {value}"),
+        )),
+    }
+}
+
+fn parse_source_role(value: &str) -> napi::Result<SourceRole> {
+    match value {
+        "override" => Ok(SourceRole::Override),
+        "reference" => Ok(SourceRole::Reference),
+        "loanword" => Ok(SourceRole::Loanword),
+        _ => Err(napi_err(
+            "invalid-input",
+            &format!("unknown dictionary source role: {value}"),
         )),
     }
 }

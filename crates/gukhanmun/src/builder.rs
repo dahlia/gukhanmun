@@ -22,8 +22,9 @@ use gukhanmun_core::{
     Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter,
     HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken, LexemeIndex,
     NumeralStrategy, OutputToken, PlainScopeData, Recovery, RedundantParenCollapser, RenderMode,
-    RenderOptions, RenderedToken, ScopeData, SegmentationStrategy, UserDirectives,
-    apply_user_directives_iter_with_lexemes, read_plain_text, render_tokens_iter, write_plain_text,
+    RenderOptions, RenderedToken, ScopeData, SegmentationStrategy, SourcePolicy, SourceRole,
+    UserDirectives, apply_user_directives_iter_with_lexemes, read_plain_text, render_tokens_iter,
+    write_plain_text,
 };
 
 use crate::error::Error;
@@ -127,7 +128,7 @@ pub struct Builder<'a> {
     bundled_stdict: bool,
     bundled_loanwords: bool,
     bundled_opendict_north_korean: bool,
-    dictionaries: Vec<BoxedDictionary<'a>>,
+    dictionaries: Vec<(BoxedDictionary<'a>, SourceRole)>,
     directives: UserDirectives<'a>,
     #[cfg(feature = "html")]
     html_reader_options: HtmlReaderOptions<'a>,
@@ -184,6 +185,22 @@ impl<'a> Builder<'a> {
     pub fn hanja_variant_set(mut self, variant_set: HanjaVariantSet) -> Self {
         self.hanja_variant_set_override = Some(variant_set);
         self.options.rendering.hanja_variant_set = variant_set;
+        self
+    }
+
+    /// Selects cooperation between reference and loanword dictionaries.
+    ///
+    /// Defaults to [`SourcePolicy::ReferenceAuthorized`]. Select
+    /// [`SourcePolicy::Ordered`] to restore the original dictionary-order policy.
+    pub fn source_policy(mut self, policy: SourcePolicy) -> Self {
+        self.options.source_policy = policy;
+        self
+    }
+
+    /// Excludes independent loanword choices, retaining reference-authorized
+    /// realizations. The legacy ordered policy ignores this eligibility filter.
+    pub fn reference_only(mut self, enabled: bool) -> Self {
+        self.options.reference_only = enabled;
         self
     }
 
@@ -307,12 +324,14 @@ impl<'a> Builder<'a> {
     ///
     /// Earlier `push_dictionary` calls take priority over later ones, and
     /// every user dictionary takes priority over the bundled dictionaries when
-    /// both are active.
+    /// both are active. Binary evidence roles do not change this authored
+    /// override behavior; use [`Self::push_dictionary_with_role`] for cooperation.
     pub fn push_dictionary<D>(mut self, dictionary: D) -> Self
     where
         D: HanjaDictionary + 'a,
     {
-        self.dictionaries.push(Box::new(dictionary));
+        self.dictionaries
+            .push((Box::new(dictionary), SourceRole::Override));
         self
     }
 
@@ -322,7 +341,30 @@ impl<'a> Builder<'a> {
     /// owns a `Box<dyn HanjaDictionary>`, for example from a runtime-format
     /// detector.
     pub fn push_boxed_dictionary(mut self, dictionary: BoxedDictionary<'a>) -> Self {
-        self.dictionaries.push(dictionary);
+        self.dictionaries.push((dictionary, SourceRole::Override));
+        self
+    }
+
+    /// Registers a dictionary with an explicit cooperative or override role.
+    ///
+    /// The supplied role takes precedence over binary evidence metadata. Unlike
+    /// this method, [`Self::push_dictionary`] always registers an authored
+    /// override. Relative registration order is retained for the ordered policy.
+    pub fn push_dictionary_with_role<D>(mut self, dictionary: D, role: SourceRole) -> Self
+    where
+        D: HanjaDictionary + 'a,
+    {
+        self.dictionaries.push((Box::new(dictionary), role));
+        self
+    }
+
+    /// Registers an already boxed dictionary with an explicit source role.
+    pub fn push_boxed_dictionary_with_role(
+        mut self,
+        dictionary: BoxedDictionary<'a>,
+        role: SourceRole,
+    ) -> Self {
+        self.dictionaries.push((dictionary, role));
         self
     }
 
@@ -423,15 +465,21 @@ impl<'a> Builder<'a> {
             let mut dictionaries = dictionaries;
             #[cfg(feature = "loanwords")]
             if bundled_loanwords {
-                dictionaries.push(Box::new(gukhanmun_loanwords::dictionary()));
+                dictionaries.push((
+                    Box::new(gukhanmun_loanwords::dictionary()),
+                    SourceRole::Loanword,
+                ));
             }
             #[cfg(feature = "opendict")]
             if bundled_opendict_north_korean {
-                dictionaries.push(Box::new(gukhanmun_opendict::north_korean()));
+                dictionaries.push((
+                    Box::new(gukhanmun_opendict::north_korean()),
+                    SourceRole::Reference,
+                ));
             }
             #[cfg(feature = "stdict")]
             if bundled_stdict {
-                dictionaries.push(Box::new(gukhanmun_stdict::ko_kr()));
+                dictionaries.push((Box::new(gukhanmun_stdict::ko_kr()), SourceRole::Reference));
             }
             dictionaries
         };
@@ -442,11 +490,21 @@ impl<'a> Builder<'a> {
         let html_reader_options = html_reader_options.preserve_unmatched_end_tags(
             options.punctuation != gukhanmun_core::PunctuationProfile::preserve(),
         );
-        let chain = ChainDictionary::from_iter(dictionaries);
-        let lexemes = chain
-            .lexemes()
-            .or_else(|| LexemeIndex::from_dictionary(&chain))
-            .unwrap_or_default();
+        let mut chain = ChainDictionary::new().with_source_policy(options.source_policy);
+        chain.set_reference_only(options.reference_only);
+        for (dictionary, role) in dictionaries {
+            chain.push_with_role(dictionary, role);
+        }
+        // Cooperative selections carry their source-local lexical identity.
+        // Only ordered resolution needs a merged index for pipeline middleware.
+        let lexemes = if options.source_policy == SourcePolicy::Ordered {
+            chain
+                .lexemes()
+                .or_else(|| LexemeIndex::from_dictionary(&chain))
+                .unwrap_or_default()
+        } else {
+            LexemeIndex::default()
+        };
         Ok(Converter {
             options,
             dictionary: chain,

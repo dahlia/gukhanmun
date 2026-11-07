@@ -33,7 +33,7 @@
 
 import type { FileDictionarySource } from "@gukhanmun/types";
 
-export type { FileDictionarySource } from "@gukhanmun/types";
+export type { FileDictionarySource, SourceRole } from "@gukhanmun/types";
 
 /** URL of the bundled NIKL loanword examples FST binary. */
 export const loanwordsFstUrl: URL = new URL("./loanwords.fst", import.meta.url);
@@ -92,8 +92,8 @@ export async function loanwordsFstBytes(
  * Loads the bundled NIKL loanword examples as a
  * {@link FileDictionarySource} ready to pass to `load({ dictionaries: [...] })`.
  *
- * @returns A `FileDictionarySource` with `format: "fst"`.
+ * @returns A `FileDictionarySource` with `format: "fst"` and `role: "loanword"`.
  */
 export async function loanwordsFst(): Promise<FileDictionarySource> {
-  return { data: await loanwordsFstBytes(), format: "fst" };
+  return { data: await loanwordsFstBytes(), format: "fst", role: "loanword" };
 }

@@ -7,7 +7,7 @@
     "include": [
       "README.md",
       "index.ts",
-      "stdict.cdb"
+      "stdict.cdb.gz"
     ]
   }
 }

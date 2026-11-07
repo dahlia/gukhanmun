@@ -19,7 +19,9 @@ use std::env;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use gukhanmun_mkdict::{BuildOptions, DictionaryFormat, MergePolicy, build_dictionary};
+use gukhanmun_mkdict::{
+    BuildOptions, DictionaryFormat, MergePolicy, build_dictionary_with_evidence,
+};
 
 fn main() -> Result<()> {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("manifest dir"));
@@ -33,10 +35,13 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-changed={}", aliases.display());
     println!("cargo:rerun-if-changed={}", relations.display());
     println!("cargo:rerun-if-changed={}", rules.display());
+    let evidence_path = manifest_dir.join("data/source-evidence.json");
+    println!("cargo:rerun-if-changed={}", evidence_path.display());
+    let evidence = serde_json::from_slice(&std::fs::read(evidence_path)?)?;
     let metadata = manifest_dir.join("data/metadata.json");
     println!("cargo:rerun-if-changed={}", metadata.display());
     let provenance: BTreeMap<String, String> = serde_json::from_slice(&std::fs::read(metadata)?)?;
-    build_dictionary(
+    build_dictionary_with_evidence(
         &[input, aliases],
         output,
         &BuildOptions {
@@ -49,6 +54,7 @@ fn main() -> Result<()> {
             allow_unmatched_rules: false,
             relations: vec![relations],
         },
+        &evidence,
     )?;
 
     Ok(())

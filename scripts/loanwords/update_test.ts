@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { canonical, hash, redactDiagnostics, update } from "./update.ts";
+import { canonical, hash, redactDiagnostics, sourceEvidence, update } from "./update.ts";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 const project = fileURLToPath(new URL("../../", import.meta.url));
@@ -119,9 +119,9 @@ async function fixture(): Promise<string> {
 }
 async function snapshot(root: string, readings: string[]): Promise<string> {
   const records = readings.map((reading, i) => ({
-    id: `synthetic-${i}`,
+    id: String(900000 + i),
     fields: {
-      example_no: `synthetic-${i}`,
+      example_no: String(900000 + i),
       srclang_mark: i < 2 ? "香港" : "日本",
       korean_mark: reading,
       regltn_code: "0003",
@@ -187,7 +187,7 @@ Deno.test("new reading conflicts preserve the successful corpus and changelog", 
   try {
     await update(root, "update", await snapshot(root, ["홍콩"]));
     const saved = await Promise.all(
-      ["snapshot.json", "loanwords.tsv", "report.json"].map((f) =>
+      ["snapshot.json", "loanwords.tsv", "source-evidence.json", "report.json"].map((f) =>
         Deno.readTextFile(`${root}/${data}/${f}`)
       ),
     );
@@ -196,7 +196,7 @@ Deno.test("new reading conflicts preserve the successful corpus and changelog", 
     assert.equal(result.status, "pending");
     assert.deepEqual(
       await Promise.all(
-        ["snapshot.json", "loanwords.tsv", "report.json"].map((f) =>
+        ["snapshot.json", "loanwords.tsv", "source-evidence.json", "report.json"].map((f) =>
           Deno.readTextFile(`${root}/${data}/${f}`)
         ),
       ),
@@ -309,9 +309,10 @@ Deno.test("trusted controller regenerates a separate maintenance layout and reje
         args: ["run", "-A", `${controller}/scripts/loanwords/update.ts`, mode, source],
         env: {
           GUKHANMUN_LOANWORDS_ROOT: root,
-          GUKHANMUN_LOANWORDS_BIN: `${project}/target/loanwords-tools/debug/gukhanmun-loanwords${
-            Deno.build.os === "windows" ? ".exe" : ""
-          }`,
+          GUKHANMUN_LOANWORDS_BIN: Deno.env.get("GUKHANMUN_LOANWORDS_BIN") ??
+            `${project}/target/loanwords-tools/debug/gukhanmun-loanwords${
+              Deno.build.os === "windows" ? ".exe" : ""
+            }`,
           GUKHANMUN_LOANWORDS_RESULT: `${controller}/result.json`,
           GITHUB_OUTPUT: `${controller}/output`,
         },
@@ -345,9 +346,8 @@ Deno.test("unmerged identical proposals retain validated collection metadata bef
   try {
     await update(root, "update", await snapshot(root, ["홍콩"]));
     const paths = [
-      ...["snapshot.json", "loanwords.tsv", "report.json", "metadata.json"].map((file) =>
-        `${data}/${file}`
-      ),
+      ...["snapshot.json", "loanwords.tsv", "source-evidence.json", "report.json", "metadata.json"]
+        .map((file) => `${data}/${file}`),
       "CHANGES.md",
       ...sections.map((section) => `changes.d/${section}/loanword-data-update.md`),
     ];
@@ -391,5 +391,28 @@ Deno.test("unmerged identical proposals retain validated collection metadata bef
     );
   } finally {
     await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("loanword evidence retains every exact decimal source ID and positional pair", () => {
+  const tsv =
+    "hanja\thangul\tsuffix_reading\tsource_ids\n霧川\t무천\t무쳔\t7,18446744073709551615\n霧川\t모가\t\t9\n";
+  const text = new TextDecoder().decode(sourceEvidence(tsv));
+  assert.ok(text.includes('"word_id":18446744073709551615'));
+  const value = JSON.parse(text);
+  assert.equal(value.role, "loanword");
+  assert.equal(value.schema_version, 1);
+  assert.deepEqual(
+    value.entries["霧川"].map((candidate: { reading: string }) => candidate.reading),
+    ["무천", "모가"],
+  );
+  assert.equal(value.entries["霧川"][0].suffix_reading, "무쳔");
+  assert.equal(value.entries["霧川"][0].contributors.length, 2);
+  assert.equal(value.entries["霧川"][0].contributors[0].origin, "foreign");
+  assert.equal(new TextDecoder().decode(sourceEvidence(tsv)), text);
+  for (const id of ["synthetic", "01", "18446744073709551616", "7,7", ""]) {
+    assert.throws(() =>
+      sourceEvidence(`hanja\thangul\tsuffix_reading\tsource_ids\n霧川\t무천\t\t${id}\n`)
+    );
   }
 });

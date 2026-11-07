@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Match, ReadingCandidates, select_default_reading};
+use crate::{Match, ReadingCandidates};
 
 // Four scalars decide every supported suffix, including its boundary witness.
 pub(crate) const LOOKAHEAD: usize = 4;
@@ -87,21 +87,39 @@ pub(crate) fn select(
     final_end: bool,
     byte_len: usize,
 ) -> Match {
-    let selected = requirement(following, final_end)
-        .and_then(|required| {
-            candidates.as_slice().iter().find(|candidate| {
-                compatible(&candidate.reading, required)
-                    || candidate
-                        .suffix_reading
-                        .as_deref()
-                        .is_some_and(|suffix| compatible(suffix, required))
-            })
-        })
-        .unwrap_or_else(|| select_default_reading(candidates));
+    let index = select_form_index(
+        candidates.as_slice().iter().map(|candidate| {
+            (
+                candidate.reading.as_str(),
+                candidate.suffix_reading.as_deref(),
+            )
+        }),
+        following,
+        final_end,
+    );
+    let selected = &candidates.as_slice()[index];
     Match {
         byte_len,
         reading: selected.reading.clone(),
         suffix_reading: selected.suffix_reading.clone(),
         mark: selected.mark,
     }
+}
+
+// Shared by legacy and source-aware selection; the ranked pool is filtered once.
+pub(crate) fn select_form_index<'a>(
+    forms: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,
+    following: &str,
+    final_end: bool,
+) -> usize {
+    let Some(required) = requirement(following, final_end) else {
+        return 0;
+    };
+    forms
+        .into_iter()
+        .position(|(reading, suffix)| {
+            compatible(reading, required)
+                || suffix.is_some_and(|suffix| compatible(suffix, required))
+        })
+        .unwrap_or(0)
 }

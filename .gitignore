@@ -8,6 +8,7 @@ packages/wasm/pkg/
 packages/wasm/wasm/
 packages/stdict-fst/stdict.fst
 packages/stdict-cdb/stdict.cdb
+packages/stdict-cdb/stdict.cdb.gz
 packages/opendict-fst/*.fst
 packages/opendict-cdb/*.cdb
 packages/opendict-cdb/*.cdb.gz

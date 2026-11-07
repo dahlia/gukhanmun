@@ -20,9 +20,10 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
+use gukhanmun_core::DictionaryEvidence;
 use gukhanmun_mkdict::{
     BuildOptions, DEFAULT_MAX_KEY_BYTES, DictionaryFormat, MergePolicy, build_dictionary,
-    parse_metadata_arg,
+    build_dictionary_with_evidence, parse_metadata_arg,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -70,6 +71,10 @@ struct Cli {
     #[arg(long = "relations", value_name = "PATH")]
     relations: Vec<PathBuf>,
 
+    /// Candidate-linked source evidence JSON, compiled from the source dump.
+    #[arg(long, value_name = "PATH")]
+    evidence: Option<PathBuf>,
+
     /// Enable debug-level diagnostic output (overridden by RUST_LOG).
     #[arg(short, long)]
     verbose: bool,
@@ -115,6 +120,11 @@ fn main() -> Result<()> {
         relations: cli.relations,
     };
 
-    build_dictionary(&cli.inputs, cli.output, &options)?;
+    if let Some(path) = cli.evidence {
+        let evidence: DictionaryEvidence = serde_json::from_slice(&std::fs::read(path)?)?;
+        build_dictionary_with_evidence(&cli.inputs, cli.output, &options, &evidence)?;
+    } else {
+        build_dictionary(&cli.inputs, cli.output, &options)?;
+    }
     Ok(())
 }

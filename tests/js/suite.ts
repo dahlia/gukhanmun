@@ -349,6 +349,96 @@ export function registerSuite(name: string, binding: Binding): void {
     }
   });
 
+  describe(`${name}: source policies`, () => {
+    const reference = { role: "reference" as const, entries: [{ hanja: "宙名", reading: "가온" }] };
+    const loanword = { role: "loanword" as const, entries: [{ hanja: "宙名", reading: "누리" }] };
+
+    test("role cooperation is independent of source array ordering", async () => {
+      for (const dictionaries of [[loanword, reference], [reference, loanword]]) {
+        const g = await load({ dictionaries, homophoneWindow: "off" });
+        assert.equal(g.convert("宙名"), "가온");
+        assert.equal(g.options.sourcePolicy, "reference-authorized");
+        assert.equal(g.options.referenceOnly, false);
+      }
+    });
+
+    test("explicit profiles and ordered compatibility reach both bindings", async () => {
+      for (
+        const [sourcePolicy, expected] of [
+          ["reference-first", "가온"],
+          ["loanword-first", "누리"],
+          ["ordered", "누리"],
+        ] as const
+      ) {
+        const g = await load({
+          dictionaries: [loanword, reference],
+          sourcePolicy,
+          homophoneWindow: "off",
+        });
+        assert.equal(g.convert("宙名"), expected);
+        assert.equal(g.options.sourcePolicy, sourcePolicy);
+        assert.equal(await streamAll(g.stream(), ["宙", "名"]), expected);
+      }
+      const reversed = await load({ dictionaries: [reference, loanword], sourcePolicy: "ordered" });
+      assert.equal(reversed.convert("宙名"), "가온");
+    });
+
+    test("referenceOnly filters independent loans and is visible in options", async () => {
+      const g = await load({
+        dictionaries: [loanword, reference],
+        sourcePolicy: "loanword-first",
+        referenceOnly: true,
+      });
+      assert.equal(g.convert("宙名"), "가온");
+      assert.equal(g.options.referenceOnly, true);
+      const legacy = await load({
+        dictionaries: [loanword, reference],
+        sourcePolicy: "ordered",
+        referenceOnly: true,
+      });
+      assert.equal(legacy.convert("宙名"), "누리");
+    });
+
+    test("anonymous entries remain exclusive authored overrides", async () => {
+      const g = await load({
+        dictionaries: [loanword, reference, { entries: [{ hanja: "宙名", reading: "다솜" }] }],
+      });
+      assert.equal(g.convert("宙名"), "다솜");
+    });
+
+    test("byte-backed binary descriptors retain explicit roles", async () => {
+      const compiled = await stdictFst();
+      assert.equal(compiled.role, "reference");
+      const reference = {
+        role: "reference" as const,
+        entries: [{ hanja: "東京", reading: "다솜" }],
+      };
+      const g = await load({ dictionaries: [reference, { ...compiled, role: "override" }] });
+      assert.equal(g.convert("東京"), "도쿄");
+      const typed = compiled.data as Uint8Array<ArrayBuffer>;
+      const buffer = typed.buffer.slice(typed.byteOffset, typed.byteOffset + typed.byteLength);
+      const copied = await load({
+        dictionaries: [reference, { data: buffer, format: "fst", role: "override" }],
+      });
+      assert.equal(copied.convert("東京"), "도쿄");
+    });
+
+    test("invalid policy and role values produce invalid-input errors", async () => {
+      for (
+        const options of [
+          { sourcePolicy: "guess" },
+          { referenceOnly: "yes" },
+          { dictionaries: [{ entries: [], role: "guess" }] },
+        ]
+      ) {
+        await assert.rejects(
+          () => load(options as never),
+          (error: unknown) => error instanceof GukhanmunError && error.code === "invalid-input",
+        );
+      }
+    });
+  });
+
   // ── Runtime entry dictionaries ───────────────────────────────────────────
   // Entries computed in memory must reach the engine as a `MapDictionary`, with
   // no compiled artifact and no `gukhanmun-mkdict` run.
@@ -363,7 +453,7 @@ export function registerSuite(name: string, binding: Binding): void {
       assert.equal(fallback.convert("東京"), "동경");
     });
 
-    test("an entry source overrides a compiled dictionary listed after it", async () => {
+    test("authored entries override cooperative references regardless of array position", async () => {
       const compiled = await stdictFst();
       const overridden = await load({
         dictionaries: [{ entries: [{ hanja: "東京", reading: "동경" }] }, compiled],
@@ -373,7 +463,12 @@ export function registerSuite(name: string, binding: Binding): void {
       const original = await load({
         dictionaries: [compiled, { entries: [{ hanja: "東京", reading: "동경" }] }],
       });
-      assert.equal(original.convert("東京"), "도쿄");
+      assert.equal(original.convert("東京"), "동경");
+      const ordered = await load({
+        sourcePolicy: "ordered",
+        dictionaries: [compiled, { entries: [{ hanja: "東京", reading: "동경" }] }],
+      });
+      assert.equal(ordered.convert("東京"), "도쿄");
     });
 
     test("repeated keys keep competing readings and particle evidence picks one", async () => {

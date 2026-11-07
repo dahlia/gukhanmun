@@ -82,3 +82,29 @@ for (const [name, load, bundledUrl] of loaders) {
     });
   });
 }
+
+describe("stdict-cdb: gzip storage", () => {
+  test("the default URL is compressed but the loader returns raw CDB bytes", async () => {
+    assert.ok(stdictCdbUrl.pathname.endsWith("/stdict.cdb.gz"));
+    const bytes = await stdictCdbBytes();
+    const raw = await stdictCdbBytes(new URL("./stdict.cdb", stdictCdbUrl));
+    assert.deepEqual(bytes, raw);
+  });
+
+  test("gzip payloads fetched from a URL without a .gz suffix are inflated", async () => {
+    const payload = new TextEncoder().encode("relocated source evidence");
+    const stream = new Blob([payload]).stream().pipeThrough(new CompressionStream("gzip"));
+    const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+    const bytes = await stdictCdbBytes(dataUrl(compressed));
+    assert.deepEqual([...bytes], [...payload]);
+  });
+
+  test("raw relocated payloads are returned unchanged", async () => {
+    const payload = new TextEncoder().encode("raw relocated source evidence");
+    assert.deepEqual([...await stdictCdbBytes(dataUrl(payload))], [...payload]);
+  });
+
+  test("malformed gzip is rejected instead of being passed to the dictionary decoder", async () => {
+    await assert.rejects(() => stdictCdbBytes(dataUrl(new Uint8Array([0x1f, 0x8b, 0, 0]))));
+  });
+});

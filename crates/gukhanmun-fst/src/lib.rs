@@ -31,8 +31,8 @@ use ciborium::de::from_reader;
 use fst::automaton::Automaton;
 use fst::{IntoStreamer, Map, Streamer};
 use gukhanmun_core::{
-    CandidateError, CandidateMatch, CandidateRecord, DictionaryRecord, HanjaDictionary,
-    LexemeIndex, Match, MatchMark, ReadingCandidate, ReadingCandidates,
+    CandidateError, CandidateMatch, CandidateRecord, DictionaryEvidence, DictionaryRecord,
+    HanjaDictionary, LexemeIndex, Match, MatchMark, ReadingCandidate, ReadingCandidates,
     candidate_matches_at_spellings, select_default_reading,
 };
 
@@ -60,6 +60,7 @@ pub struct FstDictionary {
     entry_count: u64,
     max_word_chars: Option<usize>,
     lexemes: LexemeIndex,
+    evidence: Option<Arc<DictionaryEvidence>>,
 }
 
 impl FstDictionary {
@@ -96,8 +97,7 @@ impl FstDictionary {
             .ok_or(Error::SectionOutOfBounds {
                 section: "metadata",
             })?;
-        let metadata = from_reader::<BTreeMap<String, String>, _>(metadata_bytes)
-            .map_err(|source| Error::MetadataDecode { source })?;
+        let (metadata, evidence) = decode_metadata(metadata_bytes)?;
         let fst_bytes = source
             .section(header.fst_offset, header.fst_len)
             .ok_or(Error::SectionOutOfBounds { section: "FST" })?;
@@ -122,7 +122,17 @@ impl FstDictionary {
             ?max_word_chars,
             "decoded FST dictionary"
         );
-        Ok(Self {
+        if (format_version == 4) != evidence.is_some() {
+            return Err(Error::SourceEvidence {
+                reason: "source evidence requires container version 4 and must be present in that version".into(),
+            });
+        }
+        if format_version == 4 && metadata.get("version").map(String::as_str) != Some("4") {
+            return Err(Error::SourceEvidence {
+                reason: "container and metadata versions disagree".into(),
+            });
+        }
+        let dictionary = Self {
             metadata,
             format_version,
             map,
@@ -130,10 +140,42 @@ impl FstDictionary {
             entry_count,
             max_word_chars,
             lexemes,
-        })
+            evidence: evidence.map(Arc::new),
+        };
+        if let Some(evidence) = dictionary.evidence.as_ref() {
+            let mut lookup_error = None;
+            let mut records = evidence.entries.keys().filter_map(|key| {
+                let error = match dictionary.lookup(key) {
+                    Ok(Some(entry)) => {
+                        return Some(CandidateRecord {
+                            hanja: key.clone(),
+                            candidates: entry.candidates,
+                        });
+                    }
+                    Ok(None) => Error::SourceEvidence {
+                        reason: format!("evidence references absent key {key:?}"),
+                    },
+                    Err(error) => error,
+                };
+                lookup_error.get_or_insert(error);
+                None
+            });
+            let validation = evidence.validate_records(records.by_ref());
+            // The validator may reject an early link. Still inspect every later
+            // evidence key, preserving the original lookup-error precedence.
+            records.for_each(drop);
+            if let Some(error) = lookup_error {
+                return Err(error);
+            }
+            validation.map_err(|error| Error::SourceEvidence {
+                reason: error.to_string(),
+            })?;
+        }
+        Ok(dictionary)
     }
 
-    /// Returns build metadata embedded in the dictionary file.
+    /// Returns string-valued build metadata embedded in the dictionary file.
+    /// Critical evidence is available through [`HanjaDictionary::source_evidence`].
     pub fn metadata(&self) -> &BTreeMap<String, String> {
         &self.metadata
     }
@@ -240,6 +282,10 @@ impl AsRef<[u8]> for ByteSection {
 }
 
 impl HanjaDictionary for FstDictionary {
+    fn source_evidence(&self) -> Option<&DictionaryEvidence> {
+        self.evidence.as_deref()
+    }
+
     fn candidate_matches_at<'a>(
         &'a self,
         s: &'a str,
@@ -385,6 +431,13 @@ pub enum Error {
         section: &'static str,
     },
 
+    /// Critical source evidence is missing, malformed, or inconsistent with candidates.
+    #[error("invalid dictionary source evidence: {reason}")]
+    SourceEvidence {
+        /// Explanation of the invalid evidence or metadata link.
+        reason: String,
+    },
+
     /// CBOR metadata could not be decoded.
     #[error("failed to decode dictionary metadata: {source}")]
     MetadataDecode {
@@ -447,7 +500,7 @@ impl FixedHeader {
             return Err(Error::InvalidMagic);
         }
         let version = read_u32(&bytes[8..12]);
-        if !matches!(version, 1..=3) {
+        if !matches!(version, 1..=4) {
             tracing::error!(
                 version,
                 expected = FORMAT_VERSION,
@@ -521,6 +574,69 @@ fn decode_mark(encoded: u8) -> MatchMark {
     }
 }
 
+struct EvidencePayload(DictionaryEvidence);
+impl<'de> serde::Deserialize<'de> for EvidencePayload {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        gukhanmun_core::deserialize_dictionary_evidence(deserializer).map(Self)
+    }
+}
+
+struct StoredMetadata {
+    strings: BTreeMap<String, String>,
+    evidence: Option<DictionaryEvidence>,
+}
+
+impl<'de> serde::Deserialize<'de> for StoredMetadata {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct MetadataVisitor;
+        impl<'de> serde::de::Visitor<'de> for MetadataVisitor {
+            type Value = StoredMetadata;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("dictionary metadata with optional critical source evidence")
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Self::Value, A::Error> {
+                use serde::de::Error as _;
+                let mut strings = BTreeMap::new();
+                let mut evidence = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    if key == "candidate_evidence" {
+                        if evidence.is_some() {
+                            return Err(A::Error::custom("duplicate candidate evidence"));
+                        }
+                        evidence = Some(map.next_value::<EvidencePayload>()?.0);
+                    } else if strings.insert(key, map.next_value::<String>()?).is_some() {
+                        return Err(A::Error::custom("duplicate metadata field"));
+                    }
+                }
+                Ok(StoredMetadata { strings, evidence })
+            }
+        }
+        deserializer.deserialize_map(MetadataVisitor)
+    }
+}
+
+fn decode_metadata(
+    bytes: &[u8],
+) -> Result<(BTreeMap<String, String>, Option<DictionaryEvidence>), Error> {
+    let mut reader = std::io::Cursor::new(bytes);
+    let decoded: StoredMetadata =
+        from_reader(&mut reader).map_err(|source| Error::MetadataDecode { source })?;
+    if let Some(evidence) = decoded.evidence.as_ref() {
+        evidence.validate().map_err(|error| Error::SourceEvidence {
+            reason: error.to_string(),
+        })?;
+        if reader.position() != bytes.len() as u64 {
+            return Err(Error::SourceEvidence {
+                reason: "trailing bytes in critical metadata".into(),
+            });
+        }
+    }
+    Ok((decoded.strings, decoded.evidence))
+}
+
 fn parse_u64_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Option<u64> {
     metadata.get(key).and_then(|value| value.parse().ok())
 }
@@ -585,6 +701,42 @@ mod tests {
     const VALUE_MARK_SHIFT: u64 = 16;
     const VALUE_OFFSET_SHIFT: u64 = 24;
 
+    #[derive(serde::Serialize)]
+    struct EvidencePayload<'a>(
+        #[serde(serialize_with = "gukhanmun_core::serialize_dictionary_evidence")]
+        &'a gukhanmun_core::DictionaryEvidence,
+    );
+
+    fn source_evidence(readings: &[(&str, &str)]) -> gukhanmun_core::DictionaryEvidence {
+        use gukhanmun_core::{
+            CandidateEvidence, DictionaryEvidence, SourceContribution, SourceRole, WordId,
+            WordOrigin,
+        };
+        DictionaryEvidence {
+            schema_version: 1,
+            role: SourceRole::Reference,
+            entries: readings
+                .iter()
+                .enumerate()
+                .map(|(index, (key, reading))| {
+                    (
+                        (*key).into(),
+                        vec![CandidateEvidence {
+                            reading: (*reading).into(),
+                            suffix_reading: None,
+                            contributors: vec![SourceContribution {
+                                word_id: WordId(index as u64),
+                                sense_id: None,
+                                origin: WordOrigin::Native,
+                            }],
+                            authorized_forms: vec![],
+                            diagnostics: vec![],
+                        }],
+                    )
+                })
+                .collect(),
+        }
+    }
     #[test]
     fn loads_valid_bytes_metadata_and_lookup() {
         let bytes = fixture_bytes(&[
@@ -712,6 +864,36 @@ mod tests {
     }
 
     #[test]
+    fn evidence_validation_preserves_later_lookup_errors_after_early_link_failure() {
+        for (key, reading) in [("天地", "천지"), ("天地", "다름"), ("不存在", "천지")]
+        {
+            let evidence = source_evidence(&[(key, reading), ("漢字", "한자")]);
+            let mut bytes = fixture_bytes_with_evidence(
+                &[
+                    entry("天地", "천지", false, false),
+                    entry("漢字", "한자", false, false),
+                ],
+                Some(&evidence),
+            );
+            *bytes.last_mut().unwrap() = 0xff;
+            let error = FstDictionary::from_bytes(&bytes).unwrap_err();
+            if key == "不存在" {
+                assert!(
+                    matches!(error, super::Error::SourceEvidence {reason} if reason == r#"evidence references absent key "不存在""#)
+                );
+            } else {
+                assert!(matches!(
+                    error,
+                    super::Error::InvalidUtf8 {
+                        field: "reading",
+                        ..
+                    }
+                ));
+            }
+        }
+    }
+
+    #[test]
     fn matches_at_returns_every_prefix_match() {
         let dictionary = FstDictionary::from_bytes(&fixture_bytes(&[
             entry("行事", "행사", false, false),
@@ -822,12 +1004,24 @@ mod tests {
     }
 
     fn fixture_bytes(entries: &[TestEntry<'_>]) -> Vec<u8> {
+        fixture_bytes_with_evidence(entries, None)
+    }
+
+    fn fixture_bytes_with_evidence(
+        entries: &[TestEntry<'_>],
+        evidence: Option<&gukhanmun_core::DictionaryEvidence>,
+    ) -> Vec<u8> {
+        let format_version = if evidence.is_some() {
+            4u32
+        } else {
+            FORMAT_VERSION
+        };
         let mut metadata = BTreeMap::new();
         metadata.insert("source".to_owned(), "fixture".to_owned());
         metadata.insert("license".to_owned(), "CC0-1.0".to_owned());
         metadata.insert("build_date".to_owned(), "1970-01-01T00:00:00Z".to_owned());
         metadata.insert("entry_count".to_owned(), entries.len().to_string());
-        metadata.insert("version".to_owned(), FORMAT_VERSION.to_string());
+        metadata.insert("version".to_owned(), format_version.to_string());
         metadata.insert(
             "max_word_chars".to_owned(),
             entries
@@ -846,8 +1040,17 @@ mod tests {
                 .unwrap_or(0)
                 .to_string(),
         );
+        let mut encoded_metadata = ciborium::value::Value::serialized(&metadata).unwrap();
+        if let (Some(evidence), ciborium::value::Value::Map(fields)) =
+            (evidence, &mut encoded_metadata)
+        {
+            fields.push((
+                ciborium::value::Value::Text("candidate_evidence".into()),
+                ciborium::value::Value::serialized(&EvidencePayload(evidence)).unwrap(),
+            ));
+        }
         let mut metadata_bytes = Vec::new();
-        into_writer(&metadata, &mut metadata_bytes).unwrap();
+        into_writer(&encoded_metadata, &mut metadata_bytes).unwrap();
 
         let mut readings = Vec::new();
         let mut builder = MapBuilder::memory();
@@ -868,7 +1071,7 @@ mod tests {
         let readings_offset = fst_offset + fst_bytes.len() as u64;
         let mut output = Vec::new();
         output.extend_from_slice(MAGIC);
-        output.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
+        output.extend_from_slice(&format_version.to_le_bytes());
         output.extend_from_slice(&(FIXED_HEADER_LEN as u32).to_le_bytes());
         output.extend_from_slice(&metadata_offset.to_le_bytes());
         output.extend_from_slice(&(metadata_bytes.len() as u64).to_le_bytes());

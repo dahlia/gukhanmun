@@ -25,7 +25,7 @@ import { stdictFst } from "../../packages/stdict-fst/index.ts";
 for (const [name, load] of [["wasm", wasm], ["napi", napi]] as const) {
   for (const [format, dictionary] of [["fst", loanwordsFst], ["cdb", loanwordsCdb]] as const) {
     describe(`${name}: NIKL loanwords ${format}`, () => {
-      test("explicit loanwords precede stdict, and a user dictionary overrides both", async () => {
+      test("reference-authorized loanwords ignore source order and authored overrides win", async () => {
         const loanwords = await dictionary(), standard = await stdictFst();
         const user = {
           format: "fst" as const,
@@ -45,7 +45,13 @@ for (const [name, load] of [["wasm", wasm], ["napi", napi]] as const) {
           dictionaries: [standard, loanwords],
           homophoneWindow: "off",
         });
-        assert.equal(reversed.convert("香港"), "샹강");
+        assert.equal(reversed.convert("香港"), "홍콩");
+        const ordered = await load({
+          sourcePolicy: "ordered",
+          dictionaries: [standard, loanwords],
+          homophoneWindow: "off",
+        });
+        assert.equal(ordered.convert("香港"), "샹강");
       });
       test("loanword streaming matches one-shot conversion at every character split", async () => {
         const selected = await load({ dictionaries: [await dictionary()], homophoneWindow: "off" });
