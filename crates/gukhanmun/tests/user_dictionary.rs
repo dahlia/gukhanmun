@@ -348,3 +348,57 @@ fn conversions_reuse_the_resolved_lexeme_index() {
         "conversions must reuse the index resolved at build time"
     );
 }
+
+#[test]
+fn bundled_source_phrases_are_default_and_respect_scope_and_override() {
+    use gukhanmun::SegmentationStrategy;
+    for strategy in [SegmentationStrategy::Eager, SegmentationStrategy::Lattice] {
+        let converter = Builder::new()
+            .segmentation(strategy)
+            .homophone_window(ContextWindow::Off)
+            .html_preserve_when(|element| element.raw_attributes.contains("translate=\"no\""))
+            .build()
+            .unwrap();
+        assert_eq!(
+            converter
+                .convert_text_to_string("車間距離 車間 江門八學士 江門")
+                .unwrap(),
+            "차간거리 찻간 강문팔학사 장먼"
+        );
+        assert_eq!(
+            converter
+                .convert_text_to_string(
+                    "無條件降服 無條件降服하다 무조건 降服 降服 생부에게는 降服되는"
+                )
+                .unwrap(),
+            "무조건항복 무조건항복하다 무조건 항복 강복 생부에게는 강복되는"
+        );
+        assert_eq!(
+            converter
+                .convert_html_fragment_to_string("<p>무조건</p><p>降服</p>")
+                .unwrap(),
+            "<p>무조건</p><p>강복</p>"
+        );
+        assert_eq!(
+            converter
+                .convert_html_fragment_to_string("<span translate=\"no\">無條件降服</span>")
+                .unwrap(),
+            "<span translate=\"no\">無條件降服</span>"
+        );
+        let mut overrides = MapDictionary::new();
+        overrides.insert("降服", "강복");
+        overrides.insert("降服하다", "강복하다");
+        let converter = Builder::new()
+            .segmentation(strategy)
+            .homophone_window(ContextWindow::Off)
+            .push_dictionary(overrides)
+            .build()
+            .unwrap();
+        assert_eq!(
+            converter
+                .convert_text_to_string("無條件降服 無條件降服하다")
+                .unwrap(),
+            "무조건강복 무조건강복하다"
+        );
+    }
+}

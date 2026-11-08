@@ -44,7 +44,7 @@ ENDPOINTS = {
     "opendict": "https://opendict.korean.go.kr/member/fileDownload",
 }
 FILES = {
-    "stdict": ("stdict.tsv", "suffix.tsv", "aliases.tsv", "relations.tsv", "aliases-manifest.jsonl", "source-evidence.json"),
+    "stdict": ("stdict.tsv", "suffix.tsv", "aliases.tsv", "relations.tsv", "aliases-manifest.jsonl", "source-evidence.json", "phrase-evidence.json", "phrase-manifest.json"),
     "opendict": (
         "general.tsv",
         "north-korean.tsv",

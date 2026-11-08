@@ -63,6 +63,14 @@ struct Cli {
     #[arg(long, value_name = "PATH")]
     evidence_output: Option<PathBuf>,
 
+    /// Path to write strict source phrase evidence JSON.
+    #[arg(long, value_name = "PATH", requires = "phrase_manifest_output")]
+    phrase_evidence_output: Option<PathBuf>,
+
+    /// Path to write the deterministic phrase admission audit.
+    #[arg(long, value_name = "PATH", requires = "phrase_evidence_output")]
+    phrase_manifest_output: Option<PathBuf>,
+
     /// Check that output files match extraction without modifying them.
     #[arg(long, requires = "output")]
     check: bool,
@@ -119,6 +127,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         gukhanmun_stdict::extract::extract_path_to_tsv(&cli.input, &mut output)?
     };
+    if let Some(path) = cli.phrase_evidence_output {
+        let mut evidence = Vec::new();
+        let mut manifest = Vec::new();
+        gukhanmun_stdict::extract::extract_path_to_phrase_files(
+            &cli.input,
+            &mut evidence,
+            &mut manifest,
+        )?;
+        write_or_check(path, &evidence, cli.check)?;
+        write_or_check(
+            cli.phrase_manifest_output
+                .expect("clap requires phrase manifest"),
+            &manifest,
+            cli.check,
+        )?;
+    }
     if let Some(path) = cli.evidence_output {
         let mut evidence = Vec::new();
         gukhanmun_stdict::extract::extract_path_to_evidence_json(&cli.input, &mut evidence)?;

@@ -20,10 +20,10 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
-use gukhanmun_core::DictionaryEvidence;
+use gukhanmun_core::{DictionaryEvidence, PhraseEvidence};
 use gukhanmun_mkdict::{
-    BuildOptions, DEFAULT_MAX_KEY_BYTES, DictionaryFormat, MergePolicy, build_dictionary,
-    build_dictionary_with_evidence, parse_metadata_arg,
+    BuildOptions, DEFAULT_MAX_KEY_BYTES, DictionaryFormat, MergePolicy,
+    build_dictionary_with_all_evidence, parse_metadata_arg,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -75,6 +75,10 @@ struct Cli {
     #[arg(long, value_name = "PATH")]
     evidence: Option<PathBuf>,
 
+    /// Validated source phrase constraints JSON, compiled from the source dump.
+    #[arg(long, value_name = "PATH")]
+    phrase_evidence: Option<PathBuf>,
+
     /// Enable debug-level diagnostic output (overridden by RUST_LOG).
     #[arg(short, long)]
     verbose: bool,
@@ -120,11 +124,24 @@ fn main() -> Result<()> {
         relations: cli.relations,
     };
 
-    if let Some(path) = cli.evidence {
-        let evidence: DictionaryEvidence = serde_json::from_slice(&std::fs::read(path)?)?;
-        build_dictionary_with_evidence(&cli.inputs, cli.output, &options, &evidence)?;
-    } else {
-        build_dictionary(&cli.inputs, cli.output, &options)?;
-    }
+    let evidence = cli
+        .evidence
+        .map(|path| -> Result<DictionaryEvidence> {
+            Ok(serde_json::from_slice(&std::fs::read(path)?)?)
+        })
+        .transpose()?;
+    let phrase_evidence = cli
+        .phrase_evidence
+        .map(|path| -> Result<PhraseEvidence> {
+            Ok(serde_json::from_slice(&std::fs::read(path)?)?)
+        })
+        .transpose()?;
+    build_dictionary_with_all_evidence(
+        &cli.inputs,
+        cli.output,
+        &options,
+        evidence.as_ref(),
+        phrase_evidence.as_ref(),
+    )?;
     Ok(())
 }

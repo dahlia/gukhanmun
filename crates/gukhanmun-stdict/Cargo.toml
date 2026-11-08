@@ -7,6 +7,7 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Bundled Standard Korean Language Dictionary for Gukhanmun."
+exclude = ["data/phrase-manifest.json"]
 
 [[bin]]
 name = "gukhanmun-stdict-extract"

@@ -2110,3 +2110,16 @@ fn dictionary_flag_forces_authored_override_over_binary_reference_role() {
         .success()
         .stdout("다솜\n");
 }
+
+#[test]
+fn bundled_source_phrases_are_enabled_without_changing_bare_readings() {
+    for strategy in ["eager", "lattice"] {
+        Command::cargo_bin("gukhanmun")
+            .unwrap()
+            .args(["--segmentation", strategy, "--disambiguation", "off"])
+            .write_stdin("無條件降服 無條件降服하다 무조건 降服 降服 생부에게는 降服되는\n")
+            .assert()
+            .success()
+            .stdout("무조건항복 무조건항복하다 무조건 항복 강복 생부에게는 강복되는\n");
+    }
+}

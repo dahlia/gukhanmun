@@ -115,6 +115,13 @@ pub use gukhanmun_core::{
     read_plain_text, recover_input_token, recover_input_tokens, render_tokens, render_tokens_iter,
     reverse_hanja, select_default_reading, write_plain_text,
 };
+pub use gukhanmun_core::{
+    ChoiceReason, LegacySelection, MAX_PHRASE_CANDIDATES, OwnedPhraseEvidence, PhraseCandidateLink,
+    PhraseChunk, PhraseEvidence, PhraseEvidenceError, PhraseIndex, PhraseRule, PhraseRuleId,
+    PhraseSpelling, ResolutionEvent, ResolutionOutcome, ResolutionReport, SelectedReading,
+    SelectionDiagnostic, SourceAnchor, SourceChoice, SourceGroup, SourceId, SourceMatch,
+    SubheadwordWitness, TerminalExtension,
+};
 
 #[cfg(feature = "serde")]
 pub use gukhanmun_core::{CustomPunctuationProfile, PunctuationConfig};

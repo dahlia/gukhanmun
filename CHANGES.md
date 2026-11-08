@@ -37,8 +37,33 @@ To be released.
     reviewed seed.  [[#38], [#39]]
  -  Re-exported the user alias insertion APIs and `reverse_hanja()` from the
     umbrella crate.  [[#38], [#39]]
+ -  Bundled source-attested phrase constraints from the *Standard Korean
+    Dictionary*. Conversions such as `無條件降服` now use the attested
+    `무조건항복` reading, while ambiguous readings without matching phrase
+    evidence keep their existing defaults. [[#41], [#45]]
+ -  Retain nested-policy fallbacks separately from phrase witnesses with
+    `LegacySelection` and `OpaqueLegacyProjection` diagnostics. Existing
+    single-character annotation merging and particle decisions are preserved.
+    [[#41], [#45]]
  -  Exposed typed dictionary source evidence and validation APIs through the
     Rust facade. [[#42], [#44]]
+ -  Re-exported phrase evidence types for constructing and validating custom
+    dictionary constraints. [[#41], [#45]]
+ -  Added `HanjaDictionary::has_owned_phrase_evidence()` so dictionary
+    implementations can check for owned phrase constraints without collecting
+    them. Built-in dictionaries and nested chains avoid temporary evidence
+    vectors during repeated source lookups. [[#41], [#45]]
+ -  For custom dictionaries, engines ignore structurally invalid phrase
+    evidence or evidence with an incompatible index and emit a warning.
+    Providers must validate candidate links with
+    `PhraseEvidence::validate_records()`. Compatible indexes remain shared;
+    binary dictionary loaders still reject invalid evidence. [[#41], [#45]]
+ -  Added `PhraseIndex::from_shared_evidence()` to share an immutable phrase
+    collection with its index. Engines reuse validation for that collection
+    without scanning it again. [[#41], [#45]]
+ -  Re-exported phrase indexes, source choices, and resolution reports;
+    embedded phrase constraints now run through the shared conversion engine.
+    [[#41], [#45]]
  -  The exported core pipeline preserves source-aware selection metadata through
     annotations and middleware, including aliases, particles, authorial glosses,
     and first-occurrence/homophone identity. Source-aware dictionary matches
@@ -52,18 +77,32 @@ To be released.
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
 [#38]: https://github.com/dahlia/gukhanmun/issues/38
 [#39]: https://github.com/dahlia/gukhanmun/pull/39
+[#41]: https://github.com/dahlia/gukhanmun/issues/41
 [#42]: https://github.com/dahlia/gukhanmun/issues/42
 [#44]: https://github.com/dahlia/gukhanmun/pull/44
+[#45]: https://github.com/dahlia/gukhanmun/pull/45
 
 ### gukhanmun-cdb
 
  -  Added version 4 dictionary support for validated, candidate-linked source
     evidence; evidence-free version 1–3 files remain readable. [[#42], [#44]]
+ -  CDB dictionaries can load candidate-linked phrase evidence from critical
+    version 4 metadata, rejecting unsupported or stale constraints.
+    [[#41], [#45]]
+ -  Cached validated phrase indexes per dictionary so repeated engines reuse
+    the compiled constraint lookup. [[#41], [#45]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
     [[#38], [#39]]
 
 ### gukhanmun-cli
 
+ -  Apply source-attested constraints carried by custom dictionaries after
+    segmentation, retaining existing selection when evidence conflicts or
+    exceeds limits. [[#41], [#45]]
+ -  Bundled source-attested phrase constraints from the *Standard Korean
+    Dictionary*. Conversions such as `無條件降服` now use the attested
+    `무조건항복` reading, while ambiguous readings without matching phrase
+    evidence keep their existing defaults. [[#41], [#45]]
  -  Canonical literals in the require-hanja directive and related directives
     now reach reviewed alias spellings. The streaming plain-text path keeps
     streaming and applies each directive with the dictionary's lexeme index, so
@@ -120,12 +159,39 @@ To be released.
  -  Reduced cooperative lookup overhead for dictionaries with unknown maximum
     word lengths without truncating their queries or limiting long matches.
     [[#42], [#44]]
+ -  Added source-attested phrase resolution over fixed segmentation paths, with
+    complete-form intersections, source ownership, conservative particle-aware
+    fallback, and finite additional streaming context. [[#41], [#45]]
+ -  Added cached `PhraseIndex` support and opt-in `Engine` resolution reports,
+    including policy defaults and bounded-work limits. [[#41], [#45]]
  -  Added typed source evidence, candidate-link validation, and
     `HanjaDictionary::source_evidence()` for inspecting dictionary provenance
     without changing legacy reading selection. [[#42], [#44]]
+ -  Added validated phrase evidence types and
+    `HanjaDictionary::phrase_evidence()` for transporting source-attested
+    constraints independently of word candidates. [[#41], [#45]]
+ -  Added `HanjaDictionary::has_owned_phrase_evidence()` so dictionary
+    implementations can check for owned phrase constraints without collecting
+    them. Built-in dictionaries and nested chains avoid temporary evidence
+    vectors during repeated source lookups. [[#41], [#45]]
+ -  For custom dictionaries, engines ignore structurally invalid phrase
+    evidence or evidence with an incompatible index and emit a warning.
+    Providers must validate candidate links with
+    `PhraseEvidence::validate_records()`. Compatible indexes remain shared;
+    binary dictionary loaders still reject invalid evidence. [[#41], [#45]]
+ -  Added `PhraseIndex::from_shared_evidence()` to share an immutable phrase
+    collection with its index. Engines reuse validation for that collection
+    without scanning it again. [[#41], [#45]]
+ -  Preserve legacy single-character annotation merging and particle decisions
+    when phrase evidence is present, including nested source policies.
+    `LegacySelection` keeps policy fallbacks separate from leaf-owned phrase
+    candidates. `OpaqueLegacyProjection` diagnostics identify projected fallback
+    source ranges without granting phrase authority. [[#41], [#45]]
 
 ### gukhanmun-dict-extract
 
+ -  Added `aliases::SiblingDonors` for reusing validated one-step sibling donor
+    lookup across source compilers. [[#41], [#45]]
  -  Added `aliases::align_morphemes()`, `aliases::derive_aliases()`, and
     `aliases::sibling_relations()` for aligning marked compound headwords,
     applying the same-source-id ambiguity gate, and emitting recognition
@@ -150,6 +216,11 @@ To be released.
 
  -  Added version 4 dictionary support for validated, candidate-linked source
     evidence; evidence-free version 1–3 files remain readable. [[#42], [#44]]
+ -  Cached validated phrase indexes per dictionary so repeated engines reuse
+    the compiled constraint lookup. [[#41], [#45]]
+ -  FST dictionaries can load candidate-linked phrase evidence from critical
+    version 4 metadata, rejecting unsupported or stale constraints.
+    [[#41], [#45]]
  -  Read dictionary format version 3 candidate payloads with alias metadata.
     [[#38], [#39]]
 
@@ -166,6 +237,10 @@ To be released.
  -  Added `--evidence` and `build_dictionary_with_evidence()` to compile source
     evidence into version 4 FST/CDB files while retaining canonical reading
     payloads. [[#42], [#44]]
+ -  Added `--phrase-evidence` and `build_dictionary_with_all_evidence()` to
+    embed validated phrase constraints without adding phrase keys to word
+    candidates.
+    [[#41], [#45]]
 
 ### gukhanmun-napi
 
@@ -176,6 +251,14 @@ To be released.
     with the offending entry index.  [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Added support for source-attested phrase constraints when callers load
+    `@gukhanmun/stdict-fst` or `@gukhanmun/stdict-cdb` through the
+    `dictionaries` configuration. Conversions such as `無條件降服` now use the
+    attested `무조건항복` reading, while ambiguous readings without matching
+    phrase evidence keep their existing defaults. [[#41], [#45]]
+ -  Apply embedded phrase constraints in conversion and streaming, preserving
+    complete selected candidate metadata and source-policy eligibility.
+    [[#41], [#45]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -197,6 +280,13 @@ To be released.
  -  Added `gukhanmun-stdict-extract --evidence-output` to preserve source
     records, sense identifiers, and supported synonym/redirect evidence
     alongside canonical TSV output. [[#42], [#44]]
+ -  Added phrase evidence and admission-audit exports to the source extractor,
+    preserving word TSV admission while validating caret boundaries, one-step
+    sibling spellings, and typed subheadword projections. [[#41], [#45]]
+ -  Bundled source-attested phrase constraints from the *Standard Korean
+    Dictionary*. Conversions such as `無條件降服` now use the attested
+    `무조건항복` reading, while ambiguous readings without matching phrase
+    evidence keep their existing defaults. [[#41], [#45]]
  -  Derive compound aliases from the dump's marked morphemes and explicit
     spelling groups, bundling 2,054 recognition aliases, the seven reviewed
     lexical aliases, 2,875 sibling relations, and a JSONL provenance manifest.
@@ -215,6 +305,14 @@ To be released.
     with the offending entry index.  [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Added support for source-attested phrase constraints when callers load
+    `@gukhanmun/stdict-fst` or `@gukhanmun/stdict-cdb` through the
+    `dictionaries` configuration. Conversions such as `無條件降服` now use the
+    attested `무조건항복` reading, while ambiguous readings without matching
+    phrase evidence keep their existing defaults. [[#41], [#45]]
+ -  Apply embedded phrase constraints in conversion and streaming, preserving
+    complete selected candidate metadata and source-policy eligibility.
+    [[#41], [#45]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -243,6 +341,11 @@ To be released.
     [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Added support for source-attested phrase constraints when callers load
+    `@gukhanmun/stdict-fst` or `@gukhanmun/stdict-cdb` through the
+    `dictionaries` configuration. Conversions such as `無條件降服` now use the
+    attested `무조건항복` reading, while ambiguous readings without matching
+    phrase evidence keep their existing defaults. [[#41], [#45]]
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
@@ -252,6 +355,9 @@ To be released.
     [[#42], [#44]]
  -  Recognize reviewed compound aliases and stop treating sibling spellings as
     homophones or separate first occurrences. [[#38], [#39]]
+ -  Use source-attested constraints embedded in dictionaries for conversion and
+    streaming, including licensed complete verb forms and strict phrase
+    spacing. [[#41], [#45]]
 
 ### @gukhanmun/opendict-cdb
 
@@ -273,6 +379,10 @@ To be released.
 
 ### @gukhanmun/stdict-cdb
 
+ -  Bundled source-attested phrase constraints from the *Standard Korean
+    Dictionary*. Conversions such as `無條件降服` now use the attested
+    `무조건항복` reading, while ambiguous readings without matching phrase
+    evidence keep their existing defaults. [[#41], [#45]]
  -  Ship format version 3 dictionary data carrying compound alias metadata.
     Load it with a reader that understands version 3. [[#38], [#39]]
  -  The official CDB loader now declares the reference role and ships typed
@@ -283,6 +393,10 @@ To be released.
 
 ### @gukhanmun/stdict-fst
 
+ -  Bundled source-attested phrase constraints from the *Standard Korean
+    Dictionary*. Conversions such as `無條件降服` now use the attested
+    `무조건항복` reading, while ambiguous readings without matching phrase
+    evidence keep their existing defaults. [[#41], [#45]]
  -  Ship format version 3 dictionary data carrying compound alias metadata.
     Load it with a reader that understands version 3. [[#38], [#39]]
  -  The official FST loader now declares the reference role and ships typed
@@ -308,6 +422,11 @@ To be released.
     [[#33], [#34]]
  -  Accepted version 4 FST/CDB dictionaries carrying candidate-linked source
     evidence, while retaining support for older files. [[#42], [#44]]
+ -  Added support for source-attested phrase constraints when callers load
+    `@gukhanmun/stdict-fst` or `@gukhanmun/stdict-cdb` through the
+    `dictionaries` configuration. Conversions such as `無條件降服` now use the
+    attested `무조건항복` reading, while ambiguous readings without matching
+    phrase evidence keep their existing defaults. [[#41], [#45]]
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
@@ -317,6 +436,9 @@ To be released.
     [[#42], [#44]]
  -  Recognize reviewed compound aliases and stop treating sibling spellings as
     homophones or separate first occurrences. [[#38], [#39]]
+ -  Use source-attested constraints embedded in dictionaries for conversion and
+    streaming, including licensed complete verb forms and strict phrase
+    spacing. [[#41], [#45]]
 
 <!-- sacho:unreleased:end -->
 

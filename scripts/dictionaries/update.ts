@@ -101,7 +101,7 @@ export interface Result {
 function groups(bytes: Uint8Array, name = ""): Map<string, string[]> {
   const text = decoder.decode(bytes).trimEnd();
   const result = new Map<string, string[]>();
-  if (name === "source-evidence.json") {
+  if (["source-evidence.json", "phrase-evidence.json", "phrase-manifest.json"].includes(name)) {
     // Preserve exact numeric tokens: source WordId/SenseId values are u64 and
     // can exceed JavaScript's safe integer range. Stringifying raw JSON numbers
     // keeps an ID-only change visible to the artifact audit.
@@ -114,6 +114,45 @@ function groups(bytes: Uint8Array, name = ""): Map<string, string[]> {
         return rawJSON.rawJSON(context.source);
       },
     );
+    if (JSON.stringify(evidence.schema_version) !== "1") {
+      throw new Error("unsupported evidence schema version");
+    }
+    if (name !== "source-evidence.json") {
+      if (JSON.stringify(evidence.policy_version) !== "1") {
+        throw new Error("unsupported phrase evidence policy version");
+      }
+      const field = name === "phrase-evidence.json" ? "rules" : "records";
+      if (!Array.isArray(evidence[field])) throw new Error("invalid phrase evidence artifact");
+      const metadata = { ...evidence };
+      delete metadata[field];
+      result.set("$metadata", [JSON.stringify(metadata)]);
+      for (const record of evidence[field]) {
+        if (!record || typeof record !== "object") {
+          throw new Error("invalid phrase evidence record");
+        }
+        let key: string;
+        if (field === "rules") {
+          if (!Array.isArray(record.source_ids) || !Array.isArray(record.chunks)) {
+            throw new Error("invalid phrase evidence rule");
+          }
+          key = JSON.stringify(
+            record.chunks.map((chunk: { reading: unknown; spellings: unknown[] }) => {
+              if (!chunk || !Array.isArray(chunk.spellings)) {
+                throw new Error("invalid phrase chunk");
+              }
+              return [chunk.reading, (chunk.spellings[0] as { key?: unknown } | undefined)?.key];
+            }),
+          );
+        } else {
+          if (typeof record.word !== "string") throw new Error("invalid phrase audit record");
+          key = JSON.stringify([record.word, record.original_spellings]);
+        }
+        const rows = result.get(key) ?? [];
+        rows.push(JSON.stringify(record));
+        result.set(key, rows.sort());
+      }
+      return result;
+    }
     if (
       !evidence.entries || typeof evidence.entries !== "object" || Array.isArray(evidence.entries)
     ) {

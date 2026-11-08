@@ -52,7 +52,7 @@ impl PendingMatch {
     fn choices(&self) -> usize {
         match self {
             Self::Legacy(matched) => matched.candidates.as_slice().len(),
-            Self::Source(matched) => matched.ranked.len(),
+            Self::Source(matched) => matched.selection_choices().len(),
         }
     }
     fn resolve(

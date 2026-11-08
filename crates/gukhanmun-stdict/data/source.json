@@ -6,30 +6,78 @@
   "archive_sha256": "67c98e66e2c1dd6cf74b3c2aa323cc85ae1aafc404246ea11f2f5b4946e57cc6",
   "dictionary": "stdict",
   "duplicate_record_count": 0,
+  "inputs_sha256": "da9dbe378e02382cf3026005d25605f82fb909b5c0df41746f086980d3ebd0cc",
   "link_key": "1610293",
+  "outputs": {
+    "aliases-manifest.jsonl": {
+      "added": 0,
+      "changed": 0,
+      "keys": 2061,
+      "removed": 0,
+      "rows": 2061,
+      "sha256": "d02c463b1aadc7c19ad8c559f2cc99da4c1b793936b144bddd596a2d39bdc22c"
+    },
+    "aliases.tsv": {
+      "added": 0,
+      "changed": 0,
+      "keys": 2059,
+      "removed": 0,
+      "rows": 2061,
+      "sha256": "7b9a866196dd86fd051a6e5d7293a1e575d542171bd2618f2c3f3e814374d652"
+    },
+    "phrase-evidence.json": {
+      "added": 41704,
+      "changed": 0,
+      "keys": 41704,
+      "removed": 0,
+      "rows": 41715,
+      "sha256": "89372cf040a951d2fdb7ebe9ef2ef53d6c94a01b9966b69ff6af2ce53d021c95"
+    },
+    "phrase-manifest.json": {
+      "added": 63005,
+      "changed": 0,
+      "keys": 63005,
+      "removed": 0,
+      "rows": 63005,
+      "sha256": "6657adcf90012eb56c41977a28bdd6df3624a92ca6bc44f149b22e7f41ed2068"
+    },
+    "relations.tsv": {
+      "added": 0,
+      "changed": 0,
+      "keys": 2865,
+      "removed": 0,
+      "rows": 2875,
+      "sha256": "22c64966bf64f465352859f55f140241a0958c49d7a06d295baa7e7b184dc738"
+    },
+    "source-evidence.json": {
+      "added": 0,
+      "changed": 0,
+      "keys": 260701,
+      "removed": 0,
+      "rows": 262096,
+      "sha256": "5f4a80595e666a538bf0624f863a350eb6fd3aed731348d3ad0c00fbbaaf3e6b"
+    },
+    "stdict.tsv": {
+      "added": 0,
+      "changed": 0,
+      "keys": 260701,
+      "removed": 0,
+      "rows": 262096,
+      "sha256": "98237b0a64333c3e85d19032be06ca183aac0f0d43b1636c2a19a846d46d5c0e"
+    },
+    "suffix.tsv": {
+      "added": 0,
+      "changed": 0,
+      "keys": 2,
+      "removed": 0,
+      "rows": 2,
+      "sha256": "d39f8a1c9cebf7944ec3b15aff9390117cf86ff2535d3b5f34437db6540e4336"
+    }
+  },
   "record_count": 436587,
   "shard_count": 88,
   "source_url": "https://stdict.korean.go.kr/common/download.do",
   "terminal_endpoint": 436587,
   "unique_record_count": 436587,
-  "version": 1,
-  "inputs_sha256": "4c440d2a69da42f3b8d36f283134497945795ad1e6fc7ac54339d36d3fcd42da",
-  "outputs": {
-    "stdict.tsv": {
-      "sha256": "98237b0a64333c3e85d19032be06ca183aac0f0d43b1636c2a19a846d46d5c0e",
-      "rows": 262096,
-      "keys": 260701,
-      "added": 33,
-      "removed": 22,
-      "changed": 5
-    },
-    "suffix.tsv": {
-      "sha256": "d39f8a1c9cebf7944ec3b15aff9390117cf86ff2535d3b5f34437db6540e4336",
-      "rows": 2,
-      "keys": 2,
-      "added": 0,
-      "removed": 0,
-      "changed": 0
-    }
-  }
+  "version": 1
 }

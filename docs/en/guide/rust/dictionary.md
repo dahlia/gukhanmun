@@ -314,9 +314,12 @@ forms supplied by a loanword dictionary.
 Selected forms carry their own lexical identity, alias, positional form and
 annotation marks. First-occurrence handling uses the reference anchor when a
 reference authorizes a foreign form; homophone handling compares the reading
-actually emitted. Source-aware dictionary matches keep separate annotation
-boundaries, including matches next to fallback characters. This can change
-parenthetical grouping compared with `SourcePolicy::Ordered`.
+actually emitted. Cooperative source-policy selections keep their existing
+annotation grouping. Plain dictionary views and `SourcePolicy::Ordered` chains
+keep legacy grouping, regardless of phrase metadata. In those legacy views,
+only an edge selected by a successful phrase proof keeps a separate annotation
+boundary; metadata alone does not change grouping. Lattice edge boundaries and
+scores remain unchanged.
 
 Use `Builder::source_policy()` to select a policy:
 
@@ -341,3 +344,111 @@ With lattice segmentation, overlapping paths can remain unresolved beyond the
 maximum dictionary word length. Streaming retains their shared uncertainty until
 a word boundary or EOF settles the path, while already settled prefixes can
 still be emitted. Dictionary roles do not change the lattice scoring objective.
+
+
+Source phrase constraints
+-------------------------
+
+The bundled *Standard Korean Language Dictionary* includes source phrases that
+constrain readings after segmentation. With that evidence, `無條件降服`,
+`無條件 降服` and `무조건 降服` can select `항복` for the existing `降服` edge.
+A verified word-to-subheadword relationship can extend the same rule to
+`降服하다`. Bare `降服` keeps its legacy reading selection. The resolver does
+not add whole phrases to the dictionary or change lattice scores and edge
+boundaries.
+
+Each chunk matches its complete hanja spelling or attested hangul reading.
+A source caret permits no space or one `U+0020` space between chunks, so two
+spaces, a tab or a newline do not match. A dictionary target must cover a whole
+selected edge. Literal hangul can span adjacent unchanged text segments, with
+outer word boundaries, but cannot consume dictionary or fallback edges.
+
+Rules belong to the dictionary leaf that supplies them and apply only to its
+eligible source anchors. User overrides remain authoritative, and nested
+chains retain their complete eligibility restrictions for phrase proof. A rule
+checks both the original anchor and its attested initial/suffix output pair. A
+policy-promoted form must satisfy that pair too. The chosen reading keeps its
+complete source identity and marks; readings outside the phrase keep their
+usual policy defaults.
+
+Rules from different leaf sources can agree when their directly witnessed
+choices have the same complete form, lexical identity, alias and marks. After
+intersecting those agreements, the resolver selects only currently eligible
+choices directly witnessed by at least one applicable rule. An unwitnessed
+duplicate gains no phrase authority from semantic agreement alone.
+
+For `Ordered` and cooperating policies alike, the engine preserves legacy
+parent selection over each child's public canonical projection, including
+particle evidence. The separate leaf proof pool may be wider or different.
+A nested fallback may be an opaque projection at the first slot of the child's
+`SourceId` range, with an explicit diagnostic. Such a projection establishes no
+leaf identity or `WordId` witness and supplies no phrase authority. Only
+eligible complete choices from the ranked leaf pool contribute proof; on
+success, the resolver replaces the whole choice atomically. `SelectedReading`
+can therefore retain a fallback outside its proof pool.
+
+For a small in-memory dictionary, attach validated `PhraseEvidence` after
+inserting its candidates. This example records one phrase in an
+application-owned source namespace:
+
+~~~~ rust
+use gukhanmun::{
+    MapDictionary, MatchMark, PhraseCandidateLink, PhraseChunk, PhraseEvidence,
+    PhraseRule, PhraseSpelling, ReadingCandidate, ReadingCandidates, RenderMode, WordId,
+    convert_plain_text,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut dictionary = MapDictionary::new();
+    dictionary.insert("無條件", "무조건");
+    let readings = [("강복", 10), ("항복", 0)].map(|(reading, preference)| {
+        ReadingCandidate {
+            reading: reading.into(), suffix_reading: None,
+            mark: MatchMark::default(), preference, alias: None,
+        }
+    });
+    dictionary.insert_candidates("降服", ReadingCandidates::new(readings.to_vec())?);
+    let chunk = |key: &str, reading: &str| PhraseChunk::new(
+        reading.into(),
+        vec![PhraseSpelling::new(
+            key.into(),
+            vec![PhraseCandidateLink::new(reading.into(), None)],
+        )],
+    );
+    let rule = PhraseRule::new(
+        vec![WordId(1)],
+        vec![chunk("無條件", "무조건"), chunk("降服", "항복")],
+    );
+    dictionary.set_phrase_evidence(PhraseEvidence::new(vec![rule]))?;
+    assert_eq!(
+        convert_plain_text("무조건 降服", &dictionary, RenderMode::HangulOnly),
+        "무조건 항복",
+    );
+    Ok(())
+}
+~~~~
+
+The setter checks structure and exact links to the dictionary's candidates;
+the caller must verify the underlying source relationships. Later candidate
+edits invalidate attached phrase evidence. FST/CDB files embed this information
+in critical metadata, so their usual loaders require no separate evidence file.
+
+`MapDictionary`, FST and CDB compile an immutable `PhraseIndex` once when
+attaching or loading validated evidence. Engines and bundled wrappers borrow
+that index through the optional `HanjaDictionary::phrase_index()` capability.
+Custom implementations can omit the cache; an engine then builds its own index
+once for its lifetime.
+
+See the
+[dictionary format](../../internals/dictionary-format.md#critical-phrase-evidence)
+for the build contract.
+
+Valid phrase restrictions and particle compatibility are intersected for each
+edge. Choices with the same form, lexical identity, alias and marks count as
+one result; the resolver keeps the first in rank order. When the intersection
+is unresolved or conflicting, or a matcher limit is reached, the resolver
+keeps the legacy particle-aware choice. Other edges remain independent.
+The low-level engine's
+[resolution report](streaming.md#inspecting-phrase-decisions) exposes the
+rules, remaining choices and chosen metadata at the resolution step. There is
+no strict ambiguity-error mode.

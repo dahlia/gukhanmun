@@ -290,12 +290,62 @@ contributor fields without changing the separate JSON schema.
 
 Before exposing evidence, readers check tuple structure, schema and role,
 nonempty forms, duplicate identities and exact links to stored candidates.
-Missing critical evidence in version 4, evidence in an older container,
-unsupported schemas, duplicate critical metadata and stale candidate links are
-errors. Partial evidence is allowed; uncovered candidates have unknown evidence.
-The string metadata API omits this typed member; Rust callers inspect it through
-`HanjaDictionary::source_evidence()`.
+Absence of both critical evidence members in version 4, evidence in an older
+container, unsupported schemas, duplicate critical metadata and stale candidate
+links are errors. Partial evidence is allowed; uncovered candidates have
+unknown evidence. The string metadata API omits this typed member; Rust callers
+inspect it through `HanjaDictionary::source_evidence()`.
 
 The dictionary updater preserves exact numeric tokens while comparing evidence
 artifacts, including IDs above JavaScript's safe integer range. Custom JSON
 processing must likewise preserve unsigned 64-bit IDs.
+
+
+Critical phrase evidence
+------------------------
+
+`--phrase-evidence phrase-evidence.json` embeds a separate, typed
+`phrase_evidence` member in the container's CBOR metadata. It carries
+`PhraseEvidence`, whose `schema_version` and `policy_version` are both
+currently `1`. The existing `DictionaryEvidence`/`candidate_evidence` schema
+remains version 1; phrase rules do not extend its candidate authorization
+tuples. Both members are critical and excluded from the string metadata API.
+Rust callers inspect phrase rules through `HanjaDictionary::phrase_evidence()`.
+
+Either evidence member makes the container version 4. Version 4 requires at
+least one of them and permits both; versions 1–3 cannot carry either member.
+Consumers must support the phrase extension before loading a phrase-bearing
+file. Rebuild the dictionary and update its consuming runtime together. Runtime
+loading uses the dictionary file alone, with no filename discovery, network
+lookup or evidence sidecar.
+
+A rule retains its source word IDs and ordered chunks. Each chunk records its
+complete attested reading and exact source spellings; each spelling links to
+original candidate initial/suffix pairs. Runtime restrictions require that
+same complete output pair as well as the source anchor. Additional sibling
+spellings require explicit source witnesses. Literal-only chunks can have no
+dictionary links. Terminal extensions retain complete child spellings and typed
+parent-word to child-word witnesses, rather than an inferred grammatical
+suffix. The builder validates links against final normalized candidates, after
+aliases and rules have been applied.
+
+The standard dictionary extractor writes the build input and its admission
+manifest with `--phrase-evidence-output` and `--phrase-manifest-output`; supply
+both options together. These are reproducible build artifacts. The audit
+*phrase-manifest.json* stays in the repository and is excluded from the
+published `gukhanmun-stdict` crate; the runtime *phrase-evidence.json* remains
+bundled. The extractor compiles phrase constraints separately from word
+candidate rows. It does not insert phrases as lookup keys or pin their
+component readings. At runtime, all participating chunks must align with the
+fixed path and the owning leaf's eligible candidates before any target receives
+a restriction. A caret admits zero or one `U+0020`; whole-chunk hangul
+alternatives do not authorize arbitrary character-wise hanja/hangul mixtures.
+
+Readers reject unsupported schema/policy versions, duplicate critical members,
+malformed witness records, stale candidate links and evidence exceeding host
+limits. The metadata byte limit is checked before decoding; rule, chunk,
+alternative and span limits are checked before exposing evidence. Runtime
+discovery/match limits withhold evidence for the affected finite interval
+rather than accepting an arbitrary subset of constraints. On a conflict or
+limit, the resolver keeps the legacy particle-aware reading.
+`ResolutionReport` records that decision.

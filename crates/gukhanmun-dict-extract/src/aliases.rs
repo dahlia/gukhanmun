@@ -467,6 +467,37 @@ pub fn sibling_relations(
     relations
 }
 
+/// Validated explicit sibling donors for one-step phrase spelling derivation.
+///
+/// This index shares compound donor ambiguity checks, but never creates grid
+/// aliases or feeds derived spellings back into the donor set.
+pub struct SiblingDonors {
+    donors: DonorMap,
+    ambiguous: BTreeSet<DonorKey>,
+    by_hanja: DonorHanjaIndex,
+}
+
+impl SiblingDonors {
+    /// Builds the index from the complete admitted source word collection.
+    pub fn new(sources: &[AliasSource], policy: &AliasPolicy) -> Self {
+        let (donors, ambiguous) = donor_groups(sources, policy);
+        let by_hanja = donor_hanja_index(&donors, &ambiguous);
+        Self {
+            donors,
+            ambiguous,
+            by_hanja,
+        }
+    }
+
+    /// Returns explicit sibling spellings and their source record witness IDs.
+    ///
+    /// Ambiguous donors and ambiguous initial-sound-law fallbacks return none.
+    pub fn lookup(&self, chunk: &Chunk) -> Option<(&BTreeSet<String>, &BTreeSet<u64>)> {
+        donor_lookup(&self.donors, &self.ambiguous, &self.by_hanja, chunk)
+            .map(|(spellings, ids)| (spellings, ids))
+    }
+}
+
 type DonorHanjaIndex = BTreeMap<String, Vec<String>>;
 
 /// Groups every donor and ambiguous reading by hanja.

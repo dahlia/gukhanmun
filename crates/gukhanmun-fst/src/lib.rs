@@ -32,8 +32,8 @@ use fst::automaton::Automaton;
 use fst::{IntoStreamer, Map, Streamer};
 use gukhanmun_core::{
     CandidateError, CandidateMatch, CandidateRecord, DictionaryEvidence, DictionaryRecord,
-    HanjaDictionary, LexemeIndex, Match, MatchMark, ReadingCandidate, ReadingCandidates,
-    candidate_matches_at_spellings, select_default_reading,
+    HanjaDictionary, LexemeIndex, Match, MatchMark, PhraseEvidence, PhraseIndex, ReadingCandidate,
+    ReadingCandidates, candidate_matches_at_spellings, select_default_reading,
 };
 
 const MAGIC: &[u8; 8] = b"GUKHMFST";
@@ -61,6 +61,8 @@ pub struct FstDictionary {
     max_word_chars: Option<usize>,
     lexemes: LexemeIndex,
     evidence: Option<Arc<DictionaryEvidence>>,
+    phrase_evidence: Option<Arc<PhraseEvidence>>,
+    phrase_index: Option<Arc<PhraseIndex>>,
 }
 
 impl FstDictionary {
@@ -97,7 +99,11 @@ impl FstDictionary {
             .ok_or(Error::SectionOutOfBounds {
                 section: "metadata",
             })?;
-        let (metadata, evidence) = decode_metadata(metadata_bytes)?;
+        let StoredMetadata {
+            strings: metadata,
+            evidence,
+            phrase_evidence,
+        } = decode_metadata(metadata_bytes)?;
         let fst_bytes = source
             .section(header.fst_offset, header.fst_len)
             .ok_or(Error::SectionOutOfBounds { section: "FST" })?;
@@ -122,7 +128,7 @@ impl FstDictionary {
             ?max_word_chars,
             "decoded FST dictionary"
         );
-        if (format_version == 4) != evidence.is_some() {
+        if (format_version == 4) != (evidence.is_some() || phrase_evidence.is_some()) {
             return Err(Error::SourceEvidence {
                 reason: "source evidence requires container version 4 and must be present in that version".into(),
             });
@@ -132,7 +138,7 @@ impl FstDictionary {
                 reason: "container and metadata versions disagree".into(),
             });
         }
-        let dictionary = Self {
+        let mut dictionary = Self {
             metadata,
             format_version,
             map,
@@ -141,6 +147,8 @@ impl FstDictionary {
             max_word_chars,
             lexemes,
             evidence: evidence.map(Arc::new),
+            phrase_evidence: phrase_evidence.map(Arc::new),
+            phrase_index: None,
         };
         if let Some(evidence) = dictionary.evidence.as_ref() {
             let mut lookup_error = None;
@@ -170,6 +178,35 @@ impl FstDictionary {
             validation.map_err(|error| Error::SourceEvidence {
                 reason: error.to_string(),
             })?;
+        }
+        if let Some(evidence) = dictionary.phrase_evidence.as_ref() {
+            let records = evidence
+                .candidate_keys()
+                .into_iter()
+                .map(|key| {
+                    let entry = dictionary
+                        .lookup(key)?
+                        .ok_or_else(|| Error::SourceEvidence {
+                            reason: format!("phrase evidence references absent key {key:?}"),
+                        })?;
+                    Ok(CandidateRecord {
+                        hanja: key.into(),
+                        candidates: entry.candidates,
+                    })
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            evidence
+                .validate_records(records)
+                .map_err(|error| Error::SourceEvidence {
+                    reason: error.to_string(),
+                })?;
+            dictionary.phrase_index = Some(Arc::new(
+                PhraseIndex::from_shared_evidence(evidence.clone()).map_err(|error| {
+                    Error::SourceEvidence {
+                        reason: error.to_string(),
+                    }
+                })?,
+            ));
         }
         Ok(dictionary)
     }
@@ -282,8 +319,21 @@ impl AsRef<[u8]> for ByteSection {
 }
 
 impl HanjaDictionary for FstDictionary {
+    fn has_owned_phrase_evidence(&self) -> bool {
+        self.phrase_evidence()
+            .is_some_and(|evidence| !evidence.rules.is_empty())
+    }
+
     fn source_evidence(&self) -> Option<&DictionaryEvidence> {
         self.evidence.as_deref()
+    }
+
+    fn phrase_evidence(&self) -> Option<&PhraseEvidence> {
+        self.phrase_evidence.as_deref()
+    }
+
+    fn phrase_index(&self) -> Option<&PhraseIndex> {
+        self.phrase_index.as_deref()
     }
 
     fn candidate_matches_at<'a>(
@@ -584,6 +634,7 @@ impl<'de> serde::Deserialize<'de> for EvidencePayload {
 struct StoredMetadata {
     strings: BTreeMap<String, String>,
     evidence: Option<DictionaryEvidence>,
+    phrase_evidence: Option<PhraseEvidence>,
 }
 
 impl<'de> serde::Deserialize<'de> for StoredMetadata {
@@ -601,26 +652,39 @@ impl<'de> serde::Deserialize<'de> for StoredMetadata {
                 use serde::de::Error as _;
                 let mut strings = BTreeMap::new();
                 let mut evidence = None;
+                let mut phrase_evidence = None;
                 while let Some(key) = map.next_key::<String>()? {
                     if key == "candidate_evidence" {
                         if evidence.is_some() {
                             return Err(A::Error::custom("duplicate candidate evidence"));
                         }
                         evidence = Some(map.next_value::<EvidencePayload>()?.0);
+                    } else if key == "phrase_evidence" {
+                        if phrase_evidence.is_some() {
+                            return Err(A::Error::custom("duplicate phrase evidence"));
+                        }
+                        phrase_evidence = Some(map.next_value::<PhraseEvidence>()?);
                     } else if strings.insert(key, map.next_value::<String>()?).is_some() {
                         return Err(A::Error::custom("duplicate metadata field"));
                     }
                 }
-                Ok(StoredMetadata { strings, evidence })
+                Ok(StoredMetadata {
+                    strings,
+                    evidence,
+                    phrase_evidence,
+                })
             }
         }
         deserializer.deserialize_map(MetadataVisitor)
     }
 }
 
-fn decode_metadata(
-    bytes: &[u8],
-) -> Result<(BTreeMap<String, String>, Option<DictionaryEvidence>), Error> {
+fn decode_metadata(bytes: &[u8]) -> Result<StoredMetadata, Error> {
+    if bytes.len() > gukhanmun_core::MAX_EVIDENCE_METADATA_BYTES {
+        return Err(Error::SourceEvidence {
+            reason: "metadata exceeds host byte limit".into(),
+        });
+    }
     let mut reader = std::io::Cursor::new(bytes);
     let decoded: StoredMetadata =
         from_reader(&mut reader).map_err(|source| Error::MetadataDecode { source })?;
@@ -628,13 +692,20 @@ fn decode_metadata(
         evidence.validate().map_err(|error| Error::SourceEvidence {
             reason: error.to_string(),
         })?;
-        if reader.position() != bytes.len() as u64 {
-            return Err(Error::SourceEvidence {
-                reason: "trailing bytes in critical metadata".into(),
-            });
-        }
     }
-    Ok((decoded.strings, decoded.evidence))
+    if let Some(evidence) = decoded.phrase_evidence.as_ref() {
+        evidence.validate().map_err(|error| Error::SourceEvidence {
+            reason: error.to_string(),
+        })?;
+    }
+    if (decoded.evidence.is_some() || decoded.phrase_evidence.is_some())
+        && reader.position() != bytes.len() as u64
+    {
+        return Err(Error::SourceEvidence {
+            reason: "trailing bytes in critical metadata".into(),
+        });
+    }
+    Ok(decoded)
 }
 
 fn parse_u64_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Option<u64> {
@@ -707,6 +778,61 @@ mod tests {
         &'a gukhanmun_core::DictionaryEvidence,
     );
 
+    #[test]
+    fn loaded_phrase_index_is_consistent_and_shared_by_dictionary_clones() {
+        let evidence = phrase_evidence();
+        let bytes = fixture_bytes_with_all_evidence(
+            &[entry("降伏", "항복", false, false)],
+            None,
+            Some(&evidence),
+        );
+        let dictionary = FstDictionary::from_bytes(&bytes).unwrap();
+        assert!(dictionary.has_owned_phrase_evidence());
+        // The dictionary and index retain the same immutable graph, allowing
+        // engines to reuse its validation without rescanning all phrase rules.
+        assert_eq!(
+            std::sync::Arc::strong_count(dictionary.phrase_evidence.as_ref().unwrap()),
+            2
+        );
+        let index = dictionary.phrase_index().unwrap();
+        assert_eq!(
+            index,
+            &gukhanmun_core::PhraseIndex::new(dictionary.phrase_evidence().unwrap()).unwrap()
+        );
+        let clone = dictionary.clone();
+        assert!(std::ptr::eq(index, clone.phrase_index().unwrap()));
+        assert!(std::ptr::eq(
+            index,
+            dictionary.owned_phrase_evidence()[0].index.unwrap()
+        ));
+        assert!(
+            FstDictionary::from_bytes(&fixture_bytes(&[entry("降伏", "항복", false, false)]))
+                .unwrap()
+                .phrase_index()
+                .is_none()
+        );
+    }
+    fn phrase_evidence() -> gukhanmun_core::PhraseEvidence {
+        use gukhanmun_core::{
+            PhraseCandidateLink, PhraseChunk, PhraseEvidence, PhraseRule, PhraseSpelling, WordId,
+        };
+        PhraseEvidence::new(vec![PhraseRule::new(
+            vec![WordId(1)],
+            vec![
+                PhraseChunk::new(
+                    "무조건".into(),
+                    vec![PhraseSpelling::new("無條件".into(), vec![])],
+                ),
+                PhraseChunk::new(
+                    "항복".into(),
+                    vec![PhraseSpelling::new(
+                        "降伏".into(),
+                        vec![PhraseCandidateLink::new("항복".into(), None)],
+                    )],
+                ),
+            ],
+        )])
+    }
     fn source_evidence(readings: &[(&str, &str)]) -> gukhanmun_core::DictionaryEvidence {
         use gukhanmun_core::{
             CandidateEvidence, DictionaryEvidence, SourceContribution, SourceRole, WordId,
@@ -1011,7 +1137,15 @@ mod tests {
         entries: &[TestEntry<'_>],
         evidence: Option<&gukhanmun_core::DictionaryEvidence>,
     ) -> Vec<u8> {
-        let format_version = if evidence.is_some() {
+        fixture_bytes_with_all_evidence(entries, evidence, None)
+    }
+
+    fn fixture_bytes_with_all_evidence(
+        entries: &[TestEntry<'_>],
+        evidence: Option<&gukhanmun_core::DictionaryEvidence>,
+        phrases: Option<&gukhanmun_core::PhraseEvidence>,
+    ) -> Vec<u8> {
+        let format_version = if evidence.is_some() || phrases.is_some() {
             4u32
         } else {
             FORMAT_VERSION
@@ -1047,6 +1181,14 @@ mod tests {
             fields.push((
                 ciborium::value::Value::Text("candidate_evidence".into()),
                 ciborium::value::Value::serialized(&EvidencePayload(evidence)).unwrap(),
+            ));
+        }
+        if let (Some(phrases), ciborium::value::Value::Map(fields)) =
+            (phrases, &mut encoded_metadata)
+        {
+            fields.push((
+                ciborium::value::Value::Text("phrase_evidence".into()),
+                ciborium::value::Value::serialized(phrases).unwrap(),
             ));
         }
         let mut metadata_bytes = Vec::new();

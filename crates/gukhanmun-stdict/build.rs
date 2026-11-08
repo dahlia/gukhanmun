@@ -20,7 +20,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use gukhanmun_mkdict::{
-    BuildOptions, DictionaryFormat, MergePolicy, build_dictionary_with_evidence,
+    BuildOptions, DictionaryFormat, MergePolicy, build_dictionary_with_all_evidence,
 };
 
 fn main() -> Result<()> {
@@ -38,10 +38,13 @@ fn main() -> Result<()> {
     let evidence_path = manifest_dir.join("data/source-evidence.json");
     println!("cargo:rerun-if-changed={}", evidence_path.display());
     let evidence = serde_json::from_slice(&std::fs::read(evidence_path)?)?;
+    let phrase_path = manifest_dir.join("data/phrase-evidence.json");
+    println!("cargo:rerun-if-changed={}", phrase_path.display());
+    let phrases = serde_json::from_slice(&std::fs::read(phrase_path)?)?;
     let metadata = manifest_dir.join("data/metadata.json");
     println!("cargo:rerun-if-changed={}", metadata.display());
     let provenance: BTreeMap<String, String> = serde_json::from_slice(&std::fs::read(metadata)?)?;
-    build_dictionary_with_evidence(
+    build_dictionary_with_all_evidence(
         &[input, aliases],
         output,
         &BuildOptions {
@@ -54,7 +57,8 @@ fn main() -> Result<()> {
             allow_unmatched_rules: false,
             relations: vec![relations],
         },
-        &evidence,
+        Some(&evidence),
+        Some(&phrases),
     )?;
 
     Ok(())
