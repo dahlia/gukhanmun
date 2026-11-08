@@ -87,8 +87,10 @@
 #![deny(missing_docs)]
 
 mod builder;
+mod configuration;
 mod error;
 mod options;
+mod pipeline;
 
 pub use builder::{Builder, BuilderRendering, Converter};
 pub use error::{Error, Result};
