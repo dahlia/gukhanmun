@@ -20,7 +20,8 @@
 //! conversion pipeline. It re-exports public items from the workspace's
 //! sibling crates under feature flags and provides a [`Builder`] /
 //! [`Converter`] facade that wires the reader, engine, middlewares, renderer,
-//! and writer stages together.
+//! and writer stages together. [`SharedBuilder`] and [`SharedConverter`]
+//! provide an owned, thread-safe facade over the same pipeline.
 //!
 //! See the workspace's `DESIGN.md` for the architectural overview.
 //!
@@ -91,10 +92,12 @@ mod configuration;
 mod error;
 mod options;
 mod pipeline;
+mod shared;
 
 pub use builder::{Builder, BuilderRendering, Converter};
 pub use error::{Error, Result};
 pub use options::{ConversionOptions, Preset};
+pub use shared::{SharedBuilder, SharedConverter};
 
 // Always-on re-exports from `gukhanmun-core` so that downstream users do not
 // have to depend on the core crate directly.

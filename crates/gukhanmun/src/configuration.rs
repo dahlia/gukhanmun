@@ -136,10 +136,10 @@ impl BuilderConfiguration {
 // The same setters preserve precedence for both public facades.
 macro_rules! configuration_setters {
     () => {
-        /// Overrides the [`RenderOptions`] used by the converter.
+        /// Overrides the [`RenderOptions`](gukhanmun_core::RenderOptions) used by the converter.
         ///
         /// Accepts either a bare [`RenderMode`](gukhanmun_core::RenderMode) or a
-        /// fully populated [`RenderOptions`] value.
+        /// fully populated [`RenderOptions`](gukhanmun_core::RenderOptions) value.
         pub fn rendering(mut self, rendering: impl Into<BuilderRendering>) -> Self {
             match rendering.into() {
                 BuilderRendering::Mode(mode) => {

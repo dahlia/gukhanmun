@@ -37,7 +37,8 @@ use gukhanmun_html::{
 #[cfg(feature = "markdown")]
 use gukhanmun_markdown::{MarkdownScopeData, MarkdownVariant, read_markdown_iter};
 
-/// Rendering configuration accepted by [`Builder::rendering`].
+/// Rendering configuration accepted by [`Builder::rendering`] and
+/// [`SharedBuilder::rendering`](crate::SharedBuilder::rendering).
 ///
 /// A bare [`RenderMode`] replaces the mode while preserving a variant set
 /// selected separately through [`Builder::hanja_variant_set`]. A complete

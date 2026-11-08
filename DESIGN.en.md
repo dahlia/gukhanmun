@@ -1133,6 +1133,30 @@ and opendict dictionaries. Each feature is individually selectable. Disabling
 everything yields a Rust-API-only build with just the engine and
 `UnihanCharDict`, suitable for embedded targets.
 
+### Conversion ownership
+
+`Builder<'a>` and `Converter<'a>` accept borrowed dictionaries and local
+callbacks. They impose no `Send` or `Sync` requirement on dictionaries or
+preservation predicates, so callers can use thread-local state and captures
+that borrow from their own scope.
+
+`SharedBuilder` produces an owned `SharedConverter` whose fields satisfy
+`Send + Sync + 'static`. It accepts owned dictionaries with those bounds,
+literal directives, and an owned thread-safe HTML preservation predicate.
+Callers can share one runtime through `Arc<SharedConverter>` for concurrent
+one-shot plain-text, HTML and Markdown conversion. HTML and Markdown methods
+retain their existing feature gates; iterator conversion remains available
+through `Builder` and `Converter`.
+
+Both facades resolve presets and assemble the same dictionary chain at build
+time, preserving source roles, nested policies and phrase-evidence ownership.
+They retain the lexical index constructed for the ordered source policy and
+use the same execution helpers. Each conversion creates its own parser,
+engine and middleware state. Each call creates temporary directive and HTML
+reader adapters. Literal directive strings are cloned, while the HTML predicate
+borrows the immutable runtime. An HTML predicate may run concurrently, so its
+captured data must meet the shared builder's bounds.
+
 ### JavaScript packages
 
 The JavaScript side is split into a type-only package and one package per
