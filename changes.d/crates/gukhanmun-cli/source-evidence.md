@@ -1,7 +1,10 @@
 ---
 links:
+  '#41': https://github.com/dahlia/gukhanmun/issues/41
   '#42': https://github.com/dahlia/gukhanmun/issues/42
   '#44': https://github.com/dahlia/gukhanmun/pull/44
+  '#45': https://github.com/dahlia/gukhanmun/pull/45
 ---
- -  Custom FST/CDB dictionaries can carry version 4 source evidence; older
-    dictionary files remain supported. [[#42], [#44]]
+ -  Added support for custom version 4 FST/CDB dictionaries carrying source
+    evidence or phrase constraints; older dictionary files remain supported.
+    [[#41], [#42], [#44], [#45]]
