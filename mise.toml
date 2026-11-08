@@ -79,6 +79,7 @@ depends = [
   "loanwords-check",
   "loanwords-update-test",
   "dicts-test",
+  "test-shared",
 ]
 
 [tasks.rust-init]
@@ -198,6 +199,21 @@ description = "Build Rust API documentation with warnings denied"
 depends = ["rust-init"]
 env = { RUSTDOCFLAGS = "-D warnings" }
 run = "cargo doc --workspace --no-deps"
+
+[tasks.test-shared]
+description = "Verify shared conversion and local compatibility across optional features"
+depends = ["rust-init"]
+run = [
+  "cargo test -p gukhanmun --no-default-features --lib --test shared --test local_compatibility",
+  "cargo test -p gukhanmun --no-default-features --doc",
+  "cargo test -p gukhanmun --no-default-features --features html --lib --test shared",
+  "cargo test -p gukhanmun --no-default-features --features markdown --lib --test shared",
+  "cargo test -p gukhanmun --no-default-features --features fst --lib --test shared",
+  "cargo test -p gukhanmun --no-default-features --features cdb --lib --test shared",
+  "cargo test -p gukhanmun --no-default-features --features stdict --lib --test shared",
+  "cargo test -p gukhanmun --no-default-features --features opendict --lib --test shared",
+  "cargo test -p gukhanmun --no-default-features --features loanwords --lib --test shared",
+]
 
 [tasks.js-install]
 description = "Install JavaScript workspace dependencies"

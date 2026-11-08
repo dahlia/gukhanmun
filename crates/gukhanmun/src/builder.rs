@@ -19,29 +19,26 @@
 #[cfg(feature = "html")]
 use gukhanmun_core::recover_input_tokens;
 use gukhanmun_core::{
-    Annotation, ChainDictionary, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter,
-    HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken, LexemeIndex,
-    NumeralStrategy, OutputToken, PlainScopeData, Recovery, RedundantParenCollapser, RenderMode,
-    RenderOptions, RenderedToken, ScopeData, SegmentationStrategy, SourcePolicy, SourceRole,
-    UserDirectives, apply_user_directives_iter_with_lexemes, read_plain_text, render_tokens_iter,
-    write_plain_text,
+    Annotation, ChainDictionary, ContextWindow, DirectiveAction, HanjaDictionary, HanjaVariantSet,
+    HomophoneDetection, InputToken, LexemeIndex, NumeralStrategy, PlainScopeData, Recovery,
+    RenderMode, RenderOptions, RenderedToken, ScopeData, SegmentationStrategy, SourcePolicy,
+    SourceRole, UserDirectives, read_plain_text,
 };
 
-use crate::error::Error;
+use crate::configuration::{BuilderConfiguration, configuration_setters};
 use crate::error::Result;
 use crate::options::{ConversionOptions, Preset};
+use crate::pipeline;
 
 #[cfg(feature = "html")]
 use gukhanmun_html::{
     HtmlElementInfo, HtmlReaderOptions, HtmlScopeData, try_read_html_fragment_iter_with_options,
-    write_html_fragment,
 };
 #[cfg(feature = "markdown")]
-use gukhanmun_markdown::{
-    MarkdownScopeData, MarkdownVariant, read_markdown_iter, write_markdown_with_options,
-};
+use gukhanmun_markdown::{MarkdownScopeData, MarkdownVariant, read_markdown_iter};
 
-/// Rendering configuration accepted by [`Builder::rendering`].
+/// Rendering configuration accepted by [`Builder::rendering`] and
+/// [`SharedBuilder::rendering`](crate::SharedBuilder::rendering).
 ///
 /// A bare [`RenderMode`] replaces the mode while preserving a variant set
 /// selected separately through [`Builder::hanja_variant_set`]. A complete
@@ -68,50 +65,6 @@ impl From<RenderOptions> for BuilderRendering {
     }
 }
 
-/// Adapter iterator that wraps a streaming [`Engine`] as
-/// `Iterator<Item = OutputToken<S>>` over an arbitrary input-token source.
-///
-/// Calls [`Engine::push_token`] one input token at a time, buffers whatever
-/// the engine reports as ready to emit, and finally drains [`Engine::finish`]
-/// when the upstream is exhausted. The wrapper is what lets
-/// [`Converter::convert_tokens`] propagate output without first collecting the
-/// entire upstream into a `Vec`.
-struct EngineIter<'a, S, D, I>
-where
-    S: ScopeData,
-    D: HanjaDictionary + ?Sized + 'a,
-    I: Iterator<Item = InputToken<S>>,
-{
-    upstream: I,
-    engine: Option<Engine<'a, S, D>>,
-    buffer: std::vec::IntoIter<OutputToken<S>>,
-}
-
-impl<'a, S, D, I> Iterator for EngineIter<'a, S, D, I>
-where
-    S: ScopeData,
-    D: HanjaDictionary + ?Sized + 'a,
-    I: Iterator<Item = InputToken<S>>,
-{
-    type Item = OutputToken<S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(token) = self.buffer.next() {
-                return Some(token);
-            }
-            let engine = self.engine.as_mut()?;
-            if let Some(input) = self.upstream.next() {
-                let produced = engine.push_token(input);
-                self.buffer = produced.into_iter();
-                continue;
-            }
-            let engine = self.engine.take().expect("engine present");
-            self.buffer = engine.finish().into_iter();
-        }
-    }
-}
-
 /// Boxed dictionary used inside the umbrella chain.
 type BoxedDictionary<'a> = Box<dyn HanjaDictionary + 'a>;
 
@@ -123,11 +76,7 @@ type BoxedDictionary<'a> = Box<dyn HanjaDictionary + 'a>;
 /// [`Converter`] that can perform conversions repeatedly without re-running
 /// preset resolution.
 pub struct Builder<'a> {
-    options: ConversionOptions,
-    hanja_variant_set_override: Option<HanjaVariantSet>,
-    bundled_stdict: bool,
-    bundled_loanwords: bool,
-    bundled_opendict_north_korean: bool,
+    config: BuilderConfiguration,
     dictionaries: Vec<(BoxedDictionary<'a>, SourceRole)>,
     directives: UserDirectives<'a>,
     #[cfg(feature = "html")]
@@ -141,6 +90,8 @@ impl Default for Builder<'_> {
 }
 
 impl<'a> Builder<'a> {
+    configuration_setters!();
+
     /// Creates a new builder with the default preset ([`Preset::KoKr`]).
     pub fn new() -> Self {
         Self::default()
@@ -149,175 +100,12 @@ impl<'a> Builder<'a> {
     /// Creates a new builder seeded from `preset`.
     pub fn with_preset(preset: Preset) -> Self {
         Self {
-            options: preset.options(),
-            hanja_variant_set_override: None,
-            bundled_stdict: preset.includes_bundled_stdict(),
-            bundled_loanwords: preset.includes_bundled_loanwords(),
-            bundled_opendict_north_korean: preset.includes_bundled_opendict_north_korean(),
+            config: BuilderConfiguration::with_preset(preset),
             dictionaries: Vec::new(),
             directives: UserDirectives::new(),
             #[cfg(feature = "html")]
             html_reader_options: HtmlReaderOptions::new(),
         }
-    }
-
-    /// Overrides the [`RenderOptions`] used by the converter.
-    ///
-    /// Accepts either a bare [`RenderMode`](gukhanmun_core::RenderMode) or a
-    /// fully populated [`RenderOptions`] value.
-    pub fn rendering(mut self, rendering: impl Into<BuilderRendering>) -> Self {
-        match rendering.into() {
-            BuilderRendering::Mode(mode) => {
-                self.options.rendering = mode.into();
-                if let Some(variant_set) = self.hanja_variant_set_override {
-                    self.options.rendering.hanja_variant_set = variant_set;
-                }
-            }
-            BuilderRendering::Options(options) => {
-                self.options.rendering = options;
-                self.hanja_variant_set_override = None;
-            }
-        }
-        self
-    }
-
-    /// Selects the hanja variant set used by every rendering mode.
-    pub fn hanja_variant_set(mut self, variant_set: HanjaVariantSet) -> Self {
-        self.hanja_variant_set_override = Some(variant_set);
-        self.options.rendering.hanja_variant_set = variant_set;
-        self
-    }
-
-    /// Selects cooperation between reference and loanword dictionaries.
-    ///
-    /// Defaults to [`SourcePolicy::ReferenceAuthorized`]. Select
-    /// [`SourcePolicy::Ordered`] to restore the original dictionary-order policy.
-    pub fn source_policy(mut self, policy: SourcePolicy) -> Self {
-        self.options.source_policy = policy;
-        self
-    }
-
-    /// Excludes independent loanword choices, retaining reference-authorized
-    /// realizations. The legacy ordered policy ignores this eligibility filter.
-    pub fn reference_only(mut self, enabled: bool) -> Self {
-        self.options.reference_only = enabled;
-        self
-    }
-
-    /// Overrides the engine's lattice / eager segmentation strategy.
-    pub fn segmentation(mut self, strategy: SegmentationStrategy) -> Self {
-        self.options.engine.segmentation = strategy;
-        self
-    }
-
-    /// Overrides the engine's hanja-numeral strategy.
-    pub fn numerals(mut self, strategy: NumeralStrategy) -> Self {
-        self.options.engine.numeral_strategy = strategy;
-        self
-    }
-
-    /// Enables or disables the South Korean initial sound law for fallback
-    /// readings.
-    pub fn initial_sound_law(mut self, enabled: bool) -> Self {
-        self.options.engine.initial_sound_law = enabled;
-        self
-    }
-
-    /// Sets the homophone disambiguation context window.
-    pub fn homophone_window(mut self, window: ContextWindow) -> Self {
-        self.options.homophone_window = window;
-        self
-    }
-
-    /// Sets the homophone detection strategy.
-    ///
-    /// Defaults to [`HomophoneDetection::ContextLocal`]; pass
-    /// [`HomophoneDetection::DictionaryWide`] to gloss readings shared by other
-    /// dictionary entries even when no homophone appears in the text.
-    pub fn homophone_detection(mut self, detection: HomophoneDetection) -> Self {
-        self.options.homophone_detection = detection;
-        self
-    }
-
-    /// Sets the first-occurrence reset context window.
-    pub fn first_occurrence_window(mut self, window: ContextWindow) -> Self {
-        self.options.first_occurrence_window = window;
-        self
-    }
-
-    /// Enables or disables collapsing of redundant parenthetical reading
-    /// annotations.
-    ///
-    /// Enabled by default.  When enabled, an explicit gloss such as `庫間(곳간)`
-    /// or `곳간(庫間)` is recognised, the redundant parenthetical is removed, and
-    /// the annotation is shown in both scripts in every render mode; a
-    /// parenthetical that pins an alternative reading (for example `數字(수자)`)
-    /// overrides the dictionary reading for that occurrence.
-    pub fn collapse_redundant_parens(mut self, enabled: bool) -> Self {
-        self.options.collapse_redundant_parens = enabled;
-        self
-    }
-
-    /// Sets the reader-error recovery policy.
-    pub fn recovery(mut self, recovery: Recovery) -> Self {
-        self.options.recovery = recovery;
-        self
-    }
-
-    /// Disables inclusion of all bundled dictionaries.
-    ///
-    /// Useful when constructing a converter that should consult only
-    /// user-supplied dictionaries.
-    pub fn no_bundled_dictionaries(mut self) -> Self {
-        self.bundled_stdict = false;
-        self.bundled_loanwords = false;
-        self.bundled_opendict_north_korean = false;
-        self
-    }
-
-    /// Disables inclusion of the bundled *Standard Korean Language Dictionary*.
-    ///
-    /// This leaves other bundled dictionaries selected by the preset enabled.
-    /// Use [`Builder::no_bundled_dictionaries`] to disable every bundled
-    /// dictionary.
-    pub fn no_bundled_stdict(mut self) -> Self {
-        self.bundled_stdict = false;
-        self
-    }
-
-    /// Disables inclusion of bundled Open Korean Dictionary data.
-    ///
-    /// This leaves other bundled dictionaries selected by the preset enabled.
-    /// Use [`Builder::no_bundled_dictionaries`] to disable every bundled
-    /// dictionary.
-    pub fn no_bundled_opendict(mut self) -> Self {
-        self.bundled_opendict_north_korean = false;
-        self
-    }
-
-    /// Forces inclusion of the bundled *Standard Korean Language Dictionary*.
-    ///
-    /// Requires the `stdict` feature. Returns the builder unchanged; the
-    /// missing feature is reported from [`Builder::build`] as
-    /// [`crate::Error::Config`].
-    pub fn bundled_stdict(mut self) -> Self {
-        self.bundled_stdict = true;
-        self
-    }
-
-    /// Enables bundled loanwords ahead of preset dictionaries, after user dictionaries.
-    /// Enabled by default for [`Preset::KoKr`], disabled for [`Preset::KoKp`].
-    /// Requires the `loanwords` feature; otherwise [`Builder::build`] returns
-    /// [`crate::Error::Config`].
-    pub fn bundled_loanwords(mut self) -> Self {
-        self.bundled_loanwords = true;
-        self
-    }
-
-    /// Disables only bundled loanwords while retaining the preset dictionaries.
-    pub fn no_bundled_loanwords(mut self) -> Self {
-        self.bundled_loanwords = false;
-        self
     }
 
     /// Appends a user-supplied dictionary to the lookup chain.
@@ -405,109 +193,29 @@ impl<'a> Builder<'a> {
         self
     }
 
-    /// Selects an output punctuation profile independently of the language preset.
-    /// Invalid custom marks are rejected by [`Self::build`].
-    pub fn punctuation(mut self, profile: gukhanmun_core::PunctuationProfile) -> Self {
-        self.options.punctuation = profile;
-        self
-    }
-
     /// Finalizes the configuration into a [`Converter`].
     ///
     /// Returns [`crate::Error::Config`] if the configuration requests a bundled
     /// dictionary whose feature was disabled at compile time.
     pub fn build(self) -> Result<Converter<'a>> {
-        self.options
-            .punctuation
-            .validate()
-            .map_err(|e| Error::Config(e.to_string()))?;
         let Self {
-            options,
-            hanja_variant_set_override: _,
-            bundled_stdict,
-            bundled_loanwords,
-            bundled_opendict_north_korean,
+            config,
             dictionaries,
             directives,
             #[cfg(feature = "html")]
             html_reader_options,
         } = self;
-
-        #[cfg(not(feature = "loanwords"))]
-        if bundled_loanwords {
-            return Err(Error::Config(
-                "bundled loanwords requested but `loanwords` feature is disabled".into(),
-            ));
-        }
-        #[cfg(not(feature = "opendict"))]
-        {
-            if bundled_opendict_north_korean {
-                return Err(Error::Config(
-                    "bundled Open Korean Dictionary North Korean vocabulary requested but the \
-                     `opendict` feature is disabled"
-                        .into(),
-                ));
-            }
-        }
-        #[cfg(not(feature = "stdict"))]
-        {
-            if bundled_stdict {
-                return Err(Error::Config(
-                    "bundled Standard Korean Language Dictionary requested but the `stdict` \
-                     feature is disabled"
-                        .into(),
-                ));
-            }
-        }
-
-        #[cfg(any(feature = "opendict", feature = "stdict", feature = "loanwords"))]
-        let dictionaries = {
-            let mut dictionaries = dictionaries;
-            #[cfg(feature = "loanwords")]
-            if bundled_loanwords {
-                dictionaries.push((
-                    Box::new(gukhanmun_loanwords::dictionary()),
-                    SourceRole::Loanword,
-                ));
-            }
-            #[cfg(feature = "opendict")]
-            if bundled_opendict_north_korean {
-                dictionaries.push((
-                    Box::new(gukhanmun_opendict::north_korean()),
-                    SourceRole::Reference,
-                ));
-            }
-            #[cfg(feature = "stdict")]
-            if bundled_stdict {
-                dictionaries.push((Box::new(gukhanmun_stdict::ko_kr()), SourceRole::Reference));
-            }
-            dictionaries
-        };
-        #[cfg(not(any(feature = "opendict", feature = "stdict", feature = "loanwords")))]
-        let dictionaries = dictionaries;
-
+        let (options, dictionary, lexemes) = config
+            .assemble(dictionaries, |dictionary| -> BoxedDictionary<'a> {
+                dictionary
+            })?;
         #[cfg(feature = "html")]
         let html_reader_options = html_reader_options.preserve_unmatched_end_tags(
             options.punctuation != gukhanmun_core::PunctuationProfile::preserve(),
         );
-        let mut chain = ChainDictionary::new().with_source_policy(options.source_policy);
-        chain.set_reference_only(options.reference_only);
-        for (dictionary, role) in dictionaries {
-            chain.push_with_role(dictionary, role);
-        }
-        // Cooperative selections carry their source-local lexical identity.
-        // Only ordered resolution needs a merged index for pipeline middleware.
-        let lexemes = if options.source_policy == SourcePolicy::Ordered {
-            chain
-                .lexemes()
-                .or_else(|| LexemeIndex::from_dictionary(&chain))
-                .unwrap_or_default()
-        } else {
-            LexemeIndex::default()
-        };
         Ok(Converter {
             options,
-            dictionary: chain,
+            dictionary,
             lexemes,
             directives,
             #[cfg(feature = "html")]
@@ -560,17 +268,18 @@ impl<'a> Converter<'a> {
     /// Returns the writer options required to serialize normalized Markdown.
     #[cfg(feature = "markdown")]
     pub fn markdown_write_options(&self) -> gukhanmun_markdown::MarkdownWriteOptions {
-        gukhanmun_markdown::MarkdownWriteOptions {
-            protect_text_syntax: self.options.punctuation
-                != gukhanmun_core::PunctuationProfile::preserve(),
-        }
+        pipeline::markdown_write_options(self.options)
     }
 
     /// Converts a plain-text input and returns the result as a `String`.
     pub fn convert_text_to_string(&self, input: &str) -> Result<String> {
-        let input_tokens = read_plain_text(input);
-        let rendered = self.run_buffered(input_tokens);
-        Ok(write_plain_text(rendered))
+        pipeline::convert_text(
+            &self.dictionary,
+            self.options,
+            &self.lexemes,
+            &self.directives,
+            input,
+        )
     }
 
     /// Converts an HTML fragment input and returns the result as a `String`.
@@ -581,15 +290,14 @@ impl<'a> Converter<'a> {
     /// and continues.
     #[cfg(feature = "html")]
     pub fn convert_html_fragment_to_string(&self, input: &str) -> Result<String> {
-        let input_tokens = recover_input_tokens(
-            try_read_html_fragment_iter_with_options(input, &self.html_reader_options),
-            self.options.recovery,
-        )?;
-        let rendered = self.convert_tokens_with_codec(
-            input_tokens,
-            gukhanmun_html::HtmlPunctuationTextCodec::new(),
-        );
-        Ok(write_html_fragment(rendered))
+        pipeline::convert_html(
+            &self.dictionary,
+            self.options,
+            &self.lexemes,
+            &self.directives,
+            &self.html_reader_options,
+            input,
+        )
     }
 
     /// Converts a Markdown input and returns the result as a `String`.
@@ -605,12 +313,14 @@ impl<'a> Converter<'a> {
         input: &str,
         variant: MarkdownVariant,
     ) -> Result<String> {
-        let input_tokens = gukhanmun_markdown::read_markdown(input, variant);
-        let rendered = self.run_buffered(input_tokens);
-        Ok(write_markdown_with_options(
-            rendered,
-            self.markdown_write_options(),
-        )?)
+        pipeline::convert_markdown(
+            &self.dictionary,
+            self.options,
+            &self.lexemes,
+            &self.directives,
+            input,
+            variant,
+        )
     }
 
     /// Streams plain text through the conversion pipeline as a lazy iterator
@@ -679,7 +389,8 @@ impl<'a> Converter<'a> {
     /// umbrella crate ships readers for plain text, HTML fragments, and
     /// Markdown—and consume the returned iterator at the caller's pace.
     ///
-    /// The implementation feeds the upstream into a streaming [`Engine`]
+    /// The implementation feeds the upstream into a streaming
+    /// [`Engine`](gukhanmun_core::Engine)
     /// one token at a time, so the upstream is never drained ahead of demand
     /// (subject to the dictionary lookahead the engine inherently needs).
     /// Middlewares with non-`Off` context windows still buffer per scope or
@@ -709,124 +420,13 @@ impl<'a> Converter<'a> {
         I: IntoIterator<Item = InputToken<S>> + 'b,
         I::IntoIter: 'b,
     {
-        let engine_iter = EngineIter {
-            upstream: input.into_iter(),
-            engine: Some(Engine::<S, _>::with_options(
-                &self.dictionary,
-                self.options.engine,
-            )),
-            buffer: Vec::new().into_iter(),
-        };
-        // Runs first, immediately after the engine, so later stages observe the
-        // corrected reading and presentation flags.
-        let collapse_iter = MiddlewareIter::new(
-            engine_iter,
-            RedundantParenCollapser::new(self.options.collapse_redundant_parens),
-            RedundantParenCollapser::push_token,
-            RedundantParenCollapser::finish,
-        );
-        let homophone_iter = MiddlewareIter::new(
-            collapse_iter,
-            HomophoneMarker::with_detection_and_lexemes(
-                &self.dictionary,
-                self.options.homophone_window,
-                self.options.homophone_detection,
-                &self.lexemes,
-            ),
-            HomophoneMarker::push_token,
-            HomophoneMarker::finish,
-        );
-        let first_occurrence_iter = MiddlewareIter::new(
-            homophone_iter,
-            FirstOccurrenceFilter::with_lexemes(
-                self.options.first_occurrence_window,
-                self.lexemes.clone(),
-            ),
-            FirstOccurrenceFilter::push_token,
-            FirstOccurrenceFilter::finish,
-        );
-        let directives_iter = apply_user_directives_iter_with_lexemes(
-            first_occurrence_iter,
+        pipeline::convert_tokens_with_codec(
+            &self.dictionary,
+            self.options,
+            &self.lexemes,
             &self.directives,
-            self.lexemes.clone(),
-        );
-        let punctuation_iter = MiddlewareIter::new(
-            directives_iter,
-            gukhanmun_core::PunctuationNormalizer::with_codec(self.options.punctuation, codec),
-            gukhanmun_core::PunctuationNormalizer::push_token,
-            gukhanmun_core::PunctuationNormalizer::finish,
-        );
-        render_tokens_iter(punctuation_iter, self.options.rendering)
-    }
-
-    fn run_buffered<S>(
-        &self,
-        input_tokens: impl IntoIterator<Item = InputToken<S>>,
-    ) -> Vec<RenderedToken<S>>
-    where
-        S: ScopeData,
-    {
-        self.convert_tokens(input_tokens).collect()
-    }
-}
-
-/// Adapter iterator that turns a `push_token` / `finish` middleware pair into
-/// a lazy `Iterator<Item = OutputToken<S>>`.
-struct MiddlewareIter<I, M, S, P, F>
-where
-    I: Iterator<Item = OutputToken<S>>,
-    P: FnMut(&mut M, OutputToken<S>) -> Vec<OutputToken<S>>,
-    F: FnOnce(M) -> Vec<OutputToken<S>>,
-    S: ScopeData,
-{
-    upstream: I,
-    middleware: Option<M>,
-    push: P,
-    finish: Option<F>,
-    buffer: std::vec::IntoIter<OutputToken<S>>,
-}
-
-impl<I, M, S, P, F> MiddlewareIter<I, M, S, P, F>
-where
-    I: Iterator<Item = OutputToken<S>>,
-    P: FnMut(&mut M, OutputToken<S>) -> Vec<OutputToken<S>>,
-    F: FnOnce(M) -> Vec<OutputToken<S>>,
-    S: ScopeData,
-{
-    fn new(upstream: I, middleware: M, push: P, finish: F) -> Self {
-        Self {
-            upstream,
-            middleware: Some(middleware),
-            push,
-            finish: Some(finish),
-            buffer: Vec::new().into_iter(),
-        }
-    }
-}
-
-impl<I, M, S, P, F> Iterator for MiddlewareIter<I, M, S, P, F>
-where
-    I: Iterator<Item = OutputToken<S>>,
-    P: FnMut(&mut M, OutputToken<S>) -> Vec<OutputToken<S>>,
-    F: FnOnce(M) -> Vec<OutputToken<S>>,
-    S: ScopeData,
-{
-    type Item = OutputToken<S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(token) = self.buffer.next() {
-                return Some(token);
-            }
-            let middleware = self.middleware.as_mut()?;
-            if let Some(input) = self.upstream.next() {
-                let produced = (self.push)(middleware, input);
-                self.buffer = produced.into_iter();
-                continue;
-            }
-            let middleware = self.middleware.take().expect("middleware present");
-            let finish = self.finish.take().expect("finish callback present");
-            self.buffer = finish(middleware).into_iter();
-        }
+            input,
+            codec,
+        )
     }
 }

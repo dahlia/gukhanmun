@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 
 use gukhanmun::{
     Builder, ContextWindow, MapDictionary, MatchMark, Preset, Recovery, RenderMode, RubyBase,
-    SourcePolicy,
+    SharedBuilder, SourcePolicy,
 };
 use serde::Deserialize;
 
@@ -548,93 +548,114 @@ pub fn run_fixture(fixture: &Fixture) -> RunResult {
     };
     let sidecar = sidecar.as_ref();
 
-    let mut builder = match sidecar.and_then(|s| s.preset) {
-        Some(preset) => Builder::with_preset(preset.into_preset()),
-        None => Builder::new(),
-    };
-    if let Some(config) = sidecar.and_then(|s| s.punctuation.as_ref()) {
-        builder = builder.punctuation(config.resolve().map_err(|e| e.to_string())?);
-    }
-    let use_bundled = sidecar.and_then(|s| s.use_bundled_stdict).unwrap_or(false);
-    if !use_bundled {
-        builder = builder.no_bundled_dictionaries();
-    } else {
-        builder = builder.bundled_stdict();
-    }
-    if let Some(opts) = sidecar.map(|s| &s.options)
-        && let Some(law) = opts.initial_sound_law
-    {
-        builder = builder.initial_sound_law(law);
-    }
-    if let Some(opts) = sidecar.map(|s| &s.options)
-        && let Some(collapse) = opts.collapse_redundant_parens
-    {
-        builder = builder.collapse_redundant_parens(collapse);
-    }
-    if let Some(policy) = sidecar.and_then(|s| s.source_policy) {
-        builder = builder.source_policy(policy.into_source_policy());
-    }
-    if let Some(rendering) = sidecar.and_then(|s| s.rendering) {
-        builder = builder.rendering(rendering.into_render_mode());
-    }
-    if let Some(engine) = sidecar.map(|s| &s.engine)
-        && let Some(window) = engine.disambiguation
-    {
-        builder = builder.homophone_window(window.into_window());
-    }
-    if let Some(recovery) = sidecar.and_then(|s| s.recovery) {
-        builder = builder.recovery(recovery.into_recovery());
-    }
-    if let Some(dict) = sidecar.map(|s| &s.dictionary)
-        && !dict.records.is_empty()
-    {
-        let mut map = MapDictionary::new();
-        for record in &dict.records {
-            let mark = MatchMark {
-                require_hanja: record.require_hanja,
-                require_hangul: record.require_hangul,
-            };
-            map.insert_marked(record.hanja.clone(), record.reading.clone(), mark);
-        }
-        builder = builder.push_dictionary(map);
-    }
-    let converter = builder
-        .build()
-        .map_err(|e| format!("builder failed: {e}"))?;
+    macro_rules! convert_fixture {
+        ($builder:ty) => {{
+            (|| -> Result<String, String> {
+                let mut builder = match sidecar.and_then(|s| s.preset) {
+                    Some(preset) => <$builder>::with_preset(preset.into_preset()),
+                    None => <$builder>::new(),
+                };
+                if let Some(config) = sidecar.and_then(|s| s.punctuation.as_ref()) {
+                    builder = builder.punctuation(config.resolve().map_err(|e| e.to_string())?);
+                }
+                let use_bundled = sidecar.and_then(|s| s.use_bundled_stdict).unwrap_or(false);
+                if !use_bundled {
+                    builder = builder.no_bundled_dictionaries();
+                } else {
+                    builder = builder.bundled_stdict();
+                }
+                if let Some(opts) = sidecar.map(|s| &s.options)
+                    && let Some(law) = opts.initial_sound_law
+                {
+                    builder = builder.initial_sound_law(law);
+                }
+                if let Some(opts) = sidecar.map(|s| &s.options)
+                    && let Some(collapse) = opts.collapse_redundant_parens
+                {
+                    builder = builder.collapse_redundant_parens(collapse);
+                }
+                if let Some(policy) = sidecar.and_then(|s| s.source_policy) {
+                    builder = builder.source_policy(policy.into_source_policy());
+                }
+                if let Some(rendering) = sidecar.and_then(|s| s.rendering) {
+                    builder = builder.rendering(rendering.into_render_mode());
+                }
+                if let Some(engine) = sidecar.map(|s| &s.engine)
+                    && let Some(window) = engine.disambiguation
+                {
+                    builder = builder.homophone_window(window.into_window());
+                }
+                if let Some(recovery) = sidecar.and_then(|s| s.recovery) {
+                    builder = builder.recovery(recovery.into_recovery());
+                }
+                if let Some(dict) = sidecar.map(|s| &s.dictionary)
+                    && !dict.records.is_empty()
+                {
+                    let mut map = MapDictionary::new();
+                    for record in &dict.records {
+                        let mark = MatchMark {
+                            require_hanja: record.require_hanja,
+                            require_hangul: record.require_hangul,
+                        };
+                        map.insert_marked(record.hanja.clone(), record.reading.clone(), mark);
+                    }
+                    builder = builder.push_dictionary(map);
+                }
+                let converter = builder
+                    .build()
+                    .map_err(|e| format!("builder failed: {e}"))?;
 
-    let actual = match fixture.format {
-        FixtureFormat::Text => converter
-            .convert_text_to_string(&input)
-            .map_err(|e| format!("plain-text conversion failed: {e}"))?,
-        FixtureFormat::Html => {
-            #[cfg(feature = "html")]
-            {
-                converter
-                    .convert_html_fragment_to_string(&input)
-                    .map_err(|e| format!("HTML conversion failed: {e}"))?
-            }
-            #[cfg(not(feature = "html"))]
-            {
-                return Err("HTML fixture requires the `html` feature".into());
-            }
-        }
-        FixtureFormat::Markdown => {
-            #[cfg(feature = "markdown")]
-            {
-                let variant = sidecar
-                    .and_then(|s| s.markdown.variant)
-                    .map(MarkdownVariantName::into_variant)
-                    .unwrap_or(gukhanmun::markdown::MarkdownVariant::CommonMark);
-                converter
-                    .convert_markdown_to_string(&input, variant)
-                    .map_err(|e| format!("Markdown conversion failed: {e}"))?
-            }
-            #[cfg(not(feature = "markdown"))]
-            {
-                return Err("Markdown fixture requires the `markdown` feature".into());
-            }
-        }
-    };
+                let actual = match fixture.format {
+                    FixtureFormat::Text => converter
+                        .convert_text_to_string(&input)
+                        .map_err(|e| format!("plain-text conversion failed: {e}"))?,
+                    FixtureFormat::Html => {
+                        #[cfg(feature = "html")]
+                        {
+                            converter
+                                .convert_html_fragment_to_string(&input)
+                                .map_err(|e| format!("HTML conversion failed: {e}"))?
+                        }
+                        #[cfg(not(feature = "html"))]
+                        {
+                            return Err("HTML fixture requires the `html` feature".into());
+                        }
+                    }
+                    FixtureFormat::Markdown => {
+                        #[cfg(feature = "markdown")]
+                        {
+                            let variant = sidecar
+                                .and_then(|s| s.markdown.variant)
+                                .map(MarkdownVariantName::into_variant)
+                                .unwrap_or(gukhanmun::markdown::MarkdownVariant::CommonMark);
+                            converter
+                                .convert_markdown_to_string(&input, variant)
+                                .map_err(|e| format!("Markdown conversion failed: {e}"))?
+                        }
+                        #[cfg(not(feature = "markdown"))]
+                        {
+                            return Err("Markdown fixture requires the `markdown` feature".into());
+                        }
+                    }
+                };
+                Ok(actual)
+            })()
+        }};
+    }
+    let local_result = convert_fixture!(Builder<'_>);
+    let shared_result = convert_fixture!(SharedBuilder);
+    if local_result != shared_result {
+        return Err(match (&local_result, &shared_result) {
+            (Ok(local), Ok(shared)) => format!(
+                "Builder (expected) versus SharedBuilder (actual) fixture output diverged\n{}",
+                diff_message(local, shared),
+            ),
+            _ => format!(
+                "Builder versus SharedBuilder fixture results diverged\nBuilder: {local_result:?}\nSharedBuilder: {shared_result:?}",
+            ),
+        });
+    }
+    let actual = local_result?;
 
     let assertion = sidecar.map(|s| &s.assertion).cloned().unwrap_or_default();
     let description = sidecar.and_then(|s| s.description.as_deref());

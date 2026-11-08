@@ -25,6 +25,11 @@ To be released.
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it
     keep their streaming word bound.  [[#33], [#34]]
+ -  Added `SharedBuilder` and `SharedConverter` so multiple threads can reuse
+    one configured converter. Shared builders accept owned `Send + Sync`
+    dictionaries and HTML preservation predicates; existing `Builder` and
+    `Converter` still accept borrowed dictionaries and local callbacks.
+    [[#46], [#53]]
  -  Added bundled compound aliases that render as one dictionary-backed
     annotation through conversion and parenthetical collapsing. Sibling
     spellings share homophone identity. The bundled standard dictionary
@@ -73,6 +78,8 @@ To be released.
 [#42]: https://github.com/dahlia/gukhanmun/issues/42
 [#44]: https://github.com/dahlia/gukhanmun/pull/44
 [#45]: https://github.com/dahlia/gukhanmun/pull/45
+[#46]: https://github.com/dahlia/gukhanmun/issues/46
+[#53]: https://github.com/dahlia/gukhanmun/pull/53
 
 ### gukhanmun-cdb
 
