@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { pinnedLayout } from "./changelog.ts";
 import { command } from "./model.ts";
 import type { Execute } from "./model.ts";
 /** A maintenance head pinned before credential-bearing collection. */
@@ -65,7 +66,7 @@ export async function target(execute: Execute = command, remote = "origin"): Pro
       if (!config.includes(`[tasks.${task}]`)) throw new Error("missing task");
     }
     if (!config.includes("GUKHANMUN_DICTS_OUTPUT_DIR")) throw new Error("missing staging support");
-    await execute("git", ["show", `${selected.oid}:sacho.toml`]);
+    await pinnedLayout(execute, selected.oid);
     for (const kind of ["stdict", "opendict"]) {
       const metadata = JSON.parse(
         await execute("git", [

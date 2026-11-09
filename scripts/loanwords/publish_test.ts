@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import type { ChangelogLayout } from "../dictionaries/changelog.ts";
+import { configuration } from "../dictionaries/changelog_fixture.ts";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { validate } from "./publish.ts";
@@ -41,7 +43,10 @@ Deno.test("publication rejects traversal, checksum changes and inconsistent conf
     const save = async (value: unknown) =>
       await Deno.writeTextFile(`${dir}/manifest.json`, JSON.stringify(value));
     await save(manifest);
-    assert.equal((await validate(dir)).status, "pending");
+    assert.equal(
+      (await validate(dir, { base: "a".repeat(40), layout: "legacy" })).status,
+      "pending",
+    );
     for (
       const files of [
         [{ ...file, path: "../../credentials" }],
@@ -52,13 +57,13 @@ Deno.test("publication rejects traversal, checksum changes and inconsistent conf
       ]
     ) {
       await save({ ...manifest, files });
-      await assert.rejects(() => validate(dir));
+      await assert.rejects(() => validate(dir, { base: "a".repeat(40), layout: "legacy" }));
     }
     await save({ ...manifest, status: "unchanged" });
-    await assert.rejects(() => validate(dir));
+    await assert.rejects(() => validate(dir, { base: "a".repeat(40), layout: "legacy" }));
     await save(manifest);
     await Deno.writeTextFile(`${dir}/file-0`, "modified in transit");
-    await assert.rejects(() => validate(dir));
+    await assert.rejects(() => validate(dir, { base: "a".repeat(40), layout: "legacy" }));
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -95,6 +100,10 @@ Deno.test("bot lifecycle preserves human commits and skips identical unmerged ge
     const mock = (cmd: string, args: string[]): Promise<string> => {
       const c = `${cmd} ${args.join(" ")}`;
       calls.push(c);
+      if (c.startsWith("git show ") && c.endsWith(":sacho.toml")) {
+        return Promise.resolve(configuration("legacy"));
+      }
+      if (c === "git rev-parse HEAD") return Promise.resolve(base);
       if (c.includes("refs/remotes/origin/")) {
         return Promise.resolve(`main ${advanced ? "f".repeat(40) : base}`);
       }
@@ -159,7 +168,7 @@ Deno.test("bot lifecycle preserves human commits and skips identical unmerged ge
 
 const botEmail = "41898282+github-actions[bot]@users.noreply.github.com";
 const dataDirectory = "crates/gukhanmun-loanwords/data";
-async function gitFixture(maintenance: boolean) {
+async function gitFixture(maintenance: boolean, layout: ChangelogLayout = "legacy") {
   const parent = await Deno.makeTempDir({ prefix: "loanword-publish-git-" });
   const root = `${parent}/work`, remote = `${parent}/remote`;
   const git = async (args: string[], optional = false): Promise<string> => {
@@ -194,6 +203,7 @@ async function gitFixture(maintenance: boolean) {
     `${root}/${dataDirectory}/report.json`,
     '{"tsv_sha256":"synthetic","audit":{}}\n',
   );
+  await Deno.writeTextFile(`${root}/sacho.toml`, configuration(layout));
   await git(["add", "."]);
   await git(["commit", "--quiet", "-m", "Synthetic base"]);
   const base = await git(["rev-parse", "HEAD"]);
@@ -208,6 +218,55 @@ async function gitFixture(maintenance: boolean) {
   await git(["push", "--quiet", "origin", "--tags"]);
   return { parent, root, base, git };
 }
+async function candidateAfterAdvance(layout: ChangelogLayout): Promise<void> {
+  const { candidate } = await import("./publish.ts");
+  const { botBranch } = await import("./targets.ts");
+  const fixture = await gitFixture(false, layout);
+  try {
+    const branch = botBranch("main"), destination = `${fixture.parent}/candidate.json`;
+    const snapshot = '{"records_sha256":"proposal","collected_at":"preserve-this-time"}\n';
+    await Deno.writeTextFile(`${fixture.root}/${dataDirectory}/snapshot.json`, snapshot);
+    await fixture.git(["add", "--", `${dataDirectory}/snapshot.json`]);
+    await fixture.git(["commit", "--quiet", "-m", "Propose loanword snapshot"]);
+    const proposal = await fixture.git(["rev-parse", "HEAD"]);
+    await fixture.git(["push", "--quiet", "origin", `HEAD:refs/heads/${branch}`]);
+    await fixture.git(["switch", "--detach", fixture.base]);
+    await Deno.writeTextFile(
+      `${fixture.root}/unrelated-development.txt`,
+      "ordinary target advance\n",
+    );
+    await fixture.git(["add", "--", "unrelated-development.txt"]);
+    await fixture.git(["commit", "--quiet", "-m", "Advance main with unrelated development"]);
+    await fixture.git(["push", "--quiet", "origin", "HEAD:refs/heads/main"]);
+    const advanced = await fixture.git(["rev-parse", "HEAD"]);
+    const execute = (cmd: string, args: string[], optional = false) => {
+      assert.equal(cmd, "git");
+      return fixture.git(args, optional);
+    };
+    await candidate(destination, "main", execute);
+    assert.equal(await Deno.readTextFile(destination), snapshot);
+
+    // The fork comparison must still reject a proposal using the other fragment family.
+    await fixture.git(["switch", "--detach", proposal]);
+    const otherFamily = layout === "legacy" ? "rust" : "crates";
+    const fragment = `changes.d/${otherFamily}/gukhanmun/loanword-data-update.md`;
+    await Deno.mkdir(`${fixture.root}/changes.d/${otherFamily}/gukhanmun`, { recursive: true });
+    await Deno.writeTextFile(`${fixture.root}/${fragment}`, " - Wrong fragment layout.\n");
+    await fixture.git(["add", "--", fragment]);
+    await fixture.git(["commit", "--quiet", "-m", "Propose opposite-layout fragment"]);
+    await fixture.git(["push", "--quiet", "origin", `HEAD:refs/heads/${branch}`]);
+    await fixture.git(["switch", "--detach", advanced]);
+    await candidate(destination, "main", execute);
+    await assert.rejects(() => Deno.stat(destination), Deno.errors.NotFound);
+  } finally {
+    await Deno.remove(fixture.parent, { recursive: true });
+  }
+}
+for (const layout of ["legacy", "language"] as const) {
+  Deno.test(`${layout}: candidate reuse survives unrelated tracked target advancement`, () =>
+    candidateAfterAdvance(layout));
+}
+
 async function workflowEnvironment(controller: string, action: () => Promise<void>) {
   const values = {
     GITHUB_ACTIONS: "true",
@@ -227,7 +286,7 @@ async function workflowEnvironment(controller: string, action: () => Promise<voi
   }
 }
 
-Deno.test("real Git publication rebuilds forged bot trees and parents, and binds trusted status", async () => {
+async function publicationCases(layout: ChangelogLayout): Promise<void> {
   const { publish, candidate } = await import("./publish.ts");
   const { botBranch, targets } = await import("./targets.ts");
   for (
@@ -241,7 +300,7 @@ Deno.test("real Git publication rebuilds forged bot trees and parents, and binds
       "advanced",
     ]
   ) {
-    const f = await gitFixture(true);
+    const f = await gitFixture(true, layout);
     try {
       const target = "0.10-maintenance", branch = botBranch(target);
       const artifact = `${f.parent}/artifact`;
@@ -292,7 +351,12 @@ Deno.test("real Git publication rebuilds forged bot trees and parents, and binds
       };
       const prior = `${f.parent}/candidate.json`;
       await candidate(prior, target, execute);
-      assert.equal(JSON.parse(await Deno.readTextFile(prior)).records_sha256, "synthetic");
+      if (scenario === "extra-file") {
+        await assert.rejects(() => Deno.stat(prior), Deno.errors.NotFound);
+      } else {assert.equal(
+          JSON.parse(await Deno.readTextFile(prior)).records_sha256,
+          "synthetic",
+        );}
       const selected = await targets(execute);
       assert.equal(selected[0].branch, target); // Both annotated and lightweight release tags are inspected.
       await Deno.writeTextFile(
@@ -339,7 +403,11 @@ Deno.test("real Git publication rebuilds forged bot trees and parents, and binds
       await Deno.remove(f.parent, { recursive: true });
     }
   }
-});
+}
+for (const layout of ["legacy", "language"] as const) {
+  Deno.test(`${layout}: real Git publication rebuilds forged bot trees and parents, and binds trusted status`, () =>
+    publicationCases(layout));
+}
 
 Deno.test("bundling rejects untested paths and records only the complete staged update tree", async () => {
   const f = await gitFixture(false);
@@ -378,7 +446,7 @@ Deno.test("bundling rejects untested paths and records only the complete staged 
     await Deno.remove(`${f.root}/ unintended-output`);
     outcome = await bundle();
     assert.ok(outcome.success, new TextDecoder().decode(outcome.stderr));
-    const manifest = await validate(artifact);
+    const manifest = await validate(artifact, { base: f.base, layout: "legacy" });
     assert.equal(manifest.base, f.base);
     assert.equal(manifest.target, "main");
     assert.equal(manifest.tree, await f.git(["write-tree"]));
@@ -395,12 +463,18 @@ Deno.test("bundling rejects untested paths and records only the complete staged 
         `${artifact}/manifest.json`,
         JSON.stringify({ ...manifest, ...overrides }),
       );
-      await assert.rejects(() => validate(artifact), /invalid update manifest/);
+      await assert.rejects(
+        () => validate(artifact, { base: f.base, layout: "legacy" }),
+        /invalid update manifest/,
+      );
     }
     await Deno.writeTextFile(`${artifact}/manifest.json`, JSON.stringify(manifest));
     await Deno.remove(`${artifact}/file-0`);
     await Deno.mkdir(`${artifact}/file-0`);
-    await assert.rejects(() => validate(artifact), /non-regular/);
+    await assert.rejects(
+      () => validate(artifact, { base: f.base, layout: "legacy" }),
+      /non-regular/,
+    );
   } finally {
     await Deno.remove(f.parent, { recursive: true });
   }

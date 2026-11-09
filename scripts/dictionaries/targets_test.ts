@@ -14,16 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { configuration } from "./changelog_fixture.ts";
 import assert from "node:assert/strict";
 import { botBranch, target, validTarget } from "./targets.ts";
 import type { Execute } from "./model.ts";
-function fixture(branches: string[], compatible = true): Execute {
+function fixture(branches: string[], compatible = true, config = configuration("legacy")): Execute {
   return (_cmd, args) => {
     if (args[0] === "fetch") return Promise.resolve("");
     if (args[0] === "for-each-ref") {
       return Promise.resolve(branches.map((b) => `${b} ${"a".repeat(40)}`).join("\n"));
     }
     if (args[0] === "show") {
+      if (args[1].endsWith("sacho.toml")) return Promise.resolve(config);
       if (args[1].endsWith("interface.json")) {
         return Promise.resolve(JSON.stringify({ version: compatible ? 1 : 2 }));
       }
@@ -60,5 +62,26 @@ Deno.test("newest numeric maintenance only, without main or compatibility fallba
   await assert.rejects(
     () => target(fixture(["0.2-maintenance"]), "-upload-pack=evil"),
     /invalid remote/,
+  );
+});
+
+Deno.test("dictionary selection validates the pinned target layout before collection", async () => {
+  assert.equal(
+    (await target(fixture(["0.10-maintenance"], true, configuration("language")))).branch,
+    "0.10-maintenance",
+  );
+  await assert.rejects(
+    () =>
+      target(
+        fixture(
+          ["0.10-maintenance"],
+          true,
+          configuration("legacy").replace(
+            'directory = "crates/{name}"',
+            'directory = "rust/{name}"',
+          ),
+        ),
+      ),
+    /needs/,
   );
 });

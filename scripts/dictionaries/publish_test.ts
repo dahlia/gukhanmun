@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import type { ChangelogLayout } from "./changelog.ts";
+import { configuration } from "./changelog_fixture.ts";
 import assert from "node:assert/strict";
 import { bundle, proposalBody, publish, validate } from "./publish.ts";
 import type { Manifest } from "./publish.ts";
@@ -40,7 +42,10 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
     };
     const save = (v: unknown) => Deno.writeFile(`${directory}/manifest.json`, json(v));
     await save(m);
-    assert.equal((await validate(directory)).target, "0.10-maintenance");
+    assert.equal(
+      (await validate(directory, { base: "b".repeat(40), layout: "legacy" })).target,
+      "0.10-maintenance",
+    );
     for (
       const files of [
         [{ ...file, path: "../escape" }],
@@ -52,7 +57,7 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
       ]
     ) {
       await save({ ...m, files });
-      await assert.rejects(() => validate(directory));
+      await assert.rejects(() => validate(directory, { base: "b".repeat(40), layout: "legacy" }));
     }
     for (
       const value of [{ ...m, target: "main" }, { ...m, status: "unchanged" }, {
@@ -61,21 +66,27 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
       }]
     ) {
       await save(value);
-      await assert.rejects(() => validate(directory));
+      await assert.rejects(() => validate(directory, { base: "b".repeat(40), layout: "legacy" }));
     }
     await save(m);
     await Deno.writeTextFile(`${directory}/file-0`, "corruption");
-    await assert.rejects(() => validate(directory), /checksum/);
+    await assert.rejects(
+      () => validate(directory, { base: "b".repeat(40), layout: "legacy" }),
+      /checksum/,
+    );
     if (Deno.build.os !== "windows") {
       await Deno.remove(`${directory}/file-0`);
       await Deno.symlink("manifest.json", `${directory}/file-0`);
-      await assert.rejects(() => validate(directory), /symlink/);
+      await assert.rejects(
+        () => validate(directory, { base: "b".repeat(40), layout: "legacy" }),
+        /symlink/,
+      );
     }
   } finally {
     await Deno.remove(directory, { recursive: true });
   }
 });
-async function fixture() {
+async function fixture(layout: ChangelogLayout = "legacy") {
   const parent = await Deno.makeTempDir({ prefix: "dictionary-publish-" }),
     root = `${parent}/work`,
     remote = `${parent}/remote`;
@@ -97,7 +108,7 @@ async function fixture() {
     "scripts/dictionaries/interface.json": '{"version":1}',
     "mise.toml":
       "[tasks.stdict-extract]\n[tasks.opendict-extract]\n[tasks.ci]\n# GUKHANMUN_DICTS_OUTPUT_DIR",
-    "sacho.toml": "# synthetic",
+    "sacho.toml": configuration(layout),
     "crates/gukhanmun-stdict/data/metadata.json": '{"source":"s","build_date":"d","license":"l"}',
     "crates/gukhanmun-opendict/data/metadata.json": '{"source":"s","build_date":"d","license":"l"}',
     [path]: "hanja\thangul\n甲\t갑\n",
@@ -133,7 +144,7 @@ async function workflow<T>(sha: string, callback: () => Promise<T>): Promise<T> 
     }
   }
 }
-Deno.test("real Git publication binds tested trees and refuses human or stale proposals", async () => {
+async function publicationCases(layout: ChangelogLayout): Promise<void> {
   for (
     const scenario of [
       "new",
@@ -147,7 +158,7 @@ Deno.test("real Git publication binds tested trees and refuses human or stale pr
       "symlink-ancestor",
     ] as const
   ) {
-    const { parent, root, base, git } = await fixture();
+    const { parent, root, base, git } = await fixture(layout);
     try {
       await workflow(base, async () => {
         const directory = `${parent}/artifact`, calls: string[] = [];
@@ -159,7 +170,7 @@ Deno.test("real Git publication binds tested trees and refuses human or stale pr
           "0.10-maintenance",
           git,
         );
-        let m = await validate(directory);
+        let m = await validate(directory, { base, layout });
         await git("git", ["restore", "--staged", "--worktree", "."]);
         if (scenario === "wrong-tree" || scenario === "wrong-controller") {
           m = { ...m, [scenario === "wrong-tree" ? "tree" : "controller"]: "f".repeat(40) };
@@ -258,7 +269,12 @@ Deno.test("real Git publication binds tested trees and refuses human or stale pr
       await Deno.remove(parent, { recursive: true });
     }
   }
-});
+}
+for (const layout of ["legacy", "language"] as const) {
+  Deno.test(`${layout}: real Git publication binds tested trees and refuses human or stale proposals`, () =>
+    publicationCases(layout));
+}
+
 Deno.test("bundling refuses unrelated files and no-change results with writes", async () => {
   const { parent, root, base, git } = await fixture();
   try {

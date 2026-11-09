@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { pinnedLayout } from "./changelog.ts";
+import type { PinnedLayout } from "./changelog.ts";
 import { command, hash, json, read, safePath, updatePaths } from "./model.ts";
 import type { Execute } from "./model.ts";
 import { botBranch, target, validTarget } from "./targets.ts";
@@ -40,6 +42,8 @@ export async function bundle(
   execute: Execute,
 ): Promise<void> {
   if (!validTarget(branch)) throw new Error("invalid target for bundle");
+  const context = await pinnedLayout(execute);
+  const paths = updatePaths(context.layout);
   const changed = new Set<string>();
   for (
     const args of [["diff", "--name-only", "--no-renames", "-z", "HEAD"], [
@@ -51,7 +55,7 @@ export async function bundle(
   ) {
     for (const path of (await execute("git", args)).split("\0").filter(Boolean)) changed.add(path);
   }
-  if ([...changed].some((p) => !updatePaths.includes(p))) {
+  if ([...changed].some((p) => !paths.includes(p))) {
     throw new Error("tested tree has non-data changes");
   }
   if ((result.status === "unchanged") !== (changed.size === 0)) {
@@ -61,7 +65,7 @@ export async function bundle(
   const manifest: Manifest = {
     version: 1,
     controller: Deno.env.get("GITHUB_SHA") ?? "",
-    base: await execute("git", ["rev-parse", "HEAD"]),
+    base: context.base,
     tree: "",
     target: branch,
     status: result.status,
@@ -95,25 +99,26 @@ export async function bundle(
   await Deno.writeFile(`${directory}/manifest.json`, json(manifest));
 }
 /** Checks artifact syntax and every bounded, regular, nonexecutable blob before writes. */
-export async function validate(directory: string): Promise<Manifest> {
+export async function validate(directory: string, context: PinnedLayout): Promise<Manifest> {
   const raw = await read(directory, "manifest.json");
   if (!raw || raw.length > 128 * 1024) throw new Error("invalid dictionary manifest size");
   const m: Manifest = JSON.parse(new TextDecoder().decode(raw));
+  const allowed = updatePaths(context.layout);
   if (
-    m.version !== 1 ||
+    m.version !== 1 || m.base !== context.base ||
     ![m.controller, m.base, m.tree].every((s) =>
       typeof s === "string" && /^[a-f0-9]{40,64}$/.test(s)
     ) ||
     !validTarget(m.target) || !["updated", "unchanged"].includes(m.status) ||
     typeof m.summary !== "string" || m.summary.length > 32768 || !Array.isArray(m.files) ||
-    m.files.length > updatePaths.length ||
+    m.files.length > allowed.length ||
     (m.status === "unchanged" && m.files.length) || (m.status === "updated" && !m.files.length)
   ) throw new Error("invalid dictionary manifest");
   const paths = new Set<string>(), blobs = new Set<string>();
   let total = 0;
   for (const f of m.files) {
     if (
-      !f || !updatePaths.includes(f.path) || paths.has(f.path) || !/^file-[0-9]+$/.test(f.blob) ||
+      !f || !allowed.includes(f.path) || paths.has(f.path) || !/^file-[0-9]+$/.test(f.blob) ||
       blobs.has(f.blob) ||
       f.mode !== "100644" || !/^[a-f0-9]{64}$/.test(f.sha256)
     ) throw new Error("invalid dictionary artifact path/mode");
@@ -165,7 +170,7 @@ export async function publish(directory: string, root: string, execute: Execute)
     Deno.env.get("GITHUB_ACTIONS") !== "true" || Deno.env.get("GITHUB_REPOSITORY") !== repository ||
     Deno.env.get("GITHUB_REF") !== "refs/heads/main"
   ) throw new Error("publication requires trusted main Actions execution");
-  const m = await validate(directory);
+  const m = await validate(directory, await pinnedLayout(execute));
   if (m.controller !== Deno.env.get("GITHUB_SHA")) throw new Error("artifact controller mismatch");
   const fresh = await target(execute);
   if (fresh.branch !== m.target || fresh.oid !== m.base) {
@@ -285,8 +290,11 @@ if (import.meta.main) {
     if (!directory) throw new Error("artifact directory required");
     const root = Deno.env.get("GUKHANMUN_DICTS_ROOT") ?? Deno.cwd();
     const execute: Execute = (cmd, args, optional) => command(cmd, args, optional, root);
-    if (mode === "validate") await validate(directory);
-    else if (mode === "bundle") {
+    if (mode === "validate") {
+      const oid = Deno.env.get("TARGET_OID");
+      if (!oid) throw new Error("pinned target object required for validation");
+      await validate(directory, await pinnedLayout(command, oid));
+    } else if (mode === "bundle") {
       const result: Result = JSON.parse(
         await Deno.readTextFile(Deno.env.get("GUKHANMUN_DICTS_RESULT")!),
       );

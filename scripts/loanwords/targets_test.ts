@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { configuration } from "../dictionaries/changelog_fixture.ts";
 import assert from "node:assert/strict";
 import { botBranch, targets, validTarget } from "./targets.ts";
 import type { Execute } from "./targets.ts";
@@ -25,6 +26,7 @@ function catalog(options: {
   feature?: boolean;
   ancestor?: boolean;
   fail?: string;
+  config?: string;
 } = {}): Execute {
   return (_cmd, args) => {
     const c = args.join(" ");
@@ -38,6 +40,9 @@ function catalog(options: {
       );
     }
     if (args[0] === "for-each-ref") return Promise.resolve((options.tags ?? []).join("\n"));
+    if (args[0] === "show" && args[1].endsWith(":sacho.toml")) {
+      return Promise.resolve(options.config ?? configuration("legacy"));
+    }
     if (args[0] === "rev-parse") return Promise.resolve(release);
     if (args[0] === "ls-tree") {
       const has = args[2] === branch
@@ -94,4 +99,17 @@ Deno.test("target and bot branch names are canonical, not lexicographic aliases"
       null,
     ]
   ) assert.equal(validTarget(name), false);
+});
+
+Deno.test("loanword selection validates target layouts before collection", async () => {
+  assert.equal((await targets(catalog({ config: configuration("language") })))[0].branch, "main");
+  await assert.rejects(
+    () =>
+      targets(
+        catalog({
+          config: configuration("language").replace('id = "{name} (Rust)"', 'id = "{name}"'),
+        }),
+      ),
+    /target changelog/,
+  );
 });
