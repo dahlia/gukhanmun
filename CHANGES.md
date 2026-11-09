@@ -485,6 +485,9 @@ To be released.
     [[#48], [#15], [#55]]
  -  Added `mise run py-sync-version` and integrated Python metadata and
     *uv.lock* into workspace version bumps. [[#48], [#15], [#55]]
+ -  Preserved `GukhanmunError` codes, messages and cause tuples when copying
+    or pickling errors, including errors returned from process workers.
+    [[#48], [#15], [#55]]
 
 [#15]: https://github.com/dahlia/gukhanmun/issues/15
 [#48]: https://github.com/dahlia/gukhanmun/issues/48

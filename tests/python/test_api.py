@@ -17,8 +17,10 @@
 from __future__ import annotations
 
 import copy
+import multiprocessing
 import os
 import pickle
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import FrozenInstanceError, fields, is_dataclass
 from collections.abc import Iterator
 from enum import Enum
@@ -39,6 +41,43 @@ ENUMS = (
 
 def dictionary() -> g.MapDictionarySource:
     return g.MapDictionarySource(entries=[g.DictionaryEntry(hanja="漢字", reading="한자")])
+
+
+@pytest.mark.parametrize("operation", ["copy", "deepcopy", "pickle"])
+def test_coded_errors_survive_standard_transport(operation: str) -> None:
+    error = g.GukhanmunError(
+        g.ErrorCode.DICTIONARY_LOAD,
+        "could not load dictionary",
+        [g.ErrorCause(g.ErrorCode.IO, "missing file")],
+    )
+    if operation == "pickle":
+        restored = pickle.loads(pickle.dumps(error))
+    elif operation == "copy":
+        restored = copy.copy(error)
+    else:
+        restored = copy.deepcopy(error)
+    assert restored is not error
+    assert restored.code is error.code
+    assert restored.message == error.message
+    assert restored.chain == error.chain
+    assert isinstance(restored.chain, tuple)
+    assert str(restored) == str(error)
+    assert restored.args == error.args
+
+
+def _convert_document_in_process(source: str) -> str:
+    return g.Converter(dictionaries=[dictionary()]).convert(source, format=g.InputFormat.HTML)
+
+
+def test_conversion_error_crosses_process_boundary_without_breaking_pool() -> None:
+    with ProcessPoolExecutor(
+        max_workers=1, mp_context=multiprocessing.get_context("spawn")
+    ) as pool:
+        failed = pool.submit(_convert_document_in_process, "<p>漢字 <1invalid>")
+        with pytest.raises(g.GukhanmunError) as raised:
+            failed.result(timeout=30)
+        assert raised.value.code is g.ErrorCode.SEGMENTATION
+        assert pool.submit(_convert_document_in_process, "<p>漢字</p>").result(timeout=30) == "<p>한자</p>"
 
 
 def test_standard_enum_contract() -> None:

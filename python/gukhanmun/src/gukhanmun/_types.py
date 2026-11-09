@@ -183,6 +183,11 @@ class GukhanmunError(Exception):
         self._chain = _sequence(chain, ErrorCause, "chain")
         super().__init__(message)
 
+    def __reduce__(
+        self,
+    ) -> tuple[type[GukhanmunError], tuple[ErrorCode, str, tuple[ErrorCause, ...]]]:
+        return (type(self), (self._code, self._message, self._chain))
+
     @property
     def code(self) -> ErrorCode:
         return self._code

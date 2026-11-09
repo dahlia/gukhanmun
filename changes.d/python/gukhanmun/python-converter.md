@@ -17,3 +17,7 @@ links:
 
  -  Added `mise run py-sync-version` and integrated Python metadata and
     *uv.lock* into workspace version bumps. [[#48], [#15], [#55]]
+
+ -  Preserved `GukhanmunError` codes, messages and cause tuples when copying
+    or pickling errors, including errors returned from process workers.
+    [[#48], [#15], [#55]]
