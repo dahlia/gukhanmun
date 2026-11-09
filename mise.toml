@@ -49,6 +49,7 @@ description = "Run fast checks suitable for pre-commit"
 depends = [
   "actionlint",
   "changelog-check",
+  "changelog-layout-check",
   "fmt-check",
   "typecheck",
   "clippy",
@@ -62,6 +63,14 @@ depends = [
 description = "Validate changelog fragments and materialized output"
 run = "sacho check"
 
+[tasks.changelog-layout-check]
+description = "Reject fragments outside their public language sections"
+run = "python -B scripts/changelog/check.py"
+
+[tasks.changelog-test]
+description = "Verify historical carry and reserved language sections offline"
+run = 'python -B -m unittest discover -s scripts/changelog -p "*_test.py"'
+
 [tasks.actionlint]
 description = "Lint GitHub Actions workflows"
 run = "actionlint"
@@ -70,6 +79,7 @@ run = "actionlint"
 description = "Run the full CI verification gate"
 depends = [
   "check",
+  "changelog-test",
   "test",
   "docs-test",
   "doc",
