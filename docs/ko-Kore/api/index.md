@@ -5,11 +5,10 @@ title: API 參照
 API 參照
 ========
 
-Gukhanmun은 두 벌의 API를 提供합니다: 하나는 Rust用이고, 다른 하나는
-JavaScript用입니다.
+Gukhanmun은 Rust, JavaScript, Python API를 제공합니다.
 
 :::note 參考
-自動 生成되는 API 參照 페이지는 英語로 提供됩니다.
+自動 生成되는 Rust/JavaScript API 參照 페이지는 英語로 提供됩니다.
 :::
 
 
@@ -57,3 +56,11 @@ JavaScript API 參照는 아래 페이지에서 찾을 수 있습니다:
  -  [@gukhanmun/opendict-fst](../../en/api/js/modules/_gukhanmun_opendict-fst.md)
  -  [@gukhanmun/loanwords-cdb](../../en/api/js/modules/_gukhanmun_loanwords-cdb.md)
  -  [@gukhanmun/loanwords-fst](../../en/api/js/modules/_gukhanmun_loanwords-fst.md)
+
+
+Python
+------
+
+Python API는 `Converter(...)`, 표준 라이브러리 enum과 변경할 수 없는 설정
+레코드를 사용합니다. [Python API 참고 문서](./python.md)나
+[Python 빠른 시작](../guide/python/start.md)을 참고하세요.

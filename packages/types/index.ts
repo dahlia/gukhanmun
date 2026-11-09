@@ -830,9 +830,9 @@ export declare class GukhanmunError extends Error {
   readonly code: ErrorCode;
   /**
    * Ordered list of underlying causes, derived from the Rust
-   * `std::error::Error::source()` chain.  The first entry is the immediate
-   * cause; subsequent entries are deeper causes.  Empty when there is no
-   * chain.
+   * `std::error::Error::source()` chain.  The first entry is the deepest/root
+   * cause; subsequent entries approach the immediate cause.  Empty when
+   * there is no chain.
    */
   readonly chain: readonly {
     readonly code: ErrorCode;

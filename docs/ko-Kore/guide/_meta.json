@@ -15,5 +15,10 @@
     "type": "dir-section-header",
     "name": "javascript",
     "label": "JavaScript"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "python",
+    "label": "Python"
   }
 ]

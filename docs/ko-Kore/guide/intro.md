@@ -1,8 +1,8 @@
 ---
 title: 紹介
 description: |-
-  Gukhanmun에 對한 槪觀과 CLI·Rust·JavaScript 境界面 中에서 무엇을 고를지에 對한
-  案內.
+  Gukhanmun에 對한 槪觀과 CLI·Rust·JavaScript·Python 境界面 中에서 무엇을 고를지에
+  對한 案內.
 ---
 
 紹介
@@ -20,11 +20,12 @@ Markdown, HTML(`<ruby>` 마크업 包含) 等 여러 形式으로 生成합니�
 境界面 選擇
 -----------
 
-| 境界面     | 쓰임새                                                 |
-| ---------- | ------------------------------------------------------ |
-| CLI        | 터미널이나 셸 파이프라인에서 파일을 變換할 때          |
-| Rust       | 變換器를 Rust 應用 프로그램이나 라이브러리에 內藏할 때 |
-| JavaScript | Node.js·Deno·Bun이나 브라우저에서 使用할 때            |
+| 境界面     | 쓰임새                                                    |
+| ---------- | --------------------------------------------------------- |
+| CLI        | 터미널이나 셸 파이프라인에서 파일을 變換할 때             |
+| Rust       | 變換器를 Rust 應用 프로그램이나 라이브러리에 內藏할 때    |
+| JavaScript | Node.js·Deno·Bun이나 브라우저에서 使用할 때               |
+| Python     | Python NLP 및 文書 處理 파이프라인에서 텍스트를 變換할 때 |
 
 ### CLI
 
@@ -56,3 +57,11 @@ Markdown, HTML(`<ruby>` 마크업 包含) 等 여러 形式으로 生成합니�
 둘은 같은 `load()` API를 共有하며 同一한 옵션을 받습니다.
 
 여기서부터 始作하면 됩니다: 〈[設置](./javascript/install)〉.
+
+### Python
+
+Python 패키지는 타입이 지정된 키워드 설정과 명시적 사전 입력을 받는
+`Converter(...)`를 제공합니다. 로컬 wheel을 빌드하여 Python 프로세스
+안에서 일반 텍스트, HTML, Markdown을 변환합니다.
+
+[Python 빠른 시작](./python/start.md)을 참고하세요.

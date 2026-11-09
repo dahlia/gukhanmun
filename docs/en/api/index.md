@@ -5,8 +5,7 @@ title: API references
 API references
 ==============
 
-Gukhanmun provides two sets of APIs: one is for Rust, and the other is for
-JavaScript.
+Gukhanmun provides APIs for Rust, JavaScript and Python.
 
 
 Rust
@@ -53,3 +52,11 @@ You can find the JavaScript API references from the below pages:
  -  [@gukhanmun/opendict-fst](js/modules/_gukhanmun_opendict-fst)
  -  [@gukhanmun/loanwords-cdb](js/modules/_gukhanmun_loanwords-cdb.md)
  -  [@gukhanmun/loanwords-fst](js/modules/_gukhanmun_loanwords-fst.md)
+
+
+Python
+------
+
+The Python API uses `Converter(...)`, standard-library enums and immutable
+configuration records. See the [Python API reference](./python.md) or start
+with the [Python quick start](../guide/python/start.md).

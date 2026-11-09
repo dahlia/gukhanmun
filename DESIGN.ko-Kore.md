@@ -9,8 +9,8 @@ Gukhanmun은 國漢文混用體로 쓰인 韓國語 텍스트를 한글 專用 �
 라이브러리이다. [Seonbi]의 後繼 프로젝트로서, 漢字 變換 파이프라인 하나에
 集中하면서도 다음과 같은 軸들로 擴張되었다: 스트리밍 入出力, 結合 可能한 辭典,
 래티스(lattice) 基盤 分割, 더 多樣한 出力 形式. 프로젝트는 Rust로 具顯되었고
-Rust 라이브러리·命令줄 道具·WebAssembly 바인딩·[Node-API] 바인딩의 形態로
-提供된다.
+Rust 라이브러리·命令줄 道具·WebAssembly 바인딩·[Node-API] 바인딩·Python
+바인딩의 形態로 提供된다.
 
 [Seonbi]: https://github.com/dahlia/seonbi
 [Node-API]: https://nodejs.org/api/n-api.html
@@ -27,9 +27,8 @@ Rust 라이브러리·命令줄 道具·WebAssembly 바인딩·[Node-API] 바인
 크기와 選擇的 文脈間 同音異義 區別에 局限된다. 메모리 內 데이터·mmap 基盤·또는
 엔진에 不透明한 其他 形態의 結合 可能한 辭典을 받아들인다. 韓國
 國立國語院의 《外來語 表記 用例》와 《標準國語大辭典》에서 抽出한 基本
-辭典을 함께 提供한다. Rust에서,
-Node-API를 通한 Node.js에서, WebAssembly를 通한 브라우저와 Deno에서, 그리고
-命令줄에서 使用 可能하다.
+辭典을 함께 提供한다. Rust와 Python에서, Node-API를 通한 Node.js에서,
+WebAssembly를 通한 브라우저와 Deno에서, 그리고 命令줄에서 使用 可能하다.
 
 이 라이브러리는 쉼표·마침표·明示的 引用 符號의 選擇的 出力 프로파일을 提供한다.
 基本값은 句讀 符號 保存이다. ASCII 代用 表記에서 따옴標를 推論하거나
@@ -927,6 +926,8 @@ Rust 코드는 Cargo 워크스페이스로 다음과 같이 構成된다:
      -  *gukhanmun-cli/*: `gukhanmun` 命令줄 바이너리.
      -  *gukhanmun-wasm/*: `wasm-bindgen`을 通한 WebAssembly 바인딩.
      -  *gukhanmun-napi/*: `napi-rs`를 通한 Node-API 바인딩.
+     -  *gukhanmun-python/*: PyO3를 通한 非公開 Python 擴張 모듈.
+ -  *python/gukhanmun/*: Python 파사드와 配布 메타데이터.
 
 우산 크레이트의 기능 플래그가 나머지를 組合한다. 基本 기능은 HTML·Markdown,
 CDB·FST 백엔드, 內藏 loanwords·stdict·opendict 辭典을 活性化한다. 各 機能은
@@ -994,6 +995,28 @@ Unicode 스칼라 단위로 動作하기 때문이다. 바이트 單位 청크�
 境界에서 部分 코드포인트 再組立을 直接 해야 함을 意味하는데, 그것은 플랫폼의
 `TextDecoderStream`이 이미 올바르게 해 주는 일이다. 바이트 스트림을 들고 있는
 使用者는 `TextDecoderStream` → Gukhanmun 變換 順으로 連結하면 된다.
+
+### Python 패키지
+
+Python 配布版은 *python/gukhanmun/* 아래에 있으며, 타입이 指定된 Python
+클래스와 標準 라이브러리 enum을 公開한다. 非公開 擴張 모듈
+`gukhanmun._native`는 配布하지 않는 *crates/gukhanmun-python/* 크레이트에서
+PyO3와 maturin으로 빌드한다. Rust 크레이트는 워크스페이스 버전을 相續하며,
+Python 매니페스트는 이에 同期化한 패키지 버전을 저장한다.
+
+`Converter(...)`는 生成 時 設定을 복사하고 明示한 메모리/FST/CDB 辭典을
+불러온다. 어느 프리셋도 公式 辭典을 自動으로 불러오지 않는다. 네이티브
+핸들은 `SharedConverter`를 所有한다. 變換 中에는 Python 連結을 解除하고
+不變 辭典을 共有하며, 구문 分析機와 미들웨어 狀態는 文書別로 維持한다.
+시그널은 네이티브 作業이 끝난 뒤 確認한다.
+
+初期 Python 스트림은 文字列 청크를 `finish()`까지 모은다.
+`convert_iter()`도 反復 可能 客體를 같은 一括 變換 動作에 連結한다.
+公開 設定과 內部 레코드는 變更할 수 없다. 誤謬는 enum 코드와 가장 깊은
+根本 原因부터 나열한 不變 튜플을 提供한다. 로컬 mise 作業은 wheel을 빌드하고
+저장소 밖에서 實行 및 타입을 檢査한다.
+
+公式 辭典 配布版, 全體 인터프리터/플랫폼 檢査와 레지스트리 配布는 後續 作業이다.
 
 ### 辭典 設定
 

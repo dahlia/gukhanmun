@@ -10,7 +10,8 @@ Gukhanmun is a library for converting Korean text written in mixed script
 in scope to the hanja conversion pipeline and broadened along several axes:
 streaming I/O, pluggable dictionaries, lattice-based segmentation, and a wider
 range of output formats. The project is implemented in Rust and exposed as a
-Rust library, a command-line tool, WebAssembly bindings, and Node-API bindings.
+Rust library, a command-line tool, WebAssembly bindings, Node-API bindings,
+and Python bindings.
 
 [Seonbi]: https://github.com/dahlia/seonbi
 
@@ -29,8 +30,8 @@ disambiguation. It accepts pluggable dictionaries that may be in-memory,
 mmap-backed, or otherwise opaque to the engine. It ships default dictionaries
 derived from the National Institute of Korean Language's *Loanword spelling
 examples* and *Standard Korean Language Dictionary* (標準國語大辭典). It is
-usable from Rust, from Node.js via [Node-API], from browsers and Deno via
-WebAssembly, and from a command line.
+usable from Rust, from Python, from Node.js via [Node-API], from browsers and
+Deno via WebAssembly, and from a command line.
 
 The library provides opt-in output profiles for commas, periods, and explicit
 citation delimiters. The default preserves punctuation. Broader typographic
@@ -1126,6 +1127,8 @@ The Rust source is organized as a Cargo workspace with the following layout:
      -  *gukhanmun-cli/*: the `gukhanmun` command-line binary.
      -  *gukhanmun-wasm/*: WebAssembly bindings via `wasm-bindgen`.
      -  *gukhanmun-napi/*: Node-API bindings via `napi-rs`.
+     -  *gukhanmun-python/*: private Python extension via PyO3.
+ -  *python/gukhanmun/*: Python facade and distribution metadata.
 
 The umbrella crate's feature flags compose the others. Default features enable
 HTML, Markdown, the CDB and FST backends, and the bundled loanwords, stdict,
@@ -1230,6 +1233,29 @@ force the adapter to do partial-codepoint reassembly at every boundary, which
 the platform's `TextDecoderStream` already does correctly. Users who have a
 byte stream chain it through `TextDecoderStream` and then through the gukhanmun
 transform.
+
+### Python package
+
+The Python distribution lives under *python/gukhanmun/* and exposes typed
+Python classes and standard-library enums. Its private `gukhanmun._native`
+extension is built from the unpublished *crates/gukhanmun-python/* crate using
+PyO3 and maturin. The crate inherits the workspace version; the Python manifest
+stores a synchronized version for Python packaging.
+
+`Converter(...)` snapshots configuration and loads explicit map/FST/CDB
+sources during construction. Neither preset loads official dictionary data.
+The native handle owns a `SharedConverter`; conversion releases the GIL
+and shares immutable dictionaries while keeping parser and middleware state
+local to each document. Signals are checked after native work completes.
+
+The current Python stream implementation buffers string chunks until
+`finish()`, and `convert_iter()` adapts an iterable to the same batch-equivalent
+behavior. Public options and nested records are immutable. Errors expose enum
+codes and a frozen cause tuple ordered deepest/root first. The local mise tasks
+build a wheel and test its runtime and typing outside the checkout.
+
+Official data distributions, the complete interpreter/platform matrix and
+registry publishing are separate follow-up work.
 
 ### Dictionary configuration
 

@@ -44,13 +44,14 @@ export default defineConfig({
       label: "English",
       title: "Gukhanmun",
       description:
-        "Rust/JavaScript library that converts mixed-script Korean into hangul-only text",
+        "Rust/JavaScript/Python library that converts mixed-script Korean into hangul-only text",
     },
     {
       lang: "ko-Kore",
       label: "韓國語 (國漢文)",
       title: "Gukhanmun",
-      description: "國漢文混用體 韓國語를 한글 專用 텍스트로 變換하는 Rust/JavaScript 라이브러리",
+      description:
+        "國漢文混用體 韓國語를 한글 專用 텍스트로 變換하는 Rust/JavaScript/Python 라이브러리",
     },
     {
       // Auto-generated from ko-Kore by docs/scripts/generate-ko-kr.mts; see the
@@ -58,7 +59,8 @@ export default defineConfig({
       lang: "ko-KR",
       label: "한국어 (한글)",
       title: "Gukhanmun",
-      description: "국한문혼용체 한국어를 한글 전용 텍스트로 변환하는 Rust/JavaScript 라이브러리",
+      description:
+        "국한문혼용체 한국어를 한글 전용 텍스트로 변환하는 Rust/JavaScript/Python 라이브러리",
     },
   ],
   route: {
