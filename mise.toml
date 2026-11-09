@@ -11,7 +11,7 @@ bun = "1"
 "aqua:nushell/nushell" = "0.113.0"
 "pipx:fonttools" = { version = "4.63.0", extras = "woff" }
 "github:koalaman/shellcheck" = "0.11.0"
-"github:dahlia/sacho" = "0.3.2"
+"github:dahlia/sacho" = "0.4.0"
 
 [tools.rust]
 version = "1.95.0"
