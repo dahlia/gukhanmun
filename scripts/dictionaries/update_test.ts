@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { configuration } from "./changelog_fixture.ts";
+import { readLayout } from "./changelog.ts";
+import type { ChangelogLayout } from "./changelog.ts";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { data, fragments, hash, json, kinds, notices, outputs, updatePaths } from "./model.ts";
@@ -23,10 +26,10 @@ const project = fileURLToPath(new URL("../../", import.meta.url));
 const encoder = new TextEncoder();
 const old = encoder.encode("hanja\thangul\n甲\t갑\n乙\t을\n");
 const revised = encoder.encode("hanja\thangul\n甲\t가\n甲\t갑\n丙\t병\n");
-async function fixture() {
+async function fixture(layout: ChangelogLayout = "legacy") {
   const root = await Deno.makeTempDir();
   await Deno.copyFile(`${project}/mise.toml`, `${root}/mise.toml`);
-  await Deno.copyFile(`${project}/sacho.toml`, `${root}/sacho.toml`);
+  await Deno.writeTextFile(`${root}/sacho.toml`, configuration(layout));
   for (const path of ["Cargo.toml", "Cargo.lock", "scripts/dictionaries/interface.json"]) {
     await Deno.mkdir(`${root}/${path.split("/").slice(0, -1).join("/")}`, { recursive: true });
     await Deno.writeTextFile(`${root}/${path}`, "synthetic");
@@ -79,9 +82,12 @@ async function fixture() {
           : old,
       );
     }
-    for (const path of fragments(kind)) {
+    for (const path of fragments(kind, layout)) {
       await Deno.mkdir(`${root}/${path.slice(0, path.lastIndexOf("/"))}`, { recursive: true });
-      const section = path.replace(/^changes.d\//, "").replace(/\/[^/]+$/, "");
+      const section = path.replace(/^changes.d\//, "").replace(/\/[^/]+$/, "").replace(
+        /^rust\//,
+        "crates/",
+      ).replace(/^javascript\//, "packages/");
       await Deno.mkdir(`${root}/${section}`, { recursive: true });
       await Deno.writeTextFile(`${root}/${path}`, " - Preserved independent note. [[#29]]\n");
     }
@@ -109,14 +115,16 @@ async function fixture() {
   return { root, sources };
 }
 async function snapshot(root: string) {
-  return await Promise.all(updatePaths.map(async (path) => {
-    try {
-      return [path, await hash(await Deno.readFile(`${root}/${path}`))];
-    } catch (e) {
-      if (e instanceof Deno.errors.NotFound) return [path, null];
-      throw e;
-    }
-  }));
+  return await Promise.all(
+    updatePaths(await readLayout(root)).map(async (path) => {
+      try {
+        return [path, await hash(await Deno.readFile(`${root}/${path}`))];
+      } catch (e) {
+        if (e instanceof Deno.errors.NotFound) return [path, null];
+        throw e;
+      }
+    }),
+  );
 }
 Deno.test("reports preserve full candidate row groups", async () => {
   assert.deepEqual(await mappingReport(old, revised), {
@@ -128,8 +136,8 @@ Deno.test("reports preserve full candidate row groups", async () => {
     changed: 1,
   });
 });
-Deno.test("two-dictionary transaction, idempotent fragments and rollback after formatter failure", async () => {
-  const { root, sources } = await fixture();
+async function transactionCase(layout: ChangelogLayout): Promise<void> {
+  const { root, sources } = await fixture(layout);
   let fail: "none" | "extract" | "format" = "none";
   const execute: Run = async (cmd, args, cwd, env = {}) => {
     if (cmd === "python" && args.includes("validate")) {
@@ -200,7 +208,7 @@ Deno.test("two-dictionary transaction, idempotent fragments and rollback after f
     assert.equal(result.status, "updated");
     assert.match(result.summary, /1 added, 1 removed, 1 changed/);
     for (const kind of kinds) {
-      const text = await Deno.readTextFile(`${root}/${fragments(kind)[0]}`);
+      const text = await Deno.readTextFile(`${root}/${fragments(kind, layout)[0]}`);
       assert.match(text, /Preserved independent note/);
       assert.equal((text.match(/Updated the bundled/g) ?? []).length, 1);
     }
@@ -219,12 +227,19 @@ Deno.test("two-dictionary transaction, idempotent fragments and rollback after f
     assert.equal((await update(root, "/unused", execute)).status, "updated");
     assert.equal(await Deno.readTextFile(`${root}/unrelated.md`), unrelated);
     // Skips are revalidated against this root, never trusted from the collector.
-    sources.stdict = { status: "unchanged", source: { ...sources.stdict.source, link_key: "999" } };
+    sources.stdict = {
+      status: "unchanged",
+      source: { ...sources.stdict.source, link_key: "999" },
+    };
     await assert.rejects(() => update(root, "/unused", execute), /skipped source/);
   } finally {
     await Deno.remove(root, { recursive: true });
   }
-});
+}
+for (const layout of ["legacy", "language"] as const) {
+  Deno.test(`${layout}: two-dictionary transaction, idempotent fragments and rollback after formatter failure`, () =>
+    transactionCase(layout));
+}
 
 Deno.test("local collection helper accepts filesystem paths with spaces", async () => {
   const root = await Deno.makeTempDir({ prefix: "dictionary checkout " });

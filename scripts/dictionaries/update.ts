@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { readLayout } from "./changelog.ts";
 import { fileURLToPath } from "node:url";
 import {
   data,
@@ -238,6 +239,8 @@ function updateNotice(text: string, kind: Kind, source: Source): string {
 }
 /** Validates sources, stages all extraction, then applies data and Sacho together. */
 export async function update(root: string, directory: string, execute: Run = run): Promise<Result> {
+  const layout = await readLayout(root);
+  const paths = updatePaths(layout);
   const temp = await Deno.makeTempDir({ prefix: "gukhanmun-dictionaries-" });
   const changes = new Map<string, Uint8Array>();
   const sources: Partial<Record<Kind, Source>> = {};
@@ -306,7 +309,7 @@ export async function update(root: string, directory: string, execute: Run = run
       changes.set(`${data(kind)}/metadata.json`, json(metadata));
       if (behaviorChanged) {
         affected.push(kind);
-        for (const path of fragments(kind)) {
+        for (const path of fragments(kind, layout)) {
           changes.set(path, fragment(await read(root, path), kind, source.archive_date));
         }
       }
@@ -336,7 +339,7 @@ export async function update(root: string, directory: string, execute: Run = run
     }
     try {
       for (const [path, bytes] of changes) {
-        if (!updatePaths.includes(path)) throw new Error("update path outside allowlist");
+        if (!paths.includes(path)) throw new Error("update path outside allowlist");
         await safePath(root, path);
         await Deno.mkdir(`${root}/${path.slice(0, path.lastIndexOf("/"))}`, { recursive: true });
         await Deno.writeFile(`${root}/${path}`, bytes);
@@ -348,7 +351,7 @@ export async function update(root: string, directory: string, execute: Run = run
       if (affected.length) {
         await execute(
           "mise",
-          ["exec", "--", "hongdown", "-w", ...affected.flatMap(fragments)],
+          ["exec", "--", "hongdown", "-w", ...affected.flatMap((kind) => fragments(kind, layout))],
           root,
         );
         for (const args of [["sync", "--force"], ["fmt"], ["check"]]) {

@@ -15,6 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 /** Transfers only verified data paths between the read-only and publishing jobs. */
+import { pinnedLayout } from "../dictionaries/changelog.ts";
+import type { PinnedLayout } from "../dictionaries/changelog.ts";
 import { hash, updatePaths } from "./update.ts";
 import { botBranch, targets, validTarget } from "./targets.ts";
 const decoder = new TextDecoder();
@@ -57,6 +59,8 @@ export async function candidate(
   target: string,
   execute: typeof command = command,
 ): Promise<void> {
+  const context = await pinnedLayout(execute);
+  const allowed = updatePaths(context.layout);
   const branch = botBranch(target);
   try {
     await Deno.remove(destination);
@@ -68,6 +72,14 @@ export async function candidate(
   if (!oid) return;
   if (!/^[a-f0-9]{40,64}$/.test(oid)) throw new Error("invalid candidate object");
   await execute("git", ["fetch", "origin", `refs/heads/${branch}`]);
+  const fork = await execute("git", ["merge-base", context.base, oid], true);
+  if (!fork) return;
+  if (!/^[a-f0-9]{40,64}$/.test(fork)) throw new Error("invalid candidate fork object");
+  const changed = (await execute("git", ["diff", "--name-only", "--no-renames", "-z", fork, oid]))
+    .split(
+      "\0",
+    ).filter(Boolean);
+  if (changed.some((path) => !allowed.includes(path))) return;
   const snapshot = await execute("git", ["show", `${oid}:${data}/snapshot.json`], true);
   if (snapshot) await Deno.writeTextFile(destination, snapshot + "\n");
 }
@@ -75,14 +87,16 @@ async function bundle(directory: string): Promise<void> {
   const root = Deno.env.get("GUKHANMUN_LOANWORDS_ROOT") ?? Deno.cwd();
   const execute = (cmd: string, args: string[], optional = false) =>
     command(cmd, args, optional, root);
+  const context = await pinnedLayout(execute);
+  const paths = updatePaths(context.layout);
   for (
     const args of [
       ["diff", "--name-only", "--no-renames", "-z", "HEAD"],
       ["ls-files", "--others", "--exclude-standard", "-z"],
     ]
   ) {
-    const paths = (await execute("git", args)).split("\0").filter(Boolean);
-    if (paths.some((p) => !updatePaths.includes(p))) {
+    const changed = (await execute("git", args)).split("\0").filter(Boolean);
+    if (changed.some((p) => !paths.includes(p))) {
       throw new Error("tested tree has non-update changes");
     }
   }
@@ -95,7 +109,7 @@ async function bundle(directory: string): Promise<void> {
   ) throw new Error("invalid update outcome");
   await Deno.mkdir(directory, { recursive: true });
   const manifest: Manifest = {
-    base: await execute("git", ["rev-parse", "HEAD"]),
+    base: context.base,
     tree: "",
     target: Deno.env.get("GUKHANMUN_LOANWORDS_TARGET") ?? "",
     primary: Deno.env.get("GUKHANMUN_LOANWORDS_PRIMARY") ?? "",
@@ -105,7 +119,7 @@ async function bundle(directory: string): Promise<void> {
     files: [],
   };
   let index = 0;
-  for (const path of updatePaths) {
+  for (const path of paths) {
     const changed = await execute("git", ["diff", "--name-only", "HEAD", "--", path]);
     const untracked = await execute("git", [
       "ls-files",
@@ -140,22 +154,24 @@ async function bundle(directory: string): Promise<void> {
   await Deno.writeTextFile(`${directory}/manifest.json`, JSON.stringify(manifest));
 }
 /** Verifies an artifact before any repository write or publication. */
-export async function validate(directory: string): Promise<Manifest> {
+export async function validate(directory: string, context: PinnedLayout): Promise<Manifest> {
   const raw = await get(`${directory}/manifest.json`);
   if (!raw || raw.length > 128 * 1024) throw new Error("invalid artifact manifest");
   const m: Manifest = JSON.parse(decoder.decode(raw));
+  const allowed = updatePaths(context.layout);
   if (
     !/^[a-f0-9]{40,64}$/.test(m.base) || !/^[a-f0-9]{40,64}$/.test(m.tree) ||
-    !/^[a-f0-9]{40,64}$/.test(m.controller) || !validTarget(m.target) || !validTarget(m.primary) ||
+    !/^[a-f0-9]{40,64}$/.test(m.controller) || m.base !== context.base || !validTarget(m.target) ||
+    !validTarget(m.primary) ||
     !/^[a-f0-9]{64}$/.test(m.fingerprint) ||
     !["updated", "pending", "unchanged"].includes(m.status) || !Array.isArray(m.files) ||
-    m.files.length > updatePaths.length
+    m.files.length > allowed.length
   ) throw new Error("invalid update manifest");
   if (m.status === "unchanged" && m.files.length) throw new Error("no-op artifact contains writes");
   const paths = new Set<string>();
   const blobs = new Set<string>();
   for (const f of m.files) {
-    if (!updatePaths.includes(f.path) || paths.has(f.path)) {
+    if (!allowed.includes(f.path) || paths.has(f.path)) {
       throw new Error("artifact path outside update allowlist");
     }
     paths.add(f.path);
@@ -230,7 +246,7 @@ export async function publish(
     Deno.env.get("GITHUB_ACTIONS") !== "true" || Deno.env.get("GITHUB_REPOSITORY") !== repository ||
     Deno.env.get("GITHUB_REF") !== "refs/heads/main"
   ) throw new Error("publication is restricted to trusted main workflow runs");
-  const m = await validate(directory);
+  const m = await validate(directory, await pinnedLayout(execute));
   if (m.controller !== Deno.env.get("GITHUB_SHA")) throw new Error("artifact controller mismatch");
   const selected = await targets(execute);
   if (selected[0].branch !== m.primary || !selected.some((t) => t.branch === m.target)) {
@@ -352,10 +368,18 @@ if (import.meta.main) {
   try {
     if (!directory) throw new Error("artifact directory required");
     if (mode === "candidate") {
-      await candidate(directory, Deno.env.get("GUKHANMUN_LOANWORDS_TARGET") ?? "");
+      const root = Deno.env.get("GUKHANMUN_LOANWORDS_ROOT") ?? Deno.cwd();
+      await candidate(
+        directory,
+        Deno.env.get("GUKHANMUN_LOANWORDS_TARGET") ?? "",
+        (cmd, args, optional) => command(cmd, args, optional, root),
+      );
     } else if (mode === "bundle") await bundle(directory);
-    else if (mode === "validate") await validate(directory);
-    else if (mode === "publish") {
+    else if (mode === "validate") {
+      const oid = Deno.env.get("TARGET_OID");
+      if (!oid) throw new Error("pinned target object required for validation");
+      await validate(directory, await pinnedLayout(command, oid));
+    } else if (mode === "publish") {
       const root = Deno.env.get("GUKHANMUN_LOANWORDS_ROOT") ?? Deno.cwd();
       await publish(directory, (cmd, args, optional) => command(cmd, args, optional, root), root);
     } else throw new Error("unknown publication operation");

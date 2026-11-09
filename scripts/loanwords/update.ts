@@ -15,6 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 /** Offline regeneration and transactional NIKL source updates. */
+import { fragmentSections, readLayout } from "../dictionaries/changelog.ts";
+import type { ChangelogLayout } from "../dictionaries/changelog.ts";
 import { fileURLToPath } from "node:url";
 const project = fileURLToPath(new URL("../../", import.meta.url));
 const data = "crates/gukhanmun-loanwords/data";
@@ -25,18 +27,25 @@ const sections = [
   "packages/loanwords-fst",
   "packages/loanwords-cdb",
 ];
-const fragments = sections.map((section) => `changes.d/${section}/loanword-data-update.md`);
+/** Stable notes in the exact fragment family selected by the target. */
+export function fragments(layout: ChangelogLayout): string[] {
+  return fragmentSections(sections, layout).map((section) =>
+    `changes.d/${section}/loanword-data-update.md`
+  );
+}
 /** Exact paths that the scheduled updater may change or transfer. */
-export const updatePaths = [
-  `${data}/snapshot.json`,
-  `${data}/loanwords.tsv`,
-  `${data}/source-evidence.json`,
-  `${data}/report.json`,
-  `${data}/metadata.json`,
-  `${data}/pending-update.json`,
-  ...fragments,
-  "CHANGES.md",
-];
+export function updatePaths(layout: ChangelogLayout): string[] {
+  return [
+    `${data}/snapshot.json`,
+    `${data}/loanwords.tsv`,
+    `${data}/source-evidence.json`,
+    `${data}/report.json`,
+    `${data}/metadata.json`,
+    `${data}/pending-update.json`,
+    ...fragments(layout),
+    "CHANGES.md",
+  ];
+}
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 /** Computes an artifact integrity checksum. */
@@ -214,8 +223,13 @@ async function transaction(
   root: string,
   changes: Map<string, Uint8Array | null>,
   notes: string | null,
+  layout: ChangelogLayout,
 ): Promise<void> {
-  const paths = [...new Set([...changes.keys(), ...(notes ? [...fragments, "CHANGES.md"] : [])])];
+  const notePaths = fragments(layout);
+  const paths = [...new Set([...changes.keys(), ...(notes ? [...notePaths, "CHANGES.md"] : [])])];
+  if (paths.some((path) => !updatePaths(layout).includes(path))) {
+    throw new Error("update path outside allowlist");
+  }
   const backups = new Map<string, Uint8Array | null>();
   for (const path of paths) backups.set(path, await optional(`${root}/${path}`));
   try {
@@ -228,7 +242,7 @@ async function transaction(
       }
     }
     if (notes) {
-      for (const fragment of fragments) {
+      for (const fragment of notePaths) {
         await Deno.mkdir(`${root}/${fragment.slice(0, fragment.lastIndexOf("/"))}`, {
           recursive: true,
         });
@@ -249,7 +263,7 @@ async function transaction(
         );
       }
       if (
-        !await run("mise", ["exec", "--", "hongdown", "-w", ...fragments], root) ||
+        !await run("mise", ["exec", "--", "hongdown", "-w", ...notePaths], root) ||
         !await run("mise", ["exec", "--", "sacho", "sync", "--force"], root) ||
         !await run("mise", ["exec", "--", "sacho", "fmt"], root) ||
         !await run("mise", ["exec", "--", "sacho", "check"], root)
@@ -302,6 +316,7 @@ export async function update(
   source?: string,
   priorCandidate?: string,
 ): Promise<UpdateResult> {
+  const layout = await readLayout(root);
   const temp = await Deno.makeTempDir({ prefix: "gukhanmun-loanwords-" });
   try {
     const oldBytes = await optional(`${root}/${data}/snapshot.json`);
@@ -364,7 +379,7 @@ export async function update(
         ) + "\n",
       );
       if (pending.length > 2 * 1024 * 1024) throw new Error("pending audit exceeds report limit");
-      await transaction(root, new Map([[`${data}/pending-update.json`, pending]]), null);
+      await transaction(root, new Map([[`${data}/pending-update.json`, pending]]), null, layout);
       return { status: "pending", fingerprint: await hash(pending) };
     }
     let previous = oldBytes ? parseSource(decoder.decode(oldBytes)) : null;
@@ -440,6 +455,7 @@ export async function update(
             String(current.records_sha256).slice(0, 12)
           }\`; ${current.total_count} source records) and regenerated its dictionary data. [[#18]]`
           : null,
+        layout,
       );
     }
     return { status: changed ? "updated" : "unchanged", fingerprint };

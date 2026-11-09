@@ -11,7 +11,7 @@ bun = "1"
 "aqua:nushell/nushell" = "0.113.0"
 "pipx:fonttools" = { version = "4.63.0", extras = "woff" }
 "github:koalaman/shellcheck" = "0.11.0"
-"github:dahlia/sacho" = "0.3.2"
+"github:dahlia/sacho" = "0.4.0"
 
 [tools.rust]
 version = "1.95.0"
@@ -49,6 +49,7 @@ description = "Run fast checks suitable for pre-commit"
 depends = [
   "actionlint",
   "changelog-check",
+  "changelog-layout-check",
   "fmt-check",
   "typecheck",
   "clippy",
@@ -62,6 +63,14 @@ depends = [
 description = "Validate changelog fragments and materialized output"
 run = "sacho check"
 
+[tasks.changelog-layout-check]
+description = "Reject fragments outside their public language sections"
+run = "python -B scripts/changelog/check.py"
+
+[tasks.changelog-test]
+description = "Verify historical carry and reserved language sections offline"
+run = 'python -B -m unittest discover -s scripts/changelog -p "*_test.py"'
+
 [tasks.actionlint]
 description = "Lint GitHub Actions workflows"
 run = "actionlint"
@@ -70,6 +79,7 @@ run = "actionlint"
 description = "Run the full CI verification gate"
 depends = [
   "check",
+  "changelog-test",
   "test",
   "docs-test",
   "doc",

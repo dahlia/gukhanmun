@@ -15,6 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { canonical, hash, redactDiagnostics, sourceEvidence, update } from "./update.ts";
+import { configuration } from "../dictionaries/changelog_fixture.ts";
+import { fragmentSections } from "../dictionaries/changelog.ts";
+import type { ChangelogLayout } from "../dictionaries/changelog.ts";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 const project = fileURLToPath(new URL("../../", import.meta.url));
@@ -90,11 +93,11 @@ Deno.test("failed child diagnostics reach the updater after redaction", async ()
     await Deno.remove(root, { recursive: true });
   }
 });
-async function fixture(): Promise<string> {
+async function fixture(layout: ChangelogLayout = "legacy"): Promise<string> {
   const root = await Deno.makeTempDir({ prefix: "loanword-test-" });
   await Deno.mkdir(`${root}/${data}`, { recursive: true });
   await Deno.writeTextFile(`${root}/${data}/decisions.json`, '{"format_version":1,"decisions":[]}');
-  await Deno.copyFile(`${project}/sacho.toml`, `${root}/sacho.toml`);
+  await Deno.writeTextFile(`${root}/sacho.toml`, configuration(layout));
   // Resolve formatter versions from the target, without relying on global tools.
   await Deno.copyFile(`${project}/mise.toml`, `${root}/mise.toml`);
   await Deno.mkdir(`${root}/changes.d`, { recursive: true });
@@ -104,7 +107,7 @@ async function fixture(): Promise<string> {
     "Gukhanmun changelog\n===================\n\n<!-- sacho:unreleased:begin -->\n\n<!-- sacho:unreleased:end -->\n",
   );
   // Releases remove real fragments, so this fixture owns its introductory notes.
-  for (const section of sections) {
+  for (const section of fragmentSections(sections, layout)) {
     const directory = `${root}/changes.d/${section}`;
     await Deno.mkdir(directory, { recursive: true });
     await Deno.writeTextFile(
@@ -143,10 +146,11 @@ async function snapshot(root: string, readings: string[]): Promise<string> {
   );
   return path;
 }
-Deno.test("two data updates reuse stable fragments; a no-op and release recreation are idempotent", async () => {
-  const root = await fixture();
+async function idempotenceCase(layout: ChangelogLayout): Promise<void> {
+  const targetSections = fragmentSections(sections, layout);
+  const root = await fixture(layout);
   try {
-    const fragment = `${root}/changes.d/crates/gukhanmun/loanword-data-update.md`;
+    const fragment = `${root}/changes.d/${targetSections[1]}/loanword-data-update.md`;
     let source = await snapshot(root, ["홍콩"]);
     assert.equal((await update(root, "update", source)).status, "updated");
     await update(root, "check");
@@ -165,7 +169,7 @@ Deno.test("two data updates reuse stable fragments; a no-op and release recreati
     assert.equal(again.status, "unchanged");
     assert.equal(changed.fingerprint, again.fingerprint);
     assert.equal(await Deno.readTextFile(`${root}/CHANGES.md`), before);
-    for (const section of sections) {
+    for (const section of targetSections) {
       const entries = [];
       for await (const entry of Deno.readDir(`${root}/changes.d/${section}`)) {
         if (entry.name === "loanword-data-update.md") entries.push(entry.name);
@@ -175,13 +179,18 @@ Deno.test("two data updates reuse stable fragments; a no-op and release recreati
     }
     source = await snapshot(root, ["홍콩", "홍콩", "니혼"]);
     assert.equal((await update(root, "update", source)).status, "updated");
-    for (const section of sections) {
+    for (const section of targetSections) {
       await Deno.stat(`${root}/changes.d/${section}/loanword-data-update.md`);
     }
   } finally {
     await Deno.remove(root, { recursive: true });
   }
-});
+}
+for (const layout of ["legacy", "language"] as const) {
+  Deno.test(`${layout}: two data updates reuse stable fragments; a no-op and release recreation are idempotent`, () =>
+    idempotenceCase(layout));
+}
+
 Deno.test("new reading conflicts preserve the successful corpus and changelog", async () => {
   const root = await fixture();
   try {
@@ -297,6 +306,11 @@ Deno.test("trusted controller regenerates a separate maintenance layout and reje
     await Deno.copyFile(
       `${project}/scripts/loanwords/update.ts`,
       `${controller}/scripts/loanwords/update.ts`,
+    );
+    await Deno.mkdir(`${controller}/scripts/dictionaries`, { recursive: true });
+    await Deno.copyFile(
+      `${project}/scripts/dictionaries/changelog.ts`,
+      `${controller}/scripts/dictionaries/changelog.ts`,
     );
     await Deno.mkdir(`${root}/crates/gukhanmun-dict-extract`, { recursive: true });
     await Deno.writeTextFile(

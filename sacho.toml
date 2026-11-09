@@ -20,12 +20,33 @@ paths = []
 
 [[section-patterns]]
 source = "crates/{name}"
-id = "{name}"
-directory = "crates/{name}"
+id = "{name} (Rust)"
+title = "{name} (Rust)"
+directory = "rust/{name}"
 paths = ["crates/{name}/src/**", "crates/{name}/data/**"]
 
 [[section-patterns]]
 source = "packages/{name}"
-id = "@gukhanmun/{name}"
-directory = "packages/{name}"
+id = "@gukhanmun/{name} (JavaScript/TypeScript)"
+title = "@gukhanmun/{name} (JavaScript/TypeScript)"
+directory = "javascript/{name}"
 paths = ["packages/{name}/*.ts", "packages/{name}/*.js"]
+
+[[section-patterns]]
+source = "python/{name}"
+id = "{name} (Python)"
+title = "{name} (Python)"
+directory = "python/{name}"
+
+# Historical releases have bare headings without recorded section identities.
+[[section-maps]]
+kind = "title"
+pattern = true
+from = "{name}"
+to = "{name} (Rust)"
+
+[[section-maps]]
+kind = "title"
+pattern = true
+from = "@gukhanmun/{name}"
+to = "@gukhanmun/{name} (JavaScript/TypeScript)"

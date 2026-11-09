@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { fragmentSections } from "./changelog.ts";
+import type { ChangelogLayout } from "./changelog.ts";
+
 /** Public dataset identifiers understood by interface version 1. */
 export const kinds = ["stdict", "opendict"] as const;
 /** One dictionary corpus, never an arbitrary source name. */
@@ -60,8 +63,10 @@ export function sections(kind: Kind): string[] {
   ];
 }
 /** Fixed fragment paths allow idempotent replacement of the bot's own note. */
-export function fragments(kind: Kind): string[] {
-  return sections(kind).map((section) => `changes.d/${section}/${kind}-data-update.md`);
+export function fragments(kind: Kind, layout: ChangelogLayout): string[] {
+  return fragmentSections(sections(kind), layout).map((section) =>
+    `changes.d/${section}/${kind}-data-update.md`
+  );
 }
 /** Returns the crate-relative canonical data directory. */
 export function data(kind: Kind): string {
@@ -75,16 +80,20 @@ export const notices = [
   "packages/opendict-cdb/ATTRIBUTION.md",
 ];
 /** Complete transfer allowlist: no executable code, policies, manifests or binaries. */
-export const updatePaths = [
-  ...new Set([
-    ...kinds.flatMap((kind) => [
-      ...[...outputs[kind], "source.json", "metadata.json"].map((name) => `${data(kind)}/${name}`),
-      ...fragments(kind),
+export function updatePaths(layout: ChangelogLayout): string[] {
+  return [
+    ...new Set([
+      ...kinds.flatMap((kind) => [
+        ...[...outputs[kind], "source.json", "metadata.json"].map((name) =>
+          `${data(kind)}/${name}`
+        ),
+        ...fragments(kind, layout),
+      ]),
+      ...notices,
+      "CHANGES.md",
     ]),
-    ...notices,
-    "CHANGES.md",
-  ]),
-];
+  ];
+}
 /** Command injection boundary for offline real-Git tests. */
 export type Execute = (cmd: string, args: string[], optional?: boolean) => Promise<string>;
 /** Runs without publishing/account credentials and suppresses unsafe command diagnostics. */

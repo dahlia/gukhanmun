@@ -144,14 +144,27 @@ files, and code comments, do not need an entry.
 Create a fragment named after the change in each affected public surface:
 
 ~~~~ sh
-mise exec -- sacho add --section gukhanmun-core clearer-readings
-mise exec -- sacho add --section @gukhanmun/wasm clearer-readings
+mise exec -- sacho add --section "gukhanmun-core (Rust)" clearer-readings
+mise exec -- sacho add --section "@gukhanmun/wasm (JavaScript/TypeScript)" clearer-readings
+mise exec -- sacho add --section "gukhanmun (Python)" clearer-readings
 ~~~~
 
-Rust crate fragments live under *changes.d/crates/*, and JavaScript/TypeScript
-package fragments live under *changes.d/packages/*. The section patterns in
-*sacho.toml* render Rust crates first, then JavaScript/TypeScript packages,
-with section ids sorted within each family.
+Rust crate fragments live under *changes.d/rust/*, JavaScript/TypeScript
+package fragments under *changes.d/javascript/*, and Python distribution
+fragments under *changes.d/python/*. Source trees stay under *crates/*,
+*packages/*, and *python/*, respectively. Section IDs and headings include the
+language, such as `gukhanmun (Rust)` and `gukhanmun (Python)`; quote the
+complete ID when passing `--section`. The patterns in *sacho.toml* render Rust
+first, then JavaScript/TypeScript, then Python, with IDs sorted within each
+family.
+
+The seven initial Python sections are `gukhanmun (Python)` and
+`gukhanmun-{stdict,opendict,loanwords}-{fst,cdb} (Python)`. The latter is
+shorthand for six section IDs, such as `gukhanmun-stdict-fst (Python)`. Sacho
+can create fragments in these sections before their source directories exist;
+no placeholder package is needed. Changes in the private
+*crates/gukhanmun-python/* binding belong to `gukhanmun (Python)`, without a
+separate Rust fragment.
 
 Repeat a change under every affected surface, including the crate where the
 behaviour originates and each umbrella crate, CLI, binding, or shared type
@@ -168,8 +181,11 @@ Keep each bullet focused on one user-visible change. State what changed and how
 users access or configure it; include implementation details only when they
 explain an observable constraint or compatibility decision. End every bullet
 with bracketed issue or pull request references, such as `[[#42], [#64]]`.
-Sacho resolves these through *sacho.toml*; pin pull request URLs in fragment
-frontmatter when needed:
+Run `mise exec -- sacho resolve-links path/to/fragment.md` to resolve the
+references and generate their frontmatter pins. Pins already in the frontmatter
+take precedence over resolved URLs. For a pull request that has not been
+created yet, pin its exact URL explicitly after resolving existing references;
+a redirect lookup cannot resolve an absent pull request. For example:
 
 ~~~~ yaml
 ---
@@ -197,6 +213,24 @@ Commit the fragments and generated *CHANGES.md* together.
 *CHANGES.md*, so the repository-wide Hongdown pass excludes them. Source-path
 coverage enforcement is disabled; contributors choose the affected sections
 using the public-surface rules above.
+
+Historical section maps in *sacho.toml* let `sacho carry <version>` restore old
+released notes into the current language families without editing released
+history. Current sections use explicit titles so `carry` recognizes them before
+applying historical title patterns. Repeated `sacho carry` runs replace the
+fragment files they generated, so inspect and edit those files after the last
+run.
+
+When merging unreleased fragments from a branch that still uses
+*changes.d/crates/* or *changes.d/packages/*, move each fragment into
+*changes.d/rust/* or *changes.d/javascript/* before running
+`sacho sync --force`. Keep each fragment's contents and pins unchanged, then
+run the formatting and validation commands above. `mise run check` rejects
+fragments left in the legacy directories, outside a component section, or in a
+Rust section for the private Python binding.
+
+Run `mise run changelog-test` to verify historical and repeated carry and the
+Python section reservations in isolated fixtures.
 
 The official Sacho agent skill is installed under *.agents/skills/sacho/*.
 In a fresh clone, run

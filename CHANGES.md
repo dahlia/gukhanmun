@@ -19,7 +19,9 @@ Version 0.4.0
 
 To be released.
 
-### gukhanmun
+### gukhanmun (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%20%28Rust%29 -->
 
  -  Added `MapDictionary::from_candidates()` and `CandidateError::EmptyKey`
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
@@ -59,6 +61,9 @@ To be released.
     authorize another form. Configure `source_policy()` and `reference_only()`,
     or select `SourcePolicy::Ordered` for legacy precedence.
     `push_dictionary()` remains an authored override. [[#42], [#44]]
+ -  Changed the changelog to group component sections by language (Rust,
+    JavaScript/TypeScript, and Python), preserving released history.
+    [[#47], [#54]]
  -  Exposed typed dictionary source evidence and validation APIs through the
     Rust facade. [[#42], [#44]]
  -  The exported core pipeline preserves source-aware selection metadata through
@@ -79,9 +84,13 @@ To be released.
 [#44]: https://github.com/dahlia/gukhanmun/pull/44
 [#45]: https://github.com/dahlia/gukhanmun/pull/45
 [#46]: https://github.com/dahlia/gukhanmun/issues/46
+[#47]: https://github.com/dahlia/gukhanmun/issues/47
 [#53]: https://github.com/dahlia/gukhanmun/pull/53
+[#54]: https://github.com/dahlia/gukhanmun/pull/54
 
-### gukhanmun-cdb
+### gukhanmun-cdb (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dcdb%20%28Rust%29 -->
 
  -  Added support for dictionary format version 3 with compound alias metadata
     and version 4 with candidate-linked source evidence and source-attested
@@ -90,7 +99,9 @@ To be released.
     rejected. Phrase indexes are cached per dictionary for reuse across
     engines. [[#38], [#39], [#41], [#42], [#44], [#45]]
 
-### gukhanmun-cli
+### gukhanmun-cli (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dcli%20%28Rust%29 -->
 
  -  Added source-attested phrase resolution for bundled and custom
     dictionaries. `無條件降服` now uses the bundled *Standard Korean
@@ -115,7 +126,9 @@ To be released.
     independent loanwords; custom `-d` dictionaries remain authored overrides.
     [[#42], [#44]]
 
-### gukhanmun-core
+### gukhanmun-core (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dcore%20%28Rust%29 -->
 
  -  Added `MapDictionary::from_candidates()` for building a dictionary from
     per-reading entries: repeated keys are grouped into one candidate set
@@ -176,7 +189,9 @@ To be released.
     `HanjaDictionary::source_evidence()` for inspecting dictionary provenance
     without changing legacy reading selection. [[#42], [#44]]
 
-### gukhanmun-dict-extract
+### gukhanmun-dict-extract (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Ddict%2Dextract%20%28Rust%29 -->
 
  -  Added `aliases::SiblingDonors` for reusing validated one-step sibling donor
     lookup across source compilers. [[#41], [#45]]
@@ -196,7 +211,9 @@ To be released.
     evidence from word/sense identifiers, direct foreign-name synonyms, and
     formal redirects. [[#42], [#44]]
 
-### gukhanmun-fst
+### gukhanmun-fst (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dfst%20%28Rust%29 -->
 
  -  Added support for dictionary format version 3 with compound alias metadata
     and version 4 with candidate-linked source evidence and source-attested
@@ -205,13 +222,17 @@ To be released.
     rejected. Phrase indexes are cached per dictionary for reuse across
     engines. [[#38], [#39], [#41], [#42], [#44], [#45]]
 
-### gukhanmun-loanwords
+### gukhanmun-loanwords (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dloanwords%20%28Rust%29 -->
 
  -  The bundled loanword dictionary now declares its source role and preserves
     all contributing source IDs for cooperation with reference dictionaries.
     [[#42], [#44]]
 
-### gukhanmun-mkdict
+### gukhanmun-mkdict (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dmkdict%20%28Rust%29 -->
 
  -  Added `canonical` and `alias_kind` columns and `--relations` for compound
     aliases, `--evidence` for typed source evidence, and `--phrase-evidence`
@@ -222,7 +243,9 @@ To be released.
     either kind of evidence is supplied, version 3 for aliases alone, and
     version 1 or 2 otherwise. [[#38], [#39], [#41], [#42], [#44], [#45]]
 
-### gukhanmun-napi
+### gukhanmun-napi (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dnapi%20%28Rust%29 -->
 
  -  Accepted runtime dictionary entries from the JavaScript binding: a
     dictionary record now carries either a compiled artifact or an entry list
@@ -248,7 +271,9 @@ To be released.
     and expose policy, reference-only eligibility and explicit dictionary roles
     through their JavaScript options. [[#42], [#44]]
 
-### gukhanmun-opendict
+### gukhanmun-opendict (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dopendict%20%28Rust%29 -->
 
  -  Derive per-category compound aliases and sibling relations from the Open
     Korean Dictionary dump. The bundled data now carries 1,561 general
@@ -256,7 +281,9 @@ To be released.
     recognition aliases and 103 sibling relations for North Korean, and no
     derived aliases for dialect or archaic.  [[#38], [#39]]
 
-### gukhanmun-stdict
+### gukhanmun-stdict (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dstdict%20%28Rust%29 -->
 
  -  Added `gukhanmun-stdict-extract --evidence-output` to preserve source
     records, sense identifiers, and supported synonym/redirect evidence
@@ -277,7 +304,9 @@ To be released.
     alternate forms without per-entry overrides or reading-based inference.
     [[#42], [#44]]
 
-### gukhanmun-wasm
+### gukhanmun-wasm (Rust)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dwasm%20%28Rust%29 -->
 
  -  Accepted runtime dictionary entries from the JavaScript binding: a
     dictionary record now carries either a compiled artifact or an entry list
@@ -303,19 +332,25 @@ To be released.
     cooperation and expose policy, reference-only eligibility and explicit
     dictionary roles through their JavaScript options. [[#42], [#44]]
 
-### @gukhanmun/loanwords-cdb
+### @gukhanmun/loanwords-cdb (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Floanwords%2Dcdb%20%28JavaScript%2FTypeScript%29 -->
 
  -  The official CDB loader now declares the loanword role and ships typed
     contributor evidence for reference-authorized cooperation. Evidence-bearing
     dictionaries require version 4 readers. [[#42], [#44]]
 
-### @gukhanmun/loanwords-fst
+### @gukhanmun/loanwords-fst (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Floanwords%2Dfst%20%28JavaScript%2FTypeScript%29 -->
 
  -  The official FST loader now declares the loanword role and ships typed
     contributor evidence for reference-authorized cooperation. Evidence-bearing
     dictionaries require version 4 readers. [[#42], [#44]]
 
-### @gukhanmun/napi
+### @gukhanmun/napi (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%20%28JavaScript%2FTypeScript%29 -->
 
  -  Accepted `MapDictionarySource` entry lists in `dictionaries`, building them
     as in-memory dictionaries without a compiled artifact or a
@@ -342,7 +377,9 @@ To be released.
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
 
-### @gukhanmun/opendict-cdb
+### @gukhanmun/opendict-cdb (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fopendict%2Dcdb%20%28JavaScript%2FTypeScript%29 -->
 
  -  Ship the general and North Korean Open Korean Dictionary data as format
     version 3 with per-category compound alias metadata. Load it with a reader
@@ -351,7 +388,9 @@ To be released.
     artifacts without typed relation evidence retain conservative reference
     readings under cooperating policies. [[#42], [#44]]
 
-### @gukhanmun/opendict-fst
+### @gukhanmun/opendict-fst (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fopendict%2Dfst%20%28JavaScript%2FTypeScript%29 -->
 
  -  Ship the general and North Korean Open Korean Dictionary data as format
     version 3 with per-category compound alias metadata. Load it with a reader
@@ -360,7 +399,9 @@ To be released.
     artifacts without typed relation evidence retain conservative reference
     readings under cooperating policies. [[#42], [#44]]
 
-### @gukhanmun/stdict-cdb
+### @gukhanmun/stdict-cdb (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fstdict%2Dcdb%20%28JavaScript%2FTypeScript%29 -->
 
  -  Added compound alias metadata, typed source evidence, and source-attested
     phrase constraints to the bundled *Standard Korean Dictionary* data.
@@ -374,7 +415,9 @@ To be released.
     default. Custom URLs can supply raw or gzip data, and the npm package
     retains the raw *stdict.cdb* export. [[#42], [#44]]
 
-### @gukhanmun/stdict-fst
+### @gukhanmun/stdict-fst (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fstdict%2Dfst%20%28JavaScript%2FTypeScript%29 -->
 
  -  Added compound alias metadata, typed source evidence, and source-attested
     phrase constraints to the bundled *Standard Korean Dictionary* data.
@@ -385,7 +428,9 @@ To be released.
     reference-authorized source cooperation.
     [[#38], [#39], [#41], [#42], [#44], [#45]]
 
-### @gukhanmun/types
+### @gukhanmun/types (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Ftypes%20%28JavaScript%2FTypeScript%29 -->
 
  -  Added `sourcePolicy`, `referenceOnly` and explicit dictionary `role`
     options. File descriptors can inherit roles from embedded evidence; entry
@@ -396,7 +441,9 @@ To be released.
     `DictionaryEntry`. `DictionarySource` now accepts either the file or the
     entry-list shape.  [[#33], [#34]]
 
-### @gukhanmun/wasm
+### @gukhanmun/wasm (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fwasm%20%28JavaScript%2FTypeScript%29 -->
 
  -  Accepted `MapDictionarySource` entry lists in `dictionaries`, building them
     as in-memory dictionaries without a compiled artifact or a

@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { pinnedLayout } from "../dictionaries/changelog.ts";
+
 /** A pinned data-update destination, selected independently of unreleased versions. */
 export interface Target {
   branch: string;
@@ -68,7 +70,10 @@ export async function targets(execute: Execute): Promise<Target[]> {
     for (let i = 0; i < 3; i++) if (aa[i] !== bb[i]) return aa[i] > bb[i] ? -1 : 1;
     return 0;
   });
-  if (!shipped.length) return [main];
+  if (!shipped.length) {
+    await pinnedLayout(execute, main.oid);
+    return [main];
+  }
   const latest = shipped[0];
   const branch = `${latest.split(".").slice(0, 2).join(".")}-maintenance`;
   const target = heads.find((t) => t.branch === branch);
@@ -82,6 +87,7 @@ export async function targets(execute: Execute): Promise<Target[]> {
       `released loanwords ${latest} have no eligible ${branch}; create or repair that branch`,
     );
   }
+  for (const item of [target, main]) await pinnedLayout(execute, item.oid);
   return [target, main];
 }
 async function command(cmd: string, args: string[], optional = false): Promise<string> {
