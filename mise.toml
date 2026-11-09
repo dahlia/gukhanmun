@@ -5,6 +5,7 @@
 dasel = "3.11"
 node = "26"
 python = "3.15"
+uv = "0.13.7"
 "github:pnpm/pnpm" = "11"
 deno = "2"
 bun = "1"
@@ -36,6 +37,11 @@ version = "0.5.3"
 linux-x64 = "hongdown-*-x86_64-unknown-linux-musl.tar.bz2"
 linux-arm64 = "hongdown-*-aarch64-unknown-linux-musl.tar.bz2"
 
+
+[env]
+UV_PYTHON = { value = "{{ tools.python.path }}", tools = true }
+UV_PYTHON_DOWNLOADS = "never"
+UV_PYTHON_PREFERENCE = "only-system"
 
 # nushell rejects an inherited PWD that ends with a slash, which some shells
 # and task runners leave behind.  Pin PWD to the project root for every nushell
@@ -706,3 +712,32 @@ run = [
   "python -B -m unittest discover -s scripts/dictionaries -p \"*_test.py\"",
   "deno test -A scripts/dictionaries/",
 ]
+
+[tasks.py-deps]
+description = "Install locked Python development tools without compiling the extension"
+run = "uv sync --locked --all-groups --no-install-workspace"
+
+[tasks.py-build]
+description = "Build and inspect the native Python wheel"
+depends = ["rust-init", "py-deps"]
+run = "uv run --no-sync python scripts/python/checks.py build"
+
+[tasks.py-wheel-env]
+description = "Install the wheel and locked test dependencies outside the checkout"
+depends = ["py-build"]
+run = "uv run --no-sync python scripts/python/checks.py wheel-env"
+
+[tasks.py-fixtures]
+description = "Compile synthetic FST/CDB fixtures without official dictionary data"
+depends = ["rust-init", "py-deps"]
+run = "uv run --no-sync python scripts/python/fixtures.py"
+
+[tasks.py-test]
+description = "Run Python regression tests against an installed wheel"
+depends = ["py-wheel-env", "py-fixtures"]
+run = "uv run --no-sync python scripts/python/checks.py test"
+
+[tasks.py-typecheck]
+description = "Check installed Python types with all five required checkers"
+depends = ["py-wheel-env"]
+run = "uv run --no-sync python scripts/python/checks.py typecheck"

@@ -470,6 +470,20 @@ To be released.
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
 
+### gukhanmun (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%20%28Python%29 -->
+
+ -  Added a Python 3.11+ `Converter` API for plain text, HTML and Markdown,
+    with reusable immutable settings, standard-library enums, in-memory entries
+    and compiled FST/CDB dictionaries, punctuation profiles, structured errors
+    and type annotations. Conversion releases the GIL, and a single `Converter`
+    can be reused from multiple threads at once. [[#48], [#15], [#55]]
+
+[#15]: https://github.com/dahlia/gukhanmun/issues/15
+[#48]: https://github.com/dahlia/gukhanmun/issues/48
+[#55]: https://github.com/dahlia/gukhanmun/pull/55
+
 <!-- sacho:unreleased:end -->
 
 

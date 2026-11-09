@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "policy_version": 1,
+  "rules": [
+    {
+      "source_ids": [
+        100
+      ],
+      "chunks": [
+        {
+          "reading": "무조건",
+          "spellings": [
+            {
+              "key": "無條件",
+              "candidates": [
+                {
+                  "reading": "무조건",
+                  "suffix_reading": null
+                }
+              ],
+              "sibling_witnesses": []
+            }
+          ]
+        },
+        {
+          "reading": "항복",
+          "spellings": [
+            {
+              "key": "降服",
+              "candidates": [
+                {
+                  "reading": "항복",
+                  "suffix_reading": null
+                }
+              ],
+              "sibling_witnesses": []
+            }
+          ]
+        }
+      ],
+      "terminal_extensions": []
+    }
+  ]
+}

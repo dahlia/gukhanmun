@@ -15,6 +15,7 @@ members = [
     "crates/gukhanmun-unihan",
     "crates/gukhanmun-wasm",
     "crates/gukhanmun-napi",
+    "crates/gukhanmun-python",
 ]
 default-members = [
     "crates/gukhanmun",

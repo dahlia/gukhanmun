@@ -1,4 +1,8 @@
 /target/
+/.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
 .env
 .playwright-mcp/
 cargo-release-publish.log

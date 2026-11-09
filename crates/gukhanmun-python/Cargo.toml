@@ -1,0 +1,23 @@
+[package]
+name = "gukhanmun-python"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish = false
+description = "Private PyO3 converter runtime for the Gukhanmun Python distribution."
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gukhanmun = { workspace = true, features = ["html", "markdown", "fst", "cdb", "serde"] }
+pyo3 = { version = "=0.30.1", features = ["abi3-py311"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+
+[build-dependencies]
+pyo3-build-config = "=0.30.1"

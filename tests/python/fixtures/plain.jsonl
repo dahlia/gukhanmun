@@ -1,0 +1,5 @@
+{"hanja": "東京", "hangul": "도쿄", "preference": 10}
+{"hanja": "東京", "hangul": "동경", "preference": 0}
+{"hanja": "年代", "hangul": "연대", "suffix_reading": "년대"}
+{"hanja": "漢字", "hangul": "한자", "require_hanja": true}
+{"hanja": "學校", "hangul": "학교", "require_hangul": true}
