@@ -135,14 +135,14 @@ print "The applied bump will also run sacho next with the new workspace version.
 """
 
 [tasks.bump-execute]
-description = "Create one signed commit bumping the workspace and the packages/ JS manifests"
+description = "Create one signed commit bumping workspace, JS and Python versions"
 usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
 extends = "nu"
 depends = ["rust-init", "changelog-check"]
 # cargo-release bumps the shared Cargo version, the intra-workspace dependency
 # requirements, and Cargo.lock, then writes a signed commit.  It knows nothing
-# about the package.json/deno.json manifests under packages/, so we sync those
-# to the same version, advance the changelog, and fold those files into the
+# about JavaScript or Python manifests, so we sync those to the same version,
+# refresh the Python lockfile, advance the changelog, and fold those files into the
 # same signed commit. The explicit pathspec keeps unrelated changes out.
 # The JS version is read back from Cargo.toml after cargo-release runs, so it
 # tracks the version actually applied even when <version> is a bump level such
@@ -164,12 +164,14 @@ if (git rev-parse HEAD | str trim) == $previous_head {
 $env.VERSION = (open Cargo.toml | get workspace.package.version)
 mise run js-sync-version
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
+mise run py-sync-version
+if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
 sacho next $env.VERSION
 # A release removes next, so the next cycle must stage the recreated file.
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
-git add -- changes.d/next CHANGES.md
+git add -- changes.d/next CHANGES.md python/gukhanmun/pyproject.toml uv.lock
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
-git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json changes.d/next CHANGES.md
+git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json python/gukhanmun/pyproject.toml uv.lock changes.d/next CHANGES.md
 """
 
 [tasks.typecheck]
@@ -741,3 +743,11 @@ run = "uv run --no-sync python scripts/python/checks.py test"
 description = "Check installed Python types with all five required checkers"
 depends = ["py-wheel-env"]
 run = "uv run --no-sync python scripts/python/checks.py typecheck"
+
+[tasks.py-sync-version]
+description = "Synchronize Python metadata and lockfile from the Rust workspace version"
+depends = ["py-deps"]
+run = [
+  "uv run --no-sync python scripts/python/sync_version.py",
+  "uv lock --no-build",
+]

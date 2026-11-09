@@ -21,7 +21,7 @@ import json
 import string
 import urllib.error
 import urllib.request
-from collections.abc import Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from urllib.parse import quote, urljoin
 from typing import IO, TypeAlias, cast
@@ -439,3 +439,98 @@ class Converter:
             return self._handle.convert(source, selector, gfm)
         except NativeError as error:
             raise _native_error(error) from error
+
+    def stream(
+        self, *, format: InputFormat | MarkdownOptions = InputFormat.TEXT
+    ) -> ConversionStream:
+        """Buffer one document in a single-consumer stream retaining this converter."""
+        return ConversionStream(self, format=format)
+
+    def convert_iter(
+        self,
+        chunks: Iterable[str],
+        *,
+        format: InputFormat | MarkdownOptions = InputFormat.TEXT,
+    ) -> Iterator[str]:
+        """Convert chunks, yielding nonempty results after normal input exhaustion.
+
+        Format validation is immediate. Upstream exceptions and early closing
+        propagate without finalizing a partial document.
+        """
+        stream = self.stream(format=format)
+
+        def results() -> Iterator[str]:
+            completed = False
+            try:
+                for chunk in chunks:
+                    output = stream.push(chunk)
+                    if output:
+                        yield output
+                output = stream.finish()
+                completed = True
+                if output:
+                    yield output
+            finally:
+                if not completed:
+                    stream._abort()
+
+        return results()
+
+
+class ConversionStream:
+    """A mutable, single-consumer, buffered conversion of one document.
+
+    Successful pushes return an empty string. Finish converts all input once;
+    failure or successful completion makes the stream permanently terminal.
+    The stream strongly retains its converter, including after completion.
+    """
+
+    __slots__: tuple[str, ...] = ("_converter", "_format", "_chunks", "_terminal")
+
+    def __init__(
+        self,
+        converter: Converter,
+        *,
+        format: InputFormat | MarkdownOptions = InputFormat.TEXT,
+    ) -> None:
+        if hasattr(self, "_converter"):
+            raise RuntimeError("ConversionStream is already initialized")
+        selector, gfm = _format(format)
+        self._converter: Converter = _require(converter, Converter, "converter")
+        self._format: InputFormat | MarkdownOptions = (
+            MarkdownOptions(gfm=gfm)
+            if selector == InputFormat.MARKDOWN.value
+            else InputFormat(selector)
+        )
+        self._chunks: list[str] = []
+        self._terminal: bool = False
+
+    def _abort(self) -> None:
+        self._terminal = True
+        self._chunks.clear()
+
+    def push(self, source: str) -> str:
+        """Buffer valid Unicode text; any failure permanently closes the stream."""
+        if self._terminal:
+            raise RuntimeError("ConversionStream is terminal")
+        accepted = False
+        try:
+            _require(source, str, "source")
+            source.encode("utf-8", errors="strict")
+            self._chunks.append(source)
+            accepted = True
+            return ""
+        finally:
+            if not accepted:
+                self._abort()
+
+    def finish(self) -> str:
+        """Convert buffered text once; this call is terminal even if conversion fails."""
+        if self._terminal:
+            raise RuntimeError("ConversionStream is terminal")
+        self._terminal = True
+        try:
+            source = "".join(self._chunks)
+        finally:
+            self._chunks.clear()
+        return self._converter.convert(source, format=self._format)

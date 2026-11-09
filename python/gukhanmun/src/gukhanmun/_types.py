@@ -211,7 +211,7 @@ def _url(value: object) -> str:
             raise ValueError("dictionary URL must use HTTP(S) and include a host")
         # Accessing port checks both non-numeric and out-of-range ports.
         _ = parsed.port
-    except (ValueError, UnicodeEncodeError) as error:
+    except ValueError as error:
         raise _invalid(f"invalid dictionary URL: {error}") from error
     return url
 

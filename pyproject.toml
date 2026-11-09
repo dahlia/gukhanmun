@@ -12,6 +12,7 @@ members = ["python/*"]
 
 [dependency-groups]
 dev = [
+    "packaging==26.3",
     "maturin==1.16.0",
     "mypy==2.4.1",
     "pyright==1.1.414",

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from ._api import Converter as Converter
+from ._api import ConversionStream, Converter as Converter
 from ._types import (
     Preset as Preset,
     RenderMode as RenderMode,
@@ -53,6 +53,7 @@ from ._types import (
 
 __all__ = [
     "Converter",
+    "ConversionStream",
     "Preset",
     "RenderMode",
     "OriginalGloss",

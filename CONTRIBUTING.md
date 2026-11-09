@@ -342,11 +342,13 @@ only place a contributor sets a version.
 Version bumps go through `mise run bump-execute`, which wraps `cargo-release`.
 `cargo-release` updates the shared workspace version, the intra-workspace
 dependency requirements, and *Cargo.lock*, then writes a signed commit.  It does
-not understand the npm and JSR manifests, so the task additionally syncs every
-*package.json* and *deno.json* under *packages/* to the version `cargo-release`
-applied, runs `sacho next` with that version, and folds those manifests,
-*changes.d/next*, and *CHANGES.md* into that one signed commit.  The task
-never tags, pushes, or publishes.
+not update the npm, JSR or Python manifests. The task also syncs every
+*package.json* and *deno.json* under *packages/* and the core Python
+*python/gukhanmun/pyproject.toml* to the applied version, refreshes *uv.lock*,
+and runs `sacho next`. Python versions use [PEP 440] spelling, such as
+`1.2.0rc2` for the Rust version `1.2.0-rc.2`. The `bump-execute` task amends the
+signed commit with those manifests, the lockfile, *changes.d/next*, and
+*CHANGES.md*. It never tags, pushes, or publishes.
 
 Run the bump on a clean working tree: `cargo-release` refuses to proceed when
 there are uncommitted changes, and the bump amends its own commit.
@@ -370,7 +372,8 @@ mise run bump -- 1.2.5
 
 Inspect the planned workspace and intra-workspace dependency updates.  When the
 preview is correct, create the signed bump commit, which covers the Rust crates
-and every published JavaScript package under *packages/* together:
+and every published JavaScript package under *packages/* and the core Python
+distribution together:
 
 ~~~~ sh
 mise run bump-execute -- 1.2.5
@@ -381,6 +384,8 @@ Push the bump commit normally:
 ~~~~ sh
 git push
 ~~~~
+
+[PEP 440]: https://peps.python.org/pep-0440/
 
 ### Tagging a release
 

@@ -14,12 +14,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from collections.abc import Iterator
 from typing import assert_type
 
 from gukhanmun import (
-    Converter, DictionaryEntry, Directives, ErrorCause, ErrorCode,
+    ConversionStream, Converter, CustomPunctuationProfile, DictionaryEntry, Directives, ErrorCause, ErrorCode,
     GukhanmunError, HtmlOptions, InputFormat, MapDictionarySource,
-    MarkdownOptions, Preset, ResolvedOptions, SourceRole,
+    MarkdownOptions, Preset, ResolvedOptions, SourceRole, StopStyle, UNSET, UnsetType,
 )
 
 entry = DictionaryEntry(hanja="漢字", reading="한자")
@@ -34,6 +35,11 @@ assert_type(converter.convert("漢字", format=MarkdownOptions(gfm=True)), str)
 assert_type(converter.options, ResolvedOptions)
 assert_type(converter.options.preset, Preset)
 assert_type(converter.options.initial_sound_law, bool)
+assert_type(converter.stream(), ConversionStream)
+assert_type(converter.stream(format=MarkdownOptions(gfm=True)).push("漢"), str)
+assert_type(converter.stream().finish(), str)
+assert_type(converter.convert_iter(["漢", "字"]), Iterator[str])
+assert_type(CustomPunctuationProfile(comma=UNSET).comma, StopStyle | None | UnsetType)
 
 def inspect_error(error: GukhanmunError) -> None:
     assert_type(error.code, ErrorCode)

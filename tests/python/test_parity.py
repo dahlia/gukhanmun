@@ -189,3 +189,32 @@ def test_repeated_and_concurrent_calls_isolate_each_document(format: g.InputForm
     assert results == [[value] * 8 for value in expected]
     independent = stateful_converter()
     assert [independent.convert(text, format=format) for text in inputs] == expected
+
+
+@pytest.mark.parametrize("relative", [
+    "text/redundant-parens-hanja-first.input.txt", "html/initial-sound-raw.input.html",
+    "markdown/code-span-untouched.input.md", "commonmark/01-atx-heading.input.md",
+])
+def test_shared_fixtures_have_chunk_partition_equivalence(relative: str) -> None:
+    converter, text, _, format, _ = configured_fixture(relative)
+    expected = converter.convert(text, format=format)
+    for split in range(len(text) + 1):
+        assert "".join(converter.convert_iter([text[:split], text[split:]], format=format)) == expected
+    stream = converter.stream(format=format)
+    for character in text:
+        assert stream.push(character) == ""
+    assert stream.finish() == expected
+
+
+@pytest.mark.parametrize("format", tuple(g.InputFormat))
+def test_simultaneous_streams_keep_document_state_separate(format: g.InputFormat) -> None:
+    converter = stateful_converter()
+    first, second = converter.stream(format=format), converter.stream(format=format)
+    first_input = document("甲 乙", format)
+    second_input = document("甲", format)
+    for left, right in zip(first_input, second_input):
+        assert first.push(left) == ""
+        assert second.push(right) == ""
+    first.push(first_input[len(second_input):])
+    assert second.finish() == converter.convert(second_input, format=format)
+    assert first.finish() == converter.convert(first_input, format=format)

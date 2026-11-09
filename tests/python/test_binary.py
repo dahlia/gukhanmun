@@ -188,3 +188,17 @@ def test_large_finite_timeout_has_a_coded_error(timeout: float) -> None:
         with pytest.raises(g.GukhanmunError) as raised:
             g.Converter(dictionaries=[g.UrlDictionarySource(base + "/binary", g.DictionaryFormat.FST, timeout=timeout)])
         assert raised.value.code is g.ErrorCode.INVALID_INPUT
+
+
+@pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
+def test_binary_streams_keep_phrase_and_candidate_evidence_at_every_split(format: g.DictionaryFormat) -> None:
+    converter = g.Converter(dictionaries=[source("reference", format), source("plain", format)],
+                            homophone_window=g.ContextWindow.OFF)
+    for text in ("無條件降服", "無條件 降服", "無條件  降服", "1990年代 東京을"):
+        expected = converter.convert(text)
+        for split in range(len(text) + 1):
+            stream = converter.stream()
+            assert stream.push(text[:split]) == ""
+            assert stream.push(text[split:]) == ""
+            assert stream.finish() == expected
+            assert "".join(converter.convert_iter([text[:split], text[split:]])) == expected

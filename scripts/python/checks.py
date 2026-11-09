@@ -187,6 +187,7 @@ def typecheck():
         # the Python 3.11 runtime contract. Override signatures remain checked.
         "pyrefly": ["pyrefly", "check", "--preset", "strict", "--python-interpreter-path", python,
                     "--python-version", "3.11", "--output-format", "json",
+                    "--min-severity", "warn",
                     "--ignore", "missing-override-decorator"],
     }
     summary = {}

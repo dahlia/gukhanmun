@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from gukhanmun import Converter, DictionaryEntry, Preset, RenderMode
+from gukhanmun import Converter, CustomPunctuationProfile, DictionaryEntry, ErrorCode, GukhanmunError, Preset, RenderMode
 
 Converter(preset="ko-kr")  # expected: enum
 Converter(preset=RenderMode.HANGUL_ONLY)  # expected: enum
@@ -26,3 +26,11 @@ converter.options = converter.options  # expected: immutable
 converter.options.initial_sound_law = False  # expected: immutable
 entry = DictionaryEntry(hanja="漢字", reading="한자")
 entry.reading = "다름"  # expected: immutable
+converter.stream(format="html")  # expected: enum
+converter.stream().push(b"text")  # expected: enum
+chunks: list[bytes] = []
+converter.convert_iter(chunks)  # expected: enum
+CustomPunctuationProfile(comma=object())  # expected: enum
+DictionaryEntry("漢字", "한자", preference=1.5)  # expected: enum
+error = GukhanmunError(ErrorCode.INVALID_INPUT, "invalid")
+error.code = ErrorCode.IO  # expected: immutable
