@@ -17,6 +17,8 @@
 """Local Python checks; invoked only through the corresponding mise tasks."""
 
 import argparse
+from contextlib import contextmanager, nullcontext
+import errno
 import json
 import os
 from pathlib import Path
@@ -25,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -77,29 +80,127 @@ def build():
     print(f"Verified wheel: {wheels[0]}")
 
 
+@contextmanager
+def environment_lock(*, exclusive):
+    """Keep replacement from deleting an environment used by another check."""
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    # Keep this file permanently: unlinking it would split the lock across inodes.
+    with (OUTPUT / "environment.lock").open("a+b") as lock:
+        if os.name == "nt":
+            import msvcrt
+
+            if lock.seek(0, os.SEEK_END) == 0:
+                lock.write(b"\0")
+                lock.flush()
+            lock.seek(0)
+            # Windows consumers serialize; POSIX consumers may run together.
+            while True:
+                try:
+                    msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError as error:
+                    if error.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                        raise
+                    time.sleep(0.1)
+            try:
+                yield
+            finally:
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def owned_environment(value):
+    """Accept only marked, direct children of the current temporary directory."""
+    if not isinstance(value, str) or not value:
+        return None
+    directory = Path(value)
+    try:
+        if (not directory.is_absolute() or ".." in directory.parts
+                or not re.fullmatch(r"gukhanmun-wheel-[a-z0-9_]+", directory.name)
+                or directory.parent.resolve() != Path(tempfile.gettempdir()).resolve()
+                or directory.is_symlink() or not directory.is_dir()):
+            return None
+        marker = directory / ".gukhanmun-check-env"
+        if (marker.is_symlink() or not marker.is_file()
+                or marker.read_text(encoding="utf-8") != str(ROOT)):
+            return None
+        return directory
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def previous_environment():
+    try:
+        if STATE.is_symlink():
+            return None
+        data = json.loads(STATE.read_text(encoding="utf-8"))
+        return owned_environment(data.get("directory")) if isinstance(data, dict) else None
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def remove_environment(directory):
+    try:
+        shutil.rmtree(directory)
+    except OSError as error:
+        # Cleanup must not invalidate a newly published environment or mask the
+        # installation failure that caused cleanup of an incomplete environment.
+        print(f"Could not remove wheel environment {directory}: {error}", file=sys.stderr)
+
+
 def wheel_env():
     wheels = list((OUTPUT / "wheels").glob("*.whl"))
     if len(wheels) != 1:
         raise RuntimeError("run py-build before py-wheel-env")
+    previous = previous_environment()
     directory = Path(tempfile.mkdtemp(prefix="gukhanmun-wheel-"))
-    run(["uv", "venv", "--python", sys.executable, directory])
-    (directory / ".gukhanmun-check-env").write_text(str(ROOT), encoding="utf-8")
-    python = directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    requirements = directory / "test-requirements.txt"
-    run(["uv", "export", "--quiet", "--locked", "--only-group", "test", "--no-emit-workspace",
-         "--output-file", requirements])
-    run(["uv", "pip", "install", "--python", python, "--require-hashes", "-r", requirements])
-    run(["uv", "pip", "install", "--python", python, "--no-deps", wheels[0]])
-    inspected = run([python, "-I", "-c",
-                     "import gukhanmun,json,sys; from pathlib import Path; "
-                     "p=Path(gukhanmun.__file__).resolve(); "
-                     "assert p.is_relative_to(Path(sys.prefix).resolve()); "
-                     "print(json.dumps({'package':str(p.parent),'prefix':sys.prefix}))"],
-                    cwd=directory, capture=True)
-    inspected.check_returncode()
-    data = json.loads(inspected.stdout)
-    data.update(directory=str(directory), python=str(python), wheel=str(wheels[0]))
-    STATE.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    published = False
+    pending = None
+    try:
+        run(["uv", "venv", "--python", sys.executable, directory])
+        (directory / ".gukhanmun-check-env").write_text(str(ROOT), encoding="utf-8")
+        python = directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        requirements = directory / "test-requirements.txt"
+        run(["uv", "export", "--quiet", "--locked", "--only-group", "test", "--no-emit-workspace",
+             "--output-file", requirements])
+        run(["uv", "pip", "install", "--python", python, "--require-hashes", "-r", requirements])
+        run(["uv", "pip", "install", "--python", python, "--no-deps", wheels[0]])
+        inspected = run([python, "-I", "-c",
+                         "import gukhanmun,json,sys; from pathlib import Path; "
+                         "p=Path(gukhanmun.__file__).resolve(); "
+                         "assert p.is_relative_to(Path(sys.prefix).resolve()); "
+                         "print(json.dumps({'package':str(p.parent),'prefix':sys.prefix}))"],
+                        cwd=directory, capture=True)
+        inspected.check_returncode()
+        data = json.loads(inspected.stdout)
+        data.update(directory=str(directory), python=str(python), wheel=str(wheels[0]))
+        # Write beside STATE and replace only after the complete installation
+        # passes inspection, preserving the previous state on any earlier error.
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=OUTPUT,
+                                         prefix=".installed-", suffix=".json",
+                                         delete=False) as state:
+            pending = Path(state.name)
+            state.write(json.dumps(data, indent=2) + "\n")
+        os.replace(pending, STATE)
+        published = True
+    finally:
+        if pending is not None:
+            try:
+                pending.unlink(missing_ok=True)
+            except OSError as error:
+                print(f"Could not remove pending state {pending}: {error}", file=sys.stderr)
+        if not published:
+            remove_environment(directory)
+    if previous is not None and owned_environment(str(previous)) is not None:
+        remove_environment(previous)
     print(f"Installed-wheel environment: {directory}")
 
 
@@ -219,7 +320,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("build", "wheel-env", "test", "typecheck"))
     args = parser.parse_args()
-    {"build": build, "wheel-env": wheel_env, "test": test, "typecheck": typecheck}[args.command]()
+    guard = (nullcontext() if args.command == "build"
+             else environment_lock(exclusive=args.command == "wheel-env"))
+    with guard:
+        {"build": build, "wheel-env": wheel_env, "test": test, "typecheck": typecheck}[args.command]()
 
 
 if __name__ == "__main__":
