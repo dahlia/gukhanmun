@@ -179,10 +179,10 @@ class _HttpRedirects(urllib.request.HTTPRedirectHandler):
         if location is not None:
             # Match urllib's recovery of HTTP header bytes and quoting before
             # checking the target. Spaces in Location are normalized by urllib.
-            target = quote(location, encoding="iso-8859-1", safe=string.punctuation)
             try:
+                target = quote(location, encoding="iso-8859-1", safe=string.punctuation)
                 self._validate_target(urljoin(req.full_url, target))
-            except GukhanmunError:
+            except (GukhanmunError, ValueError):
                 fp.close()
                 raise
         return cast(http.client.HTTPResponse | None, super().http_error_302(req, fp, code, msg, headers))

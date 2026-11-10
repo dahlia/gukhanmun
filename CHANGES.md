@@ -748,6 +748,8 @@ To be released.
     URL's origin (scheme, hostname and effective port). Redirects to another
     origin raise `INVALID_INPUT` before a request is sent; configure a different
     origin's final URL directly. [[#48], [#15], [#55]]
+ -  Fixed URL dictionary loading to close redirect responses when a malformed
+    redirect target is rejected. [[#48], [#15], [#55]]
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading

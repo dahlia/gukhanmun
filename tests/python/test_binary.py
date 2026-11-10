@@ -300,6 +300,18 @@ def test_redirect_origin_validation_precedes_request_creation_and_closes_respons
     assert response.closed
 
 
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+def test_malformed_redirect_target_closes_response(status: int) -> None:
+    handler = _api._HttpRedirects("http://example.test/start")
+    response = io.BytesIO(b"redirect body must not be read")
+    headers = http.client.HTTPMessage()
+    headers["Location"] = "//[bad/x"
+    request = urllib.request.Request("http://example.test/start")
+    with pytest.raises(ValueError):
+        getattr(handler, f"http_error_{status}")(request, response, status, "Redirect", headers)
+    assert response.closed
+
+
 @pytest.mark.parametrize("timeout", [1e300, 10**30])
 def test_large_finite_timeout_has_a_coded_error(timeout: float) -> None:
     with dictionary_server(binary("plain", g.DictionaryFormat.FST)) as (base, _):
