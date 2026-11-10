@@ -25,6 +25,53 @@ List available project commands:
 mise tasks
 ~~~~
 
+### Python development
+
+Use mise to install and select interpreters and uv. The root development
+environment and *uv.lock* are managed by uv. The root is a virtual workspace;
+automatic dependency setup runs `uv sync --locked --no-install-workspace`
+without compiling the native extension. Native build tasks initialize Rust
+explicitly. No shell activation or additional interpreter manager is needed,
+even with another venv active.
+
+For the first lockfile, or after intentionally changing dependencies, bypass
+automatic dependency setup while updating the lock:
+
+~~~~ sh
+mise exec --no-deps -- uv lock
+mise run py-deps
+~~~~
+
+The default development interpreter is CPython 3.15.2. `mise run py-build`
+builds and inspects its wheel; `mise run py-test` tests the installed wheel
+outside the checkout. `mise run py-typecheck` checks the same installed package
+with mypy, Pyright, basedpyright, ty and Pyrefly, including negative consumer
+examples and native stub signatures. `mise run check` runs fast Python
+tooling tests without building the extension; `mise run ci` includes the runtime
+and all five type checkers.
+
+Install the complete interpreter set only when running the semantic matrix:
+
+~~~~ sh
+mise --env python install
+mise run py-test-all
+mise run py-test-all -- -e py311
+mise run py-test-all -- -e pypy311,pypy312
+~~~~
+
+The optional *mise.python.toml* pins CPython 3.11–3.15 and PyPy 3.11/3.12.
+The launcher runs environments serially and resolves each exact mise
+installation. Missing interpreters fail with an installation instruction;
+uv downloads and system Python substitutes are disabled. Use
+`py-test-all` rather than calling tox directly. The tox runner uses the locked
+test group, builds a noneditable wheel for each interpreter/ABI, and copies
+runtime tests to temporary directories outside the checkout. Logs identify the
+interpreter, base installation, installed distribution and native module hash.
+
+These are development and semantic checks. Exhaustive release wheel/sdist
+validation and free-threaded CPython support are separate work. Core tests use
+synthetic dictionaries and do not require the optional official datasets.
+
 
 Running checks
 --------------

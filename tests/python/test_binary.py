@@ -313,11 +313,26 @@ def test_malformed_redirect_target_closes_response(status: int) -> None:
 
 
 @pytest.mark.parametrize("timeout", [1e300, 10**30])
-def test_large_finite_timeout_has_a_coded_error(timeout: float) -> None:
-    with dictionary_server(binary("plain", g.DictionaryFormat.FST)) as (base, _):
-        with pytest.raises(g.GukhanmunError) as raised:
-            g.Converter(dictionaries=[g.UrlDictionarySource(base + "/binary", g.DictionaryFormat.FST, timeout=timeout)])
-        assert raised.value.code is g.ErrorCode.INVALID_INPUT
+def test_socket_timeout_overflow_has_a_coded_error(timeout: float, monkeypatch) -> None:
+    # PyPy accepts finite timeouts that CPython's socket implementation rejects.
+    # Exercise the error translation without depending on that platform limit.
+    class Probe:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def settimeout(self, value):
+            assert value == timeout
+            raise OverflowError("timeout exceeds the socket implementation's range")
+
+    monkeypatch.setattr(_api.socket, "socket", lambda *args, **kwargs: Probe())
+    with pytest.raises(g.GukhanmunError) as raised:
+        g.Converter(dictionaries=[g.UrlDictionarySource(
+            "http://example.invalid/binary", g.DictionaryFormat.FST, timeout=timeout,
+        )])
+    assert raised.value.code is g.ErrorCode.INVALID_INPUT
 
 
 @pytest.mark.parametrize("format", tuple(g.DictionaryFormat))

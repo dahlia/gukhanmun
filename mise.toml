@@ -4,7 +4,7 @@
 "github:rhysd/actionlint" = "1.7.12"
 dasel = "3.11"
 node = "26"
-python = "3.15"
+python = "3.15.2"
 uv = "0.13.7"
 "github:pnpm/pnpm" = "11"
 deno = "2"
@@ -13,6 +13,14 @@ bun = "1"
 "pipx:fonttools" = { version = "4.63.0", extras = "woff" }
 "github:koalaman/shellcheck" = "0.11.0"
 "github:dahlia/sacho" = "0.4.0"
+
+[settings]
+experimental = true
+python.compile = false
+
+[deps.uv]
+auto = true
+run = "uv sync --locked --no-install-workspace"
 
 [tools.rust]
 version = "1.95.0"
@@ -39,7 +47,8 @@ linux-arm64 = "hongdown-*-aarch64-unknown-linux-musl.tar.bz2"
 
 
 [env]
-UV_PYTHON = { value = "{{ tools.python.path }}", tools = true }
+# Multiple active versions expose a list; keep the first (development) Python.
+UV_PYTHON = { value = "{% if tools.python.path is defined %}{{ tools.python.path }}{% else %}{{ tools.python[0].path }}{% endif %}", tools = true }
 UV_PYTHON_DOWNLOADS = "never"
 UV_PYTHON_PREFERENCE = "only-system"
 
@@ -63,6 +72,7 @@ depends = [
   "js-lint",
   "js-doc",
   "js-fmt-check",
+  "py-fast",
 ]
 
 [tasks.changelog-check]
@@ -96,6 +106,8 @@ depends = [
   "loanwords-update-test",
   "dicts-test",
   "test-shared",
+  "py-test",
+  "py-typecheck",
 ]
 
 [tasks.rust-init]
@@ -717,7 +729,18 @@ run = [
 
 [tasks.py-deps]
 description = "Install locked Python development tools without compiling the extension"
-run = "uv sync --locked --all-groups --no-install-workspace"
+run = "uv sync --locked --no-install-workspace"
+
+[tasks.py-fast]
+description = "Check Python tooling without building the native extension"
+depends = ["py-deps"]
+env = { GUKHANMUN_REPO_ROOT = "{{ config_root }}" }
+run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py scripts/python/matrix_test.py"
+
+[tasks.py-test-all]
+description = "Test installed wheels on every pinned CPython/PyPy interpreter"
+depends = ["rust-init", "py-fixtures"]
+run = "uv run --no-sync python scripts/python/matrix.py"
 
 [tasks.py-build]
 description = "Build and inspect the native Python wheel"
