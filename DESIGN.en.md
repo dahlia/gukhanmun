@@ -587,14 +587,13 @@ Runtime callers load one dictionary artifact; no evidence sidecar is required.
 Two external dictionary backends ship as separate crates.
 
 *gukhanmun-cdb* wraps a CDB file as a `HanjaDictionary`. CDB is djb's constant
-database: a static on-disk hash table with $O(1)$ lookups and trivial format
-documentation. The naive use of CDB as a hanja-to-hangul map fails because CDB
-is a hash table without prefix iteration; there is no way to ask whether some
-key starts with a given byte sequence. We work around this by encoding the
-dictionary as a *trie embedded in the CDB key space*. At build time,
-*gukhanmun-mkdict* enumerates every prefix of every entry and stores a record
-for each, with a one-byte flag distinguishing complete words from intermediate
-prefixes:
+database: a static on-disk hash table with a compact, documented format. The
+naive use of CDB as a hanja-to-hangul map fails because CDB is a hash table
+without prefix iteration; there is no way to ask whether some key starts with a
+given byte sequence. We work around this by encoding the dictionary as a *trie
+embedded in the CDB key space*. At build time, *gukhanmun-mkdict* enumerates
+every prefix of every entry and stores a record for each, with a one-byte flag
+distinguishing complete words from intermediate prefixes:
 
 ~~~~ text
 key   = utf-8 bytes of a prefix
@@ -605,11 +604,17 @@ Lookup walks one character at a time from the cursor position. On a miss, no
 longer match is possible from this position and the walk terminates. On a hit
 with `is_complete = 1`, the match is yielded; on a hit with `is_complete = 0`,
 the walk continues to look for longer matches. The cost is
-$O(\text{max_word_chars})$ CDB lookups per position, and each CDB lookup is
-$O(1)$. The size cost is real: every prefix of every entry occupies a record,
-so the bundled stdict CDB is roughly twice the size of the source TSV. The
-trade-off is that CDB's simplicity (six syscalls of file format, public-domain
-reference implementations) makes the backend trivially auditable.
+$O(\text{max_word_chars})$ indexed key queries per position. At load time,
+the backend validates record framing, table ranges and slot integrity, then
+builds a range index sorted by hash, key bytes and probe order, using $O(N)$
+storage for $N$ records. Each query
+hashes its key and makes $O(\log N)$ key comparisons, independent of on-disk
+collision clusters. Keys and values stay in the backing bytes; embedded static
+data is borrowed, and candidate payloads are decoded when accessed. The on-disk
+size cost is real: every prefix of every entry occupies a record, so the
+bundled stdict CDB is roughly twice the size of the source TSV. The trade-off
+is that CDB's simplicity (six syscalls of file format, public-domain reference
+implementations) makes the backend trivially auditable.
 
 *gukhanmun-fst* wraps an `fst::Map` as a `HanjaDictionary`. The FST (finite
 state transducer) supports prefix iteration natively and compresses better than

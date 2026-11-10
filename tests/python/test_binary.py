@@ -20,6 +20,7 @@ from contextlib import contextmanager
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import ssl
+import struct
 import os
 from pathlib import Path
 from threading import Event, Thread
@@ -375,3 +376,45 @@ def test_https_response_limits_with_verified_local_certificate(mode: str, monkey
             with pytest.raises(g.GukhanmunError) as caught:
                 g.Converter(dictionaries=[g.UrlDictionarySource(base, g.DictionaryFormat.FST, total_timeout=0.15)])
             assert caught.value.chain[0].code is g.ErrorCode.IO
+
+
+@pytest.mark.parametrize("transport", ["bytes", "path", "url"])
+def test_malformed_cdb_hash_tables_are_rejected_before_conversion(transport: str, tmp_path: Path) -> None:
+    data = bytearray(binary("plain", g.DictionaryFormat.CDB))
+    # Preserve valid metadata while replacing another bucket with a full table
+    # of repeated record pointers. The old metadata-only loader accepted it.
+    metadata_hash = 5381
+    for byte in b"__gukhanmun_meta__":
+        metadata_hash = ((metadata_hash * 33) ^ byte) & 0xffffffff
+    for bucket in range(256):
+        position, count = struct.unpack_from("<II", data, bucket * 8)
+        if count and bucket != metadata_hash & 0xff:
+            for index in range(count):
+                hash_value, record = struct.unpack_from("<II", data, position + index * 8)
+                if record:
+                    break
+            else:
+                continue
+            table = len(data)
+            data.extend(struct.pack("<II", hash_value, record) * 128)
+            struct.pack_into("<II", data, bucket * 8, table, 128)
+            break
+    else:
+        pytest.fail("synthetic CDB fixture has no non-metadata bucket")
+
+    def reject(descriptor: g.FileDictionarySource | g.UrlDictionarySource) -> None:
+        with pytest.raises(g.GukhanmunError) as caught:
+            g.Converter(dictionaries=[descriptor])
+        assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+        assert caught.value.chain == ()
+
+    if transport == "url":
+        with dictionary_server(bytes(data)) as (base, paths):
+            reject(g.UrlDictionarySource(base + "/binary", g.DictionaryFormat.CDB))
+            assert paths == ["/binary"]
+    elif transport == "path":
+        path = tmp_path / "malformed.cdb"
+        path.write_bytes(data)
+        reject(g.FileDictionarySource(path, g.DictionaryFormat.CDB))
+    else:
+        reject(g.FileDictionarySource(data, g.DictionaryFormat.CDB))

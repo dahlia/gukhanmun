@@ -66,6 +66,9 @@ To be released.
     [[#47], [#54]]
  -  Exposed typed dictionary source evidence and validation APIs through the
     Rust facade. [[#42], [#44]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts before use
+    and prevent crafted hash tables from forcing long lookup probe loops during
+    conversion. [[#48], [#15], [#55]]
  -  The exported core pipeline preserves source-aware selection metadata through
     annotations and middleware, including aliases, particles, authorial glosses,
     and first-occurrence/homophone identity. Source-aware dictionary matches
@@ -75,6 +78,7 @@ To be released.
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
 
+[#15]: https://github.com/dahlia/gukhanmun/issues/15
 [#33]: https://github.com/dahlia/gukhanmun/issues/33
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
 [#38]: https://github.com/dahlia/gukhanmun/issues/38
@@ -85,8 +89,10 @@ To be released.
 [#45]: https://github.com/dahlia/gukhanmun/pull/45
 [#46]: https://github.com/dahlia/gukhanmun/issues/46
 [#47]: https://github.com/dahlia/gukhanmun/issues/47
+[#48]: https://github.com/dahlia/gukhanmun/issues/48
 [#53]: https://github.com/dahlia/gukhanmun/pull/53
 [#54]: https://github.com/dahlia/gukhanmun/pull/54
+[#55]: https://github.com/dahlia/gukhanmun/pull/55
 
 ### gukhanmun-cdb (Rust)
 
@@ -98,6 +104,9 @@ To be released.
     evidence is validated on load, and unsupported or stale constraints are
     rejected. Phrase indexes are cached per dictionary for reuse across
     engines. [[#38], [#39], [#41], [#42], [#44], [#45]]
+ -  Fixed CDB loading to reject malformed file layouts before use. Crafted hash
+    tables can no longer force long lookup probe loops during conversion; valid
+    dictionary files remain supported. [[#48], [#15], [#55]]
 
 ### gukhanmun-cli (Rust)
 
@@ -117,6 +126,9 @@ To be released.
     streaming and applies each directive with the dictionary's lexeme index, so
     a reviewed alias resolves without buffering the whole document.
     [[#38], [#39]]
+ -  Fixed custom CDB dictionary loading to reject malformed file layouts before
+    conversion. Crafted hash tables can no longer force long lookup probe loops
+    during conversion. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -263,6 +275,9 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -324,6 +339,9 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -372,10 +390,61 @@ To be released.
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
+
+### @gukhanmun/napi-aarch64-apple-darwin (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Daarch64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-aarch64-pc-windows-msvc (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Daarch64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-aarch64-unknown-linux-gnu (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Daarch64%2Dunknown%2Dlinux%2Dgnu%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-x86\_64-apple-darwin (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Dx86_64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-x86\_64-pc-windows-msvc (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Dx86_64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-x86\_64-unknown-linux-gnu (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Dx86_64%2Dunknown%2Dlinux%2Dgnu%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
 
 ### @gukhanmun/opendict-cdb (JavaScript/TypeScript)
 
@@ -465,6 +534,9 @@ To be released.
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -495,10 +567,9 @@ To be released.
     DNS lookup or connection setup can be delayed beyond `total_timeout`;
     the existing per-operation `timeout` is preserved.
     [[#48], [#15], [#55]]
-
-[#15]: https://github.com/dahlia/gukhanmun/issues/15
-[#48]: https://github.com/dahlia/gukhanmun/issues/48
-[#55]: https://github.com/dahlia/gukhanmun/pull/55
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `DICTIONARY_LOAD` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
 
 <!-- sacho:unreleased:end -->
 
