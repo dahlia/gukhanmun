@@ -32,7 +32,7 @@ def lifecycle(tmp_path, monkeypatch):
     spec = importlib.util.spec_from_file_location('wheel_checks_under_test', source)
     checks = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(checks)
-    root = tmp_path / 'checkout'
+    root = tmp_path / 'checkout-\uad6d\ud55c\ubb38'
     root.mkdir()
     output = root / 'target/python'
     wheels = output / 'wheels'
@@ -48,10 +48,10 @@ def lifecycle(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, 'argv', ['checks.py', 'wheel-env'])
     old = temporary / 'gukhanmun-wheel-old'
     old.mkdir()
-    (old / '.gukhanmun-check-env').write_text(str(root))
-    (old / 'keep.txt').write_text('old environment contents')
+    (old / '.gukhanmun-check-env').write_text(str(root), encoding='utf-8')
+    (old / 'keep.txt').write_text('old environment contents', encoding='utf-8')
     data = {'directory': str(old), 'python': str(old / 'bin/python'), 'package': str(old / 'package')}
-    checks.STATE.write_text(json.dumps(data))
+    checks.STATE.write_text(json.dumps(data), encoding='utf-8')
     original = checks.STATE.read_bytes()
     calls = []
 
@@ -70,7 +70,7 @@ def lifecycle(tmp_path, monkeypatch):
 
 def assert_old_preserved(case):
     assert case.checks.STATE.read_bytes() == case.original
-    assert (case.old / 'keep.txt').read_text() == 'old environment contents'
+    assert (case.old / 'keep.txt').read_text(encoding='utf-8') == 'old environment contents'
 
 
 def assert_no_failed_artifacts(case):
@@ -81,13 +81,13 @@ def assert_no_failed_artifacts(case):
 def test_replacement_publishes_complete_new_environment_and_removes_old(lifecycle):
     c = lifecycle
     c.checks.main()
-    current = json.loads(c.checks.STATE.read_text())
+    current = json.loads(c.checks.STATE.read_text(encoding='utf-8'))
     directory = Path(current['directory'])
     assert directory.is_dir()
     assert directory != c.old
     assert current['prefix'] == str(directory)
     assert current['package'] == str(directory / 'package')
-    assert (directory / '.gukhanmun-check-env').read_text() == str(c.root)
+    assert (directory / '.gukhanmun-check-env').read_text(encoding='utf-8') == str(c.root)
     assert not c.old.exists()
     assert sorted(c.temporary.iterdir()) == [directory]
     assert not list(c.output.glob('.installed-*.json'))
@@ -177,11 +177,11 @@ def test_untrusted_previous_state_never_deletes_its_target(lifecycle, monkeypatc
     if kind == 'foreign-location':
         target = c.root / 'gukhanmun-wheel-foreign'
         target.mkdir()
-        (target / '.gukhanmun-check-env').write_text(str(c.root))
-        (target / 'keep.txt').write_text('old environment contents')
+        (target / '.gukhanmun-check-env').write_text(str(c.root), encoding='utf-8')
+        (target / 'keep.txt').write_text('old environment contents', encoding='utf-8')
         value = str(target)
     elif kind == 'foreign-marker':
-        (target / '.gukhanmun-check-env').write_text(str(c.root / 'different-checkout'))
+        (target / '.gukhanmun-check-env').write_text(str(c.root / 'different-checkout'), encoding='utf-8')
     elif kind == 'missing-marker':
         (target / '.gukhanmun-check-env').unlink()
     elif kind == 'bad-name':
@@ -198,7 +198,7 @@ def test_untrusted_previous_state_never_deletes_its_target(lifecycle, monkeypatc
             elif kind == 'marker-symlink':
                 marker = target / '.gukhanmun-check-env'
                 content = c.root / 'marker-target'
-                content.write_text(str(c.root))
+                content.write_text(str(c.root), encoding='utf-8')
                 marker.unlink()
                 marker.symlink_to(content)
             else:
@@ -216,14 +216,14 @@ def test_untrusted_previous_state_never_deletes_its_target(lifecycle, monkeypatc
     if kind != 'state-symlink':
         data = ('{invalid' if kind == 'malformed-json' else '[]' if kind == 'non-object'
                 else '{}' if kind == 'missing-directory' else json.dumps({'directory': value}))
-        c.checks.STATE.write_text(data)
+        c.checks.STATE.write_text(data, encoding='utf-8')
     c.checks.main()
-    assert (target / 'keep.txt').read_text() == 'old environment contents'
-    assert Path(json.loads(c.checks.STATE.read_text())['directory']).is_dir()
+    assert (target / 'keep.txt').read_text(encoding='utf-8') == 'old environment contents'
+    assert Path(json.loads(c.checks.STATE.read_text(encoding='utf-8'))['directory']).is_dir()
     if kind == 'directory-symlink':
         assert link.is_symlink()
     if kind == 'state-symlink':
-        assert json.loads(external_state.read_text())['directory'] == str(c.old)
+        assert json.loads(external_state.read_text(encoding='utf-8'))['directory'] == str(c.old)
 
 
 @pytest.mark.parametrize('installation_fails', [False, True])
@@ -246,7 +246,7 @@ def test_cleanup_failure_does_not_replace_primary_result(lifecycle, monkeypatch,
         assert_old_preserved(c)
     else:
         c.checks.main()
-        current = Path(json.loads(c.checks.STATE.read_text())['directory'])
+        current = Path(json.loads(c.checks.STATE.read_text(encoding='utf-8'))['directory'])
         assert current.is_dir() and current != c.old
         assert c.old.is_dir()
     assert 'cleanup denied' in capsys.readouterr().err
@@ -280,9 +280,9 @@ c.tempfile.tempdir = temporary
 if mode == 'consumer':
     def consume():
         directory = pathlib.Path(c.installed()['directory'])
-        (c.OUTPUT / 'consumer-ready').write_text(str(directory))
+        (c.OUTPUT / 'consumer-ready').write_text(str(directory), encoding='utf-8')
         assert sys.stdin.readline().strip() == 'release'
-        assert (directory / 'keep.txt').read_text() == 'old environment contents'
+        assert (directory / 'keep.txt').read_text(encoding='utf-8') == 'old environment contents'
     c.test = consume
     sys.argv = ['checks.py', 'test']
 else:
@@ -291,7 +291,7 @@ else:
         return subprocess.CompletedProcess(command, 0, json.dumps({
             'prefix': str(directory), 'package': str(directory / 'package')}), '')
     c.run = install
-    (c.OUTPUT / 'builder-started').write_text('started')
+    (c.OUTPUT / 'builder-started').write_text('started', encoding='utf-8')
     sys.argv = ['checks.py', 'wheel-env']
 c.main()
 '''
@@ -317,7 +317,7 @@ c.main()
         stdout, stderr = builder.communicate(timeout=10)
         assert builder.returncode == 0, (stdout, stderr)
         assert not c.old.exists()
-        assert Path(json.loads(c.checks.STATE.read_text())['directory']).is_dir()
+        assert Path(json.loads(c.checks.STATE.read_text(encoding='utf-8'))['directory']).is_dir()
     finally:
         for process in processes:
             if process.poll() is None:
@@ -331,13 +331,13 @@ def test_old_environment_ownership_is_rechecked_before_cleanup(lifecycle, monkey
     def install(command, **kwargs):
         result = c.installer(command, **kwargs)
         if kwargs.get('capture'):
-            (c.old / '.gukhanmun-check-env').write_text(str(c.root / 'another-checkout'))
+            (c.old / '.gukhanmun-check-env').write_text(str(c.root / 'another-checkout'), encoding='utf-8')
         return result
 
     monkeypatch.setattr(c.checks, 'run', install)
     c.checks.main()
-    assert (c.old / 'keep.txt').read_text() == 'old environment contents'
-    current = Path(json.loads(c.checks.STATE.read_text())['directory'])
+    assert (c.old / 'keep.txt').read_text(encoding='utf-8') == 'old environment contents'
+    current = Path(json.loads(c.checks.STATE.read_text(encoding='utf-8'))['directory'])
     assert current.is_dir() and current != c.old
 
 
