@@ -630,6 +630,18 @@ both because users have different priorities; CDB is the choice for
 code-auditability and trivial mmap support, while FST is the choice for small
 WebAssembly bundles.
 
+Before enumerating FST keys, the loader validates the reachable automaton
+with an iterative graph walk. It counts actual accepted keys independently of
+the stored length and of `max_word_chars` metadata. Loading rejects more than
+1,048,576 keys, 128 MiB of total accepted key bytes, 134,217,728 expanded
+traversal node visits (including nonaccepting branches), or a 4,096-byte path.
+A separate 64 MiB graph admission budget charges 128 bytes per unique node
+and 32 bytes per transition. The DFS stack is depth-limited. Fallible layout
+checks run before raw node decoding, without requiring panic unwinding. These
+charges bound admission work rather than measuring allocator overhead or RSS.
+The existing UTF-8-aware maximum-length fallback runs only after this check;
+valid static FST bytes remain borrowed.
+
 Both container loaders (CDB and FST) preflight metadata without allocating
 decoded values. They apply admission charges before CBOR deserialization: 128
 bytes per item and four bytes per byte of text or byte strings. Ordinary

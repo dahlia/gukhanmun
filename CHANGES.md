@@ -77,6 +77,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  The exported core pipeline preserves source-aware selection metadata through
     annotations and middleware, including aliases, particles, authorial glosses,
     and first-occurrence/homophone identity. Source-aware dictionary matches
@@ -146,6 +151,11 @@ To be released.
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
     limits through metadata expansion. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  Fixed custom CDB dictionary loading to reject malformed file layouts before
     conversion. Crafted hash tables can no longer force long lookup probe loops
     during conversion. [[#48], [#15], [#55]]
@@ -265,6 +275,11 @@ To be released.
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
     limits through metadata expansion. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 ### gukhanmun-loanwords (Rust)
 
@@ -318,6 +333,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -390,6 +410,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -449,6 +474,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -469,6 +499,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-aarch64-pc-windows-msvc (JavaScript/TypeScript)
 
@@ -485,6 +520,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-aarch64-unknown-linux-gnu (JavaScript/TypeScript)
 
@@ -501,6 +541,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-x86\_64-apple-darwin (JavaScript/TypeScript)
 
@@ -517,6 +562,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-x86\_64-pc-windows-msvc (JavaScript/TypeScript)
 
@@ -533,6 +583,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-x86\_64-unknown-linux-gnu (JavaScript/TypeScript)
 
@@ -549,6 +604,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 ### @gukhanmun/opendict-cdb (JavaScript/TypeScript)
 
@@ -649,6 +709,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -694,6 +759,11 @@ To be released.
     more than 64 MiB, before allocating the index. Loaded file bytes,
     decoded metadata and payloads, and allocator overhead use additional
     memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 <!-- sacho:unreleased:end -->
 

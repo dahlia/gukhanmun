@@ -588,3 +588,45 @@ def test_decoded_alias_metadata_budget_is_enforced(format: g.DictionaryFormat, t
         reject(g.FileDictionarySource(path, format))
     else:
         reject(g.FileDictionarySource(data, format))
+
+
+def expanded_fst_binary(max_word_chars: str | None) -> bytes:
+    # Thirty shared raw FST states accept 2**30 a/b keys. The forged footer
+    # count must not hide this expansion from construction-time validation.
+    raw = bytearray(struct.pack("<QQ", 2, 0))
+    for level in range(30):
+        delta = 0 if level == 0 else 1
+        raw.extend(bytes([delta, delta, ord("b"), ord("a"), 0x10, 0x02]))
+    raw.extend(struct.pack("<QQ", 1, len(raw) - 1))
+    if max_word_chars is None:
+        metadata = b"\xa0"
+    else:
+        value = max_word_chars.encode("ascii")
+        metadata = b"\xa1\x6emax_word_chars" + bytes([0x60 + len(value)]) + value
+    fst_offset = 64 + len(metadata)
+    header = struct.pack("<8sII6Q", b"GUKHMFST", 2, 64, 64, len(metadata),
+                         fst_offset, len(raw), fst_offset + len(raw), 0)
+    return header + metadata + raw
+
+
+@pytest.mark.parametrize("max_word_chars", [None, "30", "invalid"])
+@pytest.mark.parametrize("transport", ["bytes", "path", "url"])
+def test_compact_fst_expansion_is_rejected_before_conversion(max_word_chars: str | None, transport: str, tmp_path: Path) -> None:
+    data = expanded_fst_binary(max_word_chars)
+    assert len(data) < 512
+
+    def reject(descriptor: g.FileDictionarySource | g.UrlDictionarySource) -> None:
+        with pytest.raises(g.GukhanmunError) as caught:
+            g.Converter(dictionaries=[descriptor])
+        assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+
+    if transport == "url":
+        with dictionary_server(data) as (base, paths):
+            reject(g.UrlDictionarySource(base + "/binary", g.DictionaryFormat.FST))
+            assert paths == ["/binary"]
+    elif transport == "path":
+        path = tmp_path / "expanded.fst"
+        path.write_bytes(data)
+        reject(g.FileDictionarySource(path, g.DictionaryFormat.FST))
+    else:
+        reject(g.FileDictionarySource(data, g.DictionaryFormat.FST))
