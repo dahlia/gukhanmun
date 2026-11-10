@@ -72,6 +72,16 @@ These are development and semantic checks. Exhaustive release wheel/sdist
 validation and free-threaded CPython support are separate work. Core tests use
 synthetic dictionaries and do not require the optional official datasets.
 
+GitHub Actions runs installed-wheel semantic tests on CPython 3.11–3.15 and
+PyPy 3.11/3.12 on Linux. On macOS and Windows, the standard `ci` job tests
+installed wheels with the current development CPython and runs all five type
+checkers against them. The Python semantic jobs add CPython 3.11 and
+PyPy 3.11/3.12. Each job installs its selected mise interpreter and builds a
+native wheel for that environment. Exhaustive release wheel/sdist validation
+remains separate work under [#51].
+
+[#51]: https://github.com/dahlia/gukhanmun/issues/51
+
 
 Running checks
 --------------
