@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import copy
+import errno
 import multiprocessing
 import os
 import pickle
@@ -352,12 +353,20 @@ def test_unicode_source_and_configuration_boundaries(tmp_path: Path) -> None:
         assert raised.value.code is g.ErrorCode.INVALID_INPUT
     if os.name == "posix":
         path = os.fsdecode(os.fsencode(tmp_path) + b"/surrogate-\xff")
-        Path(path).write_bytes(b"not a dictionary")
+        expected_causes = ()
+        try:
+            Path(path).write_bytes(b"not a dictionary")
+        except OSError as error:
+            if error.errno != errno.EILSEQ:
+                raise
+            # Some filesystems reject invalid UTF-8 filenames before the
+            # dictionary can be read, which must retain the I/O error code.
+            expected_causes = (g.ErrorCode.IO,)
         source = g.FileDictionarySource(path, g.DictionaryFormat.FST)
         with pytest.raises(g.GukhanmunError) as raised:
             g.Converter(dictionaries=[source])
         assert raised.value.code is g.ErrorCode.DICTIONARY_LOAD
-        assert raised.value.chain == ()
+        assert tuple(cause.code for cause in raised.value.chain) == expected_causes
 
 
 def test_constructor_revalidates_altered_descriptors() -> None:

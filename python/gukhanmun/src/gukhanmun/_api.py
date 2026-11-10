@@ -208,7 +208,7 @@ class _DownloadBudget:
 class _DeadlineReader(io.RawIOBase):
     """Reapply the shared deadline for each underlying socket receive."""
 
-    def __init__(self, stream: io.BufferedReader, sock: socket.socket, budget: _DownloadBudget) -> None:
+    def __init__(self, stream: io.BufferedIOBase, sock: socket.socket, budget: _DownloadBudget) -> None:
         self.stream = stream
         self.sock = sock
         self.budget = budget

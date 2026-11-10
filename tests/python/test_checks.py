@@ -350,3 +350,33 @@ def test_missing_wheel_does_not_replace_previous_environment(lifecycle):
     assert_old_preserved(c)
     assert_no_failed_artifacts(c)
     assert c.calls == []
+
+
+def test_typecheck_reports_package_errors_inside_ignored_environment(lifecycle, monkeypatch):
+    c = lifecycle
+    package = c.old / 'site-packages' / 'gukhanmun'
+    package.mkdir(parents=True)
+    (package / '__init__.py').write_text('value: int = "wrong"\n', encoding='utf-8')
+    (c.old / '.gitignore').write_text('*\n', encoding='utf-8')
+    typing = c.root / 'tests' / 'python' / 'typing'
+    typing.mkdir(parents=True)
+    for name in ('positive.py', 'negative.py'):
+        (typing / name).write_text('', encoding='utf-8')
+    monkeypatch.setattr(c.checks, 'installed', lambda: {
+        'directory': str(c.old), 'package': str(package), 'python': sys.executable,
+    })
+
+    def check(command, **kwargs):
+        if command[0] == 'ty':
+            return subprocess.run(list(map(str, command)), cwd=kwargs['cwd'],
+                                  env=kwargs['env'], capture_output=True, text=True,
+                                  encoding='utf-8')
+        negative = Path(command[-1]).name == 'negative.py'
+        return subprocess.CompletedProcess(command, 1 if negative else 0,
+                                           '{"generalDiagnostics": [], "errors": []}', '')
+
+    monkeypatch.setattr(c.checks, 'run', check)
+    with pytest.raises(RuntimeError, match='ty positive/package check failed') as caught:
+        c.checks.typecheck()
+    assert 'invalid-assignment' in str(caught.value)
+    assert '__init__.py:1' in str(caught.value)

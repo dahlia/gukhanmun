@@ -23,5 +23,5 @@ dev = [
     "tox==4.67.13",
     "tox-uv-bare==1.37.7",
 ]
-test = ["pytest==9.2.0", { include-group = "mypy" }]
+test = ["pytest==9.2.0"]
 mypy = ["mypy==2.4.1"]

@@ -169,8 +169,8 @@ def wheel_env():
         (directory / ".gukhanmun-check-env").write_text(str(ROOT), encoding="utf-8")
         python = directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         requirements = directory / "test-requirements.txt"
-        run(["uv", "export", "--quiet", "--locked", "--only-group", "test", "--no-emit-workspace",
-             "--output-file", requirements])
+        run(["uv", "export", "--quiet", "--locked", "--only-group", "test",
+             "--only-group", "mypy", "--no-emit-workspace", "--output-file", requirements])
         run(["uv", "pip", "install", "--python", python, "--require-hashes", "-r", requirements])
         run(["uv", "pip", "install", "--python", python, "--no-deps", wheels[0]])
         inspected = run([python, "-I", "-c",
@@ -282,7 +282,8 @@ def typecheck():
                  "--python-version", "3.11", "--python-executable", python],
         "pyright": ["pyright", "--outputjson", "--project", str(config), "--pythonpath", python],
         "basedpyright": ["basedpyright", "--outputjson", "--project", str(config), "--pythonpath", python],
-        "ty": ["ty", "check", "--python", python, "--python-version", "3.11",
+        # uv venvs may contain a catch-all .gitignore; still inspect the package.
+        "ty": ["ty", "check", "--no-respect-ignore-files", "--python", python, "--python-version", "3.11",
                "--output-format", "concise", "--error-on-warning"],
         # @override is a Python 3.12 addition; decorator style is not part of
         # the Python 3.11 runtime contract. Override signatures remain checked.
