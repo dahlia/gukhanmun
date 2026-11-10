@@ -488,6 +488,13 @@ To be released.
  -  Preserved `GukhanmunError` codes, messages and cause tuples when copying
     or pickling errors, including errors returned from process workers.
     [[#48], [#15], [#55]]
+ -  Bounded `UrlDictionarySource` downloads with configurable `max_bytes`
+    (64 MiB by default) and `total_timeout` (30 seconds by default) for HTTP
+    response reads across redirects. Exceeding either bound raises
+    `DICTIONARY_LOAD` with an `IO` cause. Cancellation during synchronous
+    DNS lookup or connection setup can be delayed beyond `total_timeout`;
+    the existing per-operation `timeout` is preserved.
+    [[#48], [#15], [#55]]
 
 [#15]: https://github.com/dahlia/gukhanmun/issues/15
 [#48]: https://github.com/dahlia/gukhanmun/issues/48

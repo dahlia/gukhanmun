@@ -139,11 +139,17 @@ enum 클래스의 멤버를 직접 전달하면 `TypeError`가 발생합니다. 
 유지하므로 유효한 surrogateescape 경로도 사용할 수 있습니다. 파일은 변환기
 생성 시 읽습니다.
 
-`UrlDictionarySource(url, format, role=None, timeout=30.0)`는 변환기 생성 시
-HTTP(S) 다운로드를 요청합니다. 잘못된 URL/포트, 허용하지 않은 스킴과
-리다이렉트 대상은 `INVALID_INPUT`입니다. 양의 유한한 제한 시간은 각 입출력
-작업에 적용하며 전체 요청의 마감 시간은 아닙니다. 프록시 환경 변수는
-사용하지 않습니다.
+`UrlDictionarySource(url, format, role=None, timeout=30.0, max_bytes=67108864, total_timeout=30.0)`는
+변환기 생성 시 HTTP(S) 다운로드를 요청합니다. 잘못된 URL/포트, 허용하지 않은
+스킴과 리다이렉트 대상은 `INVALID_INPUT`입니다. `timeout`은 각 소켓 작업의 제한
+시간입니다. 양의 정수인 `max_bytes`는 사전 본문 크기를 기본 64 MiB로
+제한합니다. 양의 유한한 초 단위 값인 `total_timeout`은 리다이렉트 전체에 걸쳐
+HTTP 응답을 읽는 기한이며, 헤더와 청크 구문에도 적용합니다. 동기 DNS 및 연결
+설정 도중에는 `total_timeout` 이후까지 취소가 지연될 수 있습니다. 양수가 아닌
+한도나 유한하지 않은 제한 시간은 `INVALID_INPUT`, 잘못된 인자 형식은
+`TypeError`입니다. 크기나 시간 한도를 넘으면 `IO` 원인을 포함한
+`DICTIONARY_LOAD` 오류가 발생합니다. 리다이렉트 본문은 소비하지 않고 닫습니다.
+프록시 환경 변수는 사용하지 않습니다.
 
 모든 바이너리 입력은 `DictionaryFormat.FST`나 `CDB`를 지정해야 합니다.
 역할의 우선순위는 명시한 역할, 내장된 출처 근거의 역할, `OVERRIDE`입니다.

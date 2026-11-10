@@ -19,7 +19,7 @@ from typing import assert_type
 
 from gukhanmun import (
     ConversionStream, Converter, CustomPunctuationProfile, DictionaryEntry, Directives, ErrorCause, ErrorCode,
-    GukhanmunError, HtmlOptions, InputFormat, MapDictionarySource,
+    DictionaryFormat, GukhanmunError, HtmlOptions, InputFormat, MapDictionarySource, UrlDictionarySource,
     MarkdownOptions, Preset, ResolvedOptions, SourceRole, StopStyle, UNSET, UnsetType,
 )
 
@@ -45,3 +45,8 @@ def inspect_error(error: GukhanmunError) -> None:
     assert_type(error.code, ErrorCode)
     assert_type(error.message, str)
     assert_type(error.chain, tuple[ErrorCause, ...])
+
+url_source = UrlDictionarySource("https://example.com/dict", DictionaryFormat.FST,
+                                 max_bytes=1024, total_timeout=2.0)
+assert_type(url_source.max_bytes, int)
+assert_type(url_source.total_timeout, float)

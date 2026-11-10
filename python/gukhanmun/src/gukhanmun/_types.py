@@ -279,26 +279,39 @@ class FileDictionarySource:
 
 @dataclass(frozen=True, slots=True)
 class UrlDictionarySource:
-    """An explicit HTTP(S) resource fetched once with an operation timeout."""
+    """An HTTP(S) resource fetched once with bounded response size and time.
+
+    ``timeout`` limits individual socket operations. ``total_timeout`` is a
+    shared response-reading deadline across redirects; blocking DNS/connection
+    setup can delay cancellation. ``max_bytes`` caps the dictionary body.
+    """
 
     url: str
     format: DictionaryFormat
     role: SourceRole | None = None
     timeout: float = 30.0
+    max_bytes: int = 64 * 1024 * 1024
+    total_timeout: float = 30.0
 
     def __post_init__(self) -> None:
         _url(self.url)
         _require(self.format, DictionaryFormat, "format")
         if self.role is not None:
             _require(self.role, SourceRole, "role")
-        if isinstance(self.timeout, bool) or not isinstance(self.timeout, (int, float)):
-            raise TypeError("timeout must be a non-boolean number")
-        try:
-            valid = math.isfinite(self.timeout) and self.timeout > 0
-        except OverflowError:
-            valid = False
-        if not valid:
-            raise _invalid("timeout must be finite and positive")
+        if isinstance(self.max_bytes, bool) or not isinstance(self.max_bytes, int):
+            raise TypeError("max_bytes must be a non-boolean integer")
+        if self.max_bytes <= 0:
+            raise _invalid("max_bytes must be positive")
+        for name, value in (("timeout", self.timeout), ("total_timeout", self.total_timeout)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise TypeError(f"{name} must be a non-boolean number")
+            try:
+                valid = math.isfinite(value) and value > 0
+            except OverflowError:
+                valid = False
+            if not valid:
+                raise _invalid(f"{name} must be finite and positive")
+
 
 
 @dataclass(frozen=True, slots=True, init=False)

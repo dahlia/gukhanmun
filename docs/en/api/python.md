@@ -136,11 +136,17 @@ memoryview contents are copied; unreadable/released buffers raise
 `INVALID_INPUT`. Paths remain Python filesystem values, including valid
 surrogateescape paths, and are read during converter construction.
 
-`UrlDictionarySource(url, format, role=None, timeout=30.0)` explicitly requests
-an HTTP(S) download during converter construction. Malformed URLs, invalid
-ports, forbidden schemes and forbidden redirect destinations raise
-`INVALID_INPUT`. The finite positive timeout applies to I/O operations, not
-the entire request. Proxy environment variables are not used.
+`UrlDictionarySource(url, format, role=None, timeout=30.0, max_bytes=67108864, total_timeout=30.0)`
+explicitly requests an HTTP(S) download during converter construction.
+Malformed URLs, invalid ports, forbidden schemes and forbidden redirect
+destinations raise `INVALID_INPUT`. `timeout` limits individual socket
+operations. `max_bytes` is a positive integer limiting the dictionary body to
+64 MiB by default; `total_timeout` is a finite positive deadline in seconds,
+shared by HTTP response reads across redirects. Headers and chunk framing also
+obey this deadline. Blocking DNS and connection establishment use the
+standard-library socket timeout and can delay cancellation. Exceeding either
+download bound raises `DICTIONARY_LOAD` with an `IO` cause. Redirect bodies are
+closed without being consumed. Proxy environment variables are not used.
 
 Every binary source needs `DictionaryFormat.FST` or `CDB`. Role precedence is
 explicit role, embedded source-evidence role, then `OVERRIDE`. Binary source

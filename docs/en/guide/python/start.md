@@ -101,13 +101,19 @@ source = UrlDictionarySource(
     "https://example.com/custom.gukfst",
     format=DictionaryFormat.FST,
     timeout=30.0,
+    max_bytes=64 * 1024 * 1024,
+    total_timeout=30.0,
 )
 # Converter(dictionaries=[source]) fetches this example resource.
 ~~~~
 
 Only HTTP(S) URLs and HTTP(S) redirect destinations are accepted. `timeout`
-is a positive, finite operation timeout in seconds, rather than a deadline
-for the entire download. The loader does not use proxy environment variables.
+is a positive, finite socket-operation timeout in seconds. `max_bytes` limits
+the dictionary body, and `total_timeout` limits HTTP response reading across
+redirects, including headers and chunk framing. Cancellation during synchronous
+DNS lookup or connection setup can be delayed beyond `total_timeout`. Exceeding
+either bound raises `DICTIONARY_LOAD` with an `IO` cause. The loader does not
+use proxy environment variables.
 
 Map sources default to `SourceRole.OVERRIDE`. Binary sources use an explicit
 role when supplied, otherwise their embedded evidence role, otherwise

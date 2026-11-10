@@ -17,6 +17,9 @@
 from __future__ import annotations
 
 import http.client
+import io
+import socket
+import time
 import json
 import string
 import urllib.error
@@ -139,8 +142,12 @@ class _HttpRedirects(urllib.request.HTTPRedirectHandler):
         newurl: str,
     ) -> urllib.request.Request | None:
         # Validate before the parent creates or dispatches the next request.
-        _url(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        try:
+            _url(newurl)
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+        finally:
+            # urllib otherwise drains the redirect body with an unbounded read.
+            fp.close()
 
 
     def http_error_302(
@@ -158,7 +165,11 @@ class _HttpRedirects(urllib.request.HTTPRedirectHandler):
             # Match urllib's recovery of HTTP header bytes and quoting before
             # checking the target. Spaces in Location are normalized by urllib.
             target = quote(location, encoding="iso-8859-1", safe=string.punctuation)
-            _url(urljoin(req.full_url, target))
+            try:
+                _url(urljoin(req.full_url, target))
+            except GukhanmunError:
+                fp.close()
+                raise
         return cast(http.client.HTTPResponse | None, super().http_error_302(req, fp, code, msg, headers))
 
     http_error_301 = http_error_302
@@ -167,23 +178,101 @@ class _HttpRedirects(urllib.request.HTTPRedirectHandler):
     http_error_308 = http_error_302
 
 
+class _DownloadBudget:
+    def __init__(self, timeout: float, total_timeout: float) -> None:
+        self.timeout = timeout
+        self.deadline = time.monotonic() + total_timeout
+
+    def remaining(self) -> float:
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("dictionary download exceeded total_timeout")
+        return min(self.timeout, remaining)
+
+
+class _DeadlineReader(io.RawIOBase):
+    """Reapply the shared deadline for each underlying socket receive."""
+
+    def __init__(self, stream: io.BufferedReader, sock: socket.socket, budget: _DownloadBudget) -> None:
+        self.stream = stream
+        self.sock = sock
+        self.budget = budget
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: object) -> int:
+        view = memoryview(cast(bytearray, buffer))
+        self.sock.settimeout(self.budget.remaining())
+        # read1 performs at most one raw read, even inside header/chunk parsing.
+        data = self.stream.read1(len(view))
+        self.budget.remaining()
+        view[:len(data)] = data
+        return len(data)
+
+    def close(self) -> None:
+        try:
+            self.stream.close()
+        finally:
+            super().close()
+
+
 def _fetch(source: UrlDictionarySource) -> bytes:
-    # This opener has no file/data/FTP handlers and does not consult proxies.
+    budget = _DownloadBudget(source.timeout, source.total_timeout)
+
+    class Response(http.client.HTTPResponse):
+        def __init__(self, sock: socket.socket, debuglevel: int = 0,
+                     method: str | None = None, url: str | None = None) -> None:
+            super().__init__(sock, debuglevel=debuglevel, method=method, url=url)
+            # Keep the original socket file alive when urllib closes its
+            # connection socket. Wrap before begin() reads status and headers.
+            self.fp = io.BufferedReader(_DeadlineReader(self.fp, sock, budget))
+
+    class Http(urllib.request.HTTPHandler):
+        def http_open(self, req: urllib.request.Request) -> http.client.HTTPResponse:
+            def connect(host: str, /, *, port: int | None = None, timeout: float = 30.0,
+                        source_address: tuple[str, int] | None = None, blocksize: int = 8192) -> http.client.HTTPConnection:
+                connection = http.client.HTTPConnection(host, port, timeout=budget.remaining(),
+                                                        source_address=source_address, blocksize=blocksize)
+                connection.response_class = Response
+                return connection
+            return self.do_open(connect, req)
+
+    class Https(urllib.request.HTTPSHandler):
+        def https_open(self, req: urllib.request.Request) -> http.client.HTTPResponse:
+            def connect(host: str, /, *, port: int | None = None, timeout: float = 30.0,
+                        source_address: tuple[str, int] | None = None, blocksize: int = 8192) -> http.client.HTTPSConnection:
+                connection = http.client.HTTPSConnection(host, port, timeout=budget.remaining(),
+                                                         source_address=source_address, blocksize=blocksize)
+                connection.response_class = Response
+                return connection
+            return self.do_open(connect, req)
+
+    # No file/data/FTP handlers, proxies, or automatic redirect-body draining.
     opener = urllib.request.OpenerDirector()
     for handler in (
-        urllib.request.ProxyHandler({}),
-        urllib.request.HTTPHandler(),
-        urllib.request.HTTPSHandler(),
-        urllib.request.HTTPDefaultErrorHandler(),
-        _HttpRedirects(),
+        urllib.request.ProxyHandler({}), Http(), Https(),
+        urllib.request.HTTPDefaultErrorHandler(), _HttpRedirects(),
         urllib.request.HTTPErrorProcessor(),
     ):
         opener.add_handler(handler)
     try:
+        # Validate platform timeout range even if the total budget is shorter.
+        with socket.socket() as probe:
+            probe.settimeout(source.timeout)
         with cast(http.client.HTTPResponse, opener.open(source.url, timeout=source.timeout)) as response:
-            # The standard-library opener is dynamically typed; narrow at
-            # this single resource boundary before handing data to Rust.
-            return response.read()
+            data = bytearray()
+            while True:
+                budget.remaining()
+                chunk = response.read1(min(64 * 1024, source.max_bytes + 1 - len(data)))
+                budget.remaining()
+                if not chunk:
+                    if response.length:
+                        raise http.client.IncompleteRead(b"", response.length)
+                    return bytes(data)
+                data.extend(chunk)
+                if len(data) > source.max_bytes:
+                    raise OSError("dictionary download exceeded max_bytes")
     except GukhanmunError:
         raise
     except UnicodeEncodeError as error:
@@ -191,6 +280,8 @@ def _fetch(source: UrlDictionarySource) -> bytes:
     except (ValueError, OverflowError) as error:
         raise _invalid(f"invalid dictionary URL: {error}") from error
     except (OSError, http.client.HTTPException) as error:
+        if isinstance(error, urllib.error.HTTPError):
+            error.close()
         raise _io_error(error, f"could not load dictionary URL {source.url!r}") from error
 
 
@@ -238,7 +329,8 @@ def _dictionaries(values: Sequence[_Dictionary]) -> list[_NativeDictionary]:
                     raise _io_error(error, f"could not load dictionary file {file.data!r}") from error
             result.append((None if file.role is None else file.role.value, file.format.value, data, None))
         elif isinstance(value, UrlDictionarySource):
-            url = UrlDictionarySource(value.url, value.format, value.role, value.timeout)
+            url = UrlDictionarySource(value.url, value.format, value.role, value.timeout,
+                                      value.max_bytes, value.total_timeout)
             result.append((None if url.role is None else url.role.value, url.format.value, _fetch(url), None))
         else:
             raise TypeError("dictionaries must contain dictionary descriptors")

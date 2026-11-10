@@ -19,9 +19,11 @@ from __future__ import annotations
 from contextlib import contextmanager
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import ssl
 import os
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
+import time
 
 import pytest
 
@@ -202,3 +204,174 @@ def test_binary_streams_keep_phrase_and_candidate_evidence_at_every_split(format
             assert stream.push(text[split:]) == ""
             assert stream.finish() == expected
             assert "".join(converter.convert_iter([text[:split], text[split:]])) == expected
+
+
+@contextmanager
+def bounded_dictionary_server(data: bytes, mode: str, *, tls: bool = False) -> Iterator[tuple[str, list[str]]]:
+    paths: list[str] = []
+    stop = Event()
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            pass
+
+        def do_GET(self) -> None:
+            paths.append(self.path)
+            try:
+                if mode == "slow-header":
+                    self.wfile.write(b"HTTP/1.1 200 OK\r\nX-Slow: ")
+                else:
+                    redirect = mode == "redirect-body" and self.path != "/binary"
+                    if mode == "redirect-chain":
+                        if stop.wait(0.07):
+                            return
+                        redirect = True
+                    self.send_response(302 if redirect else 200)
+                    if redirect:
+                        self.send_header("Location", "/binary" if mode == "redirect-body" else self.path + "x")
+                    elif mode in ("fixed", "truncated"):
+                        self.send_header("Content-Length", str(len(data) + (10 if mode == "truncated" else 0)))
+                    elif mode in ("chunked", "slow-chunk-line", "slow-body"):
+                        self.send_header("Transfer-Encoding", "chunked")
+                    self.end_headers()
+                    if mode == "stalled":
+                        stop.wait(5)
+                        return
+                    if redirect and mode == "redirect-chain":
+                        return
+                    if mode == "slow-chunk-line":
+                        self.wfile.write(b"1;")
+                    elif mode == "slow-body":
+                        self.wfile.write(b"100000\r\n")
+                    elif mode == "redirect-body" and redirect:
+                        # An unbounded redirect drain would never reach /binary.
+                        pass
+                    elif mode == "chunked":
+                        for part in (data[:1], data[1:]):
+                            self.wfile.write(f"{len(part):x}\r\n".encode("ascii") + part + b"\r\n")
+                        self.wfile.write(b"0\r\n\r\n")
+                        return
+                    else:
+                        self.wfile.write(data)
+                        return
+                for _ in range(1000):
+                    if stop.wait(0.01):
+                        return
+                    self.wfile.write(b"a")
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    if tls:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        directory = Path(__file__).with_name("tls")
+        context.load_cert_chain(directory / "localhost.crt", directory / "localhost.key")
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        scheme = "https" if tls else "http"
+        yield f"{scheme}://127.0.0.1:{server.server_port}", paths
+    finally:
+        stop.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+
+
+@pytest.mark.parametrize("mode", ["fixed", "chunked", "no-length"])
+def test_url_body_size_limit_including_exact_boundary(mode: str) -> None:
+    data = binary("reference", g.DictionaryFormat.FST)
+    with bounded_dictionary_server(data, mode) as (base, _):
+        converter = g.Converter(dictionaries=[g.UrlDictionarySource(
+            base, g.DictionaryFormat.FST, max_bytes=len(data))])
+        assert converter.convert("無條件降服") == "무조건항복"
+        with pytest.raises(g.GukhanmunError) as caught:
+            g.Converter(dictionaries=[g.UrlDictionarySource(
+                base, g.DictionaryFormat.FST, max_bytes=len(data) - 1)])
+        assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+        assert caught.value.chain[0].code is g.ErrorCode.IO
+        assert "max_bytes" in caught.value.chain[0].message
+
+
+@pytest.mark.parametrize("mode", ["slow-header", "slow-chunk-line", "slow-body", "stalled", "redirect-chain"])
+def test_url_deadline_bounds_each_underlying_read(mode: str) -> None:
+    with bounded_dictionary_server(b"", mode) as (base, _):
+        start = time.monotonic()
+        with pytest.raises(g.GukhanmunError) as caught:
+            g.Converter(dictionaries=[g.UrlDictionarySource(
+                base, g.DictionaryFormat.FST, timeout=5.0, total_timeout=0.15)])
+        elapsed = time.monotonic() - start
+        assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+        assert caught.value.chain[0].code is g.ErrorCode.IO
+        assert elapsed < 2.0
+
+
+def test_url_redirect_does_not_drain_unbounded_body() -> None:
+    data = binary("reference", g.DictionaryFormat.FST)
+    with bounded_dictionary_server(data, "redirect-body") as (base, paths):
+        converter = g.Converter(dictionaries=[g.UrlDictionarySource(
+            base, g.DictionaryFormat.FST, total_timeout=1.0)])
+        assert paths == ["/", "/binary"]
+        assert converter.convert("無條件降服") == "무조건항복"
+
+
+def test_url_truncated_content_length_keeps_io_error() -> None:
+    # Even otherwise-valid bytes are rejected when the transport promises more.
+    with bounded_dictionary_server(binary("reference", g.DictionaryFormat.FST), "truncated") as (base, _):
+        with pytest.raises(g.GukhanmunError) as caught:
+            g.Converter(dictionaries=[g.UrlDictionarySource(base, g.DictionaryFormat.FST)])
+        assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+        assert caught.value.chain[0].code is g.ErrorCode.IO
+
+
+@pytest.mark.parametrize("value", [0, -1])
+def test_url_invalid_byte_limits(value: int) -> None:
+    with pytest.raises(g.GukhanmunError) as caught:
+        g.UrlDictionarySource("http://localhost/", g.DictionaryFormat.FST, max_bytes=value)
+    assert caught.value.code is g.ErrorCode.INVALID_INPUT
+
+
+@pytest.mark.parametrize("value", [True, 1.5, "64"])
+def test_url_wrong_byte_limit_category(value: object) -> None:
+    with pytest.raises(TypeError):
+        g.UrlDictionarySource("http://localhost/", g.DictionaryFormat.FST, max_bytes=value)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("value", [0, -1, float("inf"), float("nan")])
+def test_url_invalid_total_timeout(value: float) -> None:
+    with pytest.raises(g.GukhanmunError) as caught:
+        g.UrlDictionarySource("http://localhost/", g.DictionaryFormat.FST, total_timeout=value)
+    assert caught.value.code is g.ErrorCode.INVALID_INPUT
+
+
+def test_url_wrong_total_timeout_category() -> None:
+    with pytest.raises(TypeError):
+        g.UrlDictionarySource("http://localhost/", g.DictionaryFormat.FST, total_timeout=True)
+
+
+@pytest.mark.parametrize("field", ["max_bytes", "total_timeout"])
+def test_url_bounds_are_revalidated_at_converter_boundary(field: str) -> None:
+    descriptor = g.UrlDictionarySource("http://localhost/", g.DictionaryFormat.FST)
+    object.__setattr__(descriptor, field, 0)
+    with pytest.raises(g.GukhanmunError) as caught:
+        g.Converter(dictionaries=[descriptor])
+    assert caught.value.code is g.ErrorCode.INVALID_INPUT
+
+
+@pytest.mark.parametrize("mode", ["fixed", "slow-body"])
+def test_https_response_limits_with_verified_local_certificate(mode: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    context = ssl.create_default_context(cafile=str(Path(__file__).with_name("tls") / "localhost.crt"))
+    # Keep certificate verification enabled while trusting only this fixture CA.
+    monkeypatch.setattr(ssl, "_create_default_https_context", lambda: context)
+    data = binary("reference", g.DictionaryFormat.FST)
+    with bounded_dictionary_server(data, mode, tls=True) as (base, _):
+        if mode == "fixed":
+            converter = g.Converter(dictionaries=[g.UrlDictionarySource(base, g.DictionaryFormat.FST)])
+            assert converter.convert("無條件降服") == "무조건항복"
+        else:
+            with pytest.raises(g.GukhanmunError) as caught:
+                g.Converter(dictionaries=[g.UrlDictionarySource(base, g.DictionaryFormat.FST, total_timeout=0.15)])
+            assert caught.value.chain[0].code is g.ErrorCode.IO
