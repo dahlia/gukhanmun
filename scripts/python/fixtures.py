@@ -17,6 +17,7 @@
 """Use the existing dictionary compiler; no official datasets are required."""
 
 import argparse
+import json
 from pathlib import Path
 import subprocess
 
@@ -31,10 +32,29 @@ def main() -> None:
     inputs = arguments.inputs or root / "tests" / "python" / "fixtures"
     output = arguments.output or root / "target" / "python" / "fixtures"
     output.mkdir(parents=True, exist_ok=True)
+    build = subprocess.run(
+        ["cargo", "build", "--locked", "--release", "-p", "gukhanmun-mkdict",
+         "--bin", "gukhanmun-mkdict", "--message-format=json-render-diagnostics"],
+        cwd=root,
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    executable = None
+    for line in build.stdout.splitlines():
+        message = json.loads(line)
+        if (message.get("reason") == "compiler-artifact"
+                and message["target"]["name"] == "gukhanmun-mkdict"
+                and "bin" in message["target"]["kind"]
+                and message.get("executable") is not None):
+            executable = message["executable"]
+    if executable is None:
+        raise RuntimeError("Cargo did not report the gukhanmun-mkdict executable")
     for name in ("plain", "reference", "loanword"):
-        for format in ("fst", "cdb"):
-            command = ["cargo", "run", "--locked", "--release", "-p", "gukhanmun-mkdict", "--",
-                       "--validate", "--format", format, "--output", str(output / f"{name}.{format}")]
+        for dictionary_format in ("fst", "cdb"):
+            command = [executable, "--validate", "--format", dictionary_format,
+                       "--output", str(output / f"{name}.{dictionary_format}")]
             evidence = inputs / f"{name}.evidence.json"
             phrase = inputs / f"{name}.phrase.json"
             if evidence.exists():
