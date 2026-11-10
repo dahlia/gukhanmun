@@ -631,6 +631,7 @@ def test_compact_fst_expansion_is_rejected_before_conversion(max_word_chars: str
         with pytest.raises(g.GukhanmunError) as caught:
             g.Converter(dictionaries=[descriptor])
         assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+        assert "accepted key count limit" in caught.value.message
 
     if transport == "url":
         with dictionary_server(data) as (base, paths):
