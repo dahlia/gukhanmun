@@ -38,7 +38,7 @@ STATE = OUTPUT / "installed.json"
 def run(command, *, cwd=ROOT, capture=False, env=None):
     print("+", " ".join(map(str, command)), flush=True)
     return subprocess.run(
-        list(map(str, command)), cwd=cwd, text=True,
+        list(map(str, command)), cwd=cwd, text=True, encoding="utf-8",
         capture_output=capture, check=not capture, env=env,
     )
 
@@ -264,7 +264,7 @@ def typecheck():
         shutil.rmtree(consumers)
     shutil.copytree(ROOT / "tests" / "python" / "typing", consumers)
     positive, negative = consumers / "positive.py", consumers / "negative.py"
-    expected = {line: match[1] for line, text in enumerate(negative.read_text().splitlines(), 1)
+    expected = {line: match[1] for line, text in enumerate(negative.read_text(encoding="utf-8").splitlines(), 1)
                 if (match := re.search(r"# expected: ([a-z-]+)", text))}
     package = Path(data["package"])
     python = data["python"]
@@ -296,11 +296,11 @@ def typecheck():
         clean_inputs = (["--package", "gukhanmun", "--module", "positive"]
                         if checker == "mypy" else [package, positive])
         clean = run([*command, *clean_inputs], cwd=consumers, capture=True, env=environment)
-        (directory / f"{checker}-positive.log").write_text(clean.stdout + clean.stderr)
+        (directory / f"{checker}-positive.log").write_text(clean.stdout + clean.stderr, encoding="utf-8")
         if clean.returncode != 0 or diagnostics(checker, clean.stdout):
             raise RuntimeError(f"{checker} positive/package check failed:\n{clean.stdout}{clean.stderr}")
         rejected = run([*command, negative], cwd=consumers, capture=True, env=environment)
-        (directory / f"{checker}-negative.log").write_text(rejected.stdout + rejected.stderr)
+        (directory / f"{checker}-negative.log").write_text(rejected.stdout + rejected.stderr, encoding="utf-8")
         findings = diagnostics(checker, rejected.stdout)
         seen = set()
         for filename, line, rule in findings:
@@ -313,7 +313,7 @@ def typecheck():
         summary[checker] = {"positive": "passed", "negative_lines": sorted(seen)}
         print(f"{checker}: installed package/positive types and {len(seen)} intended negative lines passed")
     run([python, "-I", "-m", "mypy.stubtest", "gukhanmun._native"], cwd=directory, env=environment)
-    (OUTPUT / "typing-results.json").write_text(json.dumps(summary, indent=2) + "\n")
+    (OUTPUT / "typing-results.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 
 def main():
