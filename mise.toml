@@ -5,6 +5,7 @@
 dasel = "3.11"
 node = "26"
 python = "3.15"
+uv = "0.13.7"
 "github:pnpm/pnpm" = "11"
 deno = "2"
 bun = "1"
@@ -36,6 +37,11 @@ version = "0.5.3"
 linux-x64 = "hongdown-*-x86_64-unknown-linux-musl.tar.bz2"
 linux-arm64 = "hongdown-*-aarch64-unknown-linux-musl.tar.bz2"
 
+
+[env]
+UV_PYTHON = { value = "{{ tools.python.path }}", tools = true }
+UV_PYTHON_DOWNLOADS = "never"
+UV_PYTHON_PREFERENCE = "only-system"
 
 # nushell rejects an inherited PWD that ends with a slash, which some shells
 # and task runners leave behind.  Pin PWD to the project root for every nushell
@@ -129,14 +135,14 @@ print "The applied bump will also run sacho next with the new workspace version.
 """
 
 [tasks.bump-execute]
-description = "Create one signed commit bumping the workspace and the packages/ JS manifests"
+description = "Create one signed commit bumping workspace, JS and Python versions"
 usage = 'arg "<version>" help="Target release version, e.g. 1.2.5"'
 extends = "nu"
 depends = ["rust-init", "changelog-check"]
 # cargo-release bumps the shared Cargo version, the intra-workspace dependency
 # requirements, and Cargo.lock, then writes a signed commit.  It knows nothing
-# about the package.json/deno.json manifests under packages/, so we sync those
-# to the same version, advance the changelog, and fold those files into the
+# about JavaScript or Python manifests, so we sync those to the same version,
+# refresh the Python lockfile, advance the changelog, and fold those files into the
 # same signed commit. The explicit pathspec keeps unrelated changes out.
 # The JS version is read back from Cargo.toml after cargo-release runs, so it
 # tracks the version actually applied even when <version> is a bump level such
@@ -158,12 +164,14 @@ if (git rev-parse HEAD | str trim) == $previous_head {
 $env.VERSION = (open Cargo.toml | get workspace.package.version)
 mise run js-sync-version
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
+mise run py-sync-version
+if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
 sacho next $env.VERSION
 # A release removes next, so the next cycle must stage the recreated file.
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
-git add -- changes.d/next CHANGES.md
+git add -- changes.d/next CHANGES.md python/gukhanmun/pyproject.toml uv.lock
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
-git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json changes.d/next CHANGES.md
+git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json python/gukhanmun/pyproject.toml uv.lock changes.d/next CHANGES.md
 """
 
 [tasks.typecheck]
@@ -705,4 +713,41 @@ description = "Verify dictionary collection and publication without credentials"
 run = [
   "python -B -m unittest discover -s scripts/dictionaries -p \"*_test.py\"",
   "deno test -A scripts/dictionaries/",
+]
+
+[tasks.py-deps]
+description = "Install locked Python development tools without compiling the extension"
+run = "uv sync --locked --all-groups --no-install-workspace"
+
+[tasks.py-build]
+description = "Build and inspect the native Python wheel"
+depends = ["rust-init", "py-deps"]
+run = "uv run --no-sync python scripts/python/checks.py build"
+
+[tasks.py-wheel-env]
+description = "Install the wheel and locked test dependencies outside the checkout"
+depends = ["py-build"]
+run = "uv run --no-sync python scripts/python/checks.py wheel-env"
+
+[tasks.py-fixtures]
+description = "Compile synthetic FST/CDB fixtures without official dictionary data"
+depends = ["rust-init", "py-deps"]
+run = "uv run --no-sync python scripts/python/fixtures.py"
+
+[tasks.py-test]
+description = "Run Python regression tests against an installed wheel"
+depends = ["py-wheel-env", "py-fixtures"]
+run = "uv run --no-sync python scripts/python/checks.py test"
+
+[tasks.py-typecheck]
+description = "Check installed Python types with all five required checkers"
+depends = ["py-wheel-env"]
+run = "uv run --no-sync python scripts/python/checks.py typecheck"
+
+[tasks.py-sync-version]
+description = "Synchronize Python metadata and lockfile from the Rust workspace version"
+depends = ["py-deps"]
+run = [
+  "uv run --no-sync python scripts/python/sync_version.py",
+  "uv lock --no-build",
 ]

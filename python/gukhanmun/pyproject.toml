@@ -1,0 +1,23 @@
+[build-system]
+requires = ["maturin==1.16.0"]
+build-backend = "maturin"
+
+[project]
+name = "gukhanmun"
+version = "0.4.0"
+description = "Convert mixed-script Korean text into hangul with native Rust performance"
+requires-python = ">=3.11"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [{ name = "Hong Minhee", email = "hong@minhee.org" }]
+dependencies = []
+
+[project.urls]
+Homepage = "https://gukhanmun.org/"
+Repository = "https://github.com/dahlia/gukhanmun"
+Issues = "https://github.com/dahlia/gukhanmun/issues"
+
+[tool.maturin]
+manifest-path = "../../crates/gukhanmun-python/Cargo.toml"
+python-source = "src"
+module-name = "gukhanmun._native"

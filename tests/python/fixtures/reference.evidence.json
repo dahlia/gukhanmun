@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "role": "reference",
+  "entries": {
+    "宙名": [
+      {
+        "reading": "가온",
+        "suffix_reading": null,
+        "contributors": [
+          {
+            "word_id": 1,
+            "sense_id": 10,
+            "origin": "foreign"
+          }
+        ],
+        "authorized_forms": [
+          {
+            "form": {
+              "reading": "누리",
+              "suffix_reading": null
+            },
+            "kind": "synonym",
+            "witnesses": [
+              {
+                "source": {
+                  "sense": 10
+                },
+                "target": {
+                  "sense": 20
+                }
+              }
+            ]
+          }
+        ],
+        "diagnostics": []
+      }
+    ]
+  }
+}

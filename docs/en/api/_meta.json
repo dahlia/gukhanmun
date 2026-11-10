@@ -10,5 +10,6 @@
     "type": "dir-section-header",
     "name": "js",
     "label": "JavaScript"
-  }
+  },
+  "python"
 ]

@@ -1,0 +1,24 @@
+[project]
+name = "gukhanmun-workspace"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["python/*"]
+
+[dependency-groups]
+dev = [
+    { include-group = "mypy" },
+    "packaging==26.3",
+    "maturin==1.16.0",
+    "pyright==1.1.414",
+    "basedpyright==1.40.2",
+    "ty==0.0.99",
+    "pyrefly==1.4.1",
+]
+test = ["pytest==9.2.0", { include-group = "mypy" }]
+mypy = ["mypy==2.4.1"]

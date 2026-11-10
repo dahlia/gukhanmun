@@ -66,6 +66,24 @@ To be released.
     [[#47], [#54]]
  -  Exposed typed dictionary source evidence and validation APIs through the
     Rust facade. [[#42], [#44]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts before use
+    and prevent crafted hash tables from forcing long lookup probe loops during
+    conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  The exported core pipeline preserves source-aware selection metadata through
     annotations and middleware, including aliases, particles, authorial glosses,
     and first-occurrence/homophone identity. Source-aware dictionary matches
@@ -75,6 +93,7 @@ To be released.
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
 
+[#15]: https://github.com/dahlia/gukhanmun/issues/15
 [#33]: https://github.com/dahlia/gukhanmun/issues/33
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
 [#38]: https://github.com/dahlia/gukhanmun/issues/38
@@ -85,8 +104,10 @@ To be released.
 [#45]: https://github.com/dahlia/gukhanmun/pull/45
 [#46]: https://github.com/dahlia/gukhanmun/issues/46
 [#47]: https://github.com/dahlia/gukhanmun/issues/47
+[#48]: https://github.com/dahlia/gukhanmun/issues/48
 [#53]: https://github.com/dahlia/gukhanmun/pull/53
 [#54]: https://github.com/dahlia/gukhanmun/pull/54
+[#55]: https://github.com/dahlia/gukhanmun/pull/55
 
 ### gukhanmun-cdb (Rust)
 
@@ -98,6 +119,19 @@ To be released.
     evidence is validated on load, and unsupported or stale constraints are
     rejected. Phrase indexes are cached per dictionary for reuse across
     engines. [[#38], [#39], [#41], [#42], [#44], [#45]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB loading to reject malformed file layouts before use. Crafted hash
+    tables can no longer force long lookup probe loops during conversion.
+    [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
 
 ### gukhanmun-cli (Rust)
 
@@ -117,6 +151,24 @@ To be released.
     streaming and applies each directive with the dictionary's lexeme index, so
     a reviewed alias resolves without buffering the whole document.
     [[#38], [#39]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
+ -  Fixed custom CDB dictionary loading to reject malformed file layouts before
+    conversion. Crafted hash tables can no longer force long lookup probe loops
+    during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -188,6 +240,12 @@ To be released.
  -  Added typed source evidence, candidate-link validation, and
     `HanjaDictionary::source_evidence()` for inspecting dictionary provenance
     without changing legacy reading selection. [[#42], [#44]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
 
 ### gukhanmun-dict-extract (Rust)
 
@@ -221,6 +279,17 @@ To be released.
     evidence is validated on load, and unsupported or stale constraints are
     rejected. Phrase indexes are cached per dictionary for reuse across
     engines. [[#38], [#39], [#41], [#42], [#44], [#45]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 ### gukhanmun-loanwords (Rust)
 
@@ -263,6 +332,24 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -324,6 +411,24 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -372,10 +477,166 @@ To be released.
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
+
+### @gukhanmun/napi-aarch64-apple-darwin (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Daarch64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-aarch64-pc-windows-msvc (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Daarch64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-aarch64-unknown-linux-gnu (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Daarch64%2Dunknown%2Dlinux%2Dgnu%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-x86\_64-apple-darwin (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Dx86_64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-x86\_64-pc-windows-msvc (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Dx86_64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
+
+### @gukhanmun/napi-x86\_64-unknown-linux-gnu (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Dx86_64%2Dunknown%2Dlinux%2Dgnu%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 ### @gukhanmun/opendict-cdb (JavaScript/TypeScript)
 
@@ -465,10 +726,78 @@ To be released.
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `dictionary-load` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
+
+### gukhanmun (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%20%28Python%29 -->
+
+ -  Added a Python 3.11+ `Converter` API for plain text, HTML and Markdown,
+    with reusable immutable settings, standard-library enums, in-memory entries
+    and compiled FST/CDB dictionaries, punctuation profiles, structured errors
+    and type annotations. Conversion releases the GIL, and a single `Converter`
+    can be reused from multiple threads at once. [[#48], [#15], [#55]]
+ -  Added buffered `Converter.stream()` and `Converter.convert_iter()` methods
+    for chunked text, HTML and Markdown input. Streams produce output at
+    `finish()` and reject reuse after completion or failure.
+    [[#48], [#15], [#55]]
+ -  Added `mise run py-sync-version` and integrated Python metadata and
+    *uv.lock* into workspace version bumps. [[#48], [#15], [#55]]
+ -  Preserved `GukhanmunError` codes, messages and cause tuples when copying
+    or pickling errors, including errors returned from process workers.
+    [[#48], [#15], [#55]]
+ -  Bounded `UrlDictionarySource` downloads with configurable `max_bytes`
+    (64 MiB by default) and `total_timeout` (30 seconds by default) for HTTP
+    response reads across redirects. Exceeding either bound raises
+    `DICTIONARY_LOAD` with an `IO` cause. Cancellation during synchronous
+    DNS lookup or connection setup can be delayed beyond `total_timeout`;
+    the existing per-operation `timeout` is preserved.
+    [[#48], [#15], [#55]]
+ -  Changed URL dictionary loading to follow redirects only within the initial
+    URL's origin (scheme, hostname and effective port). Redirects to another
+    origin raise `INVALID_INPUT` before a request is sent; configure a different
+    origin's final URL directly. [[#48], [#15], [#55]]
+ -  Fixed URL dictionary loading to close redirect responses when a malformed
+    redirect target is rejected. [[#48], [#15], [#55]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
+ -  Fixed CDB dictionary loading to reject malformed file layouts with a
+    `DICTIONARY_LOAD` error. Crafted hash tables can no longer force long
+    lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
+ -  Fixed FST dictionary loading to limit the number of accepted keys,
+    their total byte length and traversal work before enumerating keys, even
+    when maximum-length metadata is supplied. Files exceeding these limits
+    now fail to load.
+    [[#48], [#15], [#55]]
 
 <!-- sacho:unreleased:end -->
 

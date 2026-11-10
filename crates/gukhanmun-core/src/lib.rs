@@ -29,6 +29,8 @@ extern crate alloc;
 
 mod candidates;
 mod evidence;
+mod metadata_limits;
+pub use metadata_limits::*;
 mod phrase_evidence;
 mod phrase_index;
 #[cfg(feature = "serde")]

@@ -51,6 +51,14 @@ const VALUE_OFFSET_SHIFT: u64 = 24;
 /// and reading table share one backing byte source: owned heap bytes for
 /// [`FstDictionary::open`] and [`FstDictionary::from_bytes`], or static bytes
 /// for [`FstDictionary::from_static_bytes`].
+///
+/// Loading validates the reachable graph before enumerating keys, including
+/// when maximum-length metadata is present. The limits are 1,048,576 accepted
+/// keys, 128 MiB of total key bytes, 134,217,728 expanded node visits counting
+/// nonaccepting branches, and a 4,096-byte path. A separate 64 MiB graph admission
+/// charge (128 bytes per unique node plus 32 bytes per transition) bounds graph
+/// work. This is an accounting limit, not a measurement of backing bytes,
+/// allocator overhead or RSS. Exceeding these limits returns [`Error::SourceEvidence`].
 #[derive(Clone, Debug)]
 pub struct FstDictionary {
     metadata: BTreeMap<String, String>,
@@ -113,6 +121,7 @@ impl FstDictionary {
                 section: "readings",
             })?;
         let map = Map::new(fst_bytes).map_err(|source| Error::FstDecode { source })?;
+        validate_map_resources(&map)?;
         let entry_count = parse_u64_metadata(&metadata, "entry_count")
             .unwrap_or_else(|| u64::try_from(map.len()).unwrap_or(u64::MAX));
         let max_word_chars = parse_usize_metadata(&metadata, "max_word_chars")
@@ -180,26 +189,31 @@ impl FstDictionary {
             })?;
         }
         if let Some(evidence) = dictionary.phrase_evidence.as_ref() {
-            let records = evidence
-                .candidate_keys()
-                .into_iter()
-                .map(|key| {
-                    let entry = dictionary
-                        .lookup(key)?
-                        .ok_or_else(|| Error::SourceEvidence {
-                            reason: format!("phrase evidence references absent key {key:?}"),
-                        })?;
-                    Ok(CandidateRecord {
-                        hanja: key.into(),
-                        candidates: entry.candidates,
-                    })
-                })
-                .collect::<Result<Vec<_>, Error>>()?;
-            evidence
-                .validate_records(records)
-                .map_err(|error| Error::SourceEvidence {
-                    reason: error.to_string(),
-                })?;
+            let mut lookup_error = None;
+            let mut records = evidence.candidate_keys().into_iter().filter_map(|key| {
+                let error = match dictionary.lookup(key) {
+                    Ok(Some(entry)) => {
+                        return Some(CandidateRecord {
+                            hanja: key.into(),
+                            candidates: entry.candidates,
+                        });
+                    }
+                    Ok(None) => Error::SourceEvidence {
+                        reason: format!("phrase evidence references absent key {key:?}"),
+                    },
+                    Err(error) => error,
+                };
+                lookup_error.get_or_insert(error);
+                None
+            });
+            let validation = evidence.validate_records(records.by_ref());
+            records.for_each(drop);
+            if let Some(error) = lookup_error {
+                return Err(error);
+            }
+            validation.map_err(|error| Error::SourceEvidence {
+                reason: error.to_string(),
+            })?;
             dictionary.phrase_index = Some(Arc::new(
                 PhraseIndex::from_shared_evidence(evidence.clone()).map_err(|error| {
                     Error::SourceEvidence {
@@ -685,6 +699,14 @@ fn decode_metadata(bytes: &[u8]) -> Result<StoredMetadata, Error> {
             reason: "metadata exceeds host byte limit".into(),
         });
     }
+    gukhanmun_core::check_metadata_resources(bytes).map_err(|error| match error {
+        gukhanmun_core::MetadataResourceError::InvalidCbor { offset } => Error::MetadataDecode {
+            source: ciborium::de::Error::Syntax(offset),
+        },
+        error => Error::SourceEvidence {
+            reason: error.to_string(),
+        },
+    })?;
     let mut reader = std::io::Cursor::new(bytes);
     let decoded: StoredMetadata =
         from_reader(&mut reader).map_err(|source| Error::MetadataDecode { source })?;
@@ -694,6 +716,11 @@ fn decode_metadata(bytes: &[u8]) -> Result<StoredMetadata, Error> {
         })?;
     }
     if let Some(evidence) = decoded.phrase_evidence.as_ref() {
+        gukhanmun_core::check_phrase_index_resources(evidence).map_err(|error| {
+            Error::SourceEvidence {
+                reason: error.to_string(),
+            }
+        })?;
         evidence.validate().map_err(|error| Error::SourceEvidence {
             reason: error.to_string(),
         })?;
@@ -714,6 +741,270 @@ fn parse_u64_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Option<
 
 fn parse_usize_metadata(metadata: &BTreeMap<String, String>, key: &str) -> Option<usize> {
     metadata.get(key).and_then(|value| value.parse().ok())
+}
+
+// These limits cover the accepted language, not the untrusted FST length footer.
+// A minimized DAG can encode exponentially many keys in a few hundred bytes.
+const MAX_FST_KEYS: usize = 1_048_576;
+const MAX_FST_KEY_BYTES: usize = 128 * 1024 * 1024;
+const MAX_FST_EXPANDED_STEPS: usize = 128 * 1024 * 1024;
+const MAX_FST_DEPTH: usize = 4096;
+// Charge 128 per unique node and 32 per edge to bound memo growth and
+// edge processing; this is not
+// an exact allocator/RSS measurement. The DFS stack is separately depth-limited.
+const MAX_FST_GRAPH_CHARGE: usize = 64 * 1024 * 1024;
+
+#[derive(Clone, Copy, Default, Debug)]
+struct FstResources {
+    keys: usize,
+    key_bytes: usize,
+    steps: usize,
+    depth: usize,
+    max_output: u64,
+}
+
+fn fst_resource_error(reason: &str) -> Error {
+    Error::SourceEvidence {
+        reason: format!("FST resource validation: {reason}"),
+    }
+}
+
+fn validate_map_resources<D: AsRef<[u8]>>(map: &Map<D>) -> Result<(), Error> {
+    // Fallible layout checks protect even panic=abort builds. Unwind handling
+    // is only an additional defense against future raw decoder changes.
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        map_resources(map, MAX_FST_GRAPH_CHARGE).map(|_| ())
+    }))
+    .map_err(|_| fst_resource_error("malformed node encoding"))?
+}
+
+// Validate the layouts used by fst 0.4's raw decoder before calling it: that
+// decoder uses unchecked subtraction/indexing and asserts packed widths.
+fn checked_fst_node<'a, D: AsRef<[u8]>>(
+    fst: &'a fst::raw::Fst<D>,
+    version: u64,
+    addr: usize,
+    charge: &mut usize,
+    graph_limit: usize,
+) -> Result<fst::raw::Node<'a>, Error> {
+    let malformed = || fst_resource_error("malformed node encoding");
+    let data = fst.as_bytes();
+    let mut count = 0usize;
+    let mut deltas = None;
+    let mut input_index = None;
+    if addr != 0 {
+        let state = *data.get(addr).ok_or_else(malformed)?;
+        let kind = state >> 6;
+        let uncommon = usize::from(state & 63 == 0);
+        if kind == 3 {
+            // Single edge to the immediately preceding serialized node.
+            let start = addr.checked_sub(uncommon).ok_or_else(malformed)?;
+            if start < 17 {
+                return Err(malformed());
+            }
+            count = 1;
+        } else {
+            let extra = uncommon;
+            let pack_at = addr.checked_sub(extra + 1).ok_or_else(malformed)?;
+            let pack = data[pack_at];
+            let transition_width = usize::from(pack >> 4);
+            let output_width = usize::from(pack & 15);
+            count = if kind == 2 {
+                1
+            } else if extra == 0 {
+                usize::from(state & 63)
+            } else {
+                match data[addr - 1] {
+                    1 => 256,
+                    n => usize::from(n),
+                }
+            };
+            if transition_width > 8 || output_width > 8 || (count != 0 && transition_width == 0) {
+                return Err(malformed());
+            }
+            let final_width = if kind != 2 && state & 64 != 0 {
+                output_width
+            } else {
+                0
+            };
+            let index_size = if kind != 2 && version >= 2 && count > 32 {
+                256
+            } else {
+                0
+            };
+            let input_size = if kind == 2 { 0 } else { count };
+            let start = pack_at
+                .checked_sub(
+                    index_size
+                        + input_size
+                        + count * (transition_width + output_width)
+                        + final_width,
+                )
+                .filter(|start| *start >= 16)
+                .ok_or_else(malformed)?;
+            if index_size != 0 {
+                input_index = Some(pack_at - index_size);
+            }
+            deltas = Some((
+                start,
+                start + final_width + count * output_width,
+                transition_width,
+            ));
+        }
+    }
+    // Charge all outgoing edges before inspecting their bytes, not only when
+    // DFS later follows them. Count is always at most 256.
+    *charge += 128 + count * 32;
+    if *charge > graph_limit {
+        return Err(fst_resource_error("graph work limit exceeded"));
+    }
+    if let Some((start, first_delta, width)) = deltas {
+        for index in 0..count {
+            let at = first_delta + index * width;
+            let mut packed = [0u8; 8];
+            packed[..width].copy_from_slice(&data[at..at + width]);
+            let delta = u64::from_le_bytes(packed);
+            if delta != 0 {
+                let delta = usize::try_from(delta).map_err(|_| malformed())?;
+                let target = start.checked_sub(delta).ok_or_else(malformed)?;
+                if target < 16 {
+                    return Err(malformed());
+                }
+            }
+        }
+    }
+    if let Some(index_start) = input_index {
+        for input in 0..256 {
+            let index = usize::from(data[index_start + input]);
+            if index < count && usize::from(data[index_start - 1 - index]) != input {
+                return Err(malformed());
+            }
+        }
+        // Values >= count are legal absence markers, but not for an input
+        // actually present in the reverse-ordered input table.
+        for index in 0..count {
+            let input = usize::from(data[index_start - 1 - index]);
+            if usize::from(data[index_start + input]) != index {
+                return Err(malformed());
+            }
+        }
+    }
+    Ok(fst.node(addr))
+}
+
+fn map_resources<D: AsRef<[u8]>>(
+    map: &Map<D>,
+    graph_limit: usize,
+) -> Result<(FstResources, usize), Error> {
+    struct Frame<'a> {
+        node: fst::raw::Node<'a>,
+        next: usize,
+        resources: FstResources,
+    }
+    impl<'a> Frame<'a> {
+        fn new(node: fst::raw::Node<'a>) -> Self {
+            Self {
+                node,
+                next: 0,
+                resources: FstResources {
+                    keys: usize::from(node.is_final()),
+                    steps: 1,
+                    max_output: node.final_output().value(),
+                    ..FstResources::default()
+                },
+            }
+        }
+    }
+    let fst = map.as_fst();
+    // Map::new has already checked the raw header/footer lengths and version.
+    let data = fst.as_bytes();
+    let version = u64::from_le_bytes(data[..8].try_into().expect("checked raw header"));
+    let footer_end = data.len() - if version > 2 { 4 } else { 0 };
+    let root = u64::from_le_bytes(
+        data[footer_end - 8..footer_end]
+            .try_into()
+            .expect("checked raw footer"),
+    );
+    let root =
+        usize::try_from(root).map_err(|_| fst_resource_error("root address out of range"))?;
+    let mut charge = 0usize;
+    let mut stack = vec![Frame::new(checked_fst_node(
+        fst,
+        version,
+        root,
+        &mut charge,
+        graph_limit,
+    )?)];
+    let mut completed = BTreeMap::<usize, FstResources>::new();
+    loop {
+        let frame = stack.last_mut().expect("root remains until completion");
+        // Address zero is fst's implicit empty final node. All serialized
+        // nodes must be entirely beyond the sixteen-byte raw FST header.
+        let node_start = if frame.node.addr() == 0 {
+            0
+        } else {
+            frame.node.addr() + 1 - frame.node.as_slice().len()
+        };
+        if frame.node.addr() != 0 && node_start < 16 {
+            return Err(fst_resource_error("node overlaps the raw header"));
+        }
+        if frame.next == frame.node.len() {
+            let finished = stack.pop().expect("current frame exists");
+            if stack.is_empty() {
+                return Ok((finished.resources, charge));
+            }
+            completed.insert(finished.node.addr(), finished.resources);
+            continue;
+        }
+        let transition = frame.node.transition(frame.next);
+        if (transition.addr != 0 && transition.addr < 16)
+            || transition.addr >= node_start
+            || (frame.next > 0 && frame.node.transition(frame.next - 1).inp >= transition.inp)
+        {
+            return Err(fst_resource_error(
+                "invalid backward transition or input order",
+            ));
+        }
+        if let Some(child) = completed.get(&transition.addr) {
+            let resources = &mut frame.resources;
+            // Every operand has already passed its limit, so these additions
+            // fit usize even on 32-bit hosts.
+            resources.keys += child.keys;
+            resources.key_bytes += child.key_bytes + child.keys;
+            resources.steps += child.steps;
+            resources.depth = resources.depth.max(child.depth + 1);
+            resources.max_output = resources.max_output.max(
+                child
+                    .max_output
+                    .checked_add(transition.out.value())
+                    .ok_or_else(|| fst_resource_error("output sum overflow"))?,
+            );
+            if resources.keys > MAX_FST_KEYS {
+                return Err(fst_resource_error("accepted key count limit exceeded"));
+            }
+            if resources.key_bytes > MAX_FST_KEY_BYTES {
+                return Err(fst_resource_error("accepted key byte limit exceeded"));
+            }
+            if resources.steps > MAX_FST_EXPANDED_STEPS {
+                return Err(fst_resource_error("expanded traversal limit exceeded"));
+            }
+            if resources.depth > MAX_FST_DEPTH {
+                return Err(fst_resource_error("key depth limit exceeded"));
+            }
+            frame.next += 1;
+        } else {
+            if stack.len() > MAX_FST_DEPTH {
+                return Err(fst_resource_error("key depth limit exceeded"));
+            }
+            stack.push(Frame::new(checked_fst_node(
+                fst,
+                version,
+                transition.addr,
+                &mut charge,
+                graph_limit,
+            )?));
+        }
+    }
 }
 
 fn max_key_chars_from_map<D>(map: &Map<D>) -> Option<usize>
@@ -752,6 +1043,260 @@ fn checked_slice(bytes: &[u8], offset: u64, len: u64) -> Option<&[u8]> {
 
 #[cfg(test)]
 mod tests {
+    // Encode a layered minimal DAG directly: both a/b transitions lead to the
+    // same preceding node, and address zero is the implicit final state. This
+    // is raw FST version 2 (no checksum), with zero outputs and one-byte deltas.
+    // Its 2^depth accepted keys never need to be materialized by the fixture.
+    fn compact_binary_map(depth: u32, recorded_len: u64) -> Vec<u8> {
+        let mut bytes = 2u64.to_le_bytes().to_vec();
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        let mut root = 0u64;
+        for _ in 0..depth {
+            let delta = if root == 0 { 0 } else { 1 };
+            bytes.extend_from_slice(&[delta, delta, b'b', b'a', 0x10, 0x02]);
+            root = bytes.len() as u64 - 1;
+        }
+        bytes.extend_from_slice(&recorded_len.to_le_bytes());
+        bytes.extend_from_slice(&root.to_le_bytes());
+        bytes
+    }
+
+    fn container_with_map(map: &[u8], max_chars: Option<&str>) -> Vec<u8> {
+        let metadata: BTreeMap<&str, &str> = max_chars
+            .map(|value| ("max_word_chars", value))
+            .into_iter()
+            .collect();
+        let mut encoded = Vec::new();
+        into_writer(&metadata, &mut encoded).unwrap();
+        let fst_offset = FIXED_HEADER_LEN + encoded.len();
+        let mut bytes = MAGIC.to_vec();
+        bytes.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
+        bytes.extend_from_slice(&(FIXED_HEADER_LEN as u32).to_le_bytes());
+        for value in [
+            FIXED_HEADER_LEN,
+            encoded.len(),
+            fst_offset,
+            map.len(),
+            fst_offset + map.len(),
+            0,
+        ] {
+            bytes.extend_from_slice(&(value as u64).to_le_bytes());
+        }
+        bytes.extend(encoded);
+        bytes.extend_from_slice(map);
+        bytes
+    }
+
+    #[test]
+    fn compact_fst_expansion_is_rejected_independently_of_metadata_and_footer() {
+        let small = fst::Map::new(compact_binary_map(3, 8)).unwrap();
+        assert_eq!(
+            small.stream().into_str_keys().unwrap(),
+            ["aaa", "aab", "aba", "abb", "baa", "bab", "bba", "bbb"]
+        );
+        for recorded in [1, 1 << 24] {
+            let raw = compact_binary_map(24, recorded);
+            assert!(raw.len() < 200);
+            for max_chars in [None, Some("24"), Some("invalid")] {
+                let bytes = container_with_map(&raw, max_chars);
+                assert!(matches!(FstDictionary::from_bytes(&bytes),
+                    Err(Error::SourceEvidence { reason }) if reason.contains("accepted key count limit")));
+            }
+        }
+        let map = fst::Map::new(compact_binary_map(20, 1)).unwrap();
+        let (resources, charge) = super::map_resources(&map, super::MAX_FST_GRAPH_CHARGE).unwrap();
+        assert_eq!(resources.keys, 1 << 20);
+        assert_eq!(resources.key_bytes, 20 << 20);
+        assert_eq!(charge, 21 * 128 + 40 * 32);
+        // Bound graph work by counted operations, independently of wall time.
+        assert!(super::map_resources(&map, charge - 1).is_err());
+    }
+
+    #[test]
+    fn fst_preflight_preserves_unicode_empty_and_static_loading() {
+        let mut builder = MapBuilder::memory();
+        for key in [b"".as_slice(), "天地人".as_bytes(), &[0xff; 32]] {
+            builder.insert(key, 0).unwrap();
+        }
+        let map = builder.into_inner().unwrap();
+        for max_chars in [None, Some("invalid")] {
+            let bytes = container_with_map(&map, max_chars);
+            let owned = FstDictionary::from_bytes(&bytes).unwrap();
+            assert_eq!(owned.max_word_chars, Some(3));
+            let static_bytes = Box::leak(bytes.into_boxed_slice());
+            let borrowed = FstDictionary::from_static_bytes(static_bytes).unwrap();
+            assert_eq!(borrowed.max_word_chars, Some(3));
+            assert!(matches!(
+                borrowed.map.as_fst().as_inner().source,
+                super::ByteSource::Static(_)
+            ));
+        }
+        let empty = MapBuilder::memory().into_inner().unwrap();
+        assert_eq!(
+            FstDictionary::from_bytes(&container_with_map(&empty, None))
+                .unwrap()
+                .max_word_chars,
+            None
+        );
+    }
+
+    #[test]
+    fn fst_preflight_rejects_deep_and_malformed_graphs() {
+        let mut builder = MapBuilder::memory();
+        builder
+            .insert(vec![b'a'; super::MAX_FST_DEPTH + 1], 0)
+            .unwrap();
+        let map = builder.into_inner().unwrap();
+        assert!(
+            matches!(FstDictionary::from_bytes(&container_with_map(&map, Some("1"))),
+            Err(Error::SourceEvidence { reason }) if reason.contains("key depth limit"))
+        );
+        let mut bad = compact_binary_map(2, 4);
+        // The second node starts at 22. A delta of 23 underflows its address
+        // in fst's raw decoder (or wraps on builds without overflow checks).
+        bad[22] = 23;
+        assert!(matches!(
+            FstDictionary::from_bytes(&container_with_map(&bad, None)),
+            Err(Error::SourceEvidence { .. })
+        ));
+    }
+
+    #[test]
+    fn fst_preflight_bounds_key_bytes_and_nonaccepting_paths() {
+        let mut bytes = compact_binary_map(20, 1 << 20);
+        bytes.truncate(bytes.len() - 16);
+        for _ in 0..109 {
+            // A unary parent, encoded using the general transition form.
+            bytes.extend_from_slice(&[1, b'a', 0x10, 1]);
+        }
+        let root = bytes.len() as u64 - 1;
+        bytes.extend_from_slice(&(1u64 << 20).to_le_bytes());
+        bytes.extend_from_slice(&root.to_le_bytes());
+        assert!(
+            matches!(FstDictionary::from_bytes(&container_with_map(&bytes, Some("1"))),
+            Err(Error::SourceEvidence { reason }) if reason.contains("accepted key byte limit"))
+        );
+
+        let mut bytes = 2u64.to_le_bytes().to_vec();
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&[0, 0, 0]); // Nonfinal leaf with no transitions.
+        for _ in 0..27 {
+            bytes.extend_from_slice(&[1, 1, b'b', b'a', 0x10, 2]);
+        }
+        let root = bytes.len() as u64 - 1;
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&root.to_le_bytes());
+        assert!(
+            matches!(FstDictionary::from_bytes(&container_with_map(&bytes, Some("1"))),
+            Err(Error::SourceEvidence { reason }) if reason.contains("expanded traversal limit"))
+        );
+    }
+
+    #[test]
+    fn malformed_fst_layouts_fail_without_unwind_recovery() {
+        fn map_with_body(body: &[u8]) -> fst::Map<Vec<u8>> {
+            let mut bytes = 2u64.to_le_bytes().to_vec();
+            bytes.extend_from_slice(&0u64.to_le_bytes());
+            bytes.extend_from_slice(body);
+            let root = bytes.len() as u64 - 1;
+            bytes.extend_from_slice(&1u64.to_le_bytes());
+            bytes.extend_from_slice(&root.to_le_bytes());
+            fst::Map::new(bytes).unwrap()
+        }
+        for body in [
+            &[0, 0x00, b'a', 0x80][..],   // Zero transition width.
+            &[0, 0x90, b'a', 0x80][..],   // Transition width above eight.
+            &[0, 0x19, b'a', 0x80][..],   // Output width above eight.
+            &[255, 0x10, b'a', 0x80][..], // Backreference subtraction overflow.
+            &[0, 0x10, 1, 0][..],         // 256 transitions without their tables.
+            &[0, 0, 0x80, 0x81][..],      // Node extends into the header.
+            &[255, 255, 255, 255, 255, 255, 255, 255, 0x80, 0x81][..],
+        ] {
+            let map = map_with_body(body);
+            // Unlike validate_map_resources, this entry point has no catch_unwind.
+            assert!(super::map_resources(&map, super::MAX_FST_GRAPH_CHARGE).is_err());
+        }
+        let map = map_with_body(&[0xc0, 0, 0, 0]);
+        assert!(
+            super::checked_fst_node(map.as_fst(), 2, 16, &mut 0, super::MAX_FST_GRAPH_CHARGE)
+                .is_err()
+        );
+
+        for count in [40u16, 256] {
+            let mut builder = MapBuilder::memory();
+            for byte in 0..count {
+                builder.insert([byte as u8], 0).unwrap();
+            }
+            let bytes = builder.into_inner().unwrap();
+            let map = fst::Map::new(bytes.clone()).unwrap();
+            assert_eq!(
+                super::map_resources(&map, super::MAX_FST_GRAPH_CHARGE)
+                    .unwrap()
+                    .0
+                    .keys,
+                usize::from(count)
+            );
+            let root = bytes.len() - 21; // Raw version three, including checksum.
+            let extra = usize::from(bytes[root] & 63 == 0);
+            let index_start = root - extra - 1 - 256;
+            for (input, index) in [(1usize, 0u8), (0, 255)] {
+                let mut bad = bytes.clone();
+                bad[index_start + input] = index;
+                let map = fst::Map::new(bad).unwrap();
+                assert!(super::map_resources(&map, super::MAX_FST_GRAPH_CHARGE).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn metadata_resource_preflight_rejects_alias_expansion_and_huge_nested_headers() {
+        let aliases = "a\tb\tlexical\tc\n".repeat(65_536);
+        let mut bytes = Vec::new();
+        ciborium::into_writer(&BTreeMap::from([("aliases", aliases)]), &mut bytes).unwrap();
+        assert!(bytes.len() < 1024 * 1024);
+        assert!(matches!(super::decode_metadata(&bytes),
+            Err(super::Error::SourceEvidence { reason }) if reason.contains("ordinary metadata allocation charge")));
+        for field in ["candidate_evidence", "phrase_evidence"] {
+            let mut bytes = vec![0xa1, 0x60 + field.len() as u8];
+            bytes.extend_from_slice(field.as_bytes());
+            bytes.push(0x9b);
+            bytes.extend_from_slice(&u64::MAX.to_be_bytes());
+            assert!(matches!(super::decode_metadata(&bytes),
+                Err(super::Error::SourceEvidence { reason }) if reason.contains("limit")));
+        }
+    }
+
+    #[test]
+    fn metadata_preflight_preserves_distinct_short_aliases() {
+        let aliases: String = (0..32_768)
+            .map(|index| format!("a{index:05}\tb\tlexical\tc\n"))
+            .collect();
+        let bytes = fixture_bytes_with_aliases(
+            &[entry("天地", "천지", false, false)],
+            None,
+            None,
+            Some(&aliases),
+        );
+        let dictionary = FstDictionary::from_bytes(&bytes).unwrap();
+        let lexemes = dictionary.lexemes().unwrap();
+        for index in 0..32_768 {
+            assert_eq!(lexemes.canonical(&format!("a{index:05}"), "b"), "c");
+        }
+    }
+
+    #[test]
+    fn metadata_preflight_retains_tagged_and_chunked_alias_compatibility() {
+        for input in [
+            b"\xa1\xd8\x2a\x67aliases\x6da\tb\tlexical\tc".as_slice(),
+            b"\xa1\x67aliases\xd8\x2a\x6da\tb\tlexical\tc",
+            b"\xbf\x7f\x63ali\x64ases\xff\x7f\x62a\t\x62b\t\x68lexical\t\x61c\xff\xff",
+            b"\xd8\x2a\xa1\x67aliases\x6da\tb\tlexical\tc",
+        ] {
+            let metadata = super::decode_metadata(input).unwrap_or_else(|error| panic!("{error}"));
+            assert_eq!(metadata.strings.get("aliases").unwrap(), "a\tb\tlexical\tc");
+        }
+    }
+
     use std::collections::BTreeMap;
     use std::fs;
 
@@ -762,7 +1307,7 @@ mod tests {
     use tempfile::tempdir;
     use tracing_test::traced_test;
 
-    use super::{FstDictionary, HanjaDictionary, MatchMark};
+    use super::{Error, FstDictionary, HanjaDictionary, MatchMark};
 
     const MAGIC: &[u8; 8] = b"GUKHMFST";
     const FORMAT_VERSION: u32 = 1;
@@ -1077,6 +1622,24 @@ mod tests {
 
     proptest! {
         #[test]
+        fn arbitrary_raw_nodes_do_not_need_unwind_recovery(
+            body in prop::collection::vec(any::<u8>(), 4..512),
+            version in 1u64..=3,
+        ) {
+            let mut bytes = version.to_le_bytes().to_vec();
+            bytes.extend_from_slice(&0u64.to_le_bytes());
+            bytes.extend_from_slice(&body);
+            let root = bytes.len() as u64 - 1;
+            bytes.extend_from_slice(&1u64.to_le_bytes());
+            bytes.extend_from_slice(&root.to_le_bytes());
+            if version == 3 {
+                bytes.extend_from_slice(&0u32.to_le_bytes());
+            }
+            let map = fst::Map::new(bytes).unwrap();
+            let _ = super::map_resources(&map, super::MAX_FST_GRAPH_CHARGE);
+        }
+
+        #[test]
         fn generated_fst_matches_map_dictionary(entries in unique_entries()) {
             let bytes = fixture_bytes(
                 &entries
@@ -1145,12 +1708,24 @@ mod tests {
         evidence: Option<&gukhanmun_core::DictionaryEvidence>,
         phrases: Option<&gukhanmun_core::PhraseEvidence>,
     ) -> Vec<u8> {
+        fixture_bytes_with_aliases(entries, evidence, phrases, None)
+    }
+
+    fn fixture_bytes_with_aliases(
+        entries: &[TestEntry<'_>],
+        evidence: Option<&gukhanmun_core::DictionaryEvidence>,
+        phrases: Option<&gukhanmun_core::PhraseEvidence>,
+        aliases: Option<&str>,
+    ) -> Vec<u8> {
         let format_version = if evidence.is_some() || phrases.is_some() {
             4u32
         } else {
             FORMAT_VERSION
         };
         let mut metadata = BTreeMap::new();
+        if let Some(aliases) = aliases {
+            metadata.insert("aliases".to_owned(), aliases.to_owned());
+        }
         metadata.insert("source".to_owned(), "fixture".to_owned());
         metadata.insert("license".to_owned(), "CC0-1.0".to_owned());
         metadata.insert("build_date".to_owned(), "1970-01-01T00:00:00Z".to_owned());

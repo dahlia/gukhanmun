@@ -1,8 +1,8 @@
 ---
 title: "Introduction"
 description: |-
-  An overview of Gukhanmun and how to choose between the CLI, Rust, and
-  JavaScript interfaces.
+  An overview of Gukhanmun and how to choose between the CLI, Rust,
+  JavaScript and Python interfaces.
 ---
 
 Introduction
@@ -22,11 +22,12 @@ per-character annotation directives.
 Choosing an interface
 ---------------------
 
-| Interface  | When to use                                           |
-| ---------- | ----------------------------------------------------- |
-| CLI        | Convert files from the terminal or in shell pipelines |
-| Rust       | Embed the converter in a Rust application or library  |
-| JavaScript | Use from Node.js, Deno, Bun, or a browser             |
+| Interface  | When to use                                                  |
+| ---------- | ------------------------------------------------------------ |
+| CLI        | Convert files from the terminal or in shell pipelines        |
+| Rust       | Embed the converter in a Rust application or library         |
+| JavaScript | Use from Node.js, Deno, Bun, or a browser                    |
+| Python     | Convert text in Python NLP and document-processing pipelines |
 
 ### CLI
 
@@ -58,3 +59,11 @@ Two packages cover different environments:
 Both share the same `load()` API and accept identical options.
 
 Start here: [*Installation*](./javascript/install).
+
+### Python
+
+The Python package provides a reusable `Converter(...)` with typed keyword
+options and explicit dictionary sources. Build a local wheel, then convert
+plain text, HTML or Markdown in the same process.
+
+Start here: [*Python quick start*](./python/start.md).

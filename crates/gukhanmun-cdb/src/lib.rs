@@ -19,8 +19,9 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::ops::Deref;
+use std::ops::{Deref, Range};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -37,6 +38,10 @@ const MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
 
 /// The CDB header is 2048 bytes: 256 slots × (u32le pos, u32le count).
 const HEADER_SIZE: usize = 2048;
+
+/// Maximum requested heap bytes for the record and lookup indexes combined.
+/// This excludes backing bytes, decoded metadata, and allocator bookkeeping.
+const MAX_INDEX_BYTES: usize = 64 * 1024 * 1024;
 
 /// Backing byte store for a [`CdbDictionary`]: either a reference-counted
 /// owned allocation (from [`CdbDictionary::from_bytes`] /
@@ -63,10 +68,17 @@ impl Deref for DataSource {
 /// The CDB bytes are held in an internal backing store that is either an
 /// [`Arc<[u8]>`]-backed owned allocation or a zero-copy borrow of a
 /// `'static` slice, depending on how the dictionary was loaded.
+///
+/// Loading limits the combined record and lookup index allocations to 64 MiB
+/// of requested storage, independently of the input byte length. Dictionaries
+/// exceeding that limit return [`Error::MalformedRecord`] before allocating
+/// either index. Backing bytes, decoded metadata, and allocator bookkeeping
+/// are separate from this limit.
 pub struct CdbDictionary {
     metadata: BTreeMap<String, String>,
     format_version: u32,
     data: DataSource,
+    index: CdbIndex,
     entry_count: u64,
     max_word_chars: Option<usize>,
     lexemes: LexemeIndex,
@@ -77,6 +89,9 @@ pub struct CdbDictionary {
 
 impl CdbDictionary {
     /// Opens a dictionary file from disk.
+    ///
+    /// Validates the CDB structure and builds a range index before decoding
+    /// metadata. Candidate payloads are decoded when accessed.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
         let bytes = std::fs::read(path).map_err(|source| Error::Open {
@@ -87,6 +102,10 @@ impl CdbDictionary {
     }
 
     /// Decodes a dictionary from bytes in the Gukhanmun CDB-trie format.
+    ///
+    /// Validates record framing and hash tables and builds a range index for
+    /// logarithmic key lookup, including in collision-heavy dictionaries.
+    /// Candidate payloads are decoded when accessed.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         Self::from_source(DataSource::Owned(Arc::from(bytes)))
     }
@@ -96,20 +115,23 @@ impl CdbDictionary {
     ///
     /// This is intended for embedded dictionaries built with
     /// `include_bytes!`.  The CDB data is referenced directly without
-    /// copying.
+    /// copying. Structural validation allocates a separate range index; the
+    /// keys and values remain in the original static slice. Candidate payloads
+    /// are decoded when accessed.
     pub fn from_static_bytes(bytes: &'static [u8]) -> Result<Self, Error> {
         Self::from_source(DataSource::Static(bytes))
     }
 
     fn from_source(data: DataSource) -> Result<Self, Error> {
-        let metadata_bytes = cdb_get(&data, META_KEY)?.ok_or(Error::MissingRecord {
+        let index = CdbIndex::new(&data)?;
+        let metadata_bytes = index.get(&data, META_KEY).ok_or(Error::MissingRecord {
             record: "dictionary metadata",
         })?;
         let StoredMetadata {
             strings: metadata,
             evidence,
             phrase_evidence,
-        } = decode_metadata(metadata_bytes.as_slice())?;
+        } = decode_metadata(metadata_bytes)?;
         if let Some(version) = metadata.get("version")
             && !matches!(version.as_str(), "1" | "2" | "3" | "4")
         {
@@ -149,6 +171,7 @@ impl CdbDictionary {
             metadata,
             format_version,
             data,
+            index,
             entry_count,
             max_word_chars,
             lexemes,
@@ -186,26 +209,31 @@ impl CdbDictionary {
             })?;
         }
         if let Some(evidence) = dictionary.phrase_evidence.as_ref() {
-            let records = evidence
-                .candidate_keys()
-                .into_iter()
-                .map(|key| {
-                    let entry = dictionary
-                        .lookup(key)?
-                        .ok_or_else(|| Error::SourceEvidence {
-                            reason: format!("phrase evidence references absent key {key:?}"),
-                        })?;
-                    Ok(CandidateRecord {
-                        hanja: key.into(),
-                        candidates: entry.candidates,
-                    })
-                })
-                .collect::<Result<Vec<_>, Error>>()?;
-            evidence
-                .validate_records(records)
-                .map_err(|error| Error::SourceEvidence {
-                    reason: error.to_string(),
-                })?;
+            let mut lookup_error = None;
+            let mut records = evidence.candidate_keys().into_iter().filter_map(|key| {
+                let error = match dictionary.lookup(key) {
+                    Ok(Some(entry)) => {
+                        return Some(CandidateRecord {
+                            hanja: key.into(),
+                            candidates: entry.candidates,
+                        });
+                    }
+                    Ok(None) => Error::SourceEvidence {
+                        reason: format!("phrase evidence references absent key {key:?}"),
+                    },
+                    Err(error) => error,
+                };
+                lookup_error.get_or_insert(error);
+                None
+            });
+            let validation = evidence.validate_records(records.by_ref());
+            records.for_each(drop);
+            if let Some(error) = lookup_error {
+                return Err(error);
+            }
+            validation.map_err(|error| Error::SourceEvidence {
+                reason: error.to_string(),
+            })?;
             dictionary.phrase_index = Some(Arc::new(
                 PhraseIndex::from_shared_evidence(evidence.clone()).map_err(|error| {
                     Error::SourceEvidence {
@@ -231,10 +259,10 @@ impl CdbDictionary {
 
     /// Returns the exact dictionary entry for `hanja`, if present.
     pub fn lookup(&self, hanja: &str) -> Result<Option<LookupEntry>, Error> {
-        let Some(value) = cdb_get(&self.data, hanja.as_bytes())? else {
+        let Some(value) = self.index.get(&self.data, hanja.as_bytes()) else {
             return Ok(None);
         };
-        let Some(record) = decode_record_version(&value, self.format_version)? else {
+        let Some(record) = decode_record_version(value, self.format_version)? else {
             return Ok(None);
         };
         Ok(Some(record))
@@ -272,19 +300,10 @@ impl HanjaDictionary for CdbDictionary {
                 break;
             }
             prefix.push(ch);
-            let value = match cdb_get(&self.data, prefix.as_bytes()) {
-                Ok(Some(value)) => value,
-                Ok(None) => break,
-                Err(error) => {
-                    tracing::warn!(
-                        prefix_len = prefix.len(),
-                        error = ?error,
-                        "aborting CDB prefix traversal due to read error"
-                    );
-                    break;
-                }
+            let Some(value) = self.index.get(&self.data, prefix.as_bytes()) else {
+                break;
             };
-            match decode_record_version(&value, self.format_version) {
+            match decode_record_version(value, self.format_version) {
                 Ok(Some(entry)) => {
                     matches.push(CandidateMatch {
                         byte_len: prefix.len(),
@@ -321,18 +340,13 @@ impl HanjaDictionary for CdbDictionary {
 
     fn candidate_entries<'a>(&'a self) -> Option<Box<dyn Iterator<Item = CandidateRecord> + 'a>> {
         let mut records = Vec::new();
-        for result in cdb_iter(&self.data) {
-            let (key, value) = match result {
-                Ok(pair) => pair,
-                Err(error) => {
-                    tracing::warn!(error = ?error, "skipping CDB entry due to iterator error");
-                    continue;
-                }
-            };
+        for record in &self.index.records {
+            let key = &self.data[record.key.clone()];
+            let value = &self.data[record.value.clone()];
             if key == META_KEY {
                 continue;
             }
-            let entry = match decode_record_version(&value, self.format_version) {
+            let entry = match decode_record_version(value, self.format_version) {
                 Ok(Some(entry)) => entry,
                 Ok(None) => continue,
                 Err(error) => {
@@ -340,12 +354,12 @@ impl HanjaDictionary for CdbDictionary {
                     continue;
                 }
             };
-            let Ok(hanja) = String::from_utf8(key) else {
+            let Ok(hanja) = std::str::from_utf8(key) else {
                 tracing::warn!("skipping CDB entry with non-UTF-8 key");
                 continue;
             };
             records.push(CandidateRecord {
-                hanja,
+                hanja: hanja.to_owned(),
                 candidates: entry.candidates,
             });
         }
@@ -495,133 +509,209 @@ fn cdb_hash(key: &[u8]) -> u32 {
     })
 }
 
-/// Read a little-endian `u32` at `offset` from `data`, returning `None` if
-/// out of bounds.
+/// Read a little-endian `u32`, including when the offset itself is untrusted.
 fn read_u32(data: &[u8], offset: usize) -> Option<u32> {
-    data.get(offset..offset + 4)
+    data.get(offset..offset.checked_add(4)?)
         .and_then(|b| b.try_into().ok())
         .map(u32::from_le_bytes)
 }
 
-/// Look up `key` in the CDB data buffer.  Returns `Ok(None)` when the key is
-/// absent, `Ok(Some(value_bytes))` on a match, and `Err` on format errors.
-fn cdb_get(data: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
-    if data.len() < HEADER_SIZE {
-        return Err(Error::TooShort { len: data.len() });
+struct CdbRecord {
+    position: usize,
+    key: Range<usize>,
+    value: Range<usize>,
+    hash: u32,
+    probe_rank: usize,
+}
+
+/// Keeps physical record order separately from sorted lookup order. All byte
+/// ranges refer to the original backing store, including embedded static data.
+struct CdbIndex {
+    records: Vec<CdbRecord>,
+    lookup: Vec<usize>,
+}
+
+impl CdbIndex {
+    fn new(data: &[u8]) -> Result<Self, Error> {
+        Self::with_index_limit(data, MAX_INDEX_BYTES)
     }
 
-    let h = cdb_hash(key);
-    let header_slot = (h & 0xff) as usize;
-    let header_base = header_slot * 8;
-
-    let table_pos = read_u32(data, header_base).ok_or(Error::OutOfBounds {
-        offset: header_base,
-        len: data.len(),
-    })? as usize;
-    let table_count = read_u32(data, header_base + 4).ok_or(Error::OutOfBounds {
-        offset: header_base + 4,
-        len: data.len(),
-    })? as usize;
-
-    if table_count == 0 {
-        return Ok(None);
-    }
-
-    let start_slot = ((h >> 8) as usize) % table_count;
-
-    for i in 0..table_count {
-        let slot = (start_slot + i) % table_count;
-        let slot_offset = table_pos + slot * 8;
-
-        let slot_hash = match read_u32(data, slot_offset) {
-            Some(v) => v,
-            None => return Ok(None),
-        };
-        let data_pos = match read_u32(data, slot_offset + 4) {
-            Some(v) => v as usize,
-            None => return Ok(None),
-        };
-
-        if data_pos == 0 {
-            return Ok(None);
+    fn with_index_limit(data: &[u8], max_index_bytes: usize) -> Result<Self, Error> {
+        if data.len() < HEADER_SIZE {
+            return Err(Error::TooShort { len: data.len() });
         }
-
-        if slot_hash == h {
-            let key_len = match read_u32(data, data_pos) {
-                Some(v) => v as usize,
-                None => continue,
-            };
-            let val_len = match read_u32(data, data_pos + 4) {
-                Some(v) => v as usize,
-                None => continue,
-            };
-            let key_start = data_pos + 8;
-            let val_start = key_start.saturating_add(key_len);
-            let val_end = val_start.saturating_add(val_len);
-
-            if val_end > data.len() {
+        let malformed = |reason| Error::MalformedRecord { reason };
+        // The header has exactly 256 buckets; its validation needs no heap
+        // allocation, even when the record count exceeds the index limit.
+        let mut tables = [(0, 0, 0, 0); 256];
+        let mut table_count = 0;
+        let mut data_end = data.len();
+        for bucket in 0..256 {
+            // The complete header was checked above.
+            let position = read_u32(data, bucket * 8).unwrap() as usize;
+            let count = read_u32(data, bucket * 8 + 4).unwrap() as usize;
+            if position == 0 && count == 0 {
                 continue;
             }
-            if data[key_start..key_start + key_len] == *key {
-                return Ok(Some(data[val_start..val_end].to_vec()));
+            if position < HEADER_SIZE || position > data.len() {
+                return Err(malformed("hash table position is outside the table area"));
+            }
+            data_end = data_end.min(position);
+            let end = count
+                .checked_mul(8)
+                .and_then(|length| position.checked_add(length))
+                .filter(|&end| end <= data.len())
+                .ok_or_else(|| malformed("hash table range is outside the CDB data"))?;
+            if count != 0 {
+                tables[table_count] = (position, end, bucket, count);
+                table_count += 1;
             }
         }
+        let tables = &mut tables[..table_count];
+        tables.sort_unstable_by_key(|table| table.0);
+        if tables.windows(2).any(|pair| pair[0].1 > pair[1].0) {
+            return Err(malformed("hash table ranges overlap"));
+        }
+
+        // Count and validate framing without allocating or hashing keys. Divide
+        // the byte budget first so count arithmetic stays bounded on 32-bit
+        // hosts as well. Both indexes are included before either is allocated.
+        let max_records = max_index_bytes / (size_of::<CdbRecord>() + size_of::<usize>());
+        let mut record_count = 0;
+        let mut position = HEADER_SIZE;
+        while position < data_end {
+            if record_count == max_records {
+                return Err(malformed("CDB range index exceeds host byte limit"));
+            }
+            let (_, value) = cdb_record_ranges(data, position, data_end)?;
+            position = value.end;
+            record_count += 1;
+        }
+
+        // Exact reservations avoid geometric Vec growth and overlapping old
+        // and new buffers. No later push/extend can exceed these reservations.
+        let mut records = Vec::new();
+        records
+            .try_reserve_exact(record_count)
+            .map_err(|_| malformed("CDB record index allocation failed"))?;
+        let mut lookup = Vec::new();
+        lookup
+            .try_reserve_exact(record_count)
+            .map_err(|_| malformed("CDB lookup index allocation failed"))?;
+        position = HEADER_SIZE;
+        while position < data_end {
+            let (key, value) = cdb_record_ranges(data, position, data_end)?;
+            let value_end = value.end;
+            records.push(CdbRecord {
+                position,
+                hash: cdb_hash(&data[key.clone()]),
+                key,
+                value,
+                probe_rank: usize::MAX,
+            });
+            position = value_end;
+        }
+
+        for &(position, _, bucket, count) in tables.iter() {
+            // Start after an empty slot, so each probe cluster is a linear
+            // interval. Full tables have no unreachable slots and are safe
+            // to accept because runtime lookup never probes them.
+            let empty = (0..count).find(|&slot| read_u32(data, position + slot * 8 + 4) == Some(0));
+            let start = empty.map_or(0, |slot| if slot + 1 == count { 0 } else { slot + 1 });
+            let mut cluster_start = 0;
+            let mut slot = start;
+            for step in 0..count {
+                let offset = position + slot * 8;
+                let hash = read_u32(data, offset).unwrap();
+                let record_position = read_u32(data, offset + 4).unwrap() as usize;
+                if record_position == 0 {
+                    cluster_start = step + 1;
+                } else {
+                    let record_index = records
+                        .binary_search_by_key(&record_position, |record| record.position)
+                        .map_err(|_| malformed("hash slot does not point to a record start"))?;
+                    let record = &mut records[record_index];
+                    if record.probe_rank != usize::MAX {
+                        return Err(malformed("multiple hash slots reference the same record"));
+                    }
+                    if hash != record.hash || (hash & 0xff) as usize != bucket {
+                        return Err(malformed("hash slot does not match its key and bucket"));
+                    }
+                    let home = (hash >> 8) as usize % count;
+                    let relative_home = circular_distance(start, home, count);
+                    if empty.is_some() && !(cluster_start..=step).contains(&relative_home) {
+                        return Err(malformed("hash slot is unreachable from its home position"));
+                    }
+                    record.probe_rank = circular_distance(home, slot, count);
+                }
+                slot = if slot + 1 == count { 0 } else { slot + 1 };
+            }
+        }
+        if records.iter().any(|record| record.probe_rank == usize::MAX) {
+            return Err(malformed("CDB record is absent from the hash tables"));
+        }
+        lookup.extend(0..record_count);
+        lookup.sort_unstable_by(|&left, &right| {
+            let left = &records[left];
+            let right = &records[right];
+            left.hash
+                .cmp(&right.hash)
+                .then_with(|| data[left.key.clone()].cmp(&data[right.key.clone()]))
+                .then_with(|| left.probe_rank.cmp(&right.probe_rank))
+        });
+        Ok(Self { records, lookup })
     }
 
-    Ok(None)
-}
+    fn get<'a>(&self, data: &'a [u8], key: &[u8]) -> Option<&'a [u8]> {
+        let hash = cdb_hash(key);
+        let record = self.find_record(|record| {
+            record
+                .hash
+                .cmp(&hash)
+                .then_with(|| data[record.key.clone()].cmp(key))
+        })?;
+        Some(&data[record.value.clone()])
+    }
 
-/// Iterate all records in the CDB data area (bytes 2048 up to the first
-/// hash table).  Yields `(key_bytes, value_bytes)` pairs.
-fn cdb_iter(data: &[u8]) -> impl Iterator<Item = Result<(Vec<u8>, Vec<u8>), Error>> + '_ {
-    // The data area ends where the first hash table begins.
-    let data_end = (0..256usize)
-        .filter_map(|i| {
-            let pos = read_u32(data, i * 8)? as usize;
-            if pos >= HEADER_SIZE { Some(pos) } else { None }
-        })
-        .min()
-        .unwrap_or(data.len());
-
-    CdbIter {
-        data,
-        pos: HEADER_SIZE,
-        data_end,
+    fn find_record(&self, mut compare: impl FnMut(&CdbRecord) -> Ordering) -> Option<&CdbRecord> {
+        // A lower bound preserves the first CDB probe match for duplicate keys.
+        let index = self
+            .lookup
+            .partition_point(|&index| compare(&self.records[index]).is_lt());
+        let record = &self.records[*self.lookup.get(index)?];
+        compare(record).is_eq().then_some(record)
     }
 }
 
-struct CdbIter<'a> {
-    data: &'a [u8],
-    pos: usize,
+/// Validate one physical record without allocating or decoding its contents.
+fn cdb_record_ranges(
+    data: &[u8],
+    position: usize,
     data_end: usize,
+) -> Result<(Range<usize>, Range<usize>), Error> {
+    let malformed = |reason| Error::MalformedRecord { reason };
+    let header_end = position
+        .checked_add(8)
+        .filter(|&end| end <= data_end)
+        .ok_or_else(|| malformed("truncated CDB record header"))?;
+    let key_len = read_u32(data, position).unwrap() as usize;
+    let value_len = read_u32(data, position + 4).unwrap() as usize;
+    let key_end = header_end
+        .checked_add(key_len)
+        .filter(|&end| end <= data_end)
+        .ok_or_else(|| malformed("CDB key extends beyond the record area"))?;
+    let value_end = key_end
+        .checked_add(value_len)
+        .filter(|&end| end <= data_end)
+        .ok_or_else(|| malformed("CDB value extends beyond the record area"))?;
+    Ok((header_end..key_end, key_end..value_end))
 }
 
-impl<'a> Iterator for CdbIter<'a> {
-    type Item = Result<(Vec<u8>, Vec<u8>), Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.data_end {
-            return None;
-        }
-
-        let key_len = read_u32(self.data, self.pos)? as usize;
-        let val_len = read_u32(self.data, self.pos + 4)? as usize;
-        let key_start = self.pos + 8;
-        let val_start = key_start + key_len;
-        let next_pos = val_start + val_len;
-
-        if next_pos > self.data_end {
-            self.pos = self.data_end;
-            return Some(Err(Error::OutOfBounds {
-                offset: next_pos,
-                len: self.data_end,
-            }));
-        }
-
-        let key = self.data[key_start..key_start + key_len].to_vec();
-        let val = self.data[val_start..val_start + val_len].to_vec();
-        self.pos = next_pos;
-        Some(Ok((key, val)))
+fn circular_distance(start: usize, end: usize, count: usize) -> usize {
+    if end >= start {
+        end - start
+    } else {
+        count - start + end
     }
 }
 
@@ -750,6 +840,14 @@ fn decode_metadata(bytes: &[u8]) -> Result<StoredMetadata, Error> {
             reason: "metadata exceeds host byte limit".into(),
         });
     }
+    gukhanmun_core::check_metadata_resources(bytes).map_err(|error| match error {
+        gukhanmun_core::MetadataResourceError::InvalidCbor { offset } => Error::MetadataDecode {
+            source: ciborium::de::Error::Syntax(offset),
+        },
+        error => Error::SourceEvidence {
+            reason: error.to_string(),
+        },
+    })?;
     let mut reader = std::io::Cursor::new(bytes);
     let decoded: StoredMetadata =
         from_reader(&mut reader).map_err(|source| Error::MetadataDecode { source })?;
@@ -759,6 +857,11 @@ fn decode_metadata(bytes: &[u8]) -> Result<StoredMetadata, Error> {
         })?;
     }
     if let Some(evidence) = decoded.phrase_evidence.as_ref() {
+        gukhanmun_core::check_phrase_index_resources(evidence).map_err(|error| {
+            Error::SourceEvidence {
+                reason: error.to_string(),
+            }
+        })?;
         evidence.validate().map_err(|error| Error::SourceEvidence {
             reason: error.to_string(),
         })?;
@@ -816,6 +919,57 @@ fn encode_mark(mark: MatchMark) -> u8 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn metadata_resource_preflight_rejects_alias_expansion_and_huge_nested_headers() {
+        let aliases = "a\tb\tlexical\tc\n".repeat(65_536);
+        let mut bytes = Vec::new();
+        ciborium::into_writer(&BTreeMap::from([("aliases", aliases)]), &mut bytes).unwrap();
+        assert!(bytes.len() < 1024 * 1024);
+        assert!(matches!(super::decode_metadata(&bytes),
+            Err(super::Error::SourceEvidence { reason }) if reason.contains("ordinary metadata allocation charge")));
+        for field in ["candidate_evidence", "phrase_evidence"] {
+            let mut bytes = vec![0xa1, 0x60 + field.len() as u8];
+            bytes.extend_from_slice(field.as_bytes());
+            bytes.push(0x9b);
+            bytes.extend_from_slice(&u64::MAX.to_be_bytes());
+            assert!(matches!(super::decode_metadata(&bytes),
+                Err(super::Error::SourceEvidence { reason }) if reason.contains("limit")));
+        }
+    }
+
+    #[test]
+    fn metadata_preflight_preserves_distinct_short_aliases() {
+        let aliases: String = (0..32_768)
+            .map(|index| format!("a{index:05}\tb\tlexical\tc\n"))
+            .collect();
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("aliases.cdb");
+        write_fixture_with_aliases(
+            &path,
+            &[entry("天地", "천지", false, false)],
+            None,
+            Some(&aliases),
+        );
+        let dictionary = CdbDictionary::open(&path).unwrap();
+        let lexemes = dictionary.lexemes().unwrap();
+        for index in 0..32_768 {
+            assert_eq!(lexemes.canonical(&format!("a{index:05}"), "b"), "c");
+        }
+    }
+
+    #[test]
+    fn metadata_preflight_retains_tagged_and_chunked_alias_compatibility() {
+        for input in [
+            b"\xa1\xd8\x2a\x67aliases\x6da\tb\tlexical\tc".as_slice(),
+            b"\xa1\x67aliases\xd8\x2a\x6da\tb\tlexical\tc",
+            b"\xbf\x7f\x63ali\x64ases\xff\x7f\x62a\t\x62b\t\x68lexical\t\x61c\xff\xff",
+            b"\xd8\x2a\xa1\x67aliases\x6da\tb\tlexical\tc",
+        ] {
+            let metadata = super::decode_metadata(input).unwrap_or_else(|error| panic!("{error}"));
+            assert_eq!(metadata.strings.get("aliases").unwrap(), "a\tb\tlexical\tc");
+        }
+    }
+
     use std::collections::BTreeMap;
     use std::fs;
     use std::path::Path;
@@ -1210,7 +1364,19 @@ mod tests {
         entries: &[TestEntry<'_>],
         phrases: Option<&gukhanmun_core::PhraseEvidence>,
     ) {
+        write_fixture_with_aliases(path, entries, phrases, None);
+    }
+
+    fn write_fixture_with_aliases(
+        path: &Path,
+        entries: &[TestEntry<'_>],
+        phrases: Option<&gukhanmun_core::PhraseEvidence>,
+        aliases: Option<&str>,
+    ) {
         let mut metadata = BTreeMap::new();
+        if let Some(aliases) = aliases {
+            metadata.insert("aliases".to_owned(), aliases.to_owned());
+        }
         metadata.insert("source".to_owned(), "fixture".to_owned());
         metadata.insert("license".to_owned(), "CC0-1.0".to_owned());
         metadata.insert("build_date".to_owned(), "1970-01-01T00:00:00Z".to_owned());
@@ -1322,5 +1488,252 @@ mod candidate_record_tests {
         assert!(decode_record_version(&[1, 0x80, 2, 0, 0, 0], 2).is_err());
         assert!(decode_record_version(&[0, 0x80, 0, 0], 2).is_err());
         assert!(decode_record_version(&[0, 0x80, 0, 0], 1).is_err());
+    }
+}
+
+#[cfg(test)]
+mod cdb_structure_tests {
+    use super::*;
+
+    fn put_u32(data: &mut [u8], offset: usize, value: usize) {
+        data[offset..offset + 4].copy_from_slice(&u32::try_from(value).unwrap().to_le_bytes());
+    }
+
+    fn fixture(records: &[(&[u8], &[u8])]) -> Vec<u8> {
+        let mut data = vec![0; HEADER_SIZE];
+        let mut buckets = vec![Vec::new(); 256];
+        for &(key, value) in records {
+            let position = data.len();
+            data.extend_from_slice(&(key.len() as u32).to_le_bytes());
+            data.extend_from_slice(&(value.len() as u32).to_le_bytes());
+            data.extend_from_slice(key);
+            data.extend_from_slice(value);
+            let hash = cdb_hash(key);
+            buckets[(hash & 0xff) as usize].push((hash, position));
+        }
+        for (bucket, records) in buckets.into_iter().enumerate() {
+            let position = data.len();
+            let count = records.len() * 2;
+            put_u32(&mut data, bucket * 8, position);
+            put_u32(&mut data, bucket * 8 + 4, count);
+            data.resize(position + count * 8, 0);
+            for (hash, record_position) in records {
+                let mut slot = (hash >> 8) as usize % count;
+                while read_u32(&data, position + slot * 8 + 4).unwrap() != 0 {
+                    slot = (slot + 1) % count;
+                }
+                put_u32(&mut data, position + slot * 8, hash as usize);
+                put_u32(&mut data, position + slot * 8 + 4, record_position);
+            }
+        }
+        data
+    }
+
+    fn table(data: &[u8], key: &[u8]) -> (usize, usize) {
+        let header = (cdb_hash(key) & 0xff) as usize * 8;
+        (
+            read_u32(data, header).unwrap() as usize,
+            read_u32(data, header + 4).unwrap() as usize,
+        )
+    }
+
+    #[test]
+    fn index_byte_budget_accepts_exact_boundary_without_capacity_growth() {
+        // Tiny duplicate/empty records maximize index amplification. Keep an
+        // odd count to catch geometric Vec growth beyond the byte budget.
+        let data = fixture(&[(b"", b""), (b"", b""), (b"key", b"value")]);
+        let bytes_per_record = size_of::<CdbRecord>() + size_of::<usize>();
+        let budget = 3 * bytes_per_record;
+        let index = CdbIndex::with_index_limit(&data, budget).unwrap();
+        assert_eq!(index.records.len(), 3);
+        assert_eq!(index.lookup.len(), 3);
+        assert!(
+            index.records.capacity() * size_of::<CdbRecord>()
+                + index.lookup.capacity() * size_of::<usize>()
+                <= budget
+        );
+        assert_eq!(index.get(&data, b""), Some(b"".as_slice()));
+        assert_eq!(index.get(&data, b"key"), Some(b"value".as_slice()));
+        assert!(matches!(
+            CdbIndex::with_index_limit(&data, budget - 1),
+            Err(Error::MalformedRecord {
+                reason: "CDB range index exceeds host byte limit"
+            })
+        ));
+        // A zero budget still admits a structurally valid empty CDB.
+        let empty = CdbIndex::with_index_limit(&fixture(&[]), 0).unwrap();
+        assert_eq!(empty.records.capacity(), 0);
+        assert_eq!(empty.lookup.capacity(), 0);
+    }
+
+    #[test]
+    fn record_count_limit_precedes_index_construction_and_slot_validation() {
+        let mut data = fixture(&[(b"", b""), (b"", b"")]);
+        let (position, count) = table(&data, b"");
+        let slot = (cdb_hash(b"") >> 8) as usize % count;
+        put_u32(&mut data, position + slot * 8, 0);
+        let bytes_per_record = size_of::<CdbRecord>() + size_of::<usize>();
+        assert!(matches!(
+            CdbIndex::with_index_limit(&data, bytes_per_record),
+            Err(Error::MalformedRecord {
+                reason: "CDB range index exceeds host byte limit"
+            })
+        ));
+        assert!(matches!(
+            CdbIndex::new(&data),
+            Err(Error::MalformedRecord {
+                reason: "hash slot does not match its key and bucket"
+            })
+        ));
+        // The production budget rejects the reported 3.9-million-record input
+        // on both 32- and 64-bit hosts without creating that large fixture.
+        assert!(MAX_INDEX_BYTES / bytes_per_record < 3_900_000);
+        assert!(
+            (MAX_INDEX_BYTES / bytes_per_record)
+                .checked_mul(bytes_per_record)
+                .unwrap()
+                <= MAX_INDEX_BYTES
+        );
+    }
+
+    #[test]
+    fn rejects_unbounded_overlapping_and_misplaced_tables() {
+        let valid = fixture(&[(b"key", b"value")]);
+        let header = (cdb_hash(b"key") & 0xff) as usize * 8;
+        let mut oversized = valid.clone();
+        put_u32(&mut oversized, header + 4, u32::MAX as usize);
+        assert!(CdbIndex::new(&oversized).is_err());
+        let mut overlapping = valid.clone();
+        let other = (header + 8) % HEADER_SIZE;
+        let (position, count) = table(&valid, b"key");
+        put_u32(&mut overlapping, other, position);
+        put_u32(&mut overlapping, other + 4, count);
+        assert!(CdbIndex::new(&overlapping).is_err());
+        let mut misplaced = valid;
+        put_u32(&mut misplaced, header, HEADER_SIZE - 8);
+        assert!(CdbIndex::new(&misplaced).is_err());
+        assert_eq!(read_u32(&[], usize::MAX), None);
+    }
+
+    #[test]
+    fn rejects_repeated_slot_pointers_even_in_a_full_table() {
+        let mut data = fixture(&[(b"key", b"value")]);
+        let (position, count) = table(&data, b"key");
+        for slot in 0..count {
+            put_u32(&mut data, position + slot * 8, cdb_hash(b"key") as usize);
+            put_u32(&mut data, position + slot * 8 + 4, HEADER_SIZE);
+        }
+        assert!(matches!(
+            CdbIndex::new(&data),
+            Err(Error::MalformedRecord { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_bad_hash_bucket_record_pointer_and_missing_record() {
+        let valid = fixture(&[(b"key", b"value")]);
+        let (position, count) = table(&valid, b"key");
+        let slot = (cdb_hash(b"key") >> 8) as usize % count;
+        let offset = position + slot * 8;
+        for (field, replacement) in [(offset, 1), (offset + 4, HEADER_SIZE + 1), (offset + 4, 0)] {
+            let mut data = valid.clone();
+            put_u32(&mut data, field, replacement);
+            assert!(CdbIndex::new(&data).is_err());
+        }
+        let mut wrong_bucket = valid;
+        let header = (cdb_hash(b"key") & 0xff) as usize * 8;
+        let other = (header + 8) % HEADER_SIZE;
+        put_u32(&mut wrong_bucket, header + 4, 0);
+        put_u32(&mut wrong_bucket, other, position);
+        put_u32(&mut wrong_bucket, other + 4, count);
+        assert!(CdbIndex::new(&wrong_bucket).is_err());
+    }
+
+    #[test]
+    fn rejects_unreachable_slots_and_truncated_records() {
+        let valid = fixture(&[(b"key", b"value")]);
+        let (position, count) = table(&valid, b"key");
+        let home = (cdb_hash(b"key") >> 8) as usize % count;
+        let mut unreachable = valid.clone();
+        let target = (home + 1) % count;
+        let bytes = unreachable[position + home * 8..position + home * 8 + 8].to_vec();
+        unreachable[position + home * 8..position + home * 8 + 8].fill(0);
+        unreachable[position + target * 8..position + target * 8 + 8].copy_from_slice(&bytes);
+        assert!(CdbIndex::new(&unreachable).is_err());
+        for field in [HEADER_SIZE, HEADER_SIZE + 4] {
+            let mut data = valid.clone();
+            put_u32(&mut data, field, u32::MAX as usize);
+            assert!(CdbIndex::new(&data).is_err());
+        }
+        let mut truncated = vec![0; HEADER_SIZE + 7];
+        put_u32(&mut truncated, 0, HEADER_SIZE + 7);
+        assert!(CdbIndex::new(&truncated).is_err());
+    }
+
+    #[test]
+    fn dense_duplicate_cluster_has_logarithmic_missing_lookup() {
+        assert_eq!(cdb_hash(b" a"), cdb_hash(b"!@"));
+        let records = vec![(b" a".as_slice(), b"value".as_slice()); 256];
+        let data = fixture(&records);
+        let index = CdbIndex::new(&data).unwrap();
+        assert_eq!(index.get(&data, b" a"), Some(b"value".as_slice()));
+        assert_eq!(index.get(&data, b"!@"), None);
+        // A miss immediately after a same-hash cluster uses the actual lookup
+        // algorithm, with comparisons counted instead of a timing threshold.
+        let mut comparisons = 0;
+        let found = index.find_record(|record| {
+            comparisons += 1;
+            record
+                .hash
+                .cmp(&cdb_hash(b" a"))
+                .then_with(|| data[record.key.clone()].cmp(b"!@"))
+        });
+        assert!(found.is_none());
+        assert!(
+            comparisons <= 11,
+            "{comparisons} comparisons for 256 records"
+        );
+    }
+
+    #[test]
+    fn distinct_keys_with_equal_hashes_retain_their_values() {
+        let data = fixture(&[(b" a", b"first"), (b"!@", b"second")]);
+        assert_eq!(cdb_hash(b" a"), cdb_hash(b"!@"));
+        let index = CdbIndex::new(&data).unwrap();
+        assert_eq!(index.get(&data, b" a"), Some(b"first".as_slice()));
+        assert_eq!(index.get(&data, b"!@"), Some(b"second".as_slice()));
+    }
+
+    #[test]
+    fn wrapped_duplicates_keep_probe_order_and_physical_iteration_order() {
+        // Select a home in the last slot so duplicate keys wrap to slot zero.
+        let key = (0..256)
+            .map(|n| format!("key{n}"))
+            .find(|key| (cdb_hash(key.as_bytes()) >> 8) % 4 == 3)
+            .unwrap();
+        let mut data = fixture(&[(key.as_bytes(), b"first"), (key.as_bytes(), b"second")]);
+        let index = CdbIndex::new(&data).unwrap();
+        assert_eq!(index.get(&data, key.as_bytes()), Some(b"first".as_slice()));
+        let (position, _) = table(&data, key.as_bytes());
+        let first = read_u32(&data, position + 3 * 8 + 4).unwrap() as usize;
+        let second = read_u32(&data, position + 4).unwrap() as usize;
+        // Another valid layout can put the later physical record first.
+        put_u32(&mut data, position + 3 * 8 + 4, second);
+        put_u32(&mut data, position + 4, first);
+        let index = CdbIndex::new(&data).unwrap();
+        assert_eq!(index.get(&data, key.as_bytes()), Some(b"second".as_slice()));
+        assert_eq!(&data[index.records[0].value.clone()], b"first");
+        assert_eq!(&data[index.records[1].value.clone()], b"second");
+    }
+
+    #[test]
+    fn static_loader_keeps_backing_bytes_borrowed() {
+        let mut metadata = Vec::new();
+        ciborium::into_writer(&BTreeMap::from([("version", "1")]), &mut metadata).unwrap();
+        let bytes = Box::leak(fixture(&[(META_KEY, &metadata)]).into_boxed_slice());
+        let pointer = bytes.as_ptr();
+        let dictionary = CdbDictionary::from_static_bytes(bytes).unwrap();
+        assert!(matches!(dictionary.data, DataSource::Static(_)));
+        assert_eq!(dictionary.data.as_ptr(), pointer);
     }
 }

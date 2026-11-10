@@ -10,7 +10,8 @@ Gukhanmun is a library for converting Korean text written in mixed script
 in scope to the hanja conversion pipeline and broadened along several axes:
 streaming I/O, pluggable dictionaries, lattice-based segmentation, and a wider
 range of output formats. The project is implemented in Rust and exposed as a
-Rust library, a command-line tool, WebAssembly bindings, and Node-API bindings.
+Rust library, a command-line tool, WebAssembly bindings, Node-API bindings,
+and Python bindings.
 
 [Seonbi]: https://github.com/dahlia/seonbi
 
@@ -29,8 +30,8 @@ disambiguation. It accepts pluggable dictionaries that may be in-memory,
 mmap-backed, or otherwise opaque to the engine. It ships default dictionaries
 derived from the National Institute of Korean Language's *Loanword spelling
 examples* and *Standard Korean Language Dictionary* (標準國語大辭典). It is
-usable from Rust, from Node.js via [Node-API], from browsers and Deno via
-WebAssembly, and from a command line.
+usable from Rust, from Python, from Node.js via [Node-API], from browsers and
+Deno via WebAssembly, and from a command line.
 
 The library provides opt-in output profiles for commas, periods, and explicit
 citation delimiters. The default preserves punctuation. Broader typographic
@@ -586,14 +587,13 @@ Runtime callers load one dictionary artifact; no evidence sidecar is required.
 Two external dictionary backends ship as separate crates.
 
 *gukhanmun-cdb* wraps a CDB file as a `HanjaDictionary`. CDB is djb's constant
-database: a static on-disk hash table with $O(1)$ lookups and trivial format
-documentation. The naive use of CDB as a hanja-to-hangul map fails because CDB
-is a hash table without prefix iteration; there is no way to ask whether some
-key starts with a given byte sequence. We work around this by encoding the
-dictionary as a *trie embedded in the CDB key space*. At build time,
-*gukhanmun-mkdict* enumerates every prefix of every entry and stores a record
-for each, with a one-byte flag distinguishing complete words from intermediate
-prefixes:
+database: a static on-disk hash table with a compact, documented format. The
+naive use of CDB as a hanja-to-hangul map fails because CDB is a hash table
+without prefix iteration; there is no way to ask whether some key starts with a
+given byte sequence. We work around this by encoding the dictionary as a *trie
+embedded in the CDB key space*. At build time, *gukhanmun-mkdict* enumerates
+every prefix of every entry and stores a record for each, with a one-byte flag
+distinguishing complete words from intermediate prefixes:
 
 ~~~~ text
 key   = utf-8 bytes of a prefix
@@ -604,11 +604,24 @@ Lookup walks one character at a time from the cursor position. On a miss, no
 longer match is possible from this position and the walk terminates. On a hit
 with `is_complete = 1`, the match is yielded; on a hit with `is_complete = 0`,
 the walk continues to look for longer matches. The cost is
-$O(\text{max_word_chars})$ CDB lookups per position, and each CDB lookup is
-$O(1)$. The size cost is real: every prefix of every entry occupies a record,
-so the bundled stdict CDB is roughly twice the size of the source TSV. The
-trade-off is that CDB's simplicity (six syscalls of file format, public-domain
-reference implementations) makes the backend trivially auditable.
+$O(\text{max_word_chars})$ indexed key queries per position. At load time,
+the backend validates record framing, table ranges and slot integrity, then
+builds a range index sorted by hash, key bytes and probe order, using $O(N)$
+storage for $N$ records. Before allocating the index, the loader counts
+framed records and checks that the bytes requested for record descriptors and
+lookup positions together do not exceed 64 MiB. The record limit depends on
+these types' sizes: 1,048,576 records on 64-bit targets, at 64 bytes per record
+for the two vectors together. A file with more framed records fails loading.
+Both vectors use `Vec::try_reserve_exact()` without geometric capacity growth.
+This budget excludes the loaded file bytes, decoded metadata and payloads,
+and allocator overhead. Each query hashes its key and
+makes $O(\log N)$ key comparisons, independent of on-disk collision clusters.
+Keys and values stay in the backing bytes; embedded static data is borrowed,
+and candidate payloads are decoded when accessed. The on-disk size cost is
+real: every prefix of every entry occupies a record, so the bundled stdict CDB
+is roughly twice the size of the source TSV. The trade-off is that CDB's
+simplicity (six syscalls of file format, public-domain reference
+implementations) makes the backend trivially auditable.
 
 *gukhanmun-fst* wraps an `fst::Map` as a `HanjaDictionary`. The FST (finite
 state transducer) supports prefix iteration natively and compresses better than
@@ -616,6 +629,34 @@ CDB-as-trie, but its on-disk format is less universally implemented. We provide
 both because users have different priorities; CDB is the choice for
 code-auditability and trivial mmap support, while FST is the choice for small
 WebAssembly bundles.
+
+Before enumerating FST keys, the loader validates the reachable automaton
+with an iterative graph walk. It counts actual accepted keys independently of
+the stored length and of `max_word_chars` metadata. Loading rejects more than
+1,048,576 keys, 128 MiB of total accepted key bytes, 134,217,728 expanded
+traversal node visits (including nonaccepting branches), or a 4,096-byte path.
+A separate 64 MiB graph admission budget charges 128 bytes per unique node
+and 32 bytes per transition. The DFS stack is depth-limited. Fallible layout
+checks run before raw node decoding, without requiring panic unwinding. These
+charges bound admission work rather than measuring allocator overhead or RSS.
+The existing UTF-8-aware maximum-length fallback runs only after this check;
+valid static FST bytes remain borrowed.
+
+Both container loaders (CDB and FST) preflight metadata without allocating
+decoded values. They apply admission charges before CBOR deserialization: 128
+bytes per item and four bytes per byte of text or byte strings. Ordinary
+metadata, including aliases, has a 64 MiB charge budget; every alias row costs
+another 1,536 bytes, including duplicates and ignored rows. Candidate and
+phrase evidence share a separate 1 GiB charge budget to accommodate bundled
+source evidence. Metadata also has an aggregate limit of 8,388,608 CBOR items
+and 32 levels of nesting. Declared collection lengths are checked against the
+remaining item and charge budgets before traversing children. Indefinite
+collections and tagged values consume the same budgets and depth limit. The
+derived phrase index has a separate 64 MiB admission charge, checked before
+construction. Exceeding a limit fails dictionary loading in both formats. These
+are conservative admission estimates, not a bound on process memory; file
+bytes, dictionary indexes and allocator overhead have separate costs. Existing
+semantic and candidate-link validation still applies.
 
 ### Dictionary tooling
 
@@ -1126,6 +1167,8 @@ The Rust source is organized as a Cargo workspace with the following layout:
      -  *gukhanmun-cli/*: the `gukhanmun` command-line binary.
      -  *gukhanmun-wasm/*: WebAssembly bindings via `wasm-bindgen`.
      -  *gukhanmun-napi/*: Node-API bindings via `napi-rs`.
+     -  *gukhanmun-python/*: private Python extension via PyO3.
+ -  *python/gukhanmun/*: Python facade and distribution metadata.
 
 The umbrella crate's feature flags compose the others. Default features enable
 HTML, Markdown, the CDB and FST backends, and the bundled loanwords, stdict,
@@ -1230,6 +1273,29 @@ force the adapter to do partial-codepoint reassembly at every boundary, which
 the platform's `TextDecoderStream` already does correctly. Users who have a
 byte stream chain it through `TextDecoderStream` and then through the gukhanmun
 transform.
+
+### Python package
+
+The Python distribution lives under *python/gukhanmun/* and exposes typed
+Python classes and standard-library enums. Its private `gukhanmun._native`
+extension is built from the unpublished *crates/gukhanmun-python/* crate using
+PyO3 and maturin. The crate inherits the workspace version; the Python manifest
+stores a synchronized version for Python packaging.
+
+`Converter(...)` snapshots configuration and loads explicit map/FST/CDB
+sources during construction. Neither preset loads official dictionary data.
+The native handle owns a `SharedConverter`; conversion releases the GIL
+and shares immutable dictionaries while keeping parser and middleware state
+local to each document. Signals are checked after native work completes.
+
+The current Python stream implementation buffers string chunks until
+`finish()`, and `convert_iter()` adapts an iterable to the same batch-equivalent
+behavior. Public options and nested records are immutable. Errors expose enum
+codes and a frozen cause tuple ordered deepest/root first. The local mise tasks
+build a wheel and test its runtime and typing outside the checkout.
+
+Official data distributions, the complete interpreter/platform matrix and
+registry publishing are separate follow-up work.
 
 ### Dictionary configuration
 
