@@ -578,6 +578,34 @@ def aliases_binary(format: g.DictionaryFormat, aliases: str) -> bytes:
 
 @pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
 @pytest.mark.parametrize("transport", ["bytes", "path", "url"])
+def test_distinct_short_alias_metadata_remains_loadable(format: g.DictionaryFormat, transport: str, tmp_path: Path) -> None:
+    aliases = "".join(f"a{index:05}\tb\tlexical\tc\n" for index in range(32_768))
+    data = aliases_binary(format, aliases)
+    assert len(data) < 1024 * 1024
+
+    def load(descriptor: g.FileDictionarySource | g.UrlDictionarySource) -> g.Converter:
+        # The CDB helper contains metadata only. An explicit entry exercises
+        # conversion after either backend has constructed its alias index.
+        return g.Converter(dictionaries=[descriptor, g.MapDictionarySource([
+            g.DictionaryEntry("天地", "천지"),
+        ])])
+
+    if transport == "url":
+        with dictionary_server(data) as (base, paths):
+            converter = load(g.UrlDictionarySource(base + "/binary", format))
+            assert paths == ["/binary"]
+    elif transport == "path":
+        path = tmp_path / "aliases.data"
+        path.write_bytes(data)
+        converter = load(g.FileDictionarySource(path, format))
+        path.unlink()
+    else:
+        converter = load(g.FileDictionarySource(data, format))
+    assert converter.convert("天地") == "천지"
+
+
+@pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
+@pytest.mark.parametrize("transport", ["bytes", "path", "url"])
 def test_decoded_alias_metadata_budget_is_enforced(format: g.DictionaryFormat, transport: str, tmp_path: Path) -> None:
     # Unique tiny rows expand into nested maps and three owned strings each.
     # The wire payload is well below the default 64 MiB download limit.

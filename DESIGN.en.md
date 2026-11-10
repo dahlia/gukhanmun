@@ -646,7 +646,7 @@ Both container loaders (CDB and FST) preflight metadata without allocating
 decoded values. They apply admission charges before CBOR deserialization: 128
 bytes per item and four bytes per byte of text or byte strings. Ordinary
 metadata, including aliases, has a 64 MiB charge budget; every alias row costs
-another 2,048 bytes, including duplicates and ignored rows. Candidate and
+another 1,536 bytes, including duplicates and ignored rows. Candidate and
 phrase evidence share a separate 1 GiB charge budget to accommodate bundled
 source evidence. Metadata also has an aggregate limit of 8,388,608 CBOR items
 and 32 levels of nesting. Declared collection lengths are checked against the

@@ -69,7 +69,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts before use
     and prevent crafted hash tables from forcing long lookup probe loops during
     conversion. [[#48], [#15], [#55]]
@@ -120,7 +122,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB loading to reject malformed file layouts before use. Crafted hash
     tables can no longer force long lookup probe loops during conversion.
     [[#48], [#15], [#55]]
@@ -150,7 +154,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed FST dictionary loading to limit the number of accepted keys,
     their total byte length and traversal work before enumerating keys, even
     when maximum-length metadata is supplied. Files exceeding these limits
@@ -237,7 +243,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
 
 ### gukhanmun-dict-extract (Rust)
 
@@ -274,7 +282,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed FST dictionary loading to limit the number of accepted keys,
     their total byte length and traversal work before enumerating keys, even
     when maximum-length metadata is supplied. Files exceeding these limits
@@ -325,7 +335,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -402,7 +414,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -466,7 +480,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -491,7 +507,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -512,7 +530,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -533,7 +553,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -554,7 +576,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -575,7 +599,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -596,7 +622,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -701,7 +729,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -753,7 +783,9 @@ To be released.
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `DICTIONARY_LOAD` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]

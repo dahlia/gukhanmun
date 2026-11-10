@@ -7,4 +7,6 @@ links:
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. [[#48], [#15], [#55]]
+    limits through metadata expansion. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the same admission budgets.
+    [[#48], [#15], [#55]]

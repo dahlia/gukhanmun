@@ -30,10 +30,12 @@ pub const MAX_PHRASE_INDEX_ALLOCATION_CHARGE: usize = 64 * 1024 * 1024;
 
 const ITEM_CHARGE: usize = 128;
 const STRING_BYTE_CHARGE: usize = 4;
-// An alias may create two singleton B-tree nodes and three owned strings.
+// Reserve 1.5 KiB per row for the nested B-tree index; string ownership is
+// also covered by STRING_BYTE_CHARGE. This policy leaves room for 32,768 short
+// aliases within the ordinary budget without claiming an allocator/RSS bound.
 // Charge every row, including duplicates and ignored malformed rows, rather
 // than allocating a deduplication table during admission.
-const ALIAS_ROW_CHARGE: usize = 2048;
+const ALIAS_ROW_CHARGE: usize = 1536;
 const MAX_DEPTH: usize = 32;
 
 /// Failure of allocation-free metadata admission before typed deserialization.
@@ -79,7 +81,7 @@ impl Default for Limits {
 /// Both container backends call this before their existing serde decoders. Every
 /// CBOR item costs 128 admission bytes and every string/byte-string byte costs
 /// four, accounting for owned buffers, vector growth, wire-to-typed conversion
-/// and validation collections. Alias rows cost a further 2048 bytes each for
+/// and validation collections. Alias rows cost a further 1536 bytes each for
 /// nested maps and owned strings. Charges are deliberately conservative policy
 /// estimates, not an allocator-specific bound on resident memory.
 ///
@@ -432,23 +434,32 @@ mod tests {
 
     #[test]
     fn tagged_and_chunked_alias_keys_and_values_cannot_bypass_row_charges() {
-        let inputs: &[&[u8]] = &[
-            b"\xa1\xd8\x2a\x67aliases\x6da\tb\tlexical\tc",
-            b"\xa1\x67aliases\xd8\x2a\x6da\tb\tlexical\tc",
-            b"\xbf\x7f\x63ali\x64ases\xff\x7f\x62a\t\x62b\t\x68lexical\t\x61c\xff\xff",
-            b"\xd8\x2a\xa1\x67aliases\x6da\tb\tlexical\tc",
+        let inputs: &[(&[u8], usize)] = &[
+            (b"\xa1\xd8\x2a\x67aliases\x6da\tb\tlexical\tc", 4),
+            (b"\xa1\x67aliases\xd8\x2a\x6da\tb\tlexical\tc", 4),
+            (
+                b"\xbf\x7f\x63ali\x64ases\xff\x7f\x62a\t\x62b\t\x68lexical\t\x61c\xff\xff",
+                9,
+            ),
+            (b"\xd8\x2a\xa1\x67aliases\x6da\tb\tlexical\tc", 4),
         ];
-        for input in inputs {
-            assert_eq!(check_with_limits(input, ordinary(8192, 100)), Ok(()));
-            // Enough for every CBOR item and byte, but not a single alias row.
+        for &(input, items) in inputs {
+            let charge = items * ITEM_CHARGE + 20 * STRING_BYTE_CHARGE + ALIAS_ROW_CHARGE;
+            assert_eq!(check_with_limits(input, ordinary(charge, items)), Ok(()));
             assert!(matches!(
-                check_with_limits(input, ordinary(2047, 100)),
+                check_with_limits(input, ordinary(charge - 1, items)),
                 Err(MetadataResourceError::LimitExceeded { .. })
             ));
         }
         // A newline in its own chunk must still charge another alias row.
-        let input = b"\xa1\x67aliases\x7f\x61a\x61\n\x61b\xff";
-        assert!(check_with_limits(input, ordinary(4096, 100)).is_err());
+        let plain = b"\xa1\x67aliases\x7f\x61a\x61b\x61c\xff";
+        let newline = b"\xa1\x67aliases\x7f\x61a\x61\n\x61b\xff";
+        let single_row = 6 * ITEM_CHARGE + 10 * STRING_BYTE_CHARGE + ALIAS_ROW_CHARGE;
+        assert_eq!(check_with_limits(plain, ordinary(single_row, 6)), Ok(()));
+        assert!(check_with_limits(newline, ordinary(single_row, 6)).is_err());
+        let two_rows = single_row + ALIAS_ROW_CHARGE;
+        assert_eq!(check_with_limits(newline, ordinary(two_rows, 6)), Ok(()));
+        assert!(check_with_limits(newline, ordinary(two_rows - 1, 6)).is_err());
     }
 
     #[test]

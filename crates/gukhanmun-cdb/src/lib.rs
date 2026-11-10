@@ -921,10 +921,10 @@ fn encode_mark(mark: MatchMark) -> u8 {
 mod tests {
     #[test]
     fn metadata_resource_preflight_rejects_alias_expansion_and_huge_nested_headers() {
-        let aliases = "a\tb\tlexical\tc\n".repeat(32_768);
+        let aliases = "a\tb\tlexical\tc\n".repeat(65_536);
         let mut bytes = Vec::new();
         ciborium::into_writer(&BTreeMap::from([("aliases", aliases)]), &mut bytes).unwrap();
-        assert!(bytes.len() < 512 * 1024);
+        assert!(bytes.len() < 1024 * 1024);
         assert!(matches!(super::decode_metadata(&bytes),
             Err(super::Error::SourceEvidence { reason }) if reason.contains("ordinary metadata allocation charge")));
         for field in ["candidate_evidence", "phrase_evidence"] {
@@ -934,6 +934,26 @@ mod tests {
             bytes.extend_from_slice(&u64::MAX.to_be_bytes());
             assert!(matches!(super::decode_metadata(&bytes),
                 Err(super::Error::SourceEvidence { reason }) if reason.contains("limit")));
+        }
+    }
+
+    #[test]
+    fn metadata_preflight_preserves_distinct_short_aliases() {
+        let aliases: String = (0..32_768)
+            .map(|index| format!("a{index:05}\tb\tlexical\tc\n"))
+            .collect();
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("aliases.cdb");
+        write_fixture_with_aliases(
+            &path,
+            &[entry("天地", "천지", false, false)],
+            None,
+            Some(&aliases),
+        );
+        let dictionary = CdbDictionary::open(&path).unwrap();
+        let lexemes = dictionary.lexemes().unwrap();
+        for index in 0..32_768 {
+            assert_eq!(lexemes.canonical(&format!("a{index:05}"), "b"), "c");
         }
     }
 
@@ -1344,7 +1364,19 @@ mod tests {
         entries: &[TestEntry<'_>],
         phrases: Option<&gukhanmun_core::PhraseEvidence>,
     ) {
+        write_fixture_with_aliases(path, entries, phrases, None);
+    }
+
+    fn write_fixture_with_aliases(
+        path: &Path,
+        entries: &[TestEntry<'_>],
+        phrases: Option<&gukhanmun_core::PhraseEvidence>,
+        aliases: Option<&str>,
+    ) {
         let mut metadata = BTreeMap::new();
+        if let Some(aliases) = aliases {
+            metadata.insert("aliases".to_owned(), aliases.to_owned());
+        }
         metadata.insert("source".to_owned(), "fixture".to_owned());
         metadata.insert("license".to_owned(), "CC0-1.0".to_owned());
         metadata.insert("build_date".to_owned(), "1970-01-01T00:00:00Z".to_owned());
