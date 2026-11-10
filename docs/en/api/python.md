@@ -143,10 +143,12 @@ destinations raise `INVALID_INPUT`. `timeout` limits individual socket
 operations. `max_bytes` is a positive integer limiting the dictionary body to
 64 MiB by default; `total_timeout` is a finite positive deadline in seconds,
 shared by HTTP response reads across redirects. Headers and chunk framing also
-obey this deadline. Blocking DNS and connection establishment use the
-standard-library socket timeout and can delay cancellation. Exceeding either
-download bound raises `DICTIONARY_LOAD` with an `IO` cause. Redirect bodies are
-closed without being consumed. Proxy environment variables are not used.
+obey this deadline. DNS resolution occurs before socket timeouts are set and
+can exceed both `timeout` and `total_timeout`. Connection attempts use socket
+timeouts, but retries across resolved addresses and TLS negotiation can delay
+cancellation beyond `total_timeout`. Exceeding either download bound raises
+`DICTIONARY_LOAD` with an `IO` cause. Redirect bodies are closed without being
+consumed. Proxy environment variables are not used.
 
 Every binary source needs `DictionaryFormat.FST` or `CDB`. Role precedence is
 explicit role, embedded source-evidence role, then `OVERRIDE`. Binary source
