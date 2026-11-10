@@ -418,3 +418,58 @@ def test_malformed_cdb_hash_tables_are_rejected_before_conversion(transport: str
         reject(g.FileDictionarySource(path, g.DictionaryFormat.CDB))
     else:
         reject(g.FileDictionarySource(data, g.DictionaryFormat.CDB))
+
+
+def aliases_binary(format: g.DictionaryFormat, aliases: str) -> bytes:
+    # A small CBOR string map is enough to reach eager aliases decoding.
+    def text(value: str) -> bytes:
+        encoded = value.encode("utf-8")
+        return b"\x7a" + struct.pack(">I", len(encoded)) + encoded
+
+    fields = {"version": "2", "entry_count": "4", "max_word_chars": "2", "aliases": aliases}
+    metadata = b"\xa4" + b"".join(text(key) + text(value) for key, value in fields.items())
+    if format is g.DictionaryFormat.FST:
+        template = binary("plain", format)
+        _, _, fst_offset, fst_length, readings_offset, readings_length = struct.unpack_from("<6Q", template, 16)
+        header = bytearray(template[:64])
+        struct.pack_into("<6Q", header, 16, 64, len(metadata), 64 + len(metadata), fst_length,
+                         64 + len(metadata) + fst_length, readings_length)
+        return (bytes(header) + metadata + template[fst_offset:fst_offset + fst_length]
+                + template[readings_offset:readings_offset + readings_length])
+    key = b"__gukhanmun_meta__"
+    data = bytearray(2048)
+    data.extend(struct.pack("<II", len(key), len(metadata)) + key + metadata)
+    hash_value = 5381
+    for byte in key:
+        hash_value = ((hash_value * 33) ^ byte) & 0xffffffff
+    table = len(data)
+    data.extend(bytes(16))
+    struct.pack_into("<II", data, table + ((hash_value >> 8) % 2) * 8, hash_value, 2048)
+    struct.pack_into("<II", data, (hash_value & 0xff) * 8, table, 2)
+    return bytes(data)
+
+
+@pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
+@pytest.mark.parametrize("transport", ["bytes", "path", "url"])
+def test_decoded_alias_metadata_budget_is_enforced(format: g.DictionaryFormat, transport: str, tmp_path: Path) -> None:
+    # Unique tiny rows expand into nested maps and three owned strings each.
+    # The wire payload is well below the default 64 MiB download limit.
+    aliases = "".join(f"{index:x}\tr\tlexical\tc\n" for index in range(100_000))
+    data = aliases_binary(format, aliases)
+    assert len(data) < 4 * 1024 * 1024
+
+    def reject(descriptor: g.FileDictionarySource | g.UrlDictionarySource) -> None:
+        with pytest.raises(g.GukhanmunError) as caught:
+            g.Converter(dictionaries=[descriptor])
+        assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+
+    if transport == "url":
+        with dictionary_server(data) as (base, paths):
+            reject(g.UrlDictionarySource(base + "/binary", format))
+            assert paths == ["/binary"]
+    elif transport == "path":
+        path = tmp_path / "metadata.data"
+        path.write_bytes(data)
+        reject(g.FileDictionarySource(path, format))
+    else:
+        reject(g.FileDictionarySource(data, format))

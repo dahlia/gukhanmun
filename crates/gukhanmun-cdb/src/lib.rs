@@ -209,26 +209,31 @@ impl CdbDictionary {
             })?;
         }
         if let Some(evidence) = dictionary.phrase_evidence.as_ref() {
-            let records = evidence
-                .candidate_keys()
-                .into_iter()
-                .map(|key| {
-                    let entry = dictionary
-                        .lookup(key)?
-                        .ok_or_else(|| Error::SourceEvidence {
-                            reason: format!("phrase evidence references absent key {key:?}"),
-                        })?;
-                    Ok(CandidateRecord {
-                        hanja: key.into(),
-                        candidates: entry.candidates,
-                    })
-                })
-                .collect::<Result<Vec<_>, Error>>()?;
-            evidence
-                .validate_records(records)
-                .map_err(|error| Error::SourceEvidence {
-                    reason: error.to_string(),
-                })?;
+            let mut lookup_error = None;
+            let mut records = evidence.candidate_keys().into_iter().filter_map(|key| {
+                let error = match dictionary.lookup(key) {
+                    Ok(Some(entry)) => {
+                        return Some(CandidateRecord {
+                            hanja: key.into(),
+                            candidates: entry.candidates,
+                        });
+                    }
+                    Ok(None) => Error::SourceEvidence {
+                        reason: format!("phrase evidence references absent key {key:?}"),
+                    },
+                    Err(error) => error,
+                };
+                lookup_error.get_or_insert(error);
+                None
+            });
+            let validation = evidence.validate_records(records.by_ref());
+            records.for_each(drop);
+            if let Some(error) = lookup_error {
+                return Err(error);
+            }
+            validation.map_err(|error| Error::SourceEvidence {
+                reason: error.to_string(),
+            })?;
             dictionary.phrase_index = Some(Arc::new(
                 PhraseIndex::from_shared_evidence(evidence.clone()).map_err(|error| {
                     Error::SourceEvidence {
@@ -835,6 +840,14 @@ fn decode_metadata(bytes: &[u8]) -> Result<StoredMetadata, Error> {
             reason: "metadata exceeds host byte limit".into(),
         });
     }
+    gukhanmun_core::check_metadata_resources(bytes).map_err(|error| match error {
+        gukhanmun_core::MetadataResourceError::InvalidCbor { offset } => Error::MetadataDecode {
+            source: ciborium::de::Error::Syntax(offset),
+        },
+        error => Error::SourceEvidence {
+            reason: error.to_string(),
+        },
+    })?;
     let mut reader = std::io::Cursor::new(bytes);
     let decoded: StoredMetadata =
         from_reader(&mut reader).map_err(|source| Error::MetadataDecode { source })?;
@@ -844,6 +857,11 @@ fn decode_metadata(bytes: &[u8]) -> Result<StoredMetadata, Error> {
         })?;
     }
     if let Some(evidence) = decoded.phrase_evidence.as_ref() {
+        gukhanmun_core::check_phrase_index_resources(evidence).map_err(|error| {
+            Error::SourceEvidence {
+                reason: error.to_string(),
+            }
+        })?;
         evidence.validate().map_err(|error| Error::SourceEvidence {
             reason: error.to_string(),
         })?;
@@ -901,6 +919,37 @@ fn encode_mark(mark: MatchMark) -> u8 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn metadata_resource_preflight_rejects_alias_expansion_and_huge_nested_headers() {
+        let aliases = "a\tb\tlexical\tc\n".repeat(32_768);
+        let mut bytes = Vec::new();
+        ciborium::into_writer(&BTreeMap::from([("aliases", aliases)]), &mut bytes).unwrap();
+        assert!(bytes.len() < 512 * 1024);
+        assert!(matches!(super::decode_metadata(&bytes),
+            Err(super::Error::SourceEvidence { reason }) if reason.contains("ordinary metadata allocation charge")));
+        for field in ["candidate_evidence", "phrase_evidence"] {
+            let mut bytes = vec![0xa1, 0x60 + field.len() as u8];
+            bytes.extend_from_slice(field.as_bytes());
+            bytes.push(0x9b);
+            bytes.extend_from_slice(&u64::MAX.to_be_bytes());
+            assert!(matches!(super::decode_metadata(&bytes),
+                Err(super::Error::SourceEvidence { reason }) if reason.contains("limit")));
+        }
+    }
+
+    #[test]
+    fn metadata_preflight_retains_tagged_and_chunked_alias_compatibility() {
+        for input in [
+            b"\xa1\xd8\x2a\x67aliases\x6da\tb\tlexical\tc".as_slice(),
+            b"\xa1\x67aliases\xd8\x2a\x6da\tb\tlexical\tc",
+            b"\xbf\x7f\x63ali\x64ases\xff\x7f\x62a\t\x62b\t\x68lexical\t\x61c\xff\xff",
+            b"\xd8\x2a\xa1\x67aliases\x6da\tb\tlexical\tc",
+        ] {
+            let metadata = super::decode_metadata(input).unwrap_or_else(|error| panic!("{error}"));
+            assert_eq!(metadata.strings.get("aliases").unwrap(), "a\tb\tlexical\tc");
+        }
+    }
+
     use std::collections::BTreeMap;
     use std::fs;
     use std::path::Path;

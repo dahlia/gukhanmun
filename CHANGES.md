@@ -66,6 +66,10 @@ To be released.
     [[#47], [#54]]
  -  Exposed typed dictionary source evidence and validation APIs through the
     Rust facade. [[#42], [#44]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts before use
     and prevent crafted hash tables from forcing long lookup probe loops during
     conversion. [[#48], [#15], [#55]]
@@ -108,6 +112,10 @@ To be released.
     evidence is validated on load, and unsupported or stale constraints are
     rejected. Phrase indexes are cached per dictionary for reuse across
     engines. [[#38], [#39], [#41], [#42], [#44], [#45]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB loading to reject malformed file layouts before use. Crafted hash
     tables can no longer force long lookup probe loops during conversion.
     [[#48], [#15], [#55]]
@@ -134,6 +142,10 @@ To be released.
     streaming and applies each directive with the dictionary's lexeme index, so
     a reviewed alias resolves without buffering the whole document.
     [[#38], [#39]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed custom CDB dictionary loading to reject malformed file layouts before
     conversion. Crafted hash tables can no longer force long lookup probe loops
     during conversion. [[#48], [#15], [#55]]
@@ -212,6 +224,10 @@ To be released.
  -  Added typed source evidence, candidate-link validation, and
     `HanjaDictionary::source_evidence()` for inspecting dictionary provenance
     without changing legacy reading selection. [[#42], [#44]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
 
 ### gukhanmun-dict-extract (Rust)
 
@@ -245,6 +261,10 @@ To be released.
     evidence is validated on load, and unsupported or stale constraints are
     rejected. Phrase indexes are cached per dictionary for reuse across
     engines. [[#38], [#39], [#41], [#42], [#44], [#45]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
 
 ### gukhanmun-loanwords (Rust)
 
@@ -287,6 +307,10 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -355,6 +379,10 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -410,6 +438,10 @@ To be released.
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -426,6 +458,10 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Daarch64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -438,6 +474,10 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Daarch64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -450,6 +490,10 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Daarch64%2Dunknown%2Dlinux%2Dgnu%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -462,6 +506,10 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Dx86_64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -474,6 +522,10 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Dx86_64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -486,6 +538,10 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fnapi%2Dx86_64%2Dunknown%2Dlinux%2Dgnu%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -582,6 +638,10 @@ To be released.
  -  Converters now default to reference-authorized source cooperation.
     Configure `sourcePolicy`, `referenceOnly` and dictionary descriptor roles;
     `ordered` restores legacy dictionary-array precedence. [[#42], [#44]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
@@ -619,6 +679,10 @@ To be released.
     DNS lookup or connection setup can be delayed beyond `total_timeout`;
     the existing per-operation `timeout` is preserved.
     [[#48], [#15], [#55]]
+ -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
+    decoded-allocation admission budgets before expanding aliases or typed
+    evidence. Small files with many alias rows can no longer bypass loading
+    limits through metadata expansion. [[#48], [#15], [#55]]
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `DICTIONARY_LOAD` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
