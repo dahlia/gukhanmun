@@ -39,6 +39,10 @@ const MARK_REQUIRE_HANGUL: u8 = 0b0000_0010;
 /// The CDB header is 2048 bytes: 256 slots × (u32le pos, u32le count).
 const HEADER_SIZE: usize = 2048;
 
+/// Maximum requested heap bytes for the record and lookup indexes combined.
+/// This excludes backing bytes, decoded metadata, and allocator bookkeeping.
+const MAX_INDEX_BYTES: usize = 64 * 1024 * 1024;
+
 /// Backing byte store for a [`CdbDictionary`]: either a reference-counted
 /// owned allocation (from [`CdbDictionary::from_bytes`] /
 /// [`CdbDictionary::open`]) or a zero-cost borrow of static memory (from
@@ -64,6 +68,12 @@ impl Deref for DataSource {
 /// The CDB bytes are held in an internal backing store that is either an
 /// [`Arc<[u8]>`]-backed owned allocation or a zero-copy borrow of a
 /// `'static` slice, depending on how the dictionary was loaded.
+///
+/// Loading limits the combined record and lookup index allocations to 64 MiB
+/// of requested storage, independently of the input byte length. Dictionaries
+/// exceeding that limit return [`Error::MalformedRecord`] before allocating
+/// either index. Backing bytes, decoded metadata, and allocator bookkeeping
+/// are separate from this limit.
 pub struct CdbDictionary {
     metadata: BTreeMap<String, String>,
     format_version: u32,
@@ -518,11 +528,18 @@ struct CdbIndex {
 
 impl CdbIndex {
     fn new(data: &[u8]) -> Result<Self, Error> {
+        Self::with_index_limit(data, MAX_INDEX_BYTES)
+    }
+
+    fn with_index_limit(data: &[u8], max_index_bytes: usize) -> Result<Self, Error> {
         if data.len() < HEADER_SIZE {
             return Err(Error::TooShort { len: data.len() });
         }
         let malformed = |reason| Error::MalformedRecord { reason };
-        let mut tables = Vec::new();
+        // The header has exactly 256 buckets; its validation needs no heap
+        // allocation, even when the record count exceeds the index limit.
+        let mut tables = [(0, 0, 0, 0); 256];
+        let mut table_count = 0;
         let mut data_end = data.len();
         for bucket in 0..256 {
             // The complete header was checked above.
@@ -541,42 +558,56 @@ impl CdbIndex {
                 .filter(|&end| end <= data.len())
                 .ok_or_else(|| malformed("hash table range is outside the CDB data"))?;
             if count != 0 {
-                tables.push((position, end, bucket, count));
+                tables[table_count] = (position, end, bucket, count);
+                table_count += 1;
             }
         }
+        let tables = &mut tables[..table_count];
         tables.sort_unstable_by_key(|table| table.0);
         if tables.windows(2).any(|pair| pair[0].1 > pair[1].0) {
             return Err(malformed("hash table ranges overlap"));
         }
 
-        let mut records = Vec::new();
+        // Count and validate framing without allocating or hashing keys. Divide
+        // the byte budget first so count arithmetic stays bounded on 32-bit
+        // hosts as well. Both indexes are included before either is allocated.
+        let max_records = max_index_bytes / (size_of::<CdbRecord>() + size_of::<usize>());
+        let mut record_count = 0;
         let mut position = HEADER_SIZE;
         while position < data_end {
-            let header_end = position
-                .checked_add(8)
-                .filter(|&end| end <= data_end)
-                .ok_or_else(|| malformed("truncated CDB record header"))?;
-            let key_len = read_u32(data, position).unwrap() as usize;
-            let value_len = read_u32(data, position + 4).unwrap() as usize;
-            let key_end = header_end
-                .checked_add(key_len)
-                .filter(|&end| end <= data_end)
-                .ok_or_else(|| malformed("CDB key extends beyond the record area"))?;
-            let value_end = key_end
-                .checked_add(value_len)
-                .filter(|&end| end <= data_end)
-                .ok_or_else(|| malformed("CDB value extends beyond the record area"))?;
+            if record_count == max_records {
+                return Err(malformed("CDB range index exceeds host byte limit"));
+            }
+            let (_, value) = cdb_record_ranges(data, position, data_end)?;
+            position = value.end;
+            record_count += 1;
+        }
+
+        // Exact reservations avoid geometric Vec growth and overlapping old
+        // and new buffers. No later push/extend can exceed these reservations.
+        let mut records = Vec::new();
+        records
+            .try_reserve_exact(record_count)
+            .map_err(|_| malformed("CDB record index allocation failed"))?;
+        let mut lookup = Vec::new();
+        lookup
+            .try_reserve_exact(record_count)
+            .map_err(|_| malformed("CDB lookup index allocation failed"))?;
+        position = HEADER_SIZE;
+        while position < data_end {
+            let (key, value) = cdb_record_ranges(data, position, data_end)?;
+            let value_end = value.end;
             records.push(CdbRecord {
                 position,
-                key: header_end..key_end,
-                value: key_end..value_end,
-                hash: cdb_hash(&data[header_end..key_end]),
+                hash: cdb_hash(&data[key.clone()]),
+                key,
+                value,
                 probe_rank: usize::MAX,
             });
             position = value_end;
         }
 
-        for (position, _, bucket, count) in tables {
+        for &(position, _, bucket, count) in tables.iter() {
             // Start after an empty slot, so each probe cluster is a linear
             // interval. Full tables have no unreachable slots and are safe
             // to accept because runtime lookup never probes them.
@@ -614,7 +645,7 @@ impl CdbIndex {
         if records.iter().any(|record| record.probe_rank == usize::MAX) {
             return Err(malformed("CDB record is absent from the hash tables"));
         }
-        let mut lookup = (0..records.len()).collect::<Vec<_>>();
+        lookup.extend(0..record_count);
         lookup.sort_unstable_by(|&left, &right| {
             let left = &records[left];
             let right = &records[right];
@@ -645,6 +676,30 @@ impl CdbIndex {
         let record = &self.records[*self.lookup.get(index)?];
         compare(record).is_eq().then_some(record)
     }
+}
+
+/// Validate one physical record without allocating or decoding its contents.
+fn cdb_record_ranges(
+    data: &[u8],
+    position: usize,
+    data_end: usize,
+) -> Result<(Range<usize>, Range<usize>), Error> {
+    let malformed = |reason| Error::MalformedRecord { reason };
+    let header_end = position
+        .checked_add(8)
+        .filter(|&end| end <= data_end)
+        .ok_or_else(|| malformed("truncated CDB record header"))?;
+    let key_len = read_u32(data, position).unwrap() as usize;
+    let value_len = read_u32(data, position + 4).unwrap() as usize;
+    let key_end = header_end
+        .checked_add(key_len)
+        .filter(|&end| end <= data_end)
+        .ok_or_else(|| malformed("CDB key extends beyond the record area"))?;
+    let value_end = key_end
+        .checked_add(value_len)
+        .filter(|&end| end <= data_end)
+        .ok_or_else(|| malformed("CDB value extends beyond the record area"))?;
+    Ok((header_end..key_end, key_end..value_end))
 }
 
 fn circular_distance(start: usize, end: usize, count: usize) -> usize {
@@ -1399,6 +1454,65 @@ mod cdb_structure_tests {
             read_u32(data, header).unwrap() as usize,
             read_u32(data, header + 4).unwrap() as usize,
         )
+    }
+
+    #[test]
+    fn index_byte_budget_accepts_exact_boundary_without_capacity_growth() {
+        // Tiny duplicate/empty records maximize index amplification. Keep an
+        // odd count to catch geometric Vec growth beyond the byte budget.
+        let data = fixture(&[(b"", b""), (b"", b""), (b"key", b"value")]);
+        let bytes_per_record = size_of::<CdbRecord>() + size_of::<usize>();
+        let budget = 3 * bytes_per_record;
+        let index = CdbIndex::with_index_limit(&data, budget).unwrap();
+        assert_eq!(index.records.len(), 3);
+        assert_eq!(index.lookup.len(), 3);
+        assert!(
+            index.records.capacity() * size_of::<CdbRecord>()
+                + index.lookup.capacity() * size_of::<usize>()
+                <= budget
+        );
+        assert_eq!(index.get(&data, b""), Some(b"".as_slice()));
+        assert_eq!(index.get(&data, b"key"), Some(b"value".as_slice()));
+        assert!(matches!(
+            CdbIndex::with_index_limit(&data, budget - 1),
+            Err(Error::MalformedRecord {
+                reason: "CDB range index exceeds host byte limit"
+            })
+        ));
+        // A zero budget still admits a structurally valid empty CDB.
+        let empty = CdbIndex::with_index_limit(&fixture(&[]), 0).unwrap();
+        assert_eq!(empty.records.capacity(), 0);
+        assert_eq!(empty.lookup.capacity(), 0);
+    }
+
+    #[test]
+    fn record_count_limit_precedes_index_construction_and_slot_validation() {
+        let mut data = fixture(&[(b"", b""), (b"", b"")]);
+        let (position, count) = table(&data, b"");
+        let slot = (cdb_hash(b"") >> 8) as usize % count;
+        put_u32(&mut data, position + slot * 8, 0);
+        let bytes_per_record = size_of::<CdbRecord>() + size_of::<usize>();
+        assert!(matches!(
+            CdbIndex::with_index_limit(&data, bytes_per_record),
+            Err(Error::MalformedRecord {
+                reason: "CDB range index exceeds host byte limit"
+            })
+        ));
+        assert!(matches!(
+            CdbIndex::new(&data),
+            Err(Error::MalformedRecord {
+                reason: "hash slot does not match its key and bucket"
+            })
+        ));
+        // The production budget rejects the reported 3.9-million-record input
+        // on both 32- and 64-bit hosts without creating that large fixture.
+        assert!(MAX_INDEX_BYTES / bytes_per_record < 3_900_000);
+        assert!(
+            (MAX_INDEX_BYTES / bytes_per_record)
+                .checked_mul(bytes_per_record)
+                .unwrap()
+                <= MAX_INDEX_BYTES
+        );
     }
 
     #[test]

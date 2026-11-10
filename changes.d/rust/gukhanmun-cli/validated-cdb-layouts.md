@@ -7,3 +7,8 @@ links:
  -  Fixed custom CDB dictionary loading to reject malformed file layouts before
     conversion. Crafted hash tables can no longer force long lookup probe loops
     during conversion. [[#48], [#15], [#55]]
+
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]

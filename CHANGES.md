@@ -69,6 +69,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts before use
     and prevent crafted hash tables from forcing long lookup probe loops during
     conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
  -  The exported core pipeline preserves source-aware selection metadata through
     annotations and middleware, including aliases, particles, authorial glosses,
     and first-occurrence/homophone identity. Source-aware dictionary matches
@@ -105,8 +109,12 @@ To be released.
     rejected. Phrase indexes are cached per dictionary for reuse across
     engines. [[#38], [#39], [#41], [#42], [#44], [#45]]
  -  Fixed CDB loading to reject malformed file layouts before use. Crafted hash
-    tables can no longer force long lookup probe loops during conversion; valid
-    dictionary files remain supported. [[#48], [#15], [#55]]
+    tables can no longer force long lookup probe loops during conversion.
+    [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
 
 ### gukhanmun-cli (Rust)
 
@@ -129,6 +137,10 @@ To be released.
  -  Fixed custom CDB dictionary loading to reject malformed file layouts before
     conversion. Crafted hash tables can no longer force long lookup probe loops
     during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -278,6 +290,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -342,6 +358,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -393,6 +413,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -405,6 +429,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-aarch64-pc-windows-msvc (JavaScript/TypeScript)
 
@@ -413,6 +441,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-aarch64-unknown-linux-gnu (JavaScript/TypeScript)
 
@@ -421,6 +453,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-x86\_64-apple-darwin (JavaScript/TypeScript)
 
@@ -429,6 +465,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-x86\_64-pc-windows-msvc (JavaScript/TypeScript)
 
@@ -437,6 +477,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
 
 ### @gukhanmun/napi-x86\_64-unknown-linux-gnu (JavaScript/TypeScript)
 
@@ -445,6 +489,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
 
 ### @gukhanmun/opendict-cdb (JavaScript/TypeScript)
 
@@ -537,6 +585,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `dictionary-load` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -570,6 +622,10 @@ To be released.
  -  Fixed CDB dictionary loading to reject malformed file layouts with a
     `DICTIONARY_LOAD` error. Crafted hash tables can no longer force long
     lookup probe loops during conversion. [[#48], [#15], [#55]]
+ -  Changed CDB loading to reject dictionaries whose record index requests
+    more than 64 MiB, before allocating the index. Loaded file bytes,
+    decoded metadata and payloads, and allocator overhead use additional
+    memory. [[#48], [#15], [#55]]
 
 <!-- sacho:unreleased:end -->
 

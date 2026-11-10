@@ -607,13 +607,20 @@ the walk continues to look for longer matches. The cost is
 $O(\text{max_word_chars})$ indexed key queries per position. At load time,
 the backend validates record framing, table ranges and slot integrity, then
 builds a range index sorted by hash, key bytes and probe order, using $O(N)$
-storage for $N$ records. Each query
-hashes its key and makes $O(\log N)$ key comparisons, independent of on-disk
-collision clusters. Keys and values stay in the backing bytes; embedded static
-data is borrowed, and candidate payloads are decoded when accessed. The on-disk
-size cost is real: every prefix of every entry occupies a record, so the
-bundled stdict CDB is roughly twice the size of the source TSV. The trade-off
-is that CDB's simplicity (six syscalls of file format, public-domain reference
+storage for $N$ records. Before allocating the index, the loader counts
+framed records and checks that the bytes requested for record descriptors and
+lookup positions together do not exceed 64 MiB. The record limit depends on
+these types' sizes: 1,048,576 records on 64-bit targets, at 64 bytes per record
+for the two vectors together. A file with more framed records fails loading.
+Both vectors use `Vec::try_reserve_exact()` without geometric capacity growth.
+This budget excludes the loaded file bytes, decoded metadata and payloads,
+and allocator overhead. Each query hashes its key and
+makes $O(\log N)$ key comparisons, independent of on-disk collision clusters.
+Keys and values stay in the backing bytes; embedded static data is borrowed,
+and candidate payloads are decoded when accessed. The on-disk size cost is
+real: every prefix of every entry occupies a record, so the bundled stdict CDB
+is roughly twice the size of the source TSV. The trade-off is that CDB's
+simplicity (six syscalls of file format, public-domain reference
 implementations) makes the backend trivially auditable.
 
 *gukhanmun-fst* wraps an `fst::Map` as a `HanjaDictionary`. The FST (finite
