@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from urllib.parse import quote, urljoin
+from urllib.parse import quote, urljoin, urlsplit
 from typing import IO, TypeAlias, cast
 
 from ._native import Converter as NativeConverter
@@ -131,7 +131,22 @@ def _io_error(error: Exception, description: str) -> GukhanmunError:
     return GukhanmunError(ErrorCode.DICTIONARY_LOAD, description, causes)
 
 
+def _url_origin(url: str) -> tuple[str, str, int]:
+    parsed = urlsplit(_url(url))
+    scheme = parsed.scheme.lower()
+    port = parsed.port
+    return (scheme, cast(str, parsed.hostname),
+            port if port is not None else (443 if scheme == "https" else 80))
+
+
 class _HttpRedirects(urllib.request.HTTPRedirectHandler):
+    def __init__(self, initial_url: str) -> None:
+        self.origin = _url_origin(initial_url)
+
+    def _validate_target(self, target: str) -> None:
+        if _url_origin(target) != self.origin:
+            raise _invalid("dictionary URL redirects must stay on the configured origin")
+
     def redirect_request(
         self,
         req: urllib.request.Request,
@@ -143,7 +158,7 @@ class _HttpRedirects(urllib.request.HTTPRedirectHandler):
     ) -> urllib.request.Request | None:
         # Validate before the parent creates or dispatches the next request.
         try:
-            _url(newurl)
+            self._validate_target(newurl)
             return super().redirect_request(req, fp, code, msg, headers, newurl)
         finally:
             # urllib otherwise drains the redirect body with an unbounded read.
@@ -166,7 +181,7 @@ class _HttpRedirects(urllib.request.HTTPRedirectHandler):
             # checking the target. Spaces in Location are normalized by urllib.
             target = quote(location, encoding="iso-8859-1", safe=string.punctuation)
             try:
-                _url(urljoin(req.full_url, target))
+                self._validate_target(urljoin(req.full_url, target))
             except GukhanmunError:
                 fp.close()
                 raise
@@ -252,7 +267,7 @@ def _fetch(source: UrlDictionarySource) -> bytes:
     opener = urllib.request.OpenerDirector()
     for handler in (
         urllib.request.ProxyHandler({}), Http(), Https(),
-        urllib.request.HTTPDefaultErrorHandler(), _HttpRedirects(),
+        urllib.request.HTTPDefaultErrorHandler(), _HttpRedirects(source.url),
         urllib.request.HTTPErrorProcessor(),
     ):
         opener.add_handler(handler)

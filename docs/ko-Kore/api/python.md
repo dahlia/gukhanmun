@@ -140,9 +140,16 @@ enum 클래스의 멤버를 직접 전달하면 `TypeError`가 발생합니다. 
 생성 시 읽습니다.
 
 `UrlDictionarySource(url, format, role=None, timeout=30.0, max_bytes=67108864, total_timeout=30.0)`는
-변환기 생성 시 HTTP(S) 다운로드를 요청합니다. 잘못된 URL/포트, 허용하지 않은
-스킴과 리다이렉트 대상은 `INVALID_INPUT`입니다. `timeout`은 각 소켓 작업의 제한
-시간입니다. 양의 정수인 `max_bytes`는 사전 본문 크기를 기본 64 MiB로
+변환기 생성 시 HTTP(S) 다운로드를 요청합니다. 리다이렉트는 최초 URL과 스킴,
+호스트 이름, 유효 포트가 같아야 합니다. DNS 호스트 이름의 대소문자는 구분하지
+않지만 IPv6 scope 식별자는 정확히 비교합니다. 생략한 포트는 HTTP 80, HTTPS
+443으로 비교합니다. 다른 origin으로의 리다이렉트는 대상에 요청을 보내기 전에
+`INVALID_INPUT`으로 거부합니다. 같은 origin의 상대/절대 리다이렉트는
+지원합니다. 다른 origin의 사전은 최종 URL을 직접 지정하세요. 최초 URL은 내부
+서비스 주소를 포함해 호출자가 선택합니다. Origin 검사는 URL 구성 요소를
+비교하며, DNS로 조회한 IP 주소는 검사하지 않습니다. 잘못된 URL/포트, 허용하지
+않은 스킴과 리다이렉트 대상은 `INVALID_INPUT`입니다. `timeout`은 각 소켓 작업의
+제한 시간입니다. 양의 정수인 `max_bytes`는 사전 본문 크기를 기본 64 MiB로
 제한합니다. 양의 유한한 초 단위 값인 `total_timeout`은 리다이렉트 전체에 걸쳐
 HTTP 응답을 읽는 기한이며, 헤더와 청크 구문에도 적용합니다. DNS 조회는 소켓
 제한 시간을 설정하기 전에 실행하므로 `timeout`과 `total_timeout`을 모두 초과할

@@ -11,3 +11,8 @@ links:
     DNS lookup or connection setup can be delayed beyond `total_timeout`;
     the existing per-operation `timeout` is preserved.
     [[#48], [#15], [#55]]
+
+ -  Changed URL dictionary loading to follow redirects only within the initial
+    URL's origin (scheme, hostname and effective port). Redirects to another
+    origin raise `INVALID_INPUT` before a request is sent; configure a different
+    origin's final URL directly. [[#48], [#15], [#55]]

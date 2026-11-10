@@ -19,16 +19,20 @@ from __future__ import annotations
 from contextlib import contextmanager
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import http.client
+import io
 import ssl
 import struct
 import os
 from pathlib import Path
 from threading import Event, Thread
 import time
+import urllib.request
 
 import pytest
 
 import gukhanmun as g
+from gukhanmun import _api
 
 
 FIXTURES = Path(os.environ["GUKHANMUN_FIXTURE_DIR"])
@@ -129,7 +133,7 @@ def test_phrase_constraints_preserve_candidate_ownership_and_boundaries(format: 
 
 
 @contextmanager
-def dictionary_server(data: bytes) -> Iterator[tuple[str, list[str]]]:
+def dictionary_server(data: bytes, *, redirects: dict[str, tuple[int, str]] | None = None) -> Iterator[tuple[str, list[str]]]:
     paths: list[str] = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -138,7 +142,12 @@ def dictionary_server(data: bytes) -> Iterator[tuple[str, list[str]]]:
 
         def do_GET(self) -> None:
             paths.append(self.path)
-            if self.path == "/redirect":
+            if redirects is not None and self.path in redirects:
+                code, target = redirects[self.path]
+                self.send_response(code)
+                self.send_header("Location", target)
+                self.end_headers()
+            elif self.path == "/redirect":
                 self.send_response(302)
                 self.send_header("Location", "/binary")
                 self.end_headers()
@@ -183,6 +192,112 @@ def test_redirects_percent_quote_spaces_before_validation(format: g.DictionaryFo
         converter = g.Converter(dictionaries=[g.UrlDictionarySource(base + "/spaced-redirect", format)])
         assert requests == ["/spaced-redirect", "/my%20dict.fst"]
         assert converter.convert("無條件降服") == "무조건항복"
+
+
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+@pytest.mark.parametrize("target_form", ["host", "port", "network-path"])
+@pytest.mark.parametrize("chain", [False, True])
+def test_cross_origin_redirect_never_contacts_target(code: int, target_form: str, chain: bool) -> None:
+    data = binary("reference", g.DictionaryFormat.FST)
+    with dictionary_server(data) as (target_base, target_paths):
+        target = target_base + "/binary"
+        if target_form == "host":
+            target = target.replace("127.0.0.1", "localhost")
+        elif target_form == "network-path":
+            target = target.removeprefix("http:")
+        redirects = {"/start": (code, target)}
+        if chain:
+            redirects = {"/start": (code, "/next"), "/next": (code, target)}
+        with dictionary_server(data, redirects=redirects) as (base, paths):
+            try:
+                with pytest.raises(g.GukhanmunError) as caught:
+                    g.Converter(dictionaries=[g.UrlDictionarySource(base + "/start", g.DictionaryFormat.FST)])
+                assert caught.value.code is g.ErrorCode.INVALID_INPUT
+                assert caught.value.chain == ()
+            finally:
+                # Even a blind GET to an unrelated local resource is forbidden.
+                assert target_paths == []
+            assert paths == (["/start", "/next"] if chain else ["/start"])
+
+
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+def test_same_origin_relative_and_absolute_redirect_chain(code: int) -> None:
+    data = binary("reference", g.DictionaryFormat.FST)
+    redirects = {"/start": (code, "/next")}
+    with dictionary_server(data, redirects=redirects) as (base, paths):
+        redirects["/next"] = (code, base + "/my dict.fst")
+        converter = g.Converter(dictionaries=[g.UrlDictionarySource(base + "/start", g.DictionaryFormat.FST)])
+        assert paths == ["/start", "/next", "/my%20dict.fst"]
+        assert converter.convert("無條件降服") == "무조건항복"
+
+
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+def test_rejected_redirect_response_closes_before_request_creation(code: int, monkeypatch: pytest.MonkeyPatch) -> None:
+    handler = _api._HttpRedirects("http://example.test/start")
+    response = io.BytesIO(b"redirect body must not be read")
+    headers = http.client.HTTPMessage()
+    headers["Location"] = "https://example.test/private"
+
+    def unexpected_request(*args: object) -> None:
+        pytest.fail("a rejected redirect must not construct its next request")
+
+    monkeypatch.setattr(urllib.request.HTTPRedirectHandler, "redirect_request", unexpected_request)
+    callback = getattr(handler, f"http_error_{code}")
+    with pytest.raises(g.GukhanmunError) as caught:
+        callback(urllib.request.Request("http://example.test/start"), response, code, "Redirect", headers)
+    assert caught.value.code is g.ErrorCode.INVALID_INPUT
+    assert response.closed
+
+
+@pytest.mark.parametrize("initial,target,allowed", [
+    ("http://example.test/start", "http://EXAMPLE.TEST/end", True),
+    ("http://example.test/start", "http://example.test:80/end", True),
+    ("http://example.test:80/start", "http://example.test/end", True),
+    ("https://example.test/start", "https://example.test:443/end", True),
+    ("https://example.test:443/start", "https://example.test/end", True),
+    ("http://example.test:0/start", "http://example.test:0/end", True),
+    ("http://[::1]/start", "http://[::1]:80/end", True),
+    ("http://[FE80::1%25ETH0]/start", "http://[fe80::1%25ETH0]/end", True),
+    ("http://[fe80::1%25ETH0]/start", "http://[fe80::1%25eth0]/end", False),
+    ("http://[fe80::1%25eth0]/start", "http://[fe80::1%25ETH0]/end", False),
+    ("http://example.test/start", "https://example.test/end", False),
+    ("https://example.test/start", "http://example.test/end", False),
+    ("http://example.test/start", "http://other.test/end", False),
+    ("http://example.test/start", "http://example.test:81/end", False),
+    ("http://example.test/start", "http://example.test:0/end", False),
+    ("http://example.test:0/start", "http://example.test/end", False),
+    ("https://example.test/start", "https://example.test:0/end", False),
+    ("http://example.test/start", "http://127.0.0.1/end", False),
+    ("http://example.test/start", "http://[::1]/end", False),
+])
+def test_redirect_origin_validation_precedes_request_creation_and_closes_response(
+    initial: str, target: str, allowed: bool, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _api._HttpRedirects(initial)
+    created: list[str] = []
+
+    def create_request(self: urllib.request.HTTPRedirectHandler, req: urllib.request.Request,
+                       fp: io.BytesIO, code: int, msg: str, headers: http.client.HTTPMessage,
+                       newurl: str) -> urllib.request.Request:
+        created.append(newurl)
+        return urllib.request.Request(newurl)
+
+    monkeypatch.setattr(urllib.request.HTTPRedirectHandler, "redirect_request", create_request)
+    response = io.BytesIO(b"redirect body must not be read")
+    request = urllib.request.Request(initial)
+    headers = http.client.HTTPMessage()
+    if allowed:
+        redirected = handler.redirect_request(request, response, 302, "Found", headers, target)
+        assert redirected is not None
+        assert redirected.full_url == target
+        assert created == [target]
+    else:
+        with pytest.raises(g.GukhanmunError) as caught:
+            handler.redirect_request(request, response, 302, "Found", headers, target)
+        assert caught.value.code is g.ErrorCode.INVALID_INPUT
+        assert caught.value.chain == ()
+        assert created == []
+    assert response.closed
 
 
 @pytest.mark.parametrize("timeout", [1e300, 10**30])

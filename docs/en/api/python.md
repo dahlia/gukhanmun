@@ -138,14 +138,22 @@ surrogateescape paths, and are read during converter construction.
 
 `UrlDictionarySource(url, format, role=None, timeout=30.0, max_bytes=67108864, total_timeout=30.0)`
 explicitly requests an HTTP(S) download during converter construction.
-Malformed URLs, invalid ports, forbidden schemes and forbidden redirect
-destinations raise `INVALID_INPUT`. `timeout` limits individual socket
-operations. `max_bytes` is a positive integer limiting the dictionary body to
-64 MiB by default; `total_timeout` is a finite positive deadline in seconds,
-shared by HTTP response reads across redirects. Headers and chunk framing also
-obey this deadline. DNS resolution occurs before socket timeouts are set and
-can exceed both `timeout` and `total_timeout`. Connection attempts use socket
-timeouts, but retries across resolved addresses and TLS negotiation can delay
+Redirects must keep the initial URL's scheme, hostname and effective port (80
+for HTTP or 443 for HTTPS when omitted). DNS hostname case is ignored; IPv6
+scope identifiers are compared exactly. A redirect to a different origin raises
+`INVALID_INPUT` before the target is requested. Relative and absolute redirects
+within the same origin are supported. For a dictionary hosted on another
+origin, configure its final URL directly. The initial URL remains
+caller-selected, including internal endpoints. Origin checks compare URL
+components without inspecting resolved IP addresses. Malformed URLs, invalid
+ports, forbidden schemes and forbidden redirect destinations raise
+`INVALID_INPUT`. `timeout` limits individual socket operations. `max_bytes` is
+a positive integer limiting the dictionary body to 64 MiB by default;
+`total_timeout` is a finite positive deadline in seconds, shared by HTTP
+response reads across redirects. Headers and chunk framing also obey this
+deadline. DNS resolution occurs before socket timeouts are set and can exceed
+both `timeout` and `total_timeout`. Connection attempts use socket timeouts,
+but retries across resolved addresses and TLS negotiation can delay
 cancellation beyond `total_timeout`. Exceeding either download bound raises
 `DICTIONARY_LOAD` with an `IO` cause. Redirect bodies are closed without being
 consumed. Proxy environment variables are not used.

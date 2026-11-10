@@ -107,13 +107,16 @@ source = UrlDictionarySource(
 # Converter(dictionaries=[source]) fetches this example resource.
 ~~~~
 
-Only HTTP(S) URLs and HTTP(S) redirect destinations are accepted. `timeout`
-is a positive, finite socket-operation timeout in seconds. `max_bytes` limits
-the dictionary body, and `total_timeout` limits HTTP response reading across
-redirects, including headers and chunk framing. Cancellation during synchronous
-DNS lookup or connection setup can be delayed beyond `total_timeout`. Exceeding
-either bound raises `DICTIONARY_LOAD` with an `IO` cause. The loader does not
-use proxy environment variables.
+Only HTTP(S) URLs are accepted. Redirects must keep the initial URL's scheme,
+hostname and effective port; a different origin raises
+`INVALID_INPUT` before the target is requested. Configure the final dictionary
+URL directly when it is hosted on another origin. `timeout` is a positive,
+finite socket-operation timeout in seconds. `max_bytes` limits the dictionary
+body, and `total_timeout` limits HTTP response reading across redirects,
+including headers and chunk framing. Cancellation during synchronous DNS lookup
+or connection setup can be delayed beyond `total_timeout`. Exceeding either
+bound raises `DICTIONARY_LOAD` with an `IO` cause. The loader does not use
+proxy environment variables.
 
 Map sources default to `SourceRole.OVERRIDE`. Binary sources use an explicit
 role when supplied, otherwise their embedded evidence role, otherwise

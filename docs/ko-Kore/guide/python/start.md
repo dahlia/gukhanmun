@@ -104,12 +104,14 @@ source = UrlDictionarySource(
 # Converter(dictionaries=[source])를 호출하면 이 예시 주소에 접근합니다.
 ~~~~
 
-HTTP(S) URL만 허용하며, 리다이렉트 대상에도 같은 제한을 적용합니다.
-`timeout`은 초 단위의 양의 유한한 소켓 작업 제한 시간입니다. `max_bytes`는
-사전 본문 크기를, `total_timeout`은 리다이렉트 전체에 걸친 HTTP 응답 읽기를
-제한하며 헤더와 청크 구문도 포함합니다. 동기 DNS/연결 설정 때문에 취소가
-`total_timeout` 이후까지 지연될 수 있습니다. 한도를 넘으면 `IO` 원인을 포함한
-`DICTIONARY_LOAD` 오류가 발생합니다. 프록시 환경 변수는 사용하지 않습니다.
+HTTP(S) URL만 허용합니다. 리다이렉트는 최초 URL과 스킴, 호스트 이름, 유효
+포트가 같아야 하며, 다른 origin은 요청을 보내기 전에 `INVALID_INPUT`으로
+거부합니다. 다른 origin에서 제공하는 사전은 최종 URL을 직접 지정하세요.
+`timeout`은 초 단위의 양의 유한한 소켓 작업 제한 시간입니다. `max_bytes`는 사전
+본문 크기를, `total_timeout`은 리다이렉트 전체에 걸친 HTTP 응답 읽기를 제한하며
+헤더와 청크 구문도 포함합니다. 동기 DNS/연결 설정 때문에 취소가 `total_timeout`
+이후까지 지연될 수 있습니다. 한도를 넘으면 `IO` 원인을 포함한 `DICTIONARY_LOAD`
+오류가 발생합니다. 프록시 환경 변수는 사용하지 않습니다.
 
 메모리 항목 사전의 기본 역할은 `SourceRole.OVERRIDE`입니다. 바이너리 사전은
 명시한 역할, 내장된 근거 자료의 역할, `OVERRIDE` 순서로 결정합니다. 파일

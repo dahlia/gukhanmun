@@ -284,6 +284,10 @@ class UrlDictionarySource:
     ``timeout`` limits individual socket operations. ``total_timeout`` is a
     shared response-reading deadline across redirects; blocking DNS/connection
     setup can delay cancellation. ``max_bytes`` caps the dictionary body.
+    Redirects must retain the configured URL's scheme, host and effective port.
+    DNS hostnames ignore case; IPv6 scope identifiers retain their case.
+    Explicitly configured private-network URLs remain allowed; this policy
+    does not restrict resolved IP addresses or prevent DNS rebinding.
     """
 
     url: str
