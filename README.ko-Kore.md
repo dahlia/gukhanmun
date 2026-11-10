@@ -13,6 +13,7 @@ Gukhanmun
 [![License: GPL-3.0-only][GPL badge]][GPL]
 [![GitHub Sponsors][GitHub Sponsors badge]][GitHub Sponsors]
 [![Open Collective][Open Collective badge]][Open Collective]
+[![Funded by FOSS for All Microgrants 2026][FOSS for All Microgrants 2026 badge]][FOSS for All Microgrants 2026]
 
 *다른 言語: [English](README.en.md) (英語).*
 
@@ -36,6 +37,8 @@ Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變
 [GitHub Sponsors]: https://github.com/sponsors/dahlia
 [Open Collective badge]: https://img.shields.io/badge/Open%20Collective-Support-7FADF2?logo=opencollective
 [Open Collective]: https://opencollective.com/gukhanmun
+[FOSS for All Microgrants 2026 badge]: https://fossforall.org/badges/microgrants-2026.svg
+[FOSS for All Microgrants 2026]: https://fossforall.org/docs/microgrants/2026/
 [Seonbi]: https://github.com/dahlia/seonbi
 
 
