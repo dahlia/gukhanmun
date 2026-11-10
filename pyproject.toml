@@ -12,12 +12,13 @@ members = ["python/*"]
 
 [dependency-groups]
 dev = [
+    { include-group = "mypy" },
     "packaging==26.3",
     "maturin==1.16.0",
-    "mypy==2.4.1",
     "pyright==1.1.414",
     "basedpyright==1.40.2",
     "ty==0.0.99",
     "pyrefly==1.4.1",
 ]
-test = ["pytest==9.2.0", "mypy==2.4.1"]
+test = ["pytest==9.2.0", { include-group = "mypy" }]
+mypy = ["mypy==2.4.1"]

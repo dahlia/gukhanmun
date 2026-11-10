@@ -117,6 +117,9 @@ dev = [
     { name = "pyright" },
     { name = "ty" },
 ]
+mypy = [
+    { name = "mypy" },
+]
 test = [
     { name = "mypy" },
     { name = "pytest" },
@@ -134,6 +137,7 @@ dev = [
     { name = "pyright", specifier = "==1.1.414" },
     { name = "ty", specifier = "==0.0.99" },
 ]
+mypy = [{ name = "mypy", specifier = "==2.4.1" }]
 test = [
     { name = "mypy", specifier = "==2.4.1" },
     { name = "pytest", specifier = "==9.2.0" },
