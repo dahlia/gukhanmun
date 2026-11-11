@@ -13,3 +13,16 @@ links:
     exactly the version of `gukhanmun`. Installing an extra does not add a
     dictionary to any converter, and neither preset loads official data.
     [[#49], [#15], [#57]]
+
+ -  Added the `gukhanmun.dictionaries` module for activating the installed
+    official dictionaries explicitly: `stdict()`, `opendict_general()`,
+    `opendict_north_korean()`, `opendict_dialect()`, `opendict_archaic()` and
+    `loanwords()` return a `FileDictionarySource` for
+    `Converter(dictionaries=[...])` with the `REFERENCE` or `LOANWORD` source
+    role, and the matching `*_bytes()` functions return the dictionary bytes
+    alone. Each takes a keyword-only `format=DictionaryFormat.FST` or
+    `DictionaryFormat.CDB`, reads its data through `importlib.resources` into
+    owned bytes and decompresses bundled gzip data. A missing data distribution
+    raises `GukhanmunError` with `ErrorCode.DICTIONARY_LOAD` and the
+    `pip install` command for its extra; corrupt data raises the same code with
+    the original cause in `chain`. [[#49], [#15], [#57]]

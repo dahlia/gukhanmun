@@ -275,15 +275,20 @@ def diagnostics(checker, output):
 
 
 RULES = {
-    "mypy": {"enum": {"arg-type"}, "required": {"call-arg"}, "immutable": {"misc"}},
+    "mypy": {"enum": {"arg-type"}, "required": {"call-arg"}, "immutable": {"misc"},
+             "keyword": {"misc", "call-arg"}},
     "pyright": {"enum": {"reportArgumentType"}, "required": {"reportCallIssue"},
-                "immutable": {"reportAttributeAccessIssue", "reportAssignmentType"}},
+                "immutable": {"reportAttributeAccessIssue", "reportAssignmentType"},
+                "keyword": {"reportCallIssue"}},
     "basedpyright": {"enum": {"reportArgumentType"}, "required": {"reportCallIssue"},
-                     "immutable": {"reportAttributeAccessIssue", "reportAssignmentType"}},
+                     "immutable": {"reportAttributeAccessIssue", "reportAssignmentType"},
+                     "keyword": {"reportCallIssue"}},
     "ty": {"enum": {"invalid-argument-type"}, "required": {"missing-argument"},
-           "immutable": {"invalid-assignment", "invalid-attribute-access", "read-only"}},
+           "immutable": {"invalid-assignment", "invalid-attribute-access", "read-only"},
+           "keyword": {"too-many-positional-arguments"}},
     "pyrefly": {"enum": {"bad-argument-type"}, "required": {"missing-argument"},
-                "immutable": {"read-only", "read-only-attribute", "bad-assignment"}},
+                "immutable": {"read-only", "read-only-attribute", "bad-assignment"},
+                "keyword": {"bad-argument-count"}},
 }
 
 

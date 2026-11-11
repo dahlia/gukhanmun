@@ -6,16 +6,41 @@ Gukhanmun FST dictionary binaries (*general.fst*, *north-korean.fst*,
 *dialect.fst*, *archaic.fst*) for the [gukhanmun] Python package. It has no API
 of its own and does not depend on `gukhanmun`.
 
-The four *Open Korean Dictionary* categories (general, North Korean, dialect
-and archaic words) are separate resources.
-
 [gukhanmun]: https://github.com/dahlia/gukhanmun
 
 
-Resource access
----------------
+Installation
+------------
 
-Read a resource with `importlib.resources`:
+Install it through the matching extra of the core package:
+
+~~~~ sh
+pip install 'gukhanmun[opendict]'
+~~~~
+
+
+Usage
+-----
+
+Installing the data does not change any converter. Add it explicitly:
+
+~~~~ python
+from gukhanmun import Converter
+from gukhanmun.dictionaries import opendict_general, opendict_north_korean, opendict_dialect, opendict_archaic
+
+converter = Converter(dictionaries=[
+    opendict_general(),
+    opendict_north_korean(),
+    opendict_dialect(),
+    opendict_archaic(),
+])
+~~~~
+
+The four *Open Korean Dictionary* categories are separate resources:
+general words, North Korean words, dialect words and archaic words. Add only
+the categories you need.
+
+To read a resource directly, use `importlib.resources`:
 
 ~~~~ python
 from importlib.resources import files

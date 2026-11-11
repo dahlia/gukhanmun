@@ -9,10 +9,31 @@ depend on `gukhanmun`.
 [gukhanmun]: https://github.com/dahlia/gukhanmun
 
 
-Resource access
----------------
+Installation
+------------
 
-Read a resource with `importlib.resources`:
+Install it through the matching extra of the core package:
+
+~~~~ sh
+pip install 'gukhanmun[stdict]'
+~~~~
+
+
+Usage
+-----
+
+Installing the data does not change any converter. Add it explicitly:
+
+~~~~ python
+from gukhanmun import Converter
+from gukhanmun.dictionaries import stdict
+
+converter = Converter(dictionaries=[
+    stdict(),
+])
+~~~~
+
+To read a resource directly, use `importlib.resources`:
 
 ~~~~ python
 from importlib.resources import files

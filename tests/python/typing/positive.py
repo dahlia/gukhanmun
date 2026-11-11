@@ -50,3 +50,14 @@ url_source = UrlDictionarySource("https://example.com/dict", DictionaryFormat.FS
                                  max_bytes=1024, total_timeout=2.0)
 assert_type(url_source.max_bytes, int)
 assert_type(url_source.total_timeout, float)
+
+from gukhanmun import FileDictionarySource
+from gukhanmun.dictionaries import loanwords, opendict_dialect_bytes, stdict
+
+
+def official_sources() -> None:
+    assert_type(stdict(), FileDictionarySource)
+    assert_type(stdict(format=DictionaryFormat.CDB), FileDictionarySource)
+    assert_type(loanwords(format=DictionaryFormat.FST).format, DictionaryFormat)
+    assert_type(opendict_dialect_bytes(), bytes)
+    Converter(dictionaries=[stdict(), loanwords()])
