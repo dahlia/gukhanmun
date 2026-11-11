@@ -108,7 +108,7 @@ depends = [
   "test-shared",
   "py-test",
   "py-typecheck",
-  "py-dicts-build",
+  "py-dicts-test",
 ]
 
 [tasks.rust-init]
@@ -791,6 +791,12 @@ description = "Build and inspect the six Python dictionary data wheels and sdist
 depends = ["py-dicts-stage", "py-deps"]
 wait_for = ["js-build"]
 run = "uv run --no-sync python scripts/python/dictionaries.py build"
+
+[tasks.py-dicts-test]
+description = "Install the extras from local artifacts and test the official data"
+depends = ["py-dicts-build", "py-build"]
+env = { GUKHANMUN_REPO_ROOT = "{{ config_root }}" }
+run = "uv run --no-sync python scripts/python/dictionaries.py test"
 
 [tasks.py-sync-version]
 description = "Synchronize Python metadata and lockfile from the Rust workspace version"

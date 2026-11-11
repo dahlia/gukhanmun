@@ -20,7 +20,10 @@
 *packages/* into each resource package, together with generated license,
 attribution and provenance files.  `build` turns the six staged packages into
 wheels and sdists and checks them, including a rebuild of every sdist outside
-the checkout.  Neither step runs npm or downloads dictionary sources.
+the checkout.  `test` resolves and installs the core wheel through its
+extras from those local artifacts alone and runs *tests/python-dicts/*
+against the installed official data.  No step runs npm or downloads
+dictionary sources.
 """
 
 import argparse
@@ -51,13 +54,17 @@ VCS_IGNORE = (".gitignore", ".hgignore")
 NOTICE_SECTION = "Standard Korean Language Dictionary data"
 
 
-def load_table(path=TABLE):
+def load_module(path=TABLE):
     """Load the private table by path, without importing gukhanmun._native."""
     spec = importlib.util.spec_from_file_location("_gukhanmun_dictionary_data", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    return module.DISTRIBUTIONS
+    return module
+
+
+def load_table(path=TABLE):
+    return load_module(path).DISTRIBUTIONS
 
 
 def project_dir(root, distribution):
@@ -373,11 +380,95 @@ def resource_only(distributions, wheels):
         remove_tree(directory)
 
 
+WHEELS = ROOT / "target" / "python" / "wheels"
+
+EXTRA_PROBE = """
+import importlib.util, sys
+import gukhanmun
+from gukhanmun import Converter, ErrorCode, GukhanmunError
+from gukhanmun.dictionaries import stdict
+for package in sys.argv[1:]:
+    assert importlib.util.find_spec(package) is None, package
+assert Converter().convert("漢字") == "한자"
+try:
+    stdict()
+except GukhanmunError as error:
+    assert error.code is ErrorCode.DICTIONARY_LOAD
+    assert "pip install 'gukhanmun[stdict]'" in error.message
+else:
+    raise AssertionError("stdict() loaded data that is not installed")
+print("base install verified")
+"""
+
+
+def venv(directory):
+    run(["uv", "venv", "--quiet", "--python", sys.executable, directory])
+    return directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+
+def resolve_extras(version, links):
+    """Resolve each extra from the local artifacts alone, as an index would."""
+    from packaging.requirements import Requirement
+
+    cases = {**{extra: {"gukhanmun", name} for extra, name in load_module().EXTRAS.items()}, None: {"gukhanmun"}}
+    for extra, expected in cases.items():
+        requirement = f"gukhanmun[{extra}]=={version}" if extra else f"gukhanmun=={version}"
+        result = subprocess.run(
+            ["uv", "pip", "compile", "--quiet", "--no-header", "--no-annotate", "--no-index",
+             *(argument for link in links for argument in ("--find-links", link)), "-"],
+            input=requirement + "\n", text=True, encoding="utf-8", capture_output=True, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"could not resolve {requirement}:\n{result.stderr}")
+        pins = [Requirement(line) for line in result.stdout.splitlines() if line and not line.startswith("#")]
+        if ({pin.name for pin in pins} != expected
+                or any(str(pin.specifier) != f"=={version}" for pin in pins)):
+            raise RuntimeError(f"{requirement} resolved to {result.stdout.strip()!r}")
+        print(f"{requirement} -> {', '.join(sorted(str(pin) for pin in pins))}")
+
+
+def test(root=ROOT):
+    """Install the core wheel through its extras and test the official data."""
+    distributions = load_table()
+    version = manifest_version(root, distributions[0])
+    links = [WHEELS, *(OUTPUT / distribution.name for distribution in distributions)]
+    if not list(WHEELS.glob("*.whl")):
+        raise RuntimeError("run py-build before py-dicts-test")
+    for link in links[1:]:
+        if not list(link.glob("*.whl")):
+            raise RuntimeError("run py-dicts-build before py-dicts-test")
+    resolve_extras(version, links)
+    find_links = [argument for link in links for argument in ("--find-links", link)]
+    environment = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "MYPYPATH", "PYTHONHOME")}
+    directory = Path(tempfile.mkdtemp(prefix="gukhanmun-official-"))
+    try:
+        # The core package alone: no data, and the helpers explain how to add it.
+        python = venv(directory / "base")
+        run(["uv", "pip", "install", "--quiet", "--python", python, "--no-index", *find_links,
+             f"gukhanmun=={version}"])
+        run([python, "-I", "-c", EXTRA_PROBE, *(d.package for d in distributions)],
+            cwd=directory, env=environment)
+        # Every extra together, with the locked test dependencies.
+        python = venv(directory / "official")
+        requirements = directory / "test-requirements.txt"
+        run(["uv", "export", "--quiet", "--locked", "--only-group", "test", "--no-emit-workspace",
+             "--output-file", requirements])
+        run(["uv", "pip", "install", "--quiet", "--python", python, "--require-hashes", "-r", requirements])
+        extras = ",".join(sorted({distribution.extra for distribution in distributions}))
+        run(["uv", "pip", "install", "--quiet", "--python", python, "--no-index", *find_links,
+             f"gukhanmun[{extras}]=={version}"])
+        tests = directory / "tests"
+        shutil.copytree(root / "tests" / "python-dicts", tests)
+        environment["GUKHANMUN_REPO_ROOT"] = str(root)
+        run([python, "-I", "-m", "pytest", "-q", tests], cwd=directory, env=environment)
+    finally:
+        remove_tree(directory)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("stage", "build"))
+    parser.add_argument("command", choices=("stage", "build", "test"))
     arguments = parser.parse_args()
-    {"stage": stage, "build": build}[arguments.command]()
+    {"stage": stage, "build": build, "test": test}[arguments.command]()
 
 
 if __name__ == "__main__":

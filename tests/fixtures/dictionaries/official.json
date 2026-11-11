@@ -1,0 +1,20 @@
+{
+  "description": "Conversions with the official dictionaries; each case runs with FST and with CDB data, with homophone windows off.",
+  "cases": [
+    {"name": "loanword-before-reference", "dictionaries": ["loanwords", "stdict"], "input": "香港", "expected": "홍콩"},
+    {"name": "reference-before-loanword", "dictionaries": ["stdict", "loanwords"], "input": "香港", "expected": "홍콩"},
+    {"name": "ordered-policy", "dictionaries": ["stdict", "loanwords"], "source_policy": "ordered", "input": "香港", "expected": "샹강"},
+    {"name": "authored-override-wins", "dictionaries": [{"hanja": "香港", "reading": "사용자"}, "loanwords", "stdict"], "input": "香港", "expected": "사용자"},
+    {"name": "reference-first-policy", "dictionaries": ["loanwords", "stdict"], "source_policy": "reference-first", "input": "香港 東京", "expected": "샹강 도쿄"},
+    {"name": "loanword-first-policy", "dictionaries": ["loanwords", "stdict"], "source_policy": "loanword-first", "input": "香港 東京", "expected": "홍콩 동경"},
+    {"name": "loanword-first-reference-only", "dictionaries": ["loanwords", "stdict"], "source_policy": "loanword-first", "reference_only": true, "input": "香港 東京", "expected": "샹강 도쿄"},
+    {"name": "loanword-does-not-shadow-reference", "dictionaries": ["loanwords", "stdict"], "input": "東扶餘", "expected": "동부여"},
+    {"name": "phrase-evidence", "dictionaries": ["stdict"], "input": "無條件降服 降服", "expected": "무조건항복 강복", "differs_from_fallback": true},
+    {"name": "alias", "dictionaries": ["stdict"], "input": "㿗疝症", "expected": "퇴산증", "differs_from_fallback": true},
+    {"name": "suffix-reading", "dictionaries": ["stdict"], "input": "年度 2020年度", "expected": "연도 2020년도"},
+    {"name": "opendict-general", "dictionaries": ["opendict-general"], "input": "一杯", "expected": "이빠이", "differs_from_fallback": true},
+    {"name": "opendict-north-korean", "dictionaries": ["opendict-north-korean"], "input": "勞動", "expected": "로동", "differs_from_fallback": true},
+    {"name": "opendict-dialect", "dictionaries": ["opendict-dialect"], "input": "同生宅", "expected": "동생댁", "differs_from_fallback": true},
+    {"name": "opendict-archaic", "dictionaries": ["opendict-archaic"], "input": "禮數", "expected": "례수", "differs_from_fallback": true}
+  ]
+}
