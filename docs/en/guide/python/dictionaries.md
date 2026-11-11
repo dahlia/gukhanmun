@@ -88,10 +88,10 @@ converter = Converter(
 )
 ~~~~
 
-Source roles decide how dictionaries cooperate. Under the default
-`SourcePolicy.REFERENCE_AUTHORIZED`, a loanword reading that the reference
-dictionaries attest wins regardless of order, unless a source with the
-`OVERRIDE` role supplies the same entry:
+Source roles decide how dictionaries cooperate. The helpers give each source
+its role, so under the default `SourcePolicy.REFERENCE_AUTHORIZED` putting the
+loanword source before or after the reference source does not change which one
+takes priority; here the reference dictionary attests the loanword reading:
 
 ~~~~ python
 from gukhanmun.dictionaries import loanwords, stdict
@@ -100,8 +100,10 @@ converter = Converter(dictionaries=[stdict(), loanwords()])
 assert converter.convert("香港") == "홍콩"
 ~~~~
 
-See the [API reference](../../api/python.md#dictionary-sources-and-entries) for
-the other source policies and `reference_only`.
+Among several reference sources, such as *Open Korean Dictionary* categories,
+registration order still decides between their competing readings. See the
+[API reference](../../api/python.md#dictionary-sources-and-entries) for
+`OVERRIDE` sources, the other source policies and `reference_only`.
 
 A converter reads the data once when it is constructed. Reuse the converter
 rather than calling the functions for every document.

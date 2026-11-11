@@ -86,10 +86,10 @@ converter = Converter(
 )
 ~~~~
 
-出處 役割은 辭典들이 協力하는 方式을 決定합니다. 基本 政策인
-`SourcePolicy.REFERENCE_AUTHORIZED`에서는 參照 辭典이 立證한 外來語 讀音이
-順序와 無關하게 優先합니다. 다만 같은 項目을 `OVERRIDE` 役割의 出處가 提供하면
-그 讀音이 選擇됩니다.
+出處 役割은 辭典들이 協力하는 方式을 決定합니다. 各 函數가 出處마다 役割을
+指定하므로, 基本 政策인 `SourcePolicy.REFERENCE_AUTHORIZED`에서는 外來語 出處를
+參照 出處 앞에 두든 뒤에 두든 어느 쪽이 優先하는지가 달라지지 않습니다. 다음
+例에서는 參照 辭典이 外來語 讀音을 立證합니다.
 
 ~~~~ python
 from gukhanmun.dictionaries import loanwords, stdict
@@ -98,7 +98,9 @@ converter = Converter(dictionaries=[stdict(), loanwords()])
 assert converter.convert("香港") == "홍콩"
 ~~~~
 
-다른 出處 政策과 `reference_only`에 對해서는
+《우리말샘》의 分類처럼 參照 出處가 여럿이면, 그 出處들이 서로 다른 讀音을
+提供할 때는 如前히 登錄 順序가 決定합니다. `OVERRIDE` 出處, 다른 出處 政策과
+`reference_only`에 對해서는
 〈[API 參考 文書](../../api/python.md#辭典-入力과-項目)〉를 參照하십시오.
 
 變換器는 生成될 때 데이터를 한 番 읽습니다. 文書마다 函數를 呼出하지 말고
