@@ -15,7 +15,9 @@ jobs:
   ci:
     name: ci (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    # Windows runs of the full gate already took up to 44 minutes before the
+    # Python data distribution tasks were added.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
