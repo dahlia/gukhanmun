@@ -35,3 +35,5 @@ Issues = "https://github.com/dahlia/gukhanmun/issues"
 manifest-path = "../../crates/gukhanmun-python/Cargo.toml"
 python-source = "src"
 module-name = "gukhanmun._native"
+# Tooling loads modules from the source tree; never ship its bytecode caches.
+exclude = ["src/**/__pycache__/**", "src/**/*.py[cod]"]

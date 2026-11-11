@@ -63,6 +63,10 @@ def build():
         for name in ("gukhanmun/py.typed", "gukhanmun/_native.pyi"):
             if name not in names:
                 raise RuntimeError(f"wheel omits {name}")
+        # Tooling loads modules from the source tree; its bytecode is host-specific.
+        cached = [name for name in names if "__pycache__/" in name or name.endswith((".pyc", ".pyo"))]
+        if cached:
+            raise RuntimeError(f"wheel contains bytecode caches: {cached}")
         extensions = [name for name in names if name.startswith("gukhanmun/_native.")
                       and name.endswith((".so", ".pyd"))]
         if len(extensions) != 1:
