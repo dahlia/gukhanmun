@@ -18,7 +18,9 @@
 
 import argparse
 from contextlib import contextmanager, nullcontext
+import email.parser
 import errno
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -61,10 +63,16 @@ def build():
         for name in ("gukhanmun/py.typed", "gukhanmun/_native.pyi"):
             if name not in names:
                 raise RuntimeError(f"wheel omits {name}")
+        # Tooling loads modules from the source tree; its bytecode is host-specific.
+        cached = [name for name in names if "__pycache__/" in name or name.endswith((".pyc", ".pyo"))]
+        if cached:
+            raise RuntimeError(f"wheel contains bytecode caches: {cached}")
         extensions = [name for name in names if name.startswith("gukhanmun/_native.")
                       and name.endswith((".so", ".pyd"))]
         if len(extensions) != 1:
             raise RuntimeError("wheel must contain exactly one private extension")
+        metadata = next(name for name in names if name.endswith(".dist-info/METADATA"))
+        check_extras(wheel.read(metadata).decode("utf-8"))
         if sys.platform.startswith("linux"):
             with tempfile.TemporaryDirectory(prefix="gukhanmun-elf-") as temporary:
                 extension = Path(temporary) / Path(extensions[0]).name
@@ -78,6 +86,33 @@ def build():
                     if "NEEDED" in line and "libpython" in line:
                         raise RuntimeError(f"extension links libpython: {line}")
     print(f"Verified wheel: {wheels[0]}")
+
+
+def check_extras(text):
+    """Require exactly the dictionary extras, each pinning its data exactly."""
+    from packaging.requirements import Requirement
+
+    spec = importlib.util.spec_from_file_location(
+        "_gukhanmun_dictionary_data", ROOT / "python/gukhanmun/src/gukhanmun/_dictionary_data.py")
+    table = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = table
+    spec.loader.exec_module(table)
+    fields = email.parser.Parser().parsestr(text)
+    version = fields["Version"]
+    extras = fields.get_all("Provides-Extra") or []
+    if sorted(extras) != sorted(table.EXTRAS):
+        raise RuntimeError(f"wheel provides unexpected extras: {extras}")
+    actual = set()
+    for line in fields.get_all("Requires-Dist") or []:
+        requirement = Requirement(line)
+        selected = [extra for extra in extras
+                    if requirement.marker is not None and requirement.marker.evaluate({"extra": extra})]
+        if len(selected) != 1 or requirement.marker.evaluate({"extra": ""}):
+            raise RuntimeError(f"wheel requirement is not limited to one extra: {line}")
+        actual.add((selected[0], requirement.name, str(requirement.specifier)))
+    expected = {(extra, name, f"=={version}") for extra, name in table.EXTRAS.items()}
+    if actual != expected:
+        raise RuntimeError(f"wheel extras do not pin their data exactly: {sorted(actual ^ expected)}")
 
 
 @contextmanager
@@ -244,15 +279,20 @@ def diagnostics(checker, output):
 
 
 RULES = {
-    "mypy": {"enum": {"arg-type"}, "required": {"call-arg"}, "immutable": {"misc"}},
+    "mypy": {"enum": {"arg-type"}, "required": {"call-arg"}, "immutable": {"misc"},
+             "keyword": {"misc", "call-arg"}},
     "pyright": {"enum": {"reportArgumentType"}, "required": {"reportCallIssue"},
-                "immutable": {"reportAttributeAccessIssue", "reportAssignmentType"}},
+                "immutable": {"reportAttributeAccessIssue", "reportAssignmentType"},
+                "keyword": {"reportCallIssue"}},
     "basedpyright": {"enum": {"reportArgumentType"}, "required": {"reportCallIssue"},
-                     "immutable": {"reportAttributeAccessIssue", "reportAssignmentType"}},
+                     "immutable": {"reportAttributeAccessIssue", "reportAssignmentType"},
+                     "keyword": {"reportCallIssue"}},
     "ty": {"enum": {"invalid-argument-type"}, "required": {"missing-argument"},
-           "immutable": {"invalid-assignment", "invalid-attribute-access", "read-only"}},
+           "immutable": {"invalid-assignment", "invalid-attribute-access", "read-only"},
+           "keyword": {"too-many-positional-arguments"}},
     "pyrefly": {"enum": {"bad-argument-type"}, "required": {"missing-argument"},
-                "immutable": {"read-only", "read-only-attribute", "bad-assignment"}},
+                "immutable": {"read-only", "read-only-attribute", "bad-assignment"},
+                "keyword": {"bad-argument-count"}},
 }
 
 

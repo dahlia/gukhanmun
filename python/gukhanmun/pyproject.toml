@@ -12,6 +12,20 @@ license-files = ["LICENSE"]
 authors = [{ name = "Hong Minhee", email = "hong@minhee.org" }]
 dependencies = []
 
+# Official dictionary data.  Installing an extra never adds a dictionary to a
+# converter.  `mise run py-sync-version` keeps these pins equal to the project
+# version.
+[project.optional-dependencies]
+stdict = ["gukhanmun-stdict-fst==0.4.0"]
+stdict-fst = ["gukhanmun-stdict-fst==0.4.0"]
+stdict-cdb = ["gukhanmun-stdict-cdb==0.4.0"]
+opendict = ["gukhanmun-opendict-fst==0.4.0"]
+opendict-fst = ["gukhanmun-opendict-fst==0.4.0"]
+opendict-cdb = ["gukhanmun-opendict-cdb==0.4.0"]
+loanwords = ["gukhanmun-loanwords-fst==0.4.0"]
+loanwords-fst = ["gukhanmun-loanwords-fst==0.4.0"]
+loanwords-cdb = ["gukhanmun-loanwords-cdb==0.4.0"]
+
 [project.urls]
 Homepage = "https://gukhanmun.org/"
 Repository = "https://github.com/dahlia/gukhanmun"
@@ -21,3 +35,5 @@ Issues = "https://github.com/dahlia/gukhanmun/issues"
 manifest-path = "../../crates/gukhanmun-python/Cargo.toml"
 python-source = "src"
 module-name = "gukhanmun._native"
+# Tooling loads modules from the source tree; never ship its bytecode caches.
+exclude = ["src/**/__pycache__/**", "src/**/*.py[cod]"]

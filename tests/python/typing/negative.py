@@ -14,7 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from gukhanmun import Converter, CustomPunctuationProfile, DictionaryEntry, ErrorCode, GukhanmunError, Preset, RenderMode
+from gukhanmun import (
+    Converter, CustomPunctuationProfile, DictionaryEntry, DictionaryFormat, ErrorCode, GukhanmunError, Preset, RenderMode,
+)
+from gukhanmun.dictionaries import stdict, stdict_bytes
 
 Converter(preset="ko-kr")  # expected: enum
 Converter(preset=RenderMode.HANGUL_ONLY)  # expected: enum
@@ -34,3 +37,6 @@ CustomPunctuationProfile(comma=object())  # expected: enum
 DictionaryEntry("漢字", "한자", preference=1.5)  # expected: enum
 error = GukhanmunError(ErrorCode.INVALID_INPUT, "invalid")
 error.code = ErrorCode.IO  # expected: immutable
+stdict(format="cdb")  # expected: enum
+stdict_bytes(format=Preset.KO_KR)  # expected: enum
+stdict(DictionaryFormat.FST)  # expected: keyword

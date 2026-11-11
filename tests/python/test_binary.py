@@ -85,6 +85,45 @@ def test_bytes_buffers_noncontiguous_views_and_paths_are_owned(format: g.Diction
 
 
 @pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
+def test_leaf_parser_errors_have_no_causes(format: g.DictionaryFormat) -> None:
+    data = bytearray(binary("plain", format))
+    if format is g.DictionaryFormat.FST:
+        data[:8] = b"\0" * 8  # invalid magic
+    else:
+        del data[16:]  # too short for the CDB hash table
+    with pytest.raises(g.GukhanmunError) as caught:
+        g.Converter(dictionaries=[g.FileDictionarySource(data, format)])
+    assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+    assert caught.value.chain == ()
+
+
+@pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
+def test_wrapped_parser_errors_keep_their_causes(format: g.DictionaryFormat) -> None:
+    data = bytearray(binary("plain", format))
+    if format is g.DictionaryFormat.FST:
+        # Fixed header: magic, version, header length, then u64 section offsets/lengths.
+        fst_offset, fst_length = struct.unpack_from("<QQ", data, 32)
+        data[fst_offset:fst_offset + fst_length] = b"\xff" * fst_length
+        prefix = "failed to decode FST map: "
+    else:
+        # A CDB record is key length, value length, key and value; keep the
+        # framing but make the metadata value invalid CBOR.
+        key = b"__gukhanmun_meta__"
+        value = data.index(key) + len(key)
+        data[value] = 0xff
+        prefix = "failed to decode dictionary metadata: "
+    with pytest.raises(g.GukhanmunError) as caught:
+        g.Converter(dictionaries=[g.FileDictionarySource(data, format)])
+    assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+    assert caught.value.message.startswith(prefix)
+    assert caught.value.chain
+    # Causes are ordered deepest first, so the last one is the decoder's error.
+    assert caught.value.message.endswith(caught.value.chain[-1].message)
+    # Like Node-API, native source() causes have no finer classification.
+    assert all(cause.code is g.ErrorCode.INTERNAL for cause in caught.value.chain)
+
+
+@pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
 @pytest.mark.parametrize("policy,normal,reference_only", [
     (g.SourcePolicy.REFERENCE_AUTHORIZED, "누리", "누리"),
     (g.SourcePolicy.REFERENCE_FIRST, "가온", "가온"),

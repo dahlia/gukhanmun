@@ -32,7 +32,7 @@ import tempfile
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
-TOOLING_TESTS = ("test_checks.py", "test_version.py")
+TOOLING_TESTS = ("test_checks.py", "test_version.py", "test_dictionary_packages.py")
 
 
 def pins(root=ROOT):

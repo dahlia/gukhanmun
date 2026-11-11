@@ -1056,8 +1056,22 @@ PyPy 3.11/3.12를 提供한다. tox는 明示한 인터프리터마다 非 edita
 도구 테스트는 네이티브 빌드 없이 實行하며, 全體 로컬 게이트는 基本
 인터프리터의 實行 및 設置된 wheel의 타입도 檢査한다.
 
-公式 辭典 配布版, 릴리스 wheel/sdist의 全面的 檢證, free-threaded CPython
-支援과 레지스트리 配布는 別途 後續 作業이다.
+公式 辭典은 *python/* 아래에 出處와 形式別로 하나씩, 리소스만 담은 여섯
+選擇的 配布版으로 提供한다. `gukhanmun-stdict-fst`, `gukhanmun-stdict-cdb`,
+`gukhanmun-opendict-fst`, `gukhanmun-opendict-cdb`, `gukhanmun-loanwords-fst`,
+`gukhanmun-loanwords-cdb`가 그것이다. 이들은 依存性 없는 純粹 Hatchling
+wheel이며 `gukhanmun`을 가져오지 않으므로, 依存 關係는 코어 패키지의
+버전을 正確히 固定한 extra에서 데이터로만 向한다. 바이너리는 別途로 빌드하지
+않는다. 스테이징은 JavaScript 패키지의 生成器가 만든 産出物을 複寫하고,
+正準 出處에서 生成한 라이선스, 出處 表示와 由來 情報 파일을 追加한다.
+`gukhanmun.dictionaries`는 `importlib.resources`로 設置된 리소스를 읽어
+所有權을 갖는 바이트로 만들고, 記錄된 크기 및 해시와 對照한 뒤, JavaScript
+헬퍼와 같은 役割을 가진 一般 파일 出處를 返還한다. 非公開 테이블 하나가
+런타임과 道具에 必要한 패키지 情報를 記述한다. 데이터를 設置해도 變換器는
+달라지지 않는다.
+
+릴리스 wheel/sdist의 全面的 檢證, free-threaded CPython 支援과 레지스트리
+配布는 別途 後續 作業이다.
 
 ### 辭典 設定
 

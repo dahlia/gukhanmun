@@ -50,6 +50,14 @@ examples and native stub signatures. `mise run check` runs fast Python
 tooling tests without building the extension; `mise run ci` includes the runtime
 and all five type checkers.
 
+The official dictionary data distributions under _python/gukhanmun-\*-\*/_ ship
+no committed binaries. `mise run py-dicts-stage` copies the artifacts that the
+`*-data` tasks generate under *packages/* and writes their license, attribution
+and provenance files; `mise run py-dicts-build` builds and inspects the six
+wheels and sdists; `mise run py-dicts-test` installs them through the core
+extras from those local artifacts and tests the official data. `mise run ci`
+includes both.
+
 Install the complete interpreter set only when running the semantic matrix:
 
 ~~~~ sh
@@ -400,8 +408,9 @@ Version bumps go through `mise run bump-execute`, which wraps `cargo-release`.
 `cargo-release` updates the shared workspace version, the intra-workspace
 dependency requirements, and *Cargo.lock*, then writes a signed commit.  It does
 not update the npm, JSR or Python manifests. The task also syncs every
-*package.json* and *deno.json* under *packages/* and the core Python
-*python/gukhanmun/pyproject.toml* to the applied version, refreshes *uv.lock*,
+*package.json* and *deno.json* under *packages/* and every Python
+_python/\*/pyproject.toml_, including the exact pins of the core package's
+dictionary extras, to the applied version, refreshes *uv.lock*,
 and runs `sacho next`. Python versions use [PEP 440] spelling, such as
 `1.2.0rc2` for the Rust version `1.2.0-rc.2`. The `bump-execute` task amends the
 signed commit with those manifests, the lockfile, *changes.d/next*, and

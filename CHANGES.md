@@ -767,6 +767,30 @@ To be released.
  -  Preserved `GukhanmunError` codes, messages and cause tuples when copying
     or pickling errors, including errors returned from process workers.
     [[#48], [#15], [#55]]
+ -  Added the `stdict`, `opendict` and `loanwords` extras, which install the
+    FST data of the *Standard Korean Language Dictionary*, the *Open Korean
+    Dictionary* and the NIKL loanword spelling examples, and the
+    format-specific `stdict-fst`, `stdict-cdb`, `opendict-fst`, `opendict-cdb`,
+    `loanwords-fst` and `loanwords-cdb` extras; for example,
+    `pip install 'gukhanmun[stdict]'`. Each extra pins its data distribution to
+    exactly the version of `gukhanmun`. Installing an extra does not add a
+    dictionary to any converter, and neither preset loads official data.
+    [[#49], [#15], [#57]]
+ -  Added the `gukhanmun.dictionaries` module for activating the installed
+    official dictionaries explicitly: `stdict()`, `opendict_general()`,
+    `opendict_north_korean()`, `opendict_dialect()`, `opendict_archaic()` and
+    `loanwords()` return a `FileDictionarySource` for
+    `Converter(dictionaries=[...])` with the `REFERENCE` or `LOANWORD` source
+    role, and the matching `*_bytes()` functions return the dictionary bytes
+    alone. Each takes a keyword-only `format=DictionaryFormat.FST` or
+    `DictionaryFormat.CDB`, reads its data through `importlib.resources` into
+    owned bytes and decompresses bundled gzip data. A missing data distribution
+    raises `GukhanmunError` with `ErrorCode.DICTIONARY_LOAD` and the
+    `pip install` command for its extra. Each resource is checked against the
+    size and SHA-256 hash in its distribution's *provenance.json*, so a damaged
+    installation, such as a missing, altered or corrupt resource, raises the
+    same code with a `pip install --force-reinstall` command and any original
+    cause in `chain`. [[#49], [#15], [#57]]
  -  Bounded `UrlDictionarySource` downloads with configurable `max_bytes`
     (64 MiB by default) and `total_timeout` (30 seconds by default) for HTTP
     response reads across redirects. Exceeding either bound raises
@@ -798,6 +822,88 @@ To be released.
     when maximum-length metadata is supplied. Files exceeding these limits
     now fail to load.
     [[#48], [#15], [#55]]
+ -  Fixed `GukhanmunError.chain` to retain the underlying causes of malformed
+    FST and CDB dictionary data, such as an undecodable FST map or dictionary
+    metadata, instead of reporting only the outer error message. Errors without
+    an underlying cause still have an empty chain. [[#49], [#15], [#57]]
+
+[#49]: https://github.com/dahlia/gukhanmun/issues/49
+[#57]: https://github.com/dahlia/gukhanmun/pull/57
+
+### gukhanmun-loanwords-cdb (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dloanwords%2Dcdb%20%28Python%29 -->
+
+ -  Added the `gukhanmun-loanwords-cdb` distribution, which bundles NIKL
+    loanword spelling examples data as Gukhanmun CDB binaries in the
+    `gukhanmun_loanwords_cdb` resource package. It is a platform-independent
+    wheel with no dependencies and does not import `gukhanmun`. The
+    distribution includes the license and attribution of its data, and
+    *provenance.json* records the source snapshot and the hashes of the bundled
+    files. [[#49], [#15], [#57]]
+
+### gukhanmun-loanwords-fst (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dloanwords%2Dfst%20%28Python%29 -->
+
+ -  Added the `gukhanmun-loanwords-fst` distribution, which bundles NIKL
+    loanword spelling examples data as Gukhanmun FST binaries in the
+    `gukhanmun_loanwords_fst` resource package. It is a platform-independent
+    wheel with no dependencies and does not import `gukhanmun`. The
+    distribution includes the license and attribution of its data, and
+    *provenance.json* records the source snapshot and the hashes of the bundled
+    files. [[#49], [#15], [#57]]
+
+### gukhanmun-opendict-cdb (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dopendict%2Dcdb%20%28Python%29 -->
+
+ -  Added the `gukhanmun-opendict-cdb` distribution, which bundles *Open Korean
+    Dictionary* (우리말샘) data in all four categories (general, North Korean,
+    dialect and archaic words) as Gukhanmun CDB binaries in the
+    `gukhanmun_opendict_cdb` resource package. It is a platform-independent
+    wheel with no dependencies and does not import `gukhanmun`. The
+    distribution includes the license and attribution of its data, and
+    *provenance.json* records the source snapshot and the hashes of the bundled
+    files. Its CDB files are stored gzip-compressed. [[#49], [#15], [#57]]
+
+### gukhanmun-opendict-fst (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dopendict%2Dfst%20%28Python%29 -->
+
+ -  Added the `gukhanmun-opendict-fst` distribution, which bundles *Open Korean
+    Dictionary* (우리말샘) data in all four categories (general, North Korean,
+    dialect and archaic words) as Gukhanmun FST binaries in the
+    `gukhanmun_opendict_fst` resource package. It is a platform-independent
+    wheel with no dependencies and does not import `gukhanmun`. The
+    distribution includes the license and attribution of its data, and
+    *provenance.json* records the source snapshot and the hashes of the bundled
+    files. [[#49], [#15], [#57]]
+
+### gukhanmun-stdict-cdb (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dstdict%2Dcdb%20%28Python%29 -->
+
+ -  Added the `gukhanmun-stdict-cdb` distribution, which bundles *Standard
+    Korean Language Dictionary* (標準國語大辭典) data as Gukhanmun CDB binaries
+    in the `gukhanmun_stdict_cdb` resource package. It is a
+    platform-independent wheel with no dependencies and does not import
+    `gukhanmun`. The distribution includes the license and attribution of its
+    data, and *provenance.json* records the source snapshot and the hashes of
+    the bundled files. Its CDB files are stored gzip-compressed.
+    [[#49], [#15], [#57]]
+
+### gukhanmun-stdict-fst (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dstdict%2Dfst%20%28Python%29 -->
+
+ -  Added the `gukhanmun-stdict-fst` distribution, which bundles *Standard
+    Korean Language Dictionary* (標準國語大辭典) data as Gukhanmun FST binaries
+    in the `gukhanmun_stdict_fst` resource package. It is a
+    platform-independent wheel with no dependencies and does not import
+    `gukhanmun`. The distribution includes the license and attribution of its
+    data, and *provenance.json* records the source snapshot and the hashes of
+    the bundled files. [[#49], [#15], [#57]]
 
 <!-- sacho:unreleased:end -->
 

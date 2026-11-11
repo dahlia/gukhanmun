@@ -108,6 +108,7 @@ depends = [
   "test-shared",
   "py-test",
   "py-typecheck",
+  "py-dicts-test",
 ]
 
 [tasks.rust-init]
@@ -181,9 +182,9 @@ if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
 sacho next $env.VERSION
 # A release removes next, so the next cycle must stage the recreated file.
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
-git add -- changes.d/next CHANGES.md python/gukhanmun/pyproject.toml uv.lock
+git add -- changes.d/next CHANGES.md python/*/pyproject.toml uv.lock
 if $env.LAST_EXIT_CODE != 0 { exit $env.LAST_EXIT_CODE }
-git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json python/gukhanmun/pyproject.toml uv.lock changes.d/next CHANGES.md
+git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json python/*/pyproject.toml uv.lock changes.d/next CHANGES.md
 """
 
 [tasks.typecheck]
@@ -735,7 +736,7 @@ run = "uv sync --locked --no-install-workspace"
 description = "Check Python tooling without building the native extension"
 depends = ["py-deps"]
 env = { GUKHANMUN_REPO_ROOT = "{{ config_root }}" }
-run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py scripts/python/matrix_test.py"
+run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py tests/python/test_dictionary_packages.py scripts/python/matrix_test.py"
 
 [tasks.py-test-all]
 description = "Test installed wheels on every pinned CPython/PyPy interpreter"
@@ -766,6 +767,36 @@ run = "uv run --no-sync python scripts/python/checks.py test"
 description = "Check installed Python types with all five required checkers"
 depends = ["py-wheel-env"]
 run = "uv run --no-sync python scripts/python/checks.py typecheck"
+
+[tasks.py-dicts-stage]
+description = "Stage official dictionary binaries into the Python data packages"
+depends = [
+  "stdict-fst-data",
+  "stdict-cdb-data",
+  "opendict-fst-data",
+  "opendict-cdb-data",
+  "loanwords-fst-data",
+  "loanwords-cdb-data",
+]
+# The opendict and loanwords package.json prebuild hooks rerun their *-data
+# tasks inside js-build and rewrite packages/* in place.  Reading those files
+# concurrently races the rewrite (a sharing violation on Windows), so wait for
+# js-build when the same run includes it.  Keep this a wait_for, not a
+# dependency: staging Python data must not require npm.
+wait_for = ["js-build"]
+run = "python -B scripts/python/dictionaries.py stage"
+
+[tasks.py-dicts-build]
+description = "Build and inspect the six Python dictionary data wheels and sdists"
+depends = ["py-dicts-stage", "py-deps"]
+wait_for = ["js-build"]
+run = "uv run --no-sync python scripts/python/dictionaries.py build"
+
+[tasks.py-dicts-test]
+description = "Install the extras from local artifacts and test the official data"
+depends = ["py-dicts-build", "py-build"]
+env = { GUKHANMUN_REPO_ROOT = "{{ config_root }}" }
+run = "uv run --no-sync python scripts/python/dictionaries.py test"
 
 [tasks.py-sync-version]
 description = "Synchronize Python metadata and lockfile from the Rust workspace version"
