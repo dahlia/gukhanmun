@@ -6,3 +6,6 @@
 /src/*/*.fst
 /src/*/*.cdb
 /src/*/*.gz
+# Hatchling does not see the repository's ignore files here.
+__pycache__/
+*.py[cod]

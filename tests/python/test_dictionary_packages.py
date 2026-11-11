@@ -139,6 +139,9 @@ def test_local_vcs_ignore_files_stop_hatchling_search(distribution) -> None:
     patterns = [line for line in gitignore if line and not line.startswith("#")]
     assert "syntax: glob" in hgignore
     assert [line for line in hgignore[hgignore.index("syntax: glob") + 1:]] == [p.lstrip("/") for p in patterns]
+    # Only the nearest ignore file applies, so it must also exclude bytecode
+    # that running code from the source tree leaves behind.
+    assert {"__pycache__/", "*.py[cod]"} <= set(patterns)
 
 
 def test_bump_amends_every_python_manifest() -> None:

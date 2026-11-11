@@ -7,3 +7,5 @@ src/*/provenance.json
 src/*/*.fst
 src/*/*.cdb
 src/*/*.gz
+__pycache__/
+*.py[cod]
