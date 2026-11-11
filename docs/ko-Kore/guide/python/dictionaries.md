@@ -88,7 +88,8 @@ converter = Converter(
 
 出處 役割은 辭典들이 協力하는 方式을 決定합니다. 基本 政策인
 `SourcePolicy.REFERENCE_AUTHORIZED`에서는 參照 辭典이 立證한 外來語 讀音이
-順序와 無關하게 優先합니다.
+順序와 無關하게 優先합니다. 다만 같은 項目을 `OVERRIDE` 役割의 出處가 提供하면
+그 讀音이 選擇됩니다.
 
 ~~~~ python
 from gukhanmun.dictionaries import loanwords, stdict

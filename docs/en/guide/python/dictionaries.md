@@ -90,7 +90,8 @@ converter = Converter(
 
 Source roles decide how dictionaries cooperate. Under the default
 `SourcePolicy.REFERENCE_AUTHORIZED`, a loanword reading that the reference
-dictionaries attest wins regardless of order:
+dictionaries attest wins regardless of order, unless a source with the
+`OVERRIDE` role supplies the same entry:
 
 ~~~~ python
 from gukhanmun.dictionaries import loanwords, stdict
