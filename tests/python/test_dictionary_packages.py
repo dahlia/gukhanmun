@@ -309,3 +309,20 @@ def test_failed_staging_writes_leave_no_partial_files(tmp_path: Path, monkeypatc
     with pytest.raises(OSError, match="replace refused"):
         tool.write_atomic(target, b"data")
     assert list(target.parent.iterdir()) == []
+
+
+def test_failed_manifest_writes_leave_no_partial_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    sync = load("sync_version_under_test", REPOSITORY / "scripts/python/sync_version.py")
+    target = tmp_path / "pyproject.toml"
+    # A failed write: the text file object rejects bytes.
+    with pytest.raises(TypeError):
+        sync.write_atomic(target, b"not text")
+    assert list(tmp_path.iterdir()) == []
+
+    def refuse(source: object, destination: object) -> None:
+        raise OSError("replace refused")
+
+    monkeypatch.setattr(sync.os, "replace", refuse)
+    with pytest.raises(OSError, match="replace refused"):
+        sync.write_atomic(target, "text")
+    assert list(tmp_path.iterdir()) == []

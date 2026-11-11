@@ -96,13 +96,16 @@ def rewrite(source: str, version: str) -> str:
 
 
 def write_atomic(path: Path, text: str) -> None:
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,
-                                     prefix=f".{path.name}.", delete=False) as temporary:
-        pending = Path(temporary.name)
-        temporary.write(text)
+    temporary = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,
+                                            prefix=f".{path.name}.", delete=False)
+    pending = Path(temporary.name)
     try:
+        with temporary:
+            temporary.write(text)
         os.replace(pending, path)
     finally:
+        # A failed write, close or replace must not leave a stray file that
+        # dirties the tree for the next version bump.
         pending.unlink(missing_ok=True)
 
 
