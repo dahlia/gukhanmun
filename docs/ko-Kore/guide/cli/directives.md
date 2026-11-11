@@ -41,10 +41,11 @@ gukhanmun --skip-annotation 中 input.txt
 ~~~~
 
 
-Glob 패턴
----------
+글로브(glob) 패턴
+-----------------
 
-各 指示에는 漢字 키에 對해 셸 스타일 glob을 一致시키는 `-glob` 變種이 있습니다:
+各 指示에는 漢字 키에 對해 셸 스타일 글로브 패턴을 一致시키는 `-glob`
+變種이 있습니다:
 
 ~~~~ sh
 gukhanmun --require-hanja-glob "東*" input.txt

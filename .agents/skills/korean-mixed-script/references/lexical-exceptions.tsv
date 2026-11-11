@@ -1,0 +1,25 @@
+hangul	sense	mixed_form	hangul_reading	treatment	basis
+즉	namely; that is	卽	즉	convert	author-decision
+소위	so-called	所謂	소위	convert	author-decision
+어차피	in any event	於此彼	어차피	convert	author-decision
+역시	also; as expected	亦是	역시	convert	author-decision
+물론	of course	勿論	물론	convert	author-decision
+관하다	concern	關하다	관하다	hybrid	author-decision
+대하다	pertain to; face	對하다	대하다	hybrid	author-decision
+전혀	entirely; at all	全혀	전혀	hybrid	author-decision
+애초	at the beginning	애初	애초	hybrid	hybrid-rule-example
+두 번째	second; spacing follows the source context	두 番째	두 번째	hybrid	hybrid-rule-example
+차	tea; not a vehicle or ordinal	茶	차	convert	author-decision
+차례	ancestral rite involving tea offerings; not every homophone or ordinal	茶禮	차례	convert	author-decision
+다례	tea ceremony	茶禮	다례	convert	author-decision
+먹	ink stick	먹	먹	keep-native	author-decision
+찻물	water for tea	茶물	찻물	hybrid-saisiot	author-decision
+숫자	numeral; digit	數字	숫자	convert-saisiot	author-decision
+횟수	number of occurrences	回數	횟수	convert-saisiot	author-decision
+이면	reverse side; hidden aspect	裏面	이면	lexical-form	author-decision
+비밀리	in secrecy; match within inflections such as 비밀리에	祕密裡	비밀리	lexical-form	author-decision
+도착	arrival	到着	도착	lexical-reading	author-decision
+저자	author	著者	저자	lexical-reading	Korean-jeo-reading-rule
+내로남불	abbreviation of 내가 하면 로맨스, 남이 하면 불륜	내로남不	내로남불	slang-abbreviation	author-decision
+자강두천	abbreviation of 자존심 강한 두 천재	自強두天	자강두천	slang-abbreviation	author-decision
+짤방	abbreviation of 짤림 방지	짤防	짤방	slang-abbreviation	author-decision

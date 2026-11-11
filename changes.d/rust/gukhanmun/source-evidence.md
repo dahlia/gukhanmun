@@ -4,4 +4,4 @@ links:
   '#44': https://github.com/dahlia/gukhanmun/pull/44
 ---
  -  Exposed typed dictionary source evidence and validation APIs through the
-    Rust facade. [[#42], [#44]]
+    Rust façade. [[#42], [#44]]

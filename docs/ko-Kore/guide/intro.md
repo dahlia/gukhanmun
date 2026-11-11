@@ -1,7 +1,7 @@
 ---
 title: 紹介
 description: |-
-  Gukhanmun에 對한 槪觀과 CLI·Rust·JavaScript·Python 境界面 中에서 무엇을 고를지에
+  Gukhanmun에 對한 槪觀과 CLI·Rust·JavaScript·Python 인터페이스 中에서 무엇을 고를지에
   對한 案內.
 ---
 
@@ -17,10 +17,10 @@ Markdown, HTML(`<ruby>` 마크업 包含) 等 여러 形式으로 生成합니�
 文字別 倂記 指示를 支援합니다.
 
 
-境界面 選擇
------------
+인터페이스(interface) 選擇
+--------------------------
 
-| 境界面     | 쓰임새                                                    |
+| 인터페이스 | 쓰임새                                                    |
 | ---------- | --------------------------------------------------------- |
 | CLI        | 터미널이나 셸 파이프라인에서 파일을 變換할 때             |
 | Rust       | 變換器를 Rust 應用 프로그램이나 라이브러리에 內藏할 때    |
@@ -60,8 +60,8 @@ Markdown, HTML(`<ruby>` 마크업 包含) 等 여러 形式으로 生成합니�
 
 ### Python
 
-Python 패키지는 타입이 지정된 키워드 설정과 명시적 사전 입력을 받는
-`Converter(...)`를 제공합니다. 로컬 wheel을 빌드하여 Python 프로세스
-안에서 일반 텍스트, HTML, Markdown을 변환합니다.
+Python 패키지는 타입이 指定된 키워드 設定과 明示的 辭典 入力을 받는
+`Converter(...)`를 提供합니다. 로컬 휠(wheel)을 빌드하여 Python 프로세스
+안에서 平文 텍스트, HTML, Markdown을 變換합니다.
 
-[Python 빠른 시작](./python/start.md)을 참고하세요.
+[Python 빠른 始作](./python/start.md)을 參考하세요.

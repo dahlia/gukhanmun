@@ -19,19 +19,19 @@ console.log(g.convert("<p>漢字</p>", "html"));
 // → <p>한자</p>
 ~~~~
 
-Gukhanmun은 入力을 HTML 斷片으로 解析하고, 텍스트 노드의 漢字를 變換하며, 모든
-태그와 屬性을 保存하면서 結果를 直列化합니다.
+Gukhanmun은 入力을 HTML 조각(fragment)으로 解析하고, 텍스트 노드의 漢字를
+變換하며, 모든 태그와 屬性을 保存하면서 結果를 直列化합니다.
 
 
 恒常 保存되는 要素
 ------------------
 
-다음 要素와 그 後孫은 결코 修正되지 않습니다:
+다음 要素와 그 後孫은 決코 修正되지 않습니다:
 
  -  `<code>`, `<kbd>`, `<pre>`, `<samp>`
  -  `<script>`, `<style>`, `<textarea>`
  -  `translate="no"`를 가진 要素
- -  `<ruby>` 註釋 內容
+ -  `<ruby>` 註解(annotation) 內容
 
 
 CSS 클래스로 要素 保存
@@ -83,8 +83,8 @@ const g = await load({
 ~~~~
 
 
-HTML에서의 루비 마크업
-----------------------
+HTML에서의 루비(ruby) 마크업
+----------------------------
 
 `"html"` 形式을 루비 렌더링 모드와 結合합니다:
 
@@ -101,5 +101,5 @@ console.log(g.convert("<p>漢字</p>", "html"));
 // → <p><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby></p>
 ~~~~
 
-`<rp>`(ruby parenthesis) 要素는 fallback을 提供합니다: `<ruby>`를 支援하지 않는
+`<rp>`(ruby parenthesis) 要素는 폴백을 提供합니다: `<ruby>`를 支援하지 않는
 브라우저는 讀音을 基底 텍스트에 섞지 않고 括弧 안에(`한자(漢字)`) 表示합니다.

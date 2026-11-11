@@ -20,7 +20,7 @@ Gukhanmun은 漢字가 包含된 텍스트를 읽어, 漢字를 그 한글 讀�
 gukhanmun input.txt
 ~~~~
 
-出力은 基本的으로 標準 出力으로 갑니다.  대신 파일로 쓰려면 `-o`를 使用합니다:
+出力은 基本的으로 標準 出力으로 갑니다.  代身 파일로 쓰려면 `-o`를 使用합니다:
 
 ~~~~ sh
 gukhanmun -o output.txt input.txt
@@ -28,7 +28,7 @@ gukhanmun -o output.txt input.txt
 
 파일을 제자리에서 바꾸려면, 入力과 出力에 같은 經路를 넘깁니다.  Gukhanmun은
 먼저 臨時 파일에 쓴 뒤 原本을 原子的으로 置換하므로, 原本이 一部만 쓰인 狀態로
-남는 일이 결코 없습니다:
+남는 일이 決코 없습니다:
 
 ~~~~ sh
 gukhanmun -o document.txt document.txt

@@ -196,6 +196,28 @@ Follow these prose conventions:
     `../cli/dictionary.md#building-a-custom-dictionary`).  The explicit
     extension keeps the anchor intact through `hongdown`.
 
+### Korean documentation
+
+Before writing, translating, or editing Korean documentation, read and follow
+the bundled
+[korean-mixed-script skill](.agents/skills/korean-mixed-script/SKILL.md),
+including its referenced tables and relevant guidance. Use the repository's
+copy even when a system-wide copy is installed, so the conventions match this
+checkout. Keep native Korean number words in Hangul.
+
+For `ko-Kore` documentation, also follow the
+[terminology glossary](GLOSSARY.ko-Kore.md). It records the selected
+wording, readings, and distinctions between concepts. Apply it to the Korean
+README and design document as well. When introducing a term or changing a
+selected form, update the glossary and the affected Korean prose together.
+Preserve code identifiers and reading examples, and include the original
+spelling at each document's first mention of an unfamiliar technical term.
+
+The skill is installed from [dahlia/dotfiles] with `npx skills`. Keep its files
+and *skills-lock.json* together when updating it.
+
+[dahlia/dotfiles]: https://github.com/dahlia/dotfiles/tree/main/HOME/.agents/skills/korean-mixed-script
+
 
 Writing the changelog
 ---------------------

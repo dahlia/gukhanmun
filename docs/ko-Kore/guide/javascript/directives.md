@@ -11,8 +11,8 @@ description: |-
 있습니다.
 
 
-指示 인터페이스
----------------
+指示 인터페이스(interface)
+--------------------------
 
 ~~~~ ts twoslash
 interface Directives {

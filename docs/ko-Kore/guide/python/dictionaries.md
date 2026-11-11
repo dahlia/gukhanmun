@@ -1,13 +1,13 @@
 ---
 title: 公式 辭典
-description: Python extra로 《標準國語大辭典》, 《우리말샘》과 國立國語院 《外來語 表記 用例》 데이터를 設置하고, gukhanmun.dictionaries로 明示的으로 活性化하는 方法을 說明합니다.
+description: Python 엑스트라로 《標準國語大辭典》, 《우리말샘》과 國立國語院 《外來語 表記 用例》 데이터를 設置하고, gukhanmun.dictionaries로 明示的으로 活性化하는 方法을 說明합니다.
 ---
 
 公式 辭典
 =========
 
 公式 辭典은 `gukhanmun` 패키지와 別個인 選擇的 데이터 配布版으로 提供됩니다.
-extra로 데이터를 設置하고, `gukhanmun.dictionaries`의 函數로 變換器에
+엑스트라로 데이터를 設置하고, `gukhanmun.dictionaries`의 函數로 變換器에
 追加합니다. 데이터를 設置하는 것만으로는 變換器가 달라지지 않으며, 어느
 프리셋도 이 데이터를 불러오지 않습니다.
 
@@ -24,9 +24,9 @@ assert converter.convert("無條件降服") == "무조건항복"
 데이터 設置
 -----------
 
-各 辭典의 extra는 `gukhanmun`과 正確히 같은 버전의 데이터를 設置합니다.
+各 辭典의 엑스트라는 `gukhanmun`과 正確히 같은 버전의 데이터를 設置합니다.
 
-| extra                        | 配布版                    | 데이터                               |
+| 엑스트라                     | 配布版                    | 데이터                               |
 | ---------------------------- | ------------------------- | ------------------------------------ |
 | `stdict`, `stdict-fst`       | `gukhanmun-stdict-fst`    | 《標準國語大辭典》, FST              |
 | `stdict-cdb`                 | `gukhanmun-stdict-cdb`    | 《標準國語大辭典》, CDB              |
@@ -35,11 +35,11 @@ assert converter.convert("無條件降服") == "무조건항복"
 | `loanwords`, `loanwords-fst` | `gukhanmun-loanwords-fst` | 國立國語院 《外來語 表記 用例》, FST |
 | `loanwords-cdb`              | `gukhanmun-loanwords-cdb` | 國立國語院 《外來語 表記 用例》, CDB |
 
-데이터 配布版은 依存性이 없는 플랫폼 獨立的 wheel입니다. `gukhanmun`을
+데이터 配布版은 依存性이 없는 플랫폼 獨立的 휠(wheel)입니다. `gukhanmun`을
 가져오지 않으므로, `gukhanmun`만 設置하면 公式 데이터는 包含되지 않습니다.
 
 이 패키지들은 아직 PyPI에 配布되지 않았습니다. 配布되기 前까지는 貯藏所를
-체크아웃하여 빌드하고, 로컬 産出物에서 設置합니다.
+체크아웃하여 빌드하고, 로컬 產出物에서 設置합니다.
 
 ~~~~ sh
 mise run py-build
@@ -51,12 +51,12 @@ pip install --no-index \
 ~~~~
 
 `0.4.0`은 빌드한 버전으로 바꿉니다. *target/python/wheels/* 디렉터리에는 빌드한
-플랫폼用 `gukhanmun` wheel만 들어 있습니다. 設置할 데이터 配布版마다
+플랫폼用 `gukhanmun` 휠만 들어 있습니다. 設置할 데이터 配布版마다
 `--find-links`를 하나씩 追加합니다. `--no-index`는 빼지 마십시오. 아직 PyPI에는
 Gukhanmun 配布版이 登錄되어 있지 않으므로, 그곳에 같은 이름으로 올라온 패키지가
 로컬 빌드 代身 設置될 수 있습니다.
 
-PyPI에 配布된 뒤에는 그곳에서 extra를 設置합니다.
+PyPI에 配布된 뒤에는 그곳에서 엑스트라를 設置합니다.
 
 ~~~~ sh
 pip install 'gukhanmun[stdict,loanwords]'
@@ -126,12 +126,12 @@ converter = Converter(dictionaries=[stdict(format=DictionaryFormat.CDB)])
 ~~~~
 
 두 形式은 같은 데이터를 담으며, 變換 結果도 같습니다. FST 데이터는 크기가
-더 작고, CDB는 常數 時間 照會를 提供합니다. 使用할 形式의 extra를
+더 작고, CDB는 常數 時間 照會를 提供합니다. 使用할 形式의 엑스트라를
 設置하십시오.
 
 《標準國語大辭典》과 《우리말샘》의 CDB 配布版은 파일을 gzip으로 壓縮하여
-貯藏합니다. 函數가 壓縮을 풀므로, 返還된 바이트는 恒常 辭典 로더에서 바로
-使用할 수 있습니다.
+貯藏합니다. 函數가 壓縮을 풀므로, 返還된 바이트는 恒常 辭典 로더(loader)에서
+바로 使用할 수 있습니다.
 
 
 바이트 읽기
@@ -165,7 +165,7 @@ data = (files("gukhanmun_stdict_cdb") / "stdict.cdb.gz").read_bytes()
 ----------------
 
 데이터 配布版이 設置되어 있지 않으면, 函數는 `ErrorCode.DICTIONARY_LOAD`인
-`GukhanmunError`를 發生시킵니다. 메시지에는 데이터를 設置하는 extra가
+`GukhanmunError`를 發生시킵니다. 메시지에는 데이터를 設置하는 엑스트라가
 나타납니다.
 
 ~~~~ python

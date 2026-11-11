@@ -22,7 +22,7 @@ cargo add gukhanmun
 
 | 피처        | 더해 주는 것                      | 基本 |
 | ----------- | --------------------------------- | ---- |
-| `html`      | HTML 斷片 變換                    | 예   |
+| `html`      | HTML 조각(fragment) 變換          | 예   |
 | `markdown`  | Markdown 變換                     | 예   |
 | `fst`       | FST 辭典 백엔드(*.gukfst* 파일)   | 예   |
 | `cdb`       | CDB 辭典 백엔드(*.gukcdb* 파일)   | 예   |

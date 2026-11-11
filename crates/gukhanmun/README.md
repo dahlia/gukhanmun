@@ -6,7 +6,7 @@ gukhanmun
 
 Umbrella library for hanja-to-hangul conversion. This crate wires together the
 engine, format adapters, and dictionary backends from the workspace into a
-single `Builder`/`Converter` facade.
+single `Builder`/`Converter` façade.
 
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
 [crates.io]: https://crates.io/crates/gukhanmun

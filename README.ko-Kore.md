@@ -19,7 +19,7 @@ Gukhanmun
 
 Gukhanmun은 國漢文混用體로 쓰인 韓國語 텍스트를 한글 專用 텍스트로 變換하는
 Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變換 파이프라인에
-集中하면서 스트리밍 入出力·結合 可能한 辭典·래티스(lattice) 基盤 分割·多樣한
+集中하면서 스트리밍 入出力·結合 可能한 辭典·格子(lattice) 基盤 分割·多樣한
 出力 形式 等의 軸으로 擴張되었습니다. Rust 라이브러리·命令줄 道具·WebAssembly
 패키지·네이티브 Node-API 애드온 形態로 提供됩니다.
 
@@ -45,15 +45,15 @@ Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變
 機能
 ----
 
- -  래티스 分割로 最適 分割을 찾습니다. 貪慾的 最長 一致와 달리, 行事場所를
+ -  格子 分割로 最適 分割을 찾습니다. 貪慾的 最長 一致와 달리, 行事場所가
     行事場 + 所가 아니라 行事 + 場所로 正確하게 分離됩니다.
  -  結合 可能한 辭典: 메모리 內 맵·mmap 親和的 FST 파일·CDB 파일을 쓸 수
     있으며, `ChainDictionary`로 合成할 수 있습니다.
  -  《標準國語大辭典》과 《우리말샘》이 컴파일된 FST·CDB 形態로 內藏되어 있어
     別途의 다운로드가 必要 없습니다.
- -  平文 텍스트·HTML 조각·Markdown 形式 어댑터를 提供합니다. 엔진은 形式
-    中立的이며, 解析과 直列化는 어댑터가 擔當합니다.
- -  다섯 가지 렌더링 모드: 한글 專用·한글(漢字) 括弧·漢字(한글) 括弧·루비
+ -  平文 텍스트·HTML 조각(fragment)·Markdown 形式 어댑터를 提供합니다. 엔진은
+    形式 中立的이며, 解析과 直列化는 어댑터가 擔當합니다.
+ -  다섯 가지 렌더링 모드: 한글 專用·한글(漢字) 括弧·漢字(한글) 括弧·루비(ruby)
     마크업·選擇的 倂記를 곁들인 國漢文 原文.
  -  스트리밍 優先 設計: 엔진은 單一 漢字 變換 候補 範圍 內에서만 버퍼링하며,
     文書 全體를 메모리에 올리지 않습니다.
@@ -187,19 +187,19 @@ HTML·Markdown 어댑터·렌더링 모드·프리셋·JavaScript API를 包含�
 이 프로젝트는 Cargo 워크스페이스로 構成되며, 모든 크레이트가 同一한 버전을
 共有합니다.
 
-| 크레이트                                                        | 說明                                                                                     |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`gukhanmun-core`][cr-core]                                     | 形式 中立的 IR·엔진·辭典 트레이트·래티스 分割機·폴백 音譯機. `no_std` + `alloc`.         |
-| [`gukhanmun-html`][cr-html]                                     | HTML 단편 리더·라이터. `lang` 相續과 保存 對象 태그 處理를 포함하는 `HtmlScopeData`.     |
-| [`gukhanmun-markdown`][cr-md]                                   | `pulldown-cmark` 基盤 Markdown 어댑터. 인라인 HTML은 `lang` 屬性 處理를 위해 再走査된다. |
-| [`gukhanmun-fst`][cr-fst]                                       | mmap 親和的 온-디스크 辭典을 爲한 FST 基盤 `HanjaDictionary` 具顯.                       |
-| [`gukhanmun-cdb`][cr-cdb]                                       | 監査 容易한 온-디스크 形式의 CDB-trie `HanjaDictionary` 具顯.                            |
-| [`gukhanmun-stdict`][cr-stdict]                                 | 內藏 大韓民國 《標準國語大辭典》을 FST 바이트 配列로 提供.                               |
-| [`gukhanmun-opendict`][cr-opendict]                             | 內藏 《우리말샘》 辭典을 範疇別 FST 바이트 配列로 提供.                                  |
-| [`gukhanmun-loanwords`](./crates/gukhanmun-loanwords/README.md) | 國立國語院 外來語 表記 用例 內藏 辭典.                                                   |
-| [`gukhanmun-dict-extract`][cr-dict-extract]                     | 共有 辭典 덤프 抽出 헬퍼.                                                                |
-| [`gukhanmun-mkdict`][cr-mkdict]                                 | TSV·CSV·JSON Lines 入力에서 FST·CDB 辭典 파일을 빌드하는 CLI 道具.                       |
-| [`gukhanmun-cli`][cr-cli]                                       | `gukhanmun` 命令줄 바이너리.                                                             |
+| 크레이트                                                        | 說明                                                                                         |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [`gukhanmun-core`][cr-core]                                     | 形式 中立的 IR·엔진·辭典 트레이트·格子 分割機·폴백 音譯機. `no_std` + `alloc`.               |
+| [`gukhanmun-html`][cr-html]                                     | HTML 조각 리더(reader)·라이터. `lang` 相續과 保存 對象 태그 處理를 包含하는 `HtmlScopeData`. |
+| [`gukhanmun-markdown`][cr-md]                                   | `pulldown-cmark` 基盤 Markdown 어댑터. 인라인 HTML은 `lang` 屬性 處理를 爲해 再走査된다.     |
+| [`gukhanmun-fst`][cr-fst]                                       | mmap 親和的 온-디스크 辭典을 爲한 FST 基盤 `HanjaDictionary` 具顯.                           |
+| [`gukhanmun-cdb`][cr-cdb]                                       | 監査 容易한 온-디스크 形式의 CDB-trie `HanjaDictionary` 具顯.                                |
+| [`gukhanmun-stdict`][cr-stdict]                                 | 內藏 大韓民國 《標準國語大辭典》을 FST 바이트 配列로 提供.                                   |
+| [`gukhanmun-opendict`][cr-opendict]                             | 內藏 《우리말샘》 辭典을 範疇別 FST 바이트 配列로 提供.                                      |
+| [`gukhanmun-loanwords`](./crates/gukhanmun-loanwords/README.md) | 國立國語院 外來語 表記 用例 內藏 辭典.                                                       |
+| [`gukhanmun-dict-extract`][cr-dict-extract]                     | 共有 辭典 덤프 抽出 헬퍼.                                                                    |
+| [`gukhanmun-mkdict`][cr-mkdict]                                 | TSV·CSV·JSON Lines 入力에서 FST·CDB 辭典 파일을 빌드하는 CLI 道具.                           |
+| [`gukhanmun-cli`][cr-cli]                                       | `gukhanmun` 命令줄 바이너리.                                                                 |
 
 [cr-core]: https://crates.io/crates/gukhanmun-core
 [cr-html]: https://crates.io/crates/gukhanmun-html
@@ -223,7 +223,7 @@ npm/JSR 패키지 構成
 | -------------------------- | ----------------------------------- | ----------------------------------- | -------------------------------------------------------------------- |
 | `@gukhanmun/types`         | [JSR][jsr:@gukhanmun/types]         | [npm][npm:@gukhanmun/types]         | WASM·NAPI 패키지가 共有하는 TypeScript 型 宣言. 런타임 코드 없음.    |
 | `@gukhanmun/wasm`          | [JSR][jsr:@gukhanmun/wasm]          | [npm][npm:@gukhanmun/wasm]          | WebAssembly 빌드. 브라우저·Deno·Node.js·Bun에서 動作.                |
-| `@gukhanmun/napi`          |                                     | [npm][npm:@gukhanmun/napi]          | napi-rs 기반 네이티브 Node.js 애드온. 서버 사이드에서 WASM보다 빠름. |
+| `@gukhanmun/napi`          |                                     | [npm][npm:@gukhanmun/napi]          | napi-rs 基盤 네이티브 Node.js 애드온. 서버 사이드에서 WASM보다 빠름. |
 | `@gukhanmun/stdict-fst`    | [JSR][jsr:@gukhanmun/stdict-fst]    | [npm][npm:@gukhanmun/stdict-fst]    | FST 形式으로 內藏된 《標準國語大辭典》.                              |
 | `@gukhanmun/stdict-cdb`    | [JSR][jsr:@gukhanmun/stdict-cdb]    | [npm][npm:@gukhanmun/stdict-cdb]    | CDB 形式으로 內藏된 《標準國語大辭典》.                              |
 | `@gukhanmun/opendict-fst`  | [JSR][jsr:@gukhanmun/opendict-fst]  | [npm][npm:@gukhanmun/opendict-fst]  | FST 形式으로 內藏된 《우리말샘》 辭典 範疇.                          |
@@ -254,7 +254,7 @@ npm/JSR 패키지 構成
 ---------
 
 [*DESIGN.md*](./DESIGN.ko-Kore.md)에서 全體 構造를 살펴볼 수 있습니다:
-中間 表現·래티스 分割 算法·辭典 트레이트 設計·미들웨어 體系·形式 어댑터 內部
+中間 表現·格子 分割 算法·辭典 트레이트 設計·미들웨어 體系·形式 어댑터 內部
 構造.
 
 
@@ -262,10 +262,10 @@ npm/JSR 패키지 構成
 ----
 
 Gukhanmun의 持續的인 開發과 維持 補修를 [GitHub Sponsors] 또는
-[Open Collective]를 통해 後援할 수 있습니다.
+[Open Collective]를 通해 後援할 수 있습니다.
 
 
 라이선스
 --------
 
-GPL 3.0 하에 配布. [*LICENSE*](./LICENSE) 參照.
+GPL 3.0 下에 配布. [*LICENSE*](./LICENSE) 參照.

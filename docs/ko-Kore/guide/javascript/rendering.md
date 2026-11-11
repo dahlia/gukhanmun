@@ -55,14 +55,14 @@ const g = await load({
 `"simplified"`, `"asahimoji"`입니다.
 
 
-루비 마크업
------------
+루비(ruby) 마크업
+-----------------
 
 `"ruby-on-hangul"`과 `"ruby-on-hanja"`는 `<ruby>` 要素를 만듭니다.  `"html"`이나
 `"markdown"` 形式과 함께 使用합니다; 平文 텍스트에서는 括弧로 退化합니다.
-註釋은 `<rp>`(ruby parenthesis) 要素로 감싸지므로, `<ruby>`를 支援하지 않는
-브라우저도 讀音을 基底 텍스트에 섞지 않고 括弧로 묶인 倂記(`한자(漢字)`)로
-보입니다:
+註解(annotation)는 `<rp>`(ruby parenthesis) 要素로 감싸지므로, `<ruby>`를
+支援하지 않는 브라우저도 讀音을 基底 텍스트에 섞지 않고 括弧로 묶인
+倂記(`한자(漢字)`)로 보입니다:
 
 ~~~~ ts twoslash
 import { load } from "@gukhanmun/wasm";

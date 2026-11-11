@@ -10,8 +10,8 @@ HTML 變換
 `html` 피처가 必要합니다(基本으로 켜짐).
 
 
-HTML 斷片 變換
---------------
+HTML 조각(fragment) 變換
+------------------------
 
 ~~~~ rust
 use gukhanmun::{Builder, Preset};
@@ -21,7 +21,7 @@ let output = converter.convert_html_fragment_to_string("<p>漢字</p>")?;
 // → "<p>한자</p>"
 ~~~~
 
-Gukhanmun은 入力을 (完全한 文書가 아니라) HTML 斷片으로 解析하고, 텍스트 노드와
+Gukhanmun은 入力을 (完全한 文書가 아니라) HTML 조각으로 解析하고, 텍스트 노드와
 屬性 속의 漢字를 變換하며, 모든 태그와 屬性을 그대로 保存하면서 結果를
 直列化합니다.
 
@@ -29,12 +29,12 @@ Gukhanmun은 入力을 (完全한 文書가 아니라) HTML 斷片으로 解析�
 恒常 保存되는 要素
 ------------------
 
-다음 要素는 결코 修正되지 않습니다:
+다음 要素는 決코 修正되지 않습니다:
 
  -  `<code>`, `<kbd>`, `<pre>`, `<samp>`
  -  `<script>`, `<style>`, `<textarea>`
  -  `translate="no"`를 가진 要素
- -  `<ruby>` 註釋 內容(`<rt>`, `<rp>`)
+ -  `<ruby>` 註解(annotation) 內容(`<rt>`, `<rp>`)
 
 
 使用者 定義 保存 規則

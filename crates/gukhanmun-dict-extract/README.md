@@ -65,11 +65,11 @@ The offline CLI needs `loanwords-cli`; HTTPS collection additionally needs
 *Standard Korean Dictionary* and *Open Korean Dictionary* builds acquire no TLS
 stack. The optional collector pins ureq 3.4.2 built with rustls and ring, with
 compression disabled. Enabling `loanwords-collect` also compiles out
-trace-level messages from dependencies using the `log` facade by default:
+trace-level messages from dependencies using the `log` façade by default:
 ureq's Trace output can include credential-bearing queries and raw request
 bytes. A downstream release filter can override this cap, so collection refuses
 credential-bearing requests if the compiled maximum exceeds Debug. This cap
-does not apply to the separate `tracing` facade. The
+does not apply to the separate `tracing` façade. The
 `ring` crate requires native build tools; local verification covers Linux, not
 every release platform.
 

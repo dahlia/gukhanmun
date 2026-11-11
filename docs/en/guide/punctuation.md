@@ -171,4 +171,4 @@ options from `converter.html_reader_options()`; these preserve unmatched end
 tags as opaque markup. Rootless fragments still need the codec. Markdown
 callers serializing `convert_markdown_iter()` must use
 `write_markdown_with_options(tokens, converter.markdown_write_options())`.
-The buffered facade methods select these options automatically.
+The buffered façade methods select these options automatically.

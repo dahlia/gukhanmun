@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: lexical-forms-and-literals
+expected_outcome: |
+  Converts the Korean prose and quotation without changing vocabulary; uses the private 產/眾 preferences, sense-specific 裏面/祕密裡/到着/茶禮/茶물, native 먹/사람/귀 and Hangul unknown name, title/quotation marks, one ellipsis and horizontal Arabic quantities. Preserves the exact code and URL.

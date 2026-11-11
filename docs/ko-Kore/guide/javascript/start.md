@@ -53,7 +53,7 @@ import type { Gukhanmun } from "@gukhanmun/types";
 const g: Gukhanmun = {} as unknown as Gukhanmun;
 // ---cut-before---
 g.convert("漢字를 한글로");             // 平文 텍스트 (基本)
-g.convert("<p>漢字</p>", "html");       // HTML 斷片
+g.convert("<p>漢字</p>", "html");       // HTML 조각(fragment)
 g.convert("# 漢字", "markdown");        // CommonMark
 g.convert("# 漢字", { format: "markdown", gfm: true });  // GFM
 ~~~~

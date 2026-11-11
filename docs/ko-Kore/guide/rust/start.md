@@ -30,8 +30,8 @@ fn main() -> gukhanmun::Result<()> {
 Builder 패턴
 ------------
 
-`Builder`는 流暢한 境界面을 使用합니다.  모든 setter가 `&mut Self`를 返還하므로
-呼出을 連鎖할 수 있습니다:
+`Builder`는 流暢한 인터페이스(interface)를 使用합니다.  모든 세터(setter)가
+`&mut Self`를 返還하므로 呼出을 連鎖할 수 있습니다:
 
 ~~~~ rust
 use gukhanmun::{Builder, Preset, RenderMode, NumeralStrategy};
@@ -56,7 +56,7 @@ let converter = Builder::with_preset(Preset::KoKr)
 // 平文 텍스트
 let text = converter.convert_text_to_string("漢字를 한글로")?;
 
-// HTML 斷片 (`html` 피처 必要)
+// HTML 조각(fragment) (`html` 피처 必要)
 let html = converter.convert_html_fragment_to_string("<p>漢字</p>")?;
 
 // Markdown (`markdown` 피처 必要)

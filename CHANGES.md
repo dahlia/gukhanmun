@@ -65,7 +65,7 @@ To be released.
     JavaScript/TypeScript, and Python), preserving released history.
     [[#47], [#54]]
  -  Exposed typed dictionary source evidence and validation APIs through the
-    Rust facade. [[#42], [#44]]
+    Rust façade. [[#42], [#44]]
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading

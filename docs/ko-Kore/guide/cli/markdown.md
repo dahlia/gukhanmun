@@ -20,7 +20,7 @@ gukhanmun -f "text/markdown; variant=GFM" input.md
 YAML 프런트 매터
 ----------------
 
-파일 맨 위의 YAML 프런트 매터(`---`로 구분된 블록)는 變換 前에 恒常 認識되어
+파일 맨 위의 YAML 프런트 매터(`---`로 區分된 블록)는 變換 前에 恒常 認識되어
 分離되므로, Markdown 變換器에 依해 망가지지 않습니다.  基本的으로는 그대로
 通過되고 Markdown 本文만 變換됩니다.
 

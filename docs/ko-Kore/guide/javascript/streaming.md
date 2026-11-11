@@ -78,7 +78,7 @@ const converted = response.body!
 스트리밍 保證
 -------------
 
-스트림의 writable 側에 쓴 모든 청크와 readable 側에서 읽은 모든 청크를 이어 붙인
+스트림의 쓰기 側에 쓴 모든 청크와 읽기 側에서 읽은 모든 청크를 이어 붙인
 것은, 全體 連結 入力에 對해 `g.convert()`를 呼出한 것과 同等합니다:
 
 ~~~~ ts twoslash

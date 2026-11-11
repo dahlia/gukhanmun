@@ -5,7 +5,7 @@ title: API 參照
 API 參照
 ========
 
-Gukhanmun은 Rust, JavaScript, Python API를 제공합니다.
+Gukhanmun은 Rust, JavaScript, Python API를 提供합니다.
 
 :::note 參考
 自動 生成되는 Rust/JavaScript API 參照 페이지는 英語로 提供됩니다.
@@ -61,6 +61,6 @@ JavaScript API 參照는 아래 페이지에서 찾을 수 있습니다:
 Python
 ------
 
-Python API는 `Converter(...)`, 표준 라이브러리 enum과 변경할 수 없는 설정
-레코드를 사용합니다. [Python API 참고 문서](./python.md)나
-[Python 빠른 시작](../guide/python/start.md)을 참고하세요.
+Python API는 `Converter(...)`, 標準 라이브러리 列擧型과 變更할 수 없는 設定
+레코드를 使用합니다. [Python API 參考 文書](./python.md)나
+[Python 빠른 始作](../guide/python/start.md)을 參考하세요.

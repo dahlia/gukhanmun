@@ -1080,7 +1080,7 @@ recognizes the legacy `&not` and renders `¬in。`. Replacing `。` with a liter
 Generated `!`, `?`, and `/` also use numeric references to avoid forming markup
 after a recovered literal `<`. Unmatched end tags need separate protection:
 escaping them as ordinary text would change existing HTML semantics. The
-punctuation-enabled facade therefore asks the reader to preserve them as
+punctuation-enabled façade therefore asks the reader to preserve them as
 `Verbatim`. Low-level pipelines must select both these reader options and the
 HTML codec, including for rootless fragments.
 
@@ -1096,7 +1096,7 @@ passed through a second pass of the HTML scanner so that constructs like
 Output is via `pulldown-cmark-to-cmark`, which serializes an event stream back
 to Markdown. Semantic preservation is contractual: the output, when re-parsed,
 produces the same logical structure. Byte-for-byte preservation is best effort:
-setext headings may become ATX, link reference definitions may be inlined, soft
+Setext headings may become ATX, link reference definitions may be inlined, soft
 breaks may be regularized. Users who require byte-fidelity should process
 rendered HTML rather than Markdown.
 
@@ -1168,7 +1168,7 @@ The Rust source is organized as a Cargo workspace with the following layout:
      -  *gukhanmun-wasm/*: WebAssembly bindings via `wasm-bindgen`.
      -  *gukhanmun-napi/*: Node-API bindings via `napi-rs`.
      -  *gukhanmun-python/*: private Python extension via PyO3.
- -  *python/gukhanmun/*: Python facade and distribution metadata.
+ -  *python/gukhanmun/*: Python façade and distribution metadata.
 
 The umbrella crate's feature flags compose the others. Default features enable
 HTML, Markdown, the CDB and FST backends, and the bundled loanwords, stdict,
@@ -1191,7 +1191,7 @@ one-shot plain-text, HTML and Markdown conversion. HTML and Markdown methods
 retain their existing feature gates; iterator conversion remains available
 through `Builder` and `Converter`.
 
-Both facades resolve presets and assemble the same dictionary chain at build
+Both façades resolve presets and assemble the same dictionary chain at build
 time, preserving source roles, nested policies and phrase-evidence ownership.
 They retain the lexical index constructed for the ordered source policy and
 use the same execution helpers. Each conversion creates its own parser,

@@ -65,8 +65,8 @@ builder.numerals(NumeralStrategy::AdditiveArabic);   // 11 (加算)
 builder.numerals(NumeralStrategy::Smart);            // 文脈마다 最適을 選擇
 ~~~~
 
-`Smart`는 年度 같은 네 자리 連續에는 位置 記數法을, 분명한 數量에는 加算
-記數法을 고르되 `百濟`나 `十長生`처럼 單語처럼 보이는 애매한 列은 音讀 폴백으로
+`Smart`는 年度 같은 네 자리 連續에는 位置 記數法을, 分明한 數量에는 加算
+記數法을 고르되 `百濟`나 `十長生`처럼 單語처럼 보이는 模糊한 列은 音讀 폴백으로
 둡니다.
 
 
@@ -78,7 +78,7 @@ builder.initial_sound_law(true);   // 켜짐 (Preset::KoKr 基本)
 builder.initial_sound_law(false);  // 꺼짐 (Preset::KoKp 基本)
 ~~~~
 
-어떤 辭典에서도 찾지 못한 文字의 fallback 讀音에 南韓의 音韻 規則(頭音法則)을
+어떤 辭典에서도 찾지 못한 文字의 폴백 讀音에 南韓의 音韻 規則(頭音法則)을
 適用합니다:
 
 | 入力 | 法則 켜짐 (`KoKr`) | 法則 꺼짐 (`KoKp`) |
@@ -88,24 +88,24 @@ builder.initial_sound_law(false);  // 꺼짐 (Preset::KoKp 基本)
 | 女子 | 여자               | 녀자               |
 
 
-括弧 讀音 註釋
---------------
+括弧 讀音 註解(annotation)
+--------------------------
 
 ~~~~ rust
 builder.collapse_redundant_parens(true);   // 켜기 (基本)
 builder.collapse_redundant_parens(false);  // 括弧를 그대로 둠
 ~~~~
 
-한 單語가 明示的인 括弧 讀音 註釋을 漢字가 앞에(`庫間(곳간)`) 또는 한글이
-앞에(`곳간(庫間)`) 달고 있으면, Gukhanmun은 重複된 括弧를 除去하고 그 註釋을
+한 單語가 明示的인 括弧 讀音 註解를 漢字가 앞에(`庫間(곳간)`) 또는 한글이
+앞에(`곳간(庫間)`) 달고 있으면, Gukhanmun은 重複된 括弧를 除去하고 그 註解를
 모든 렌더링 모드에서 두 文字 體系로 보이도록 標示합니다(`HangulOnly`에서는
 `곳간(庫間)`, `Original`에서는 `庫間(곳간)`).  代案 讀音을 固定하는 括弧는 그
 자리의 辭典 讀音을 덮어씁니다.  그래서 辭典이 `數字`를 `숫자`로 읽더라도
 `數字(수자)`는 `수자(數字)`로 렌더링됩니다.
 
-讀音 註釋은 두 規則으로 뜻풀이와 區別됩니다.  單語의 讀音과 正確히 一致하는
+讀音 註解는 두 規則으로 뜻풀이와 區別됩니다.  單語의 讀音과 正確히 一致하는
 括弧는 늘 합쳐집니다(`庫間(곳간)` 같은 사이시옷 讀音을 包括합니다).  그렇지
-않으면, 代案 讀音은 漢字 한 글자마다 한글 한 音節이 對應하고 各 音節이 그 글자의
+않으면, 代案 讀音은 漢字 한 글字마다 한글 한 音節이 對應하고 各 音節이 그 글字의
 有效한 韓國 漢字音일 때에만 받아들여집니다(`數字(수자)`처럼).  뜻풀이
 `庫間(물건을 간직하여 두는 곳)`이나 外來語 音譯 `蔣介石(장제스)`(여기서 `介`는
 `제`가 아니라 `개`)는 두 規則 어디에도 該當하지 않아 건드리지 않습니다.
@@ -162,7 +162,7 @@ builder.homophone_detection(HomophoneDetection::DictionaryWide);
 그것을 眞짜로 模糊하게 만들 때에만 倂記됩니다.  `DictionaryWide`는 더 넓지만,
 內藏 《標準國語大辭典》 같은 큰 參照 辭典으로는 거의 모든 흔한 讀音에 어떤
 同音異義語가 있으므로 大部分의 漢字語를 倂記하게 됩니다.  文脈과 無關하게 特定
-單語를 恒常 倂記하려면, 대신 `DirectiveAction::RequireHanja` 指示를
+單語를 恒常 倂記하려면, 代身 `DirectiveAction::RequireHanja` 指示를
 使用합니다(〈[使用者 指示](./directives.md)〉 參照).
 
 
@@ -170,13 +170,13 @@ builder.homophone_detection(HomophoneDetection::DictionaryWide);
 ----------------------
 
 同音異義 區別은 辭典이 單位로 認識하는 單語에 對해 動作합니다.  自體 辭典
-項目이 없는 漢字 連續은 하나의 單語로 다뤄지지 않으며, 그 fallback(非辭典)
-文字는 결코 倂記되지 않습니다; 그 안에 있는, 認識되는 한 글자 項目(例컨대
+項目이 없는 漢字 連續은 하나의 單語로 다뤄지지 않으며, 그 폴백(非辭典)
+文字는 決코 倂記되지 않습니다; 그 안에 있는, 認識되는 한 글字 項目(例컨대
 `紫`)은 여전히 따로 處理됩니다. 例를 들어 `自由`와 `子游`는 둘 다 `자유`로
 읽히는 內藏 項目이므로 `自由와 子游`는 `자유(自由)와 자유(子游)`로
 렌더링됩니다; 그러나 `紫楡`는 自體 項目이 없으므로, 基本 context-local 戰略에서
 `自由와 紫楡`는 倂記 없이 `자유와 자유`로 렌더링되는데, 이는 엔진이 `自由`와
-衝突할 두 番째 `자유` 單位를 결코 보지 못하기 때문입니다.  全體 用語를
+衝突할 두 番째 `자유` 單位를 決코 보지 못하기 때문입니다.  全體 用語를
 區別하려면, 그것을 [使用者 定義 辭典](./dictionary.md)에 追加하여 엔진이 그것을
 하나의 單位로 다루게 합니다.
 
@@ -190,7 +190,7 @@ builder.homophone_detection(HomophoneDetection::DictionaryWide);
 
 | 값                           | 動作                              |
 | ---------------------------- | --------------------------------- |
-| `ContextWindow::Off` (基本)  | 결코 解除 안 함; 모든 出現을 倂記 |
+| `ContextWindow::Off` (基本)  | 決코 解除 안 함; 모든 出現을 倂記 |
 | `ContextWindow::PerBlock`    | 같은 段落/블록 안에서 解除        |
 | `ContextWindow::PerSection`  | 같은 섹션 안에서 解除             |
 | `ContextWindow::PerDocument` | 文書 全體에 걸쳐 解除             |
@@ -210,7 +210,7 @@ builder.first_occurrence_window(ContextWindow::PerDocument);
 use gukhanmun::Recovery;
 
 builder.recovery(Recovery::Strict);   // 基本: 誤謬 時 中斷
-builder.recovery(Recovery::Lenient);  // 問題가 되는 斷片을 건너뜀
+builder.recovery(Recovery::Lenient);  // 問題가 되는 조각(fragment)을 건너뜀
 ~~~~
 
 HTML 變換에서 該當합니다; 平文 텍스트와 Markdown은 復舊 可能한 誤謬를 내지

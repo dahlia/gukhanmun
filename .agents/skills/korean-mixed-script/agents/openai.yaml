@@ -1,0 +1,4 @@
+interface:
+  display_name: "Korean mixed script"
+  short_description: "Write Korean using Hong Minhee’s Hanja conventions"
+  default_prompt: "Use $korean-mixed-script to write or convert Korean with Hong Minhee’s mixed-script orthography."

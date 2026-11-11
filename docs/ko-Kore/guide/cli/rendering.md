@@ -58,23 +58,23 @@ echo "漢字" | gukhanmun --rendering hanja-hangul-parens
 
 ### `ruby-on-hangul`
 
-한글 讀音을 `<ruby>` 要素로 감싸고 漢字를 그 註釋으로 답니다.  HTML이나 Markdown
-出力(`-f text/html` 또는 `-f text/markdown`)이 必要합니다; 平文 텍스트에서는
-括弧로 退化합니다.
+한글 讀音을 `<ruby>` 要素로 감싸고 漢字를 그 註解(annotation)로 답니다.
+HTML이나 Markdown 出力(`-f text/html` 또는 `-f text/markdown`)이 必要합니다;
+平文 텍스트에서는 括弧로 退化합니다.
 
 ~~~~ sh
 echo "漢字" | gukhanmun -f text/html --rendering ruby-on-hangul
 # → <ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby>
 ~~~~
 
-`<rp>` 要素는 括弧로 묶인 fallback 텍스트를 담습니다.  `<ruby>`를 支援하는
-브라우저는 이를 숨기고 註釋을 基底 텍스트 위에 쌓아 올리며, `<ruby>`를 支援하지
+`<rp>` 要素는 括弧로 묶인 폴백 텍스트를 담습니다.  `<ruby>`를 支援하는
+브라우저는 이를 숨기고 註解를 基底 텍스트 위에 쌓아 올리며, `<ruby>`를 支援하지
 않는 브라우저는 그 倂記를 基底 텍스트에 섞지 않고 括弧 안에(`한자(漢字)`)
 表示합니다.
 
 ### `ruby-on-hanja`
 
-原 漢字를 `<ruby>` 要素로 감싸고 한글 讀音을 그 註釋으로 답니다.
+原 漢字를 `<ruby>` 要素로 감싸고 한글 讀音을 그 註解로 답니다.
 
 ~~~~ sh
 echo "漢字" | gukhanmun -f text/html --rendering ruby-on-hanja
