@@ -124,19 +124,30 @@ test group, builds a noneditable wheel for each interpreter/ABI, and copies
 runtime tests to temporary directories outside the checkout. Logs identify the
 interpreter, base installation, installed distribution and native module hash.
 
-These are development and semantic checks. Exhaustive release wheel/sdist
-validation and free-threaded CPython support are separate work. Core tests use
-synthetic dictionaries and do not require the optional official datasets.
+These are development and semantic checks; the release artifacts are
+validated separately, as described below. Free-threaded CPython is not
+supported. Core tests use synthetic dictionaries and do not require the
+optional official datasets.
 
 GitHub Actions runs installed-wheel semantic tests on CPython 3.11–3.15 and
 PyPy 3.11/3.12 on Linux. On macOS and Windows, the standard `ci` job tests
 installed wheels with the current development CPython and runs all five type
 checkers against them. The Python semantic jobs add CPython 3.11 and
 PyPy 3.11/3.12. Each job installs its selected mise interpreter and builds a
-native wheel for that environment. Exhaustive release wheel/sdist validation
-remains separate work under [#51].
+native wheel for that environment.
 
-[#51]: https://github.com/dahlia/gukhanmun/issues/51
+GitHub Actions also produces the release artifact set on every pull request
+and push, without any registry credentials. A `python-context` job generates
+the target matrix from *scripts/python/artifacts.py* and the artifact
+version: the workspace version on tags and `X.Y.Z.dev0` otherwise, which only
+exercises development versioning and is not a publication version. Every job
+that produces or checks artifacts stamps that version first. `python-sdist`
+builds the seven sdists and the data wheels and rebuilds every sdist outside
+the checkout; `python-wheels` builds and audits each target on its native
+runner; `python-wheel-test` installs the wheels on a fresh runner of the
+same kind, without Rust, and executes them. `python-dists` writes the manifest,
+verifies the complete set, and uploads it with the evidence records as the
+`python-dists` artifact.
 
 
 Running checks

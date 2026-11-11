@@ -235,8 +235,21 @@ def build_interpreters(item, root=ROOT):
     return result
 
 
+ORCHESTRATION_PIN = "3.15.2"
+
+
+def mise_pins(item, root=ROOT):
+    """The mise interpreters a target's jobs install: builds, tests and tools."""
+    pins = {ORCHESTRATION_PIN}
+    if not item.image:
+        pins |= {entry["pin"] for entry in build_interpreters(item, root)}
+    pins |= {entry["pin"] for entry in test_interpreters(item, root) if "pin" in entry}
+    return sorted(pins)
+
+
 def matrix(root=ROOT):
-    rows = [{"target": item.id, "runner": item.runner, "family": item.family} for item in TARGETS]
+    rows = [{"target": item.id, "runner": item.runner, "family": item.family,
+             "pythons": " ".join(f"python@{pin}" for pin in mise_pins(item, root))} for item in TARGETS]
     return {"include": rows}
 
 
@@ -773,6 +786,65 @@ def test(arguments):
 
 
 # ---------------------------------------------------------------------------
+# CI helpers
+
+
+TOOLS = ROOT / "target" / "python" / "tools"
+
+
+def tools(arguments):
+    """Create a venv with the locked, hash-checked release tools.
+
+    CI jobs on bare runners install only mise, uv and the pinned interpreters;
+    this venv adds `packaging` for version stamping and, on Windows, `pefile`
+    for audits.  It prints the venv's interpreter.
+    """
+    shutil.rmtree(TOOLS, ignore_errors=True)
+    run(["uv", "venv", "--quiet", "--python", sys.executable, TOOLS])
+    python = TOOLS / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    requirements = TOOLS / "requirements.txt"
+    run(["uv", "export", "--quiet", "--locked", "--only-group", "release", "--no-emit-workspace",
+         "--output-file", requirements])
+    run(["uv", "pip", "install", "--quiet", "--python", python, "--require-hashes", "-r", requirements])
+    print(python)
+
+
+def stamp(arguments):
+    """Write PYPI_VERSION to every Python manifest and refresh the lockfile.
+
+    Every job that produces artifacts stamps its own checkout before
+    building, so all 31 files carry one version.  Without PYPI_VERSION the
+    workspace version stays.
+    """
+    if not os.environ.get("PYPI_VERSION"):
+        print(f"PYPI_VERSION is not set; keeping {core_version()}")
+        return
+    run([sys.executable, "-I", Path(__file__).with_name("sync_version.py")])
+    run(["uv", "lock", "--no-build"])
+    print(f"Stamped {core_version()}")
+
+
+def ci_version(ref_type, root=ROOT):
+    """The artifact version CI builds: the release on tags, `.dev0` otherwise.
+
+    `.dev0` only exercises development versioning; it is not a publication
+    identity.  Publishing replaces it with its own development number.
+    """
+    version = load("sync_version").workspace_version(root)
+    return version if ref_type == "tag" else f"{version}.dev0"
+
+
+def ci_context(arguments):
+    outputs = {"matrix": json.dumps(matrix()), "pypi-version": ci_version(os.environ.get("GITHUB_REF_TYPE"))}
+    target_file = os.environ.get("GITHUB_OUTPUT")
+    lines = "".join(f"{key}={value}\n" for key, value in outputs.items())
+    if target_file:
+        with open(target_file, "a", encoding="utf-8") as stream:
+            stream.write(lines)
+    print(lines, end="")
+
+
+# ---------------------------------------------------------------------------
 # Manifest and verification
 
 
@@ -988,6 +1060,9 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("matrix", help="print the CI matrix generated from the target table")
     commands.add_parser("expected", help="print every file of a complete release")
+    commands.add_parser("tools", help="create the locked release tool venv and print its interpreter")
+    commands.add_parser("stamp", help="write PYPI_VERSION to every Python manifest and refresh uv.lock")
+    commands.add_parser("ci-context", help="write the CI matrix and artifact version to GITHUB_OUTPUT")
     for name, help_text in (("build", "build one target's wheels"), ("audit", "audit one target's wheels"),
                             ("test", "execute one target's wheels")):
         command = commands.add_parser(name, help=help_text)
@@ -1013,8 +1088,8 @@ def main():
     elif arguments.command == "expected":
         print(json.dumps(expected_files(core_version()), indent=2, sort_keys=True))
     else:
-        {"build": build, "audit": audit, "test": test, "manifest": manifest, "verify": verify}[arguments.command](
-            arguments)
+        {"build": build, "audit": audit, "test": test, "manifest": manifest, "verify": verify,
+         "tools": tools, "stamp": stamp, "ci-context": ci_context}[arguments.command](arguments)
 
 
 if __name__ == "__main__":

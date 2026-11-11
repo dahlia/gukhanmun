@@ -452,3 +452,40 @@ def test_search_paths_must_stay_inside_the_wheel(entry: str, valid: bool) -> Non
     else:
         with pytest.raises(RuntimeError, match="outside the wheel"):
             artifacts.check_search_path(entry, "gukhanmun/_native.abi3.so")
+
+
+@pytest.mark.parametrize("cargo,python", [("0.4.0", "0.4.0"), ("1.2.0-rc.2", "1.2.0rc2")])
+def test_ci_builds_dev0_on_branches_and_the_release_on_tags(tmp_path: Path, cargo: str, python: str) -> None:
+    (tmp_path / "Cargo.toml").write_text(f'[workspace.package]\nversion = "{cargo}"\n')
+    assert artifacts.ci_version("tag", tmp_path) == python
+    assert artifacts.ci_version("branch", tmp_path) == f"{python}.dev0"
+    assert artifacts.ci_version(None, tmp_path) == f"{python}.dev0"
+
+
+def test_ci_context_writes_the_matrix_and_version(tmp_path: Path, monkeypatch) -> None:
+    output = tmp_path / "output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("GITHUB_REF_TYPE", "branch")
+    artifacts.ci_context(SimpleNamespace())
+    values = dict(line.split("=", 1) for line in output.read_text().splitlines())
+    assert json.loads(values["matrix"]) == artifacts.matrix()
+    assert values["pypi-version"].endswith(".dev0")
+
+
+def test_each_job_installs_exactly_the_interpreters_it_runs() -> None:
+    rows = {row["target"]: row["pythons"].split() for row in artifacts.matrix()["include"]}
+    assert rows["musl-x86_64"] == ["python@3.15.2"]
+    assert rows["windows-arm64"] == ["python@3.11.18", "python@3.15.2"]
+    assert rows["linux-x86_64"] == ["python@3.11.18", "python@3.15.2", "python@pypy3.11-8.0.1",
+                                    "python@pypy3.12-8.0.1"]
+
+
+def test_the_workflow_uses_the_generated_matrix_and_version() -> None:
+    workflow = (REPOSITORY / ".github/workflows/main.yaml").read_text()
+    assert "scripts/python/artifacts.py ci-context" in workflow
+    assert workflow.count("fromJSON(needs.python-context.outputs.matrix)") == 2
+    for job in ("python-sdist:", "python-wheels:", "python-wheel-test:", "python-dists:"):
+        section = workflow.split(f"  {job}\n", 1)[1].split("\n  python-", 1)[0]
+        assert "PYPI_VERSION: ${{ needs.python-context.outputs.pypi-version }}" in section, job
+        assert "artifacts.py stamp" in section, job
+    assert "verify --dir python-dists" in workflow and "--complete" in workflow

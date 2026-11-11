@@ -156,6 +156,245 @@ jobs:
         set -euo pipefail
         mise run py-test-all -- -e "$PYTHON_ENV"
 
+  python-context:
+    name: Python artifact context
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.context.outputs.matrix }}
+      pypi-version: ${{ steps.context.outputs.pypi-version }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: jdx/mise-action@v4
+      with:
+        install: false
+        cache: false
+        # Exporting the environment would evaluate mise.toml's UV_PYTHON
+        # template before any Python is installed, which fails.
+        env: false
+    - name: Compute the target matrix and artifact version
+      id: context
+      shell: bash
+      env:
+        MISE_EXEC_AUTO_INSTALL: "false"
+      run: |
+        set -euo pipefail
+        mise install uv python@3.15.2
+        tools="$(mise exec --no-deps uv python@3.15.2 -- python -I scripts/python/artifacts.py tools | tail -n 1)"
+        mise exec --no-deps uv python@3.15.2 -- "$tools" -I scripts/python/artifacts.py ci-context
+
+  python-sdist:
+    name: Python sdists and data wheels
+    runs-on: ubuntu-latest
+    needs: python-context
+    timeout-minutes: 60
+    env:
+      PYPI_VERSION: ${{ needs.python-context.outputs.pypi-version }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - name: Build the sdists and rebuild each one outside the checkout
+      shell: bash
+      run: |
+        set -euo pipefail
+        mise run py-deps
+        uv run --no-sync python -I scripts/python/artifacts.py stamp
+        mise run py-sdist-test
+        mkdir -p dist
+        cp target/python/sdist/*.tar.gz target/python/dictionaries/gukhanmun-*/*.tar.gz \
+          target/python/dictionaries/gukhanmun-*/*.whl dist/
+        cp target/python/sdist-rebuilt/rebuilds.json dist/
+        cp target/python/smoke/sdist-rebuild.json dist/smoke-sdist-rebuild.json
+        mkdir -p data
+        cp target/python/dictionaries/gukhanmun-*/*.whl data/
+    - uses: actions/upload-artifact@v7
+      with:
+        name: python-sdists
+        path: dist/
+        if-no-files-found: error
+    - uses: actions/upload-artifact@v7
+      with:
+        name: python-data-wheels
+        path: data/
+        if-no-files-found: error
+
+  python-wheels:
+    name: Python wheels (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    needs: python-context
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.python-context.outputs.matrix) }}
+    env:
+      PYPI_VERSION: ${{ needs.python-context.outputs.pypi-version }}
+      MISE_EXEC_AUTO_INSTALL: "false"
+    steps:
+    - name: Disable Git CRLF conversion
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        git config --global core.autocrlf false
+        git config --global core.eol lf
+    - uses: actions/checkout@v6
+    # Only mise itself: the full tool set does not exist for every target, and
+    # automatic dependency setup would build unrelated tools.
+    - uses: jdx/mise-action@v4
+      with:
+        install: false
+        cache: false
+        # Exporting the environment would evaluate mise.toml's UV_PYTHON
+        # template before any Python is installed, which fails.
+        env: false
+    - name: Install the pinned interpreters and uv
+      shell: bash
+      env:
+        PYTHONS: ${{ matrix.pythons }}
+      run: |
+        set -euo pipefail
+        read -ra pythons <<< "$PYTHONS"
+        mise install uv "${pythons[@]}"
+        tools="$(mise exec --no-deps uv python@3.15.2 -- python -I scripts/python/artifacts.py tools | tail -n 1)"
+        echo "GUKHANMUN_TOOLS_PYTHON=$tools" >> "$GITHUB_ENV"
+    - name: Stamp the artifact version
+      shell: bash
+      run: mise exec --no-deps uv python@3.15.2 -- "$GUKHANMUN_TOOLS_PYTHON" -I scripts/python/artifacts.py stamp
+    - name: Build the wheels
+      shell: bash
+      env:
+        TARGET: ${{ matrix.target }}
+      run: |
+        set -euo pipefail
+        mise exec --no-deps uv python@3.15.2 -- "$GUKHANMUN_TOOLS_PYTHON" -I scripts/python/artifacts.py \
+          build --target "$TARGET" --out dist
+    - name: Audit the wheels
+      shell: bash
+      env:
+        TARGET: ${{ matrix.target }}
+      run: |
+        set -euo pipefail
+        mise exec --no-deps uv python@3.15.2 -- "$GUKHANMUN_TOOLS_PYTHON" -I scripts/python/artifacts.py \
+          audit --target "$TARGET" --out dist
+    # A flat upload, so the set merges into one directory downstream.
+    - name: Collect the wheels and their records
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p upload
+        cp dist/wheels/*.whl dist/build-info-*.json dist/audit-*.json upload/
+    - uses: actions/upload-artifact@v7
+      with:
+        name: python-wheels-${{ matrix.target }}
+        path: upload/
+        if-no-files-found: error
+
+  python-wheel-test:
+    name: Python wheel tests (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    needs: [python-context, python-sdist, python-wheels]
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.python-context.outputs.matrix) }}
+    env:
+      PYPI_VERSION: ${{ needs.python-context.outputs.pypi-version }}
+      MISE_EXEC_AUTO_INSTALL: "false"
+    steps:
+    - name: Disable Git CRLF conversion
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        git config --global core.autocrlf false
+        git config --global core.eol lf
+    - uses: actions/checkout@v6
+    - uses: jdx/mise-action@v4
+      with:
+        install: false
+        cache: false
+        # Exporting the environment would evaluate mise.toml's UV_PYTHON
+        # template before any Python is installed, which fails.
+        env: false
+    # No Rust is installed for these jobs; the smoke runner also builds its
+    # PATH from the venv alone, so the runner's own Rust cannot be reached.
+    - name: Install the pinned interpreters and uv
+      shell: bash
+      env:
+        PYTHONS: ${{ matrix.pythons }}
+      run: |
+        set -euo pipefail
+        read -ra pythons <<< "$PYTHONS"
+        mise install uv "${pythons[@]}"
+        tools="$(mise exec --no-deps uv python@3.15.2 -- python -I scripts/python/artifacts.py tools | tail -n 1)"
+        echo "GUKHANMUN_TOOLS_PYTHON=$tools" >> "$GITHUB_ENV"
+    - name: Stamp the artifact version
+      shell: bash
+      run: mise exec --no-deps uv python@3.15.2 -- "$GUKHANMUN_TOOLS_PYTHON" -I scripts/python/artifacts.py stamp
+    - uses: actions/download-artifact@v8
+      with:
+        name: python-wheels-${{ matrix.target }}
+        path: dist
+    - uses: actions/download-artifact@v8
+      with:
+        name: python-data-wheels
+        path: data
+    - name: Install and execute the wheels without Rust
+      shell: bash
+      env:
+        TARGET: ${{ matrix.target }}
+      run: |
+        set -euo pipefail
+        mkdir -p dist/wheels
+        mv dist/*.whl dist/wheels/
+        mise exec --no-deps uv python@3.15.2 -- "$GUKHANMUN_TOOLS_PYTHON" -I scripts/python/artifacts.py \
+          test --target "$TARGET" --out dist --data data
+    - uses: actions/upload-artifact@v7
+      with:
+        name: python-evidence-${{ matrix.target }}
+        path: dist/smoke-*.json
+        if-no-files-found: error
+
+  python-dists:
+    name: Python artifact set
+    runs-on: ubuntu-latest
+    needs: [python-context, python-sdist, python-wheels, python-wheel-test]
+    env:
+      PYPI_VERSION: ${{ needs.python-context.outputs.pypi-version }}
+      MISE_EXEC_AUTO_INSTALL: "false"
+    steps:
+    - uses: actions/checkout@v6
+    - uses: jdx/mise-action@v4
+      with:
+        install: false
+        cache: false
+        # Exporting the environment would evaluate mise.toml's UV_PYTHON
+        # template before any Python is installed, which fails.
+        env: false
+    - uses: actions/download-artifact@v8
+      with:
+        path: python-dists
+        pattern: "{python-sdists,python-wheels-*,python-evidence-*}"
+        merge-multiple: true
+    - name: Write and verify the manifest of the complete set
+      shell: bash
+      run: |
+        set -euo pipefail
+        mise install uv python@3.15.2
+        tools="$(mise exec --no-deps uv python@3.15.2 -- python -I scripts/python/artifacts.py tools | tail -n 1)"
+        mise exec --no-deps uv python@3.15.2 -- "$tools" -I scripts/python/artifacts.py stamp
+        mise exec --no-deps uv python@3.15.2 -- "$tools" -I scripts/python/artifacts.py manifest --dir python-dists
+        mise exec --no-deps uv python@3.15.2 -- "$tools" -I scripts/python/artifacts.py verify --dir python-dists \
+          --complete
+    - uses: actions/upload-artifact@v7
+      with:
+        name: python-dists
+        path: python-dists/
+        if-no-files-found: error
+
   publish:
     name: publish crates
     runs-on: ubuntu-latest
