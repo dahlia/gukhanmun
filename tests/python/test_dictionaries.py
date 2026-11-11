@@ -18,7 +18,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 import gzip
+import hashlib
 import importlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -73,15 +75,29 @@ def site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
         sys.modules.pop(name, None)
 
 
+def provenance(contents: dict[str, bytes]) -> bytes:
+    """A provenance record of the shipped bytes, as staging writes it."""
+    return json.dumps({"resources": {
+        name: {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+        for name, data in contents.items()}}).encode()
+
+
+def contents(distribution: Distribution, resources: dict[str, bytes] | None = None) -> dict[str, bytes]:
+    data = payload(distribution)
+    return {resource.name: resources[resource.name] if resources and resource.name in resources
+            else encoded(resource, data) for resource in distribution.resources}
+
+
 def install(site: Path, distribution: Distribution,
             resources: dict[str, bytes] | None = None) -> Path:
+    """Install a fake data package whose provenance records its own bytes."""
     package = site / distribution.package
     package.mkdir()
     (package / "__init__.py").write_text("")
-    data = payload(distribution)
-    for resource in distribution.resources:
-        content = resources[resource.name] if resources and resource.name in resources else encoded(resource, data)
-        (package / resource.name).write_bytes(content)
+    shipped = contents(distribution, resources)
+    for name, content in shipped.items():
+        (package / name).write_bytes(content)
+    (package / "provenance.json").write_bytes(provenance(shipped))
     importlib.invalidate_caches()
     return package
 
@@ -197,6 +213,21 @@ def corrupt_deflate(data: bytes) -> bytes:
     return bytes(body)
 
 
+def test_resource_root_failures_suggest_reinstalling(site: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    install(site, DISTRIBUTIONS[0])
+
+    def unavailable(anchor: object) -> object:
+        raise FileNotFoundError("archive is gone")
+
+    monkeypatch.setattr(d.importlib.resources, "files", unavailable)
+    with pytest.raises(g.GukhanmunError) as caught:
+        d.stdict()
+    assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+    assert "stdict.fst resource could not be read" in caught.value.message
+    assert "pip install --force-reinstall 'gukhanmun[stdict]'" in caught.value.message
+    assert isinstance(caught.value.__cause__, FileNotFoundError)
+
+
 @pytest.mark.parametrize("corrupt", [
     lambda data: b"\x00\x01 not gzip",
     lambda data: gzip.compress(data, mtime=0)[:-12],
@@ -226,7 +257,44 @@ def test_raw_resources_are_never_decompressed(site: Path) -> None:
     assert d.loanwords_bytes(format=g.DictionaryFormat.CDB) == raw
 
 
-def test_malformed_dictionary_bytes_fail_at_construction(site: Path) -> None:
+@pytest.mark.parametrize("alter", [
+    lambda data: data[:-1],
+    lambda data: data[:-1] + bytes([data[-1] ^ 1]),
+    lambda data: b"not a dictionary",
+], ids=["truncated", "flipped", "replaced"])
+def test_altered_resources_suggest_reinstalling(site: Path, alter: Callable[[bytes], bytes]) -> None:
+    package = install(site, DISTRIBUTIONS[0])
+    data = (package / "stdict.fst").read_bytes()
+    (package / "stdict.fst").write_bytes(alter(data))
+    for helper in (d.stdict, d.stdict_bytes):
+        with pytest.raises(g.GukhanmunError) as caught:
+            helper()
+        assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+        assert caught.value.message == (
+            "stdict.fst in gukhanmun-stdict-fst does not match its provenance record; "
+            "reinstall it with: pip install --force-reinstall 'gukhanmun[stdict]'")
+
+
+@pytest.mark.parametrize("record", [None, b"{", b"{}", b'{"resources": {}}',
+                                    b'{"resources": {"stdict.fst": {"sha256": "00"}}}'],
+                         ids=["missing", "invalid-json", "no-resources", "no-entry", "no-size"])
+def test_unreadable_provenance_suggests_reinstalling(site: Path, record: bytes | None) -> None:
+    package = install(site, DISTRIBUTIONS[0])
+    if record is None:
+        (package / "provenance.json").unlink()
+    else:
+        (package / "provenance.json").write_bytes(record)
+    with pytest.raises(g.GukhanmunError) as caught:
+        d.stdict()
+    assert caught.value.code is g.ErrorCode.DICTIONARY_LOAD
+    assert caught.value.message == (
+        "gukhanmun-stdict-fst is installed but its provenance record of stdict.fst could not be read; "
+        "reinstall it with: pip install --force-reinstall 'gukhanmun[stdict]'")
+    assert caught.value.__cause__ is not None
+
+
+def test_malformed_bytes_matching_their_record_fail_at_construction(site: Path) -> None:
+    # Only a distribution built from invalid data gets past the check.
     install(site, DISTRIBUTIONS[0], {"stdict.fst": b"not a dictionary"})
     source = d.stdict()
     with pytest.raises(g.GukhanmunError) as caught:
@@ -239,8 +307,10 @@ def test_resources_load_from_a_zip_import(tmp_path: Path, monkeypatch: pytest.Mo
     archive = tmp_path / "data.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
         bundle.writestr(f"{distribution.package}/__init__.py", "")
-        for resource in distribution.resources:
-            bundle.writestr(f"{distribution.package}/{resource.name}", encoded(resource, payload(distribution)))
+        shipped = contents(distribution)
+        for name, content in shipped.items():
+            bundle.writestr(f"{distribution.package}/{name}", content)
+        bundle.writestr(f"{distribution.package}/provenance.json", provenance(shipped))
     monkeypatch.syspath_prepend(str(archive))
     monkeypatch.delitem(sys.modules, distribution.package, raising=False)
     importlib.invalidate_caches()
@@ -257,6 +327,7 @@ def test_damaged_zip_members_are_coded_load_errors(tmp_path: Path, monkeypatch: 
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
         bundle.writestr(f"{distribution.package}/__init__.py", "")
         bundle.writestr(f"{distribution.package}/stdict.fst", data)
+        bundle.writestr(f"{distribution.package}/provenance.json", provenance({"stdict.fst": data}))
     # Damage the compressed member so reading it fails inside zipfile.
     raw = bytearray(archive.read_bytes())
     start = raw.index(b"stdict.fst") + len(b"stdict.fst")

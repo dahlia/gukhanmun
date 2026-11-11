@@ -177,10 +177,9 @@ except GukhanmunError as error:
 ~~~~
 
 Other formats stay usable when one is missing. If an installed distribution is
-damaged, for example a file is missing or a compressed file is corrupt, the
-error suggests reinstalling it with `pip install --force-reinstall`, and
-`error.chain` keeps the underlying cause. Other damaged dictionary content
-fails later, when `Converter(...)` loads it.
+damaged, for example a file is missing or no longer matches the size and hash
+recorded in *provenance.json*, the error suggests reinstalling it with
+`pip install --force-reinstall`, and `error.chain` keeps any underlying cause.
 
 The suggested commands install from PyPI. Until the packages are published
 there, add the `--find-links` options from

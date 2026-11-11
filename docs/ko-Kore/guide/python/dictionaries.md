@@ -175,10 +175,9 @@ except GukhanmunError as error:
 ~~~~
 
 한 形式이 없어도 다른 形式은 使用할 수 있습니다. 設置된 配布版이
-損傷되었으면, 例를 들어 파일이 없거나 壓縮된 파일이 損傷되었으면, 誤謬
-메시지가 `pip install --force-reinstall`로 再設置할 것을 案內하며,
-`error.chain`에 根本 原因이 남습니다. 그 밖에 損傷된 辭典 內容은 나중에
-`Converter(...)`가 불러올 때 誤謬가 됩니다.
+損傷되었으면, 例를 들어 파일이 없거나 *provenance.json*에 記錄된 크기 및
+해시와 다르면, 誤謬 메시지가 `pip install --force-reinstall`로 再設置할 것을
+案內하며, 根本 原因이 있으면 `error.chain`에 남습니다.
 
 案內되는 命令은 PyPI에서 設置합니다. 패키지가 PyPI에 配布되기 前까지는
 〈[데이터 設置](#데이터-設置)〉와 같은 `--find-links` 옵션을 덧붙입니다.

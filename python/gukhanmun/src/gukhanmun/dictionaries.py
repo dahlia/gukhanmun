@@ -30,16 +30,20 @@ Every helper takes a keyword-only ``format`` that selects the FST (default) or
 CDB distribution.  The source helpers return a :class:`FileDictionarySource`
 holding owned bytes and the dictionary's source role; the ``*_bytes`` helpers
 return the same bytes alone.  Compressed resources are decompressed, so the
-bytes are always ready for the dictionary loader.  A missing distribution or an
-unreadable resource raises :class:`GukhanmunError` with
-:attr:`ErrorCode.DICTIONARY_LOAD` and the command that installs the data.
+bytes are always ready for the dictionary loader.  Each resource is checked
+against the size and SHA-256 hash recorded in the distribution's
+*provenance.json*.  A missing distribution, or an unreadable or altered
+resource, raises :class:`GukhanmunError` with :attr:`ErrorCode.DICTIONARY_LOAD`
+and the command that installs or reinstalls the data.
 """
 
 from __future__ import annotations
 
 import gzip
+import hashlib
 import importlib
 import importlib.resources
+import json
 import zlib
 
 from ._api import _io_error
@@ -103,12 +107,26 @@ def _load(key: str, format: DictionaryFormat) -> bytes:
                              f"{distribution.package} is a module, not the {distribution.name} package; "
                              f"reinstall it with: {_reinstall(distribution)}")
     try:
-        data = importlib.resources.files(module).joinpath(resource.name).read_bytes()
+        root = importlib.resources.files(module)
+        data = root.joinpath(resource.name).read_bytes()
     except Exception as error:
         # Resource readers differ: a zip import raises BadZipFile or
         # zlib.error, not OSError, for a damaged member.
         raise _io_error(error, f"{distribution.name} is installed but its {resource.name} resource could "
                         f"not be read; reinstall it with: {_reinstall(distribution)}") from error
+    try:
+        entry = json.loads(root.joinpath("provenance.json").read_bytes())["resources"][resource.name]
+        expected = (entry["size"], entry["sha256"])
+    except Exception as error:
+        raise _io_error(error, f"{distribution.name} is installed but its provenance record of "
+                        f"{resource.name} could not be read; reinstall it with: "
+                        f"{_reinstall(distribution)}") from error
+    # Checking the shipped bytes catches a damaged installation here, with the
+    # distribution's name, rather than as a parser error in Converter(...).
+    if (len(data), hashlib.sha256(data).hexdigest()) != expected:
+        raise GukhanmunError(ErrorCode.DICTIONARY_LOAD,
+                             f"{resource.name} in {distribution.name} does not match its provenance record; "
+                             f"reinstall it with: {_reinstall(distribution)}")
     if not resource.gzip:
         # The table, not the leading bytes, decides: raw CDB files can start
         # with the gzip magic number.

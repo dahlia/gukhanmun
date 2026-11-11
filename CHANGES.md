@@ -786,10 +786,11 @@ To be released.
     `DictionaryFormat.CDB`, reads its data through `importlib.resources` into
     owned bytes and decompresses bundled gzip data. A missing data distribution
     raises `GukhanmunError` with `ErrorCode.DICTIONARY_LOAD` and the
-    `pip install` command for its extra; a damaged installation, such as a
-    missing resource or corrupt gzip data, raises the same code with the
-    original cause in `chain`. Other invalid dictionary content is reported
-    when `Converter(...)` loads it. [[#49], [#15], [#57]]
+    `pip install` command for its extra. Each resource is checked against the
+    size and SHA-256 hash in its distribution's *provenance.json*, so a damaged
+    installation, such as a missing, altered or corrupt resource, raises the
+    same code with a `pip install --force-reinstall` command and any original
+    cause in `chain`. [[#49], [#15], [#57]]
  -  Bounded `UrlDictionarySource` downloads with configurable `max_bytes`
     (64 MiB by default) and `total_timeout` (30 seconds by default) for HTTP
     response reads across redirects. Exceeding either bound raises

@@ -214,11 +214,13 @@ the `__cause__` and the source of `IO` entries in `chain`; a plain module that
 shadows the data package has no underlying exception, so its `chain` is empty.
 A missing distribution's message names `pip install 'gukhanmun[<extra>]'`; an
 installed distribution that cannot be imported, whose file is missing or
-unreadable, or whose gzip-compressed file is empty or corrupt suggests
+unreadable, whose file differs from the size and SHA-256 hash recorded in its
+*provenance.json*, whose *provenance.json* cannot be read, or whose
+gzip-compressed file is empty or corrupt suggests
 `pip install --force-reinstall`. Exceptions that are not `Exception`
-subclasses, such as `KeyboardInterrupt`, propagate. Other malformed dictionary
-content, including an empty uncompressed file, is reported by `Converter(...)`,
-like any other binary source.
+subclasses, such as `KeyboardInterrupt`, propagate. Content that matches its
+record but is not a valid dictionary is reported by `Converter(...)`, like any
+other binary source.
 
 
 Directives and HTML preservation

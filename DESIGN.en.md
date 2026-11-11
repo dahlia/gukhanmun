@@ -1311,8 +1311,9 @@ runs only from the core package's exactly pinned extras to the data. Their
 binaries are not built separately: staging copies the artifacts that the
 JavaScript packages' generators produce and adds license, attribution and
 provenance files generated from canonical sources. `gukhanmun.dictionaries`
-reads the installed resources through `importlib.resources` into owned bytes
-and returns ordinary file sources with the same roles as the JavaScript
+reads the installed resources through `importlib.resources` into owned bytes,
+checks them against the recorded sizes and hashes, and returns ordinary file
+sources with the same roles as the JavaScript
 helpers; a private table describes the packages once for the runtime and the
 tooling. Installing data never changes a converter.
 

@@ -215,11 +215,12 @@ loanwords(*, format: DictionaryFormat = DictionaryFormat.FST) -> FileDictionaryS
 `chain`의 `IO` 項目에도 包含됩니다. 데이터 패키지를 가리는 一般 모듈에는 原因
 例外가 없으므로 `chain`이 비어 있습니다. 配布版이 없으면 메시지에
 `pip install 'gukhanmun[<extra>]'`가 나타납니다. 設置된 配布版을 가져올 수
-없거나, 파일이 없거나 읽을 수 없거나, gzip으로 壓縮된 파일이 비어 있거나
-損傷되었으면 `pip install --force-reinstall`을 案內합니다.
-`KeyboardInterrupt`처럼 `Exception`의 下位 클래스가 아닌 例外는 그대로
-傳播됩니다. 壓縮되지 않은 빈 파일을 비롯하여 그 밖에 形式이 잘못된 辭典 內容은
-다른 바이너리 出處와 마찬가지로 `Converter(...)`가 誤謬를 報告합니다.
+없거나, 파일이 없거나 읽을 수 없거나, 파일이 *provenance.json*에 記錄된
+크기 및 SHA-256 해시와 다르거나, *provenance.json*을 읽을 수 없거나, gzip으로
+壓縮된 파일이 비어 있거나 損傷되었으면 `pip install --force-reinstall`을
+案內합니다. `KeyboardInterrupt`처럼 `Exception`의 下位 클래스가 아닌 例外는
+그대로 傳播됩니다. 記錄과 一致하지만 올바른 辭典이 아닌 內容은 다른 바이너리
+出處와 마찬가지로 `Converter(...)`가 誤謬를 報告합니다.
 
 
 指示와 HTML 保存
