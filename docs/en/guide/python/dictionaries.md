@@ -182,6 +182,17 @@ error suggests reinstalling it with `pip install --force-reinstall`, and
 `error.chain` keeps the underlying cause. Other damaged dictionary content
 fails later, when `Converter(...)` loads it.
 
+The suggested commands install from PyPI. Until the packages are published
+there, add the `--find-links` options from
+[*Install the data*](#install-the-data), for example:
+
+~~~~ sh
+pip install --force-reinstall \
+            --find-links target/python/wheels \
+            --find-links target/python/dictionaries/gukhanmun-stdict-fst \
+            'gukhanmun[stdict]==0.4.0'
+~~~~
+
 
 Licenses
 --------

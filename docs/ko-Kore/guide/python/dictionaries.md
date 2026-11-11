@@ -180,6 +180,16 @@ except GukhanmunError as error:
 `error.chain`에 根本 原因이 남습니다. 그 밖에 損傷된 辭典 內容은 나중에
 `Converter(...)`가 불러올 때 誤謬가 됩니다.
 
+案內되는 命令은 PyPI에서 設置합니다. 패키지가 PyPI에 配布되기 前까지는
+〈[데이터 設置](#데이터-設置)〉와 같은 `--find-links` 옵션을 덧붙입니다.
+
+~~~~ sh
+pip install --force-reinstall \
+            --find-links target/python/wheels \
+            --find-links target/python/dictionaries/gukhanmun-stdict-fst \
+            'gukhanmun[stdict]==0.4.0'
+~~~~
+
 
 라이선스
 --------
