@@ -438,6 +438,13 @@ and runs `sacho next`. Python versions use [PEP 440] spelling, such as
 signed commit with those manifests, the lockfile, *changes.d/next*, and
 *CHANGES.md*. It never tags, pushes, or publishes.
 
+Artifact builds can stamp a different Python version without touching
+*Cargo.toml*: `PYPI_VERSION=1.2.5.dev3 mise run py-sync-version` writes it to
+every Python manifest and extras pin, then refreshes *uv.lock*. The value must
+be the PEP 440 spelling of the workspace version, optionally followed by
+`.devN`; local labels such as `+sha` are rejected. Do not commit such a
+stamped version.
+
 Run the bump on a clean working tree: `cargo-release` refuses to proceed when
 there are uncommitted changes, and the bump amends its own commit.
 
