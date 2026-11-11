@@ -293,3 +293,19 @@ def test_core_wheel_extras_check_accepts_exact_pins_and_rejects_drift() -> None:
     ]:
         with pytest.raises(RuntimeError):
             checks.check_extras(broken)
+
+
+def test_failed_staging_writes_leave_no_partial_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "package" / "stdict.fst"
+    # A failed write: the file object rejects a str.
+    with pytest.raises(TypeError):
+        tool.write_atomic(target, "not bytes")
+    assert list(target.parent.iterdir()) == []
+
+    def refuse(source: object, destination: object) -> None:
+        raise OSError("replace refused")
+
+    monkeypatch.setattr(tool.os, "replace", refuse)
+    with pytest.raises(OSError, match="replace refused"):
+        tool.write_atomic(target, b"data")
+    assert list(target.parent.iterdir()) == []

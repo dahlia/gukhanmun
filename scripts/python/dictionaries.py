@@ -83,12 +83,15 @@ def manifest_version(root, distribution):
 def write_atomic(path, data):
     """Replace a file only after its complete contents are written."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", delete=False) as temporary:
-        pending = Path(temporary.name)
-        temporary.write(data)
+    temporary = tempfile.NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", delete=False)
+    pending = Path(temporary.name)
     try:
+        with temporary:
+            temporary.write(data)
         os.replace(pending, path)
     finally:
+        # A failed write, close or replace must not leave a partial file in
+        # the package source, where the next build would ship it.
         pending.unlink(missing_ok=True)
 
 
