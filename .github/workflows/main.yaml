@@ -89,6 +89,70 @@ jobs:
 
         mise run ci
 
+  python-semantic:
+    name: Python semantic (${{ matrix.os }}, ${{ matrix.environment }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        environment:
+        - py311
+        - py312
+        - py313
+        - py314
+        - py315
+        - pypy311
+        - pypy312
+        include:
+        - os: macos-latest
+          environment: py311
+        - os: macos-latest
+          environment: pypy311
+        - os: macos-latest
+          environment: pypy312
+        - os: windows-latest
+          environment: py311
+        - os: windows-latest
+          environment: pypy311
+        - os: windows-latest
+          environment: pypy312
+    steps:
+    - name: Disable Git CRLF conversion
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        git config --global core.autocrlf false
+        git config --global core.eol lf
+    - uses: actions/checkout@v6
+    # Cache tools only; each job builds and installs its own native wheel.
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: python-rustup-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.environment }}-${{ hashFiles('mise*.toml', 'uv.lock', 'Cargo.lock', '**/Cargo.toml', '**/pyproject.toml', 'tox.ini') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+        cache_key_prefix: python-semantic-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.environment }}-${{ hashFiles('mise*.toml', 'uv.lock', 'Cargo.lock', '**/Cargo.toml', '**/pyproject.toml', 'tox.ini') }}
+    - name: Install the selected mise interpreter
+      shell: bash
+      env:
+        PYTHON_ENV: ${{ matrix.environment }}
+      run: |
+        set -euo pipefail
+        python_pin="$(mise exec --no-deps -- python scripts/python/matrix.py --pin "$PYTHON_ENV")"
+        python_pin="${python_pin%$'\r'}"
+        mise install "python@$python_pin"
+    - name: Run installed-wheel semantic tests
+      shell: bash
+      env:
+        PYTHON_ENV: ${{ matrix.environment }}
+      run: |
+        set -euo pipefail
+        mise run py-test-all -- -e "$PYTHON_ENV"
+
   publish:
     name: publish crates
     runs-on: ubuntu-latest

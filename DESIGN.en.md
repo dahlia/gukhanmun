@@ -1294,8 +1294,17 @@ behavior. Public options and nested records are immutable. Errors expose enum
 codes and a frozen cause tuple ordered deepest/root first. The local mise tasks
 build a wheel and test its runtime and typing outside the checkout.
 
-Official data distributions, the complete interpreter/platform matrix and
-registry publishing are separate follow-up work.
+The mise configuration selects pinned development and test interpreters, while
+uv manages locked dependencies in a virtual workspace. The optional Python tool
+profile provides CPython 3.11–3.15 and PyPy 3.11/3.12. The tox runner builds
+noneditable wheels with each explicit interpreter and tests the installed
+package using copied tests outside the checkout. Fast tooling tests run without
+a native build; the full local gate also checks the default interpreter's
+runtime and installed-wheel types.
+
+Official data distributions, exhaustive release wheel/sdist validation,
+free-threaded CPython support and registry publishing are separate follow-up
+work.
 
 ### Dictionary configuration
 
