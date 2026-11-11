@@ -24,5 +24,7 @@ links:
     `DictionaryFormat.CDB`, reads its data through `importlib.resources` into
     owned bytes and decompresses bundled gzip data. A missing data distribution
     raises `GukhanmunError` with `ErrorCode.DICTIONARY_LOAD` and the
-    `pip install` command for its extra; corrupt data raises the same code with
-    the original cause in `chain`. [[#49], [#15], [#57]]
+    `pip install` command for its extra; a damaged installation, such as a
+    missing resource or corrupt gzip data, raises the same code with the
+    original cause in `chain`. Other invalid dictionary content is reported
+    when `Converter(...)` loads it. [[#49], [#15], [#57]]
