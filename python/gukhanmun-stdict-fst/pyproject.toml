@@ -26,6 +26,9 @@ Homepage = "https://gukhanmun.org/"
 Repository = "https://github.com/dahlia/gukhanmun"
 Issues = "https://github.com/dahlia/gukhanmun/issues"
 
+# hatch_build.py fails the build when a license file is missing.
+[tool.hatch.build.hooks.custom]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/gukhanmun_stdict_fst"]
 
@@ -34,7 +37,7 @@ packages = ["src/gukhanmun_stdict_fst"]
 "src/gukhanmun_stdict_fst/provenance.json" = "gukhanmun_stdict_fst/provenance.json"
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/README.md", "/pyproject.toml"]
+include = ["/src", "/README.md", "/pyproject.toml", "/hatch_build.py"]
 
 [tool.hatch.build.targets.sdist.force-include]
 "src/gukhanmun_stdict_fst/stdict.fst" = "src/gukhanmun_stdict_fst/stdict.fst"

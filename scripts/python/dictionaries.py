@@ -295,7 +295,7 @@ def check_sdist(distribution, sdist, version):
         raise RuntimeError(f"{sdist.name} has duplicate members")
     # Hatchling adds the nearest VCS ignore files to an sdist; each project
     # keeps its own so nothing from parent directories leaks into it.
-    expected = {f"{prefix}/{name}" for name in ("pyproject.toml", "PKG-INFO", "README.md", *VCS_IGNORE,
+    expected = {f"{prefix}/{name}" for name in ("pyproject.toml", "PKG-INFO", "README.md", "hatch_build.py", *VCS_IGNORE,
                                                 f"src/{distribution.package}/__init__.py",
                                                 *staged_files(distribution))}
     if set(names) != expected:

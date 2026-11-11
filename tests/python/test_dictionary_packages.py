@@ -126,7 +126,7 @@ def test_staged_files_are_ignored_and_untracked() -> None:
     assert ignored_paths(staged) == sorted(staged)
     kept = ["python/gukhanmun/LICENSE", "python/gukhanmun/pyproject.toml",
             *(f"python/{d.name}/{name}" for d in DISTRIBUTIONS
-              for name in ("pyproject.toml", "README.md", ".gitignore", ".hgignore",
+              for name in ("pyproject.toml", "README.md", "hatch_build.py", ".gitignore", ".hgignore",
                            f"src/{d.package}/__init__.py"))]
     assert ignored_paths(kept) == []
     tracked = subprocess.run(["git", "ls-files", "--", *staged], cwd=REPOSITORY,
@@ -326,3 +326,34 @@ def test_failed_manifest_writes_leave_no_partial_files(tmp_path: Path, monkeypat
     with pytest.raises(OSError, match="replace refused"):
         sync.write_atomic(target, "text")
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("target", ["wheel", "sdist"])
+def test_direct_builds_require_the_license_files(tmp_path: Path, target: str) -> None:
+    # Hatchling skips missing license-files entries silently; the project's
+    # build hook must stop a build that bypasses the staging task.  The
+    # installed-wheel runs lack the build backend; `py-fast` has it.
+    pytest.importorskip("hatchling")
+    distribution = next(d for d in DISTRIBUTIONS if d.name == "gukhanmun-loanwords-fst")
+    source = REPOSITORY / "python" / distribution.name
+    project = tmp_path / distribution.name
+    for name in ("pyproject.toml", "README.md", "hatch_build.py", *tool.VCS_IGNORE,
+                 f"src/{distribution.package}/__init__.py"):
+        (project / name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / name, project / name)
+    package = project / "src" / distribution.package
+    for resource in distribution.resources:
+        (package / resource.name).write_bytes(b"data")
+    (package / "provenance.json").write_text("{}")
+    (project / "LICENSE").write_text("license")
+
+    def build() -> subprocess.CompletedProcess[str]:
+        return subprocess.run([sys.executable, "-m", "hatchling", "build", "-t", target, "-d", tmp_path / "out"],
+                              cwd=project, capture_output=True, text=True, encoding="utf-8")
+
+    result = build()
+    assert result.returncode != 0
+    assert "missing ATTRIBUTION.md" in result.stdout + result.stderr
+    (project / "ATTRIBUTION.md").write_text("attribution")
+    result = build()
+    assert result.returncode == 0, result.stdout + result.stderr
