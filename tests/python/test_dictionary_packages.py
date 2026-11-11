@@ -112,18 +112,23 @@ def test_core_extras_pin_each_data_distribution_exactly() -> None:
     assert locked["metadata"]["provides-extras"] == list(table.EXTRAS)
 
 
+def ignored_paths(paths: list[str]) -> list[str]:
+    # NUL-separated bytes: text mode would turn each newline into CRLF on
+    # Windows, and Git would then look up paths ending in a carriage return.
+    result = subprocess.run(["git", "check-ignore", "--no-index", "-z", "--stdin"], cwd=REPOSITORY,
+                            input="\0".join(paths).encode(), capture_output=True)
+    assert result.returncode in (0, 1), result.stderr.decode(errors="replace")
+    return sorted(path for path in result.stdout.decode().split("\0") if path)
+
+
 def test_staged_files_are_ignored_and_untracked() -> None:
     staged = [f"python/{d.name}/{name}" for d in DISTRIBUTIONS for name in tool.staged_files(d)]
-    ignored = subprocess.run(["git", "check-ignore", "--no-index", "--stdin"], cwd=REPOSITORY,
-                             input="\n".join(staged), capture_output=True, text=True)
-    assert sorted(ignored.stdout.split()) == sorted(staged)
+    assert ignored_paths(staged) == sorted(staged)
     kept = ["python/gukhanmun/LICENSE", "python/gukhanmun/pyproject.toml",
             *(f"python/{d.name}/{name}" for d in DISTRIBUTIONS
               for name in ("pyproject.toml", "README.md", ".gitignore", ".hgignore",
                            f"src/{d.package}/__init__.py"))]
-    unignored = subprocess.run(["git", "check-ignore", "--no-index", "--stdin"], cwd=REPOSITORY,
-                               input="\n".join(kept), capture_output=True, text=True)
-    assert unignored.stdout == ""
+    assert ignored_paths(kept) == []
     tracked = subprocess.run(["git", "ls-files", "--", *staged], cwd=REPOSITORY,
                              capture_output=True, text=True, check=True)
     assert tracked.stdout == ""
