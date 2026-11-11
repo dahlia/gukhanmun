@@ -87,6 +87,31 @@ def test_build_group_pins_the_data_build_backend() -> None:
     assert {"include-group": "build"} in groups["dev"]
 
 
+def test_core_extras_pin_each_data_distribution_exactly() -> None:
+    table = load("dictionary_table_under_test", REPOSITORY / "python/gukhanmun/src/gukhanmun/_dictionary_data.py")
+    assert set(table.EXTRAS.values()) == {d.name for d in DISTRIBUTIONS}
+    for distribution in DISTRIBUTIONS:
+        assert table.EXTRAS[distribution.extra] == distribution.name
+        assert table.EXTRAS[f"{distribution.dictionary}-{distribution.format}"] == distribution.name
+        if distribution.format == "fst":
+            assert table.EXTRAS[distribution.dictionary] == distribution.name
+    core = tomllib.loads((REPOSITORY / "python/gukhanmun/pyproject.toml").read_text(encoding="utf-8"))
+    version = core["project"]["version"]
+    assert core["project"]["optional-dependencies"] == {
+        extra: [f"{name}=={version}"] for extra, name in table.EXTRAS.items()}
+    root = tomllib.loads((REPOSITORY / "pyproject.toml").read_text(encoding="utf-8"))
+    assert root["tool"]["uv"]["sources"] == {d.name: {"workspace": True} for d in DISTRIBUTIONS}
+    lock = tomllib.loads((REPOSITORY / "uv.lock").read_text(encoding="utf-8"))
+    locked = next(p for p in lock["package"] if p["name"] == "gukhanmun")
+    assert {extra: [entry["name"] for entry in entries]
+            for extra, entries in locked["optional-dependencies"].items()} == {
+        extra: [name] for extra, name in table.EXTRAS.items()}
+    # The lock records workspace members as editable sources, not specifiers.
+    assert sorted((entry["marker"], entry["name"]) for entry in locked["metadata"]["requires-dist"]) == sorted(
+        (f"extra == '{extra}'", name) for extra, name in table.EXTRAS.items())
+    assert locked["metadata"]["provides-extras"] == list(table.EXTRAS)
+
+
 def test_staged_files_are_ignored_and_untracked() -> None:
     staged = [f"python/{d.name}/{name}" for d in DISTRIBUTIONS for name in tool.staged_files(d)]
     ignored = subprocess.run(["git", "check-ignore", "--no-index", "--stdin"], cwd=REPOSITORY,
@@ -228,3 +253,30 @@ def test_notice_section_requires_its_snapshot_and_links(tmp_path: Path) -> None:
                       encoding="utf-8")
     with pytest.raises(RuntimeError, match="link definitions"):
         tool.notice_section(tmp_path)
+
+
+EXTRAS = load("dictionary_extras_under_test",
+              REPOSITORY / "python/gukhanmun/src/gukhanmun/_dictionary_data.py").EXTRAS
+CORE_METADATA = "Metadata-Version: 2.4\nName: gukhanmun\nVersion: 1.2.0.dev3\n" + "".join(
+    f"Provides-Extra: {extra}\n" for extra in EXTRAS)
+
+
+def requirement_lines(extras: dict[str, str], version: str) -> str:
+    return "".join(f"Requires-Dist: {name}=={version} ; extra == '{extra}'\n" for extra, name in extras.items())
+
+
+def test_core_wheel_extras_check_accepts_exact_pins_and_rejects_drift() -> None:
+    checks = load("python_checks_under_test", REPOSITORY / "scripts/python/checks.py")
+    extras = EXTRAS
+    checks.check_extras(CORE_METADATA + requirement_lines(extras, "1.2.0.dev3"))
+    for broken in [
+        CORE_METADATA + requirement_lines(extras, "1.2.0"),
+        CORE_METADATA + requirement_lines({**extras, "stdict": "gukhanmun-stdict-cdb"}, "1.2.0.dev3"),
+        CORE_METADATA + requirement_lines(extras, "1.2.0.dev3") + "Requires-Dist: requests\n",
+        CORE_METADATA + requirement_lines(extras, "1.2.0.dev3").replace(
+            "gukhanmun-loanwords-cdb==1.2.0.dev3", "gukhanmun-loanwords-cdb>=1.2.0.dev3"),
+        CORE_METADATA.replace("Provides-Extra: loanwords-cdb\n", "")
+        + requirement_lines(extras, "1.2.0.dev3"),
+    ]:
+        with pytest.raises(RuntimeError):
+            checks.check_extras(broken)

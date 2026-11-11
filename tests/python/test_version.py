@@ -28,13 +28,19 @@ SCRIPT = REPOSITORY / "scripts" / "python" / "sync_version.py"
 
 DATA = [f"gukhanmun-{source}-{kind}" for source in ("stdict", "opendict", "loanwords") for kind in ("fst", "cdb")]
 DATA_SOURCE = '[project]\nname = "{name}"\nversion = "0.4.0"\n'
+EXTRAS = {"stdict": "stdict-fst", "stdict-fst": "stdict-fst", "stdict-cdb": "stdict-cdb",
+          "opendict": "opendict-fst", "opendict-fst": "opendict-fst", "opendict-cdb": "opendict-cdb",
+          "loanwords": "loanwords-fst", "loanwords-fst": "loanwords-fst", "loanwords-cdb": "loanwords-cdb"}
+EXTRAS_SOURCE = "\n[project.optional-dependencies]\n" + "".join(
+    f'{extra} = ["gukhanmun-{data}==0.4.0"]  # pinned\n' for extra, data in EXTRAS.items())
 
 
 def project(root: Path, version: str) -> tuple[Path, str]:
     (root / "Cargo.toml").write_text('[workspace.package]\nversion = "' + version + '"\n')
     manifest = root / "python" / "gukhanmun" / "pyproject.toml"
     manifest.parent.mkdir(parents=True)
-    source = '# Keep this comment\n[project]\nname = "gukhanmun"\nversion = "0.4.0" # release version\n\n[tool.example]\nversion = "unchanged"\n'
+    source = ('# Keep this comment\n[project]\nname = "gukhanmun"\nversion = "0.4.0" # release version\n'
+              + EXTRAS_SOURCE + '\n[tool.example]\nversion = "unchanged"\npin = "gukhanmun-stdict-fst==0.4.0"\n')
     manifest.write_text(source)
     for name in DATA:
         data = root / "python" / name / "pyproject.toml"
@@ -54,18 +60,22 @@ def invoke(root: Path) -> subprocess.CompletedProcess[str]:
 
 @pytest.mark.parametrize("cargo,python", [
     ("0.4.1", "0.4.1"), ("1.2.0-rc.2", "1.2.0rc2"),
-    ("1.2.0-beta.3", "1.2.0b3"),
+    ("1.2.0-beta.3", "1.2.0b3"), ("1.2.0-dev.7", "1.2.0.dev7"),
 ])
 def test_sync_preserves_other_manifest_text(tmp_path: Path, cargo: str, python: str) -> None:
     manifest, original = project(tmp_path, cargo)
     result = invoke(tmp_path)
     assert result.returncode == 0, result.stderr
-    assert manifest.read_text() == original.replace('version = "0.4.0"', 'version = "' + python + '"')
+    expected = original.replace('version = "0.4.0" #', 'version = "' + python + '" #')
+    expected = expected.replace('==0.4.0"]', '==' + python + '"]')
+    assert manifest.read_text() == expected
     assert tomllib.loads(manifest.read_text())["project"]["version"] == python
+    assert tomllib.loads(manifest.read_text())["project"]["optional-dependencies"] == {
+        extra: [f"gukhanmun-{data}=={python}"] for extra, data in EXTRAS.items()}
     assert data_versions(tmp_path) == {python}
     again = invoke(tmp_path)
     assert again.returncode == 0
-    assert manifest.read_text() == original.replace('version = "0.4.0"', 'version = "' + python + '"')
+    assert manifest.read_text() == expected
 
 
 @pytest.mark.parametrize("version", ["1.2.0-preview-special", "1.2.0-1", "1.2.0-post.1"])
@@ -87,6 +97,24 @@ def test_invalid_data_manifest_leaves_every_manifest_unchanged(tmp_path: Path) -
     assert manifest.read_text() == original
     assert {tomllib.loads((tmp_path / "python" / name / "pyproject.toml").read_text())["project"]["version"]
             for name in DATA[:-1]} == {"0.4.0"}
+
+
+@pytest.mark.parametrize("change", [
+    lambda text: text.replace('loanwords-cdb = ["gukhanmun-loanwords-cdb==0.4.0"]  # pinned\n', ""),
+    lambda text: text.replace('"gukhanmun-stdict-cdb==0.4.0"', '"gukhanmun-stdict-cdb>=0.4.0"'),
+    lambda text: text.replace('opendict = ["gukhanmun-opendict-fst==0.4.0"]', 'opendict = ["gukhanmun-opendict-cdb==0.4.0"]'),
+    lambda text: text.replace("[tool.example]", 'extra = ["requests"]\n\n[tool.example]'),
+    lambda text: text.replace(EXTRAS_SOURCE, ""),
+], ids=["missing", "range", "wrong-data", "unexpected", "no-table"])
+def test_malformed_extras_leave_every_manifest_unchanged(tmp_path: Path, change) -> None:
+    manifest, original = project(tmp_path, "0.4.1")
+    broken = change(original)
+    assert broken != original
+    manifest.write_text(broken)
+    result = invoke(tmp_path)
+    assert result.returncode != 0
+    assert manifest.read_text() == broken
+    assert data_versions(tmp_path) == {"0.4.0"}
 
 
 def test_crlf_manifests_are_synchronized(tmp_path: Path) -> None:

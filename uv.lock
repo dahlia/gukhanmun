@@ -135,6 +135,49 @@ name = "gukhanmun"
 version = "0.4.0"
 source = { editable = "python/gukhanmun" }
 
+[package.optional-dependencies]
+loanwords = [
+    { name = "gukhanmun-loanwords-fst" },
+]
+loanwords-cdb = [
+    { name = "gukhanmun-loanwords-cdb" },
+]
+loanwords-fst = [
+    { name = "gukhanmun-loanwords-fst" },
+]
+opendict = [
+    { name = "gukhanmun-opendict-fst" },
+]
+opendict-cdb = [
+    { name = "gukhanmun-opendict-cdb" },
+]
+opendict-fst = [
+    { name = "gukhanmun-opendict-fst" },
+]
+stdict = [
+    { name = "gukhanmun-stdict-fst" },
+]
+stdict-cdb = [
+    { name = "gukhanmun-stdict-cdb" },
+]
+stdict-fst = [
+    { name = "gukhanmun-stdict-fst" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gukhanmun-loanwords-cdb", marker = "extra == 'loanwords-cdb'", editable = "python/gukhanmun-loanwords-cdb" },
+    { name = "gukhanmun-loanwords-fst", marker = "extra == 'loanwords'", editable = "python/gukhanmun-loanwords-fst" },
+    { name = "gukhanmun-loanwords-fst", marker = "extra == 'loanwords-fst'", editable = "python/gukhanmun-loanwords-fst" },
+    { name = "gukhanmun-opendict-cdb", marker = "extra == 'opendict-cdb'", editable = "python/gukhanmun-opendict-cdb" },
+    { name = "gukhanmun-opendict-fst", marker = "extra == 'opendict'", editable = "python/gukhanmun-opendict-fst" },
+    { name = "gukhanmun-opendict-fst", marker = "extra == 'opendict-fst'", editable = "python/gukhanmun-opendict-fst" },
+    { name = "gukhanmun-stdict-cdb", marker = "extra == 'stdict-cdb'", editable = "python/gukhanmun-stdict-cdb" },
+    { name = "gukhanmun-stdict-fst", marker = "extra == 'stdict'", editable = "python/gukhanmun-stdict-fst" },
+    { name = "gukhanmun-stdict-fst", marker = "extra == 'stdict-fst'", editable = "python/gukhanmun-stdict-fst" },
+]
+provides-extras = ["stdict", "stdict-fst", "stdict-cdb", "opendict", "opendict-fst", "opendict-cdb", "loanwords", "loanwords-fst", "loanwords-cdb"]
+
 [[package]]
 name = "gukhanmun-loanwords-cdb"
 version = "0.4.0"

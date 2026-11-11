@@ -767,6 +767,15 @@ To be released.
  -  Preserved `GukhanmunError` codes, messages and cause tuples when copying
     or pickling errors, including errors returned from process workers.
     [[#48], [#15], [#55]]
+ -  Added the `stdict`, `opendict` and `loanwords` extras, which install the
+    FST data of the *Standard Korean Language Dictionary*, the *Open Korean
+    Dictionary* and the NIKL loanword spelling examples, and the
+    format-specific `stdict-fst`, `stdict-cdb`, `opendict-fst`, `opendict-cdb`,
+    `loanwords-fst` and `loanwords-cdb` extras; for example,
+    `pip install 'gukhanmun[stdict]'`. Each extra pins its data distribution to
+    exactly the version of `gukhanmun`. Installing an extra does not add a
+    dictionary to any converter, and neither preset loads official data.
+    [[#49], [#15], [#57]]
  -  Bounded `UrlDictionarySource` downloads with configurable `max_bytes`
     (64 MiB by default) and `total_timeout` (30 seconds by default) for HTTP
     response reads across redirects. Exceeding either bound raises

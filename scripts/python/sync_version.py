@@ -17,7 +17,8 @@
 """Synchronize every Python manifest from the Rust workspace version.
 
 The core distribution and the six dictionary data distributions always share
-one version.  All new manifest texts are computed and validated before any
+one version, and each core extra pins its data distribution to exactly that
+version.  All new manifest texts are computed and validated before any
 file is written, so an invalid manifest leaves every manifest unchanged.
 """
 import argparse
@@ -36,17 +37,43 @@ _TABLE = (Path(__file__).resolve().parents[2]
           / "python" / "gukhanmun" / "src" / "gukhanmun" / "_dictionary_data.py")
 
 
-def data_distributions():
-    """Read the data distribution names from the private table by path."""
+def table():
+    """Load the private dictionary table by path, without the native module."""
     spec = importlib.util.spec_from_file_location("_gukhanmun_dictionary_data", _TABLE)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    return [distribution.name for distribution in module.DISTRIBUTIONS]
+    return module
 
 
 def manifests(root: Path) -> list[Path]:
-    return [root / "python" / name / "pyproject.toml" for name in ["gukhanmun", *data_distributions()]]
+    names = [distribution.name for distribution in table().DISTRIBUTIONS]
+    return [root / "python" / name / "pyproject.toml" for name in ["gukhanmun", *names]]
+
+
+def section(source: str, name: str) -> tuple[int, int]:
+    """Return the body span of one top-level TOML table."""
+    header = re.search(rf"(?m)^\[{re.escape(name)}\][ \t]*(?:#.*)?$", source)
+    if header is None:
+        raise ValueError(f"missing [{name}] section")
+    following = re.search(r"(?m)^\[", source[header.end():])
+    return header.end(), len(source) if following is None else header.end() + following.start()
+
+
+def rewrite_extras(source: str, version: str) -> str:
+    """Pin every data extra to exactly the version, and nothing else."""
+    extras = table().EXTRAS
+    start, end = section(source, "project.optional-dependencies")
+    names = "|".join(map(re.escape, sorted(set(extras.values()))))
+    body = re.sub(rf"""(["'])({names})==[^"'\n]*\1""",
+                  lambda match: f"{match[1]}{match[2]}=={version}{match[1]}", source[start:end])
+    changed = source[:start] + body + source[end:]
+    actual = tomllib.loads(changed)["project"].get("optional-dependencies")
+    expected = {extra: [f"{name}=={version}"] for extra, name in extras.items()}
+    if actual != expected:
+        raise ValueError("project.optional-dependencies must contain exactly the dictionary extras, "
+                         "each pinning its data distribution with ==")
+    return changed
 
 
 def rewrite(source: str, version: str) -> str:
@@ -54,19 +81,15 @@ def rewrite(source: str, version: str) -> str:
     project = tomllib.loads(source)["project"]
     if not isinstance(project.get("version"), str):
         raise ValueError("the Python manifest requires a static project.version")
-    section = re.search(r"(?m)^\[project\][ \t]*(?:#.*)?$", source)
-    if section is None:
-        raise ValueError("missing [project] section")
-    following = re.search(r"(?m)^\[", source[section.end():])
-    end = len(source) if following is None else section.end() + following.start()
-    body = source[section.end():end]
+    start, end = section(source, "project")
+    body = source[start:end]
     matches = list(_VERSION.finditer(body))
     if len(matches) != 1:
         raise ValueError("expected exactly one static project.version assignment")
     match = matches[0]
     updated = (body[:match.start()] + match[1] + match[2] + version + match[2]
                + body[match.end():])
-    changed = source[:section.end()] + updated + source[end:]
+    changed = source[:start] + updated + source[end:]
     if tomllib.loads(changed)["project"]["version"] != version:
         raise ValueError("Python version rewrite did not preserve valid project metadata")
     return changed
@@ -93,11 +116,14 @@ def sync_version(root: Path) -> str:
         raise ValueError("a Rust prerelease cannot become a Python post-release")
     version = str(parsed)
     pending = []
-    for manifest in manifests(root):
+    core, *data = manifests(root)
+    for manifest in [core, *data]:
         # Universal newlines keep the anchored patterns working on CRLF files.
         source = manifest.read_text(encoding="utf-8")
         try:
             changed = rewrite(source, version)
+            if manifest == core:
+                changed = rewrite_extras(changed, version)
         except ValueError as error:
             raise ValueError(f"{manifest.relative_to(root).as_posix()}: {error}") from error
         if changed != source:

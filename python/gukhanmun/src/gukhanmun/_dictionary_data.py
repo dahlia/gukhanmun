@@ -149,3 +149,18 @@ DISTRIBUTIONS: Final[tuple[Distribution, ...]] = (
         resources=(Resource("loanwords", "loanwords.cdb", False, "packages/loanwords-cdb/loanwords.cdb"),),
     ),
 )
+
+
+# Extras of the core distribution and the data distribution each selects.
+# The unqualified names select the FST distributions.
+EXTRAS: Final[dict[str, str]] = {
+    "stdict": "gukhanmun-stdict-fst",
+    "stdict-fst": "gukhanmun-stdict-fst",
+    "stdict-cdb": "gukhanmun-stdict-cdb",
+    "opendict": "gukhanmun-opendict-fst",
+    "opendict-fst": "gukhanmun-opendict-fst",
+    "opendict-cdb": "gukhanmun-opendict-cdb",
+    "loanwords": "gukhanmun-loanwords-fst",
+    "loanwords-fst": "gukhanmun-loanwords-fst",
+    "loanwords-cdb": "gukhanmun-loanwords-cdb",
+}

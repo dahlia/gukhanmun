@@ -10,6 +10,15 @@ package = false
 [tool.uv.workspace]
 members = ["python/*"]
 
+# The core extras require these unpublished members; resolve them locally.
+[tool.uv.sources]
+gukhanmun-stdict-fst = { workspace = true }
+gukhanmun-stdict-cdb = { workspace = true }
+gukhanmun-opendict-fst = { workspace = true }
+gukhanmun-opendict-cdb = { workspace = true }
+gukhanmun-loanwords-fst = { workspace = true }
+gukhanmun-loanwords-cdb = { workspace = true }
+
 [dependency-groups]
 dev = [
     { include-group = "test" },
