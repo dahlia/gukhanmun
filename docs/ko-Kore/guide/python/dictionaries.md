@@ -35,10 +35,6 @@ assert converter.convert("無條件降服") == "무조건항복"
 | `loanwords`, `loanwords-fst` | `gukhanmun-loanwords-fst` | 國立國語院 《外來語 表記 用例》, FST |
 | `loanwords-cdb`              | `gukhanmun-loanwords-cdb` | 國立國語院 《外來語 表記 用例》, CDB |
 
-~~~~ sh
-pip install 'gukhanmun[stdict,loanwords]'
-~~~~
-
 데이터 配布版은 依存性이 없는 플랫폼 獨立的 wheel입니다. `gukhanmun`을
 가져오지 않으므로, `gukhanmun`만 設置하면 公式 데이터는 包含되지 않습니다.
 
@@ -59,6 +55,12 @@ pip install --no-index \
 `--find-links`를 하나씩 追加합니다. `--no-index`는 빼지 마십시오. 아직 PyPI에는
 Gukhanmun 配布版이 登錄되어 있지 않으므로, 그곳에 같은 이름으로 올라온 패키지가
 로컬 빌드 代身 設置될 수 있습니다.
+
+PyPI에 配布된 뒤에는 그곳에서 extra를 設置합니다.
+
+~~~~ sh
+pip install 'gukhanmun[stdict,loanwords]'
+~~~~
 
 
 變換器에 辭典 追加

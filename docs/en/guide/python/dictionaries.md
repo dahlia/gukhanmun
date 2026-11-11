@@ -36,10 +36,6 @@ version as `gukhanmun`:
 | `loanwords`, `loanwords-fst` | `gukhanmun-loanwords-fst` | NIKL loanword spelling examples, FST                        |
 | `loanwords-cdb`              | `gukhanmun-loanwords-cdb` | NIKL loanword spelling examples, CDB                        |
 
-~~~~ sh
-pip install 'gukhanmun[stdict,loanwords]'
-~~~~
-
 The data distributions are platform-independent wheels without dependencies.
 They do not import `gukhanmun`, so `gukhanmun` installed alone stays free of
 official data.
@@ -61,6 +57,13 @@ Replace `0.4.0` with the version you built. *target/python/wheels/* holds a
 each data distribution you install. Keep `--no-index`: no Gukhanmun
 distribution is registered on PyPI yet, so a package published there under
 the same name could otherwise be installed instead of your local build.
+
+Once the packages are published on PyPI, install the extras from there
+instead:
+
+~~~~ sh
+pip install 'gukhanmun[stdict,loanwords]'
+~~~~
 
 
 Add dictionaries to a converter
