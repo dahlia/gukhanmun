@@ -1,0 +1,9 @@
+# Hatchling also ships the nearest .hgignore in the sdist, searching parent
+# directories up to the file system root.  This file stops that search.
+syntax: glob
+LICENSE
+ATTRIBUTION.md
+src/*/provenance.json
+src/*/*.fst
+src/*/*.cdb
+src/*/*.gz

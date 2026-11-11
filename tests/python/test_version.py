@@ -26,13 +26,26 @@ REPOSITORY = Path(os.environ["GUKHANMUN_REPO_ROOT"])
 SCRIPT = REPOSITORY / "scripts" / "python" / "sync_version.py"
 
 
+DATA = [f"gukhanmun-{source}-{kind}" for source in ("stdict", "opendict", "loanwords") for kind in ("fst", "cdb")]
+DATA_SOURCE = '[project]\nname = "{name}"\nversion = "0.4.0"\n'
+
+
 def project(root: Path, version: str) -> tuple[Path, str]:
     (root / "Cargo.toml").write_text('[workspace.package]\nversion = "' + version + '"\n')
     manifest = root / "python" / "gukhanmun" / "pyproject.toml"
     manifest.parent.mkdir(parents=True)
     source = '# Keep this comment\n[project]\nname = "gukhanmun"\nversion = "0.4.0" # release version\n\n[tool.example]\nversion = "unchanged"\n'
     manifest.write_text(source)
+    for name in DATA:
+        data = root / "python" / name / "pyproject.toml"
+        data.parent.mkdir(parents=True)
+        data.write_text(DATA_SOURCE.format(name=name))
     return manifest, source
+
+
+def data_versions(root: Path) -> set[str]:
+    return {tomllib.loads((root / "python" / name / "pyproject.toml").read_text())["project"]["version"]
+            for name in DATA}
 
 
 def invoke(root: Path) -> subprocess.CompletedProcess[str]:
@@ -49,6 +62,7 @@ def test_sync_preserves_other_manifest_text(tmp_path: Path, cargo: str, python: 
     assert result.returncode == 0, result.stderr
     assert manifest.read_text() == original.replace('version = "0.4.0"', 'version = "' + python + '"')
     assert tomllib.loads(manifest.read_text())["project"]["version"] == python
+    assert data_versions(tmp_path) == {python}
     again = invoke(tmp_path)
     assert again.returncode == 0
     assert manifest.read_text() == original.replace('version = "0.4.0"', 'version = "' + python + '"')
@@ -60,6 +74,29 @@ def test_unrepresentable_workspace_version_does_not_edit_manifest(tmp_path: Path
     result = invoke(tmp_path)
     assert result.returncode != 0
     assert manifest.read_text() == original
+    assert data_versions(tmp_path) == {"0.4.0"}
+
+
+def test_invalid_data_manifest_leaves_every_manifest_unchanged(tmp_path: Path) -> None:
+    manifest, original = project(tmp_path, "0.4.1")
+    broken = tmp_path / "python" / DATA[-1] / "pyproject.toml"
+    broken.write_text('[project]\nname = "x"\ndynamic = ["version"]\n')
+    result = invoke(tmp_path)
+    assert result.returncode != 0
+    assert DATA[-1] in result.stderr
+    assert manifest.read_text() == original
+    assert {tomllib.loads((tmp_path / "python" / name / "pyproject.toml").read_text())["project"]["version"]
+            for name in DATA[:-1]} == {"0.4.0"}
+
+
+def test_crlf_manifests_are_synchronized(tmp_path: Path) -> None:
+    manifest, original = project(tmp_path, "0.4.1")
+    for path in [manifest, *(tmp_path / "python" / name / "pyproject.toml" for name in DATA)]:
+        path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    result = invoke(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert tomllib.loads(manifest.read_text())["project"]["version"] == "0.4.1"
+    assert data_versions(tmp_path) == {"0.4.1"}
 
 
 def test_dynamic_python_version_is_rejected(tmp_path: Path) -> None:
@@ -76,6 +113,6 @@ def test_bump_task_refreshes_and_amends_the_python_manifest_and_lock() -> None:
     tasks = tomllib.loads((REPOSITORY / "mise.toml").read_text())["tasks"]
     assert "mise run py-sync-version" in tasks["bump-execute"]["run"]
     amend = next(line for line in tasks["bump-execute"]["run"].splitlines() if "git commit -S --amend" in line)
-    assert "python/gukhanmun/pyproject.toml" in amend.split()
+    assert "python/*/pyproject.toml" in amend.split()
     assert "uv.lock" in amend.split()
     assert any("uv lock" in line and "--no-build" in line for line in tasks["py-sync-version"]["run"])

@@ -806,6 +806,81 @@ To be released.
 [#49]: https://github.com/dahlia/gukhanmun/issues/49
 [#57]: https://github.com/dahlia/gukhanmun/pull/57
 
+### gukhanmun-loanwords-cdb (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dloanwords%2Dcdb%20%28Python%29 -->
+
+ -  Added the `gukhanmun-loanwords-cdb` distribution, which bundles NIKL
+    loanword spelling examples data as Gukhanmun CDB binaries in the
+    `gukhanmun_loanwords_cdb` resource package. It is a platform-independent
+    wheel with no dependencies and does not import `gukhanmun`. The
+    distribution includes the license and attribution of its data, and
+    *provenance.json* records the source snapshot and the hashes of the bundled
+    files. [[#49], [#15], [#57]]
+
+### gukhanmun-loanwords-fst (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dloanwords%2Dfst%20%28Python%29 -->
+
+ -  Added the `gukhanmun-loanwords-fst` distribution, which bundles NIKL
+    loanword spelling examples data as Gukhanmun FST binaries in the
+    `gukhanmun_loanwords_fst` resource package. It is a platform-independent
+    wheel with no dependencies and does not import `gukhanmun`. The
+    distribution includes the license and attribution of its data, and
+    *provenance.json* records the source snapshot and the hashes of the bundled
+    files. [[#49], [#15], [#57]]
+
+### gukhanmun-opendict-cdb (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dopendict%2Dcdb%20%28Python%29 -->
+
+ -  Added the `gukhanmun-opendict-cdb` distribution, which bundles *Open Korean
+    Dictionary* (우리말샘) data in all four categories (general, North Korean,
+    dialect and archaic words) as Gukhanmun CDB binaries in the
+    `gukhanmun_opendict_cdb` resource package. It is a platform-independent
+    wheel with no dependencies and does not import `gukhanmun`. The
+    distribution includes the license and attribution of its data, and
+    *provenance.json* records the source snapshot and the hashes of the bundled
+    files. Its CDB files are stored gzip-compressed. [[#49], [#15], [#57]]
+
+### gukhanmun-opendict-fst (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dopendict%2Dfst%20%28Python%29 -->
+
+ -  Added the `gukhanmun-opendict-fst` distribution, which bundles *Open Korean
+    Dictionary* (우리말샘) data in all four categories (general, North Korean,
+    dialect and archaic words) as Gukhanmun FST binaries in the
+    `gukhanmun_opendict_fst` resource package. It is a platform-independent
+    wheel with no dependencies and does not import `gukhanmun`. The
+    distribution includes the license and attribution of its data, and
+    *provenance.json* records the source snapshot and the hashes of the bundled
+    files. [[#49], [#15], [#57]]
+
+### gukhanmun-stdict-cdb (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dstdict%2Dcdb%20%28Python%29 -->
+
+ -  Added the `gukhanmun-stdict-cdb` distribution, which bundles *Standard
+    Korean Language Dictionary* (標準國語大辭典) data as Gukhanmun CDB binaries
+    in the `gukhanmun_stdict_cdb` resource package. It is a
+    platform-independent wheel with no dependencies and does not import
+    `gukhanmun`. The distribution includes the license and attribution of its
+    data, and *provenance.json* records the source snapshot and the hashes of
+    the bundled files. Its CDB files are stored gzip-compressed.
+    [[#49], [#15], [#57]]
+
+### gukhanmun-stdict-fst (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dstdict%2Dfst%20%28Python%29 -->
+
+ -  Added the `gukhanmun-stdict-fst` distribution, which bundles *Standard
+    Korean Language Dictionary* (標準國語大辭典) data as Gukhanmun FST binaries
+    in the `gukhanmun_stdict_fst` resource package. It is a
+    platform-independent wheel with no dependencies and does not import
+    `gukhanmun`. The distribution includes the license and attribution of its
+    data, and *provenance.json* records the source snapshot and the hashes of
+    the bundled files. [[#49], [#15], [#57]]
+
 <!-- sacho:unreleased:end -->
 
 
