@@ -48,14 +48,17 @@ pip install 'gukhanmun[stdict,loanwords]'
 ~~~~ sh
 mise run py-build
 mise run py-dicts-build
-pip install --find-links target/python/wheels \
+pip install --no-index \
+            --find-links target/python/wheels \
             --find-links target/python/dictionaries/gukhanmun-stdict-fst \
             'gukhanmun[stdict]==0.4.0'
 ~~~~
 
 `0.4.0`은 빌드한 버전으로 바꿉니다. *target/python/wheels/* 디렉터리에는 빌드한
 플랫폼用 `gukhanmun` wheel만 들어 있습니다. 設置할 데이터 配布版마다
-`--find-links`를 하나씩 追加합니다.
+`--find-links`를 하나씩 追加합니다. `--no-index`는 빼지 마십시오. 아직 PyPI에는
+Gukhanmun 配布版이 登錄되어 있지 않으므로, 그곳에 같은 이름으로 올라온 패키지가
+로컬 빌드 代身 設置될 수 있습니다.
 
 
 變換器에 辭典 追加
@@ -182,10 +185,11 @@ except GukhanmunError as error:
 案內하며, 根本 原因이 있으면 `error.chain`에 남습니다.
 
 案內되는 命令은 PyPI에서 設置합니다. 패키지가 PyPI에 配布되기 前까지는
-〈[데이터 設置](#데이터-設置)〉와 같은 `--find-links` 옵션을 덧붙입니다.
+〈[데이터 設置](#데이터-設置)〉와 같은 `--no-index`와 `--find-links` 옵션을
+덧붙입니다.
 
 ~~~~ sh
-pip install --force-reinstall \
+pip install --force-reinstall --no-index \
             --find-links target/python/wheels \
             --find-links target/python/dictionaries/gukhanmun-stdict-fst \
             'gukhanmun[stdict]==0.4.0'
