@@ -58,6 +58,15 @@ wheels and sdists; `mise run py-dicts-test` installs them through the core
 extras from those local artifacts and tests the official data. `mise run ci`
 includes both.
 
+`mise run py-wheel-smoke` installs the host wheel and the data wheels the way
+users would: each venv's own pip installs wheels only, from a local package
+index of those artifacts, with no Rust tools on `PATH` and no inherited pip
+settings. It then runs *tests/python-wheel/smoke.py* without the core
+package's data, resolves every extra, and runs the official dictionary corpus
+with all of them. *scripts/python/wheel\_smoke.py* needs only the standard
+library, so CI runs the same checks on bare interpreters, and it writes an
+evidence record under *target/python/smoke/*. `mise run ci` includes it.
+
 Install the complete interpreter set only when running the semantic matrix:
 
 ~~~~ sh
