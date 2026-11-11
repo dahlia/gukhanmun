@@ -103,7 +103,13 @@ def json_bytes(value):
 
 def decoded(resource, data):
     """Return the bytes the core loader receives for a shipped resource."""
-    return gzip.decompress(data) if resource.gzip else data
+    if not resource.gzip:
+        return data
+    if not data:
+        # gzip.decompress() accepts empty input, but the runtime loader
+        # rejects an empty compressed resource as damaged.
+        raise EOFError("the compressed resource is empty")
+    return gzip.decompress(data)
 
 
 def notice_section(root):

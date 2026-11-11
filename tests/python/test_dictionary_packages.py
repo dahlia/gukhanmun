@@ -242,6 +242,11 @@ def test_stage_rejects_missing_artifacts_and_corrupt_gzip(tmp_path: Path) -> Non
     (tmp_path / compressed.artifact).write_bytes(bytes(body))
     with pytest.raises(RuntimeError, match="not valid gzip"):
         tool.stage(tmp_path)
+    # gzip.decompress() returns b"" for empty input; staging still rejects it.
+    assert gzip.decompress(b"") == b""
+    (tmp_path / compressed.artifact).write_bytes(b"")
+    with pytest.raises(RuntimeError, match="not valid gzip.*empty"):
+        tool.stage(tmp_path)
     # Nothing is staged when any artifact is invalid.
     assert not any((tmp_path / "python").rglob("provenance.json"))
     fake_repository(tmp_path)
