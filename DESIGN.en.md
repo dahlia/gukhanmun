@@ -1302,9 +1302,22 @@ package using copied tests outside the checkout. Fast tooling tests run without
 a native build; the full local gate also checks the default interpreter's
 runtime and installed-wheel types.
 
-Official data distributions, exhaustive release wheel/sdist validation,
-free-threaded CPython support and registry publishing are separate follow-up
-work.
+The official dictionaries ship as six optional, resource-only distributions
+under *python/*, one per source and format: `gukhanmun-stdict-fst`,
+`gukhanmun-stdict-cdb`, `gukhanmun-opendict-fst`, `gukhanmun-opendict-cdb`,
+`gukhanmun-loanwords-fst` and `gukhanmun-loanwords-cdb`. They are pure Hatchling
+wheels with no dependencies and never import `gukhanmun`, so the dependency
+runs only from the core package's exactly pinned extras to the data. Their
+binaries are not built separately: staging copies the artifacts that the
+JavaScript packages' generators produce and adds license, attribution and
+provenance files generated from canonical sources. `gukhanmun.dictionaries`
+reads the installed resources through `importlib.resources` into owned bytes
+and returns ordinary file sources with the same roles as the JavaScript
+helpers; a private table describes the packages once for the runtime and the
+tooling. Installing data never changes a converter.
+
+Exhaustive release wheel/sdist validation, free-threaded CPython support and
+registry publishing are separate follow-up work.
 
 ### Dictionary configuration
 

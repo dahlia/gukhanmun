@@ -170,6 +170,57 @@ excludes independent loanword choices while retaining reference-authorized
 forms. Source roles alone do not create lexical identities or authorize forms.
 
 
+Official dictionaries
+---------------------
+
+`gukhanmun.dictionaries` loads the official dictionaries from their optional
+data distributions. Install them with the core extras; see
+[*Official dictionaries*](../guide/python/dictionaries.md).
+
+~~~~ text
+stdict(*, format: DictionaryFormat = DictionaryFormat.FST) -> FileDictionarySource
+opendict_general(*, format: DictionaryFormat = DictionaryFormat.FST) -> FileDictionarySource
+opendict_north_korean(*, format: DictionaryFormat = DictionaryFormat.FST) -> FileDictionarySource
+opendict_dialect(*, format: DictionaryFormat = DictionaryFormat.FST) -> FileDictionarySource
+opendict_archaic(*, format: DictionaryFormat = DictionaryFormat.FST) -> FileDictionarySource
+loanwords(*, format: DictionaryFormat = DictionaryFormat.FST) -> FileDictionarySource
+~~~~
+
+| Function                  | Distribution (FST/CDB)                               | Role        |
+| ------------------------- | ---------------------------------------------------- | ----------- |
+| `stdict()`                | `gukhanmun-stdict-fst`, `gukhanmun-stdict-cdb`       | `REFERENCE` |
+| `opendict_general()`      | `gukhanmun-opendict-fst`, `gukhanmun-opendict-cdb`   | `REFERENCE` |
+| `opendict_north_korean()` | `gukhanmun-opendict-fst`, `gukhanmun-opendict-cdb`   | `REFERENCE` |
+| `opendict_dialect()`      | `gukhanmun-opendict-fst`, `gukhanmun-opendict-cdb`   | `REFERENCE` |
+| `opendict_archaic()`      | `gukhanmun-opendict-fst`, `gukhanmun-opendict-cdb`   | `REFERENCE` |
+| `loanwords()`             | `gukhanmun-loanwords-fst`, `gukhanmun-loanwords-cdb` | `LOANWORD`  |
+
+Each function returns a `FileDictionarySource` with owned bytes, the requested
+format and the role above. `stdict_bytes()`, `opendict_general_bytes()`,
+`opendict_north_korean_bytes()`, `opendict_dialect_bytes()`,
+`opendict_archaic_bytes()` and `loanwords_bytes()` take the same keyword and
+return the bytes alone. `format` is keyword-only; anything other than a
+`DictionaryFormat` raises `TypeError`.
+
+The functions read the packaged files through `importlib.resources` when
+called; importing `gukhanmun` or `gukhanmun.dictionaries` imports no data
+package. Gzip-compressed files are decompressed, so the bytes are ready for
+the loader. Which files are compressed is fixed per distribution and never
+inferred from their contents.
+
+Failures raise `GukhanmunError` with `DICTIONARY_LOAD`. When an exception
+caused the failure, such as an import, read or decompression error, it is both
+the `__cause__` and the source of `IO` entries in `chain`; a plain module that
+shadows the data package has no underlying exception, so its `chain` is empty.
+A missing distribution's message names `pip install 'gukhanmun[<extra>]'`; an
+installed distribution that cannot be imported, whose file is missing or
+unreadable, or whose gzip-compressed file is empty or corrupt suggests
+`pip install --force-reinstall`. Exceptions that are not `Exception`
+subclasses, such as `KeyboardInterrupt`, propagate. Other malformed dictionary
+content, including an empty uncompressed file, is reported by `Converter(...)`,
+like any other binary source.
+
+
 Directives and HTML preservation
 --------------------------------
 

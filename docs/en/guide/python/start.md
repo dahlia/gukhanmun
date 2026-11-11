@@ -72,7 +72,8 @@ to `Converter()` raises `TypeError`.
 
 Neither preset loads official dictionaries automatically. With no explicit
 sources, conversion uses the built-in character fallback. Supply runtime
-entries or compiled FST/CDB data when word readings are needed.
+entries or compiled FST/CDB data when word readings are needed, or install and
+add the [official dictionaries](./dictionaries.md).
 
 
 Load a compiled dictionary
