@@ -216,6 +216,7 @@ source = { virtual = "." }
 [package.dev-dependencies]
 build = [
     { name = "hatchling" },
+    { name = "maturin" },
 ]
 dev = [
     { name = "basedpyright" },
@@ -240,7 +241,10 @@ test = [
 [package.metadata]
 
 [package.metadata.requires-dev]
-build = [{ name = "hatchling", specifier = "==1.33.0" }]
+build = [
+    { name = "hatchling", specifier = "==1.33.0" },
+    { name = "maturin", specifier = "==1.16.0" },
+]
 dev = [
     { name = "basedpyright", specifier = "==1.40.2" },
     { name = "hatchling", specifier = "==1.33.0" },

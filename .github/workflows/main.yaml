@@ -16,8 +16,9 @@ jobs:
     name: ci (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     # Windows runs of the full gate already took up to 44 minutes before the
-    # Python data distribution tasks were added.
-    timeout-minutes: 60
+    # Python data distribution tasks were added; the standalone native sdist
+    # rebuild adds another release compile.
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:

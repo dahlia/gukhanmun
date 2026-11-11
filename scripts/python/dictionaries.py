@@ -20,9 +20,10 @@
 *packages/* into each resource package, together with generated license,
 attribution and provenance files.  `build` turns the six staged packages into
 wheels and sdists and checks them, including a rebuild of every sdist outside
-the checkout.  `test` resolves and installs the core wheel through its
-extras from those local artifacts alone and runs *tests/python-dicts/*
-against the installed official data.  No step runs npm or downloads
+the checkout; it keeps each rebuilt wheel under *rebuilt/* with a record of
+its sdist.  `test` resolves and installs the core wheel through its extras
+from those local artifacts alone and runs *tests/python-dicts/* against the
+installed official data.  No step runs npm or downloads
 dictionary sources.
 """
 
@@ -47,6 +48,8 @@ import zlib
 ROOT = Path(__file__).resolve().parents[2]
 TABLE = ROOT / "python" / "gukhanmun" / "src" / "gukhanmun" / "_dictionary_data.py"
 OUTPUT = ROOT / "target" / "python" / "dictionaries"
+# Wheels rebuilt from the sdists, kept apart from the deliverables.
+REBUILT = OUTPUT / "rebuilt"
 # PyPI's default per-file upload limit.
 SIZE_LIMIT = 100 * 1024 * 1024
 STAGED_TEXT = ("LICENSE", "ATTRIBUTION.md")
@@ -321,6 +324,7 @@ def build(root=ROOT):
     hashed = ["--build-constraints", constraints, "--require-build-hashes",
               "--preview-features", "build-dependency-hashes"]
     wheels = {}
+    records = []
     for distribution in distributions:
         version = versions[distribution.name]
         out = OUTPUT / distribution.name
@@ -337,14 +341,25 @@ def build(root=ROOT):
             if size >= SIZE_LIMIT:
                 raise RuntimeError(f"{artifact.name} is {size} bytes, over the PyPI file limit")
             print(f"{artifact.name}: {size} bytes")
-        rebuild(distribution, sdists[0], contents, hashed, version)
+        records.append(rebuild(distribution, sdists[0], contents, hashed, version))
         wheels[distribution.name] = built[0]
     resource_only(distributions, wheels)
+    # py-sdist-test installs these rebuilt wheels; the records tie each one to
+    # the sdist it came from.
+    write_atomic(REBUILT / "records.json", json_bytes(records))
     print(f"Verified {len(wheels)} data wheels and sdists in {OUTPUT}")
 
 
+def sha256_file(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def rebuild(distribution, sdist, original, hashed, version):
-    """Build the wheel again from the sdist alone, outside the checkout."""
+    """Build the wheel again from the sdist alone, outside the checkout.
+
+    The validated wheel is kept under *rebuilt/* and described by a record
+    linking it to the hash of the sdist it was built from.
+    """
     directory = Path(tempfile.mkdtemp(prefix="gukhanmun-sdist-"))
     try:
         copy = directory / sdist.name
@@ -358,6 +373,11 @@ def rebuild(distribution, sdist, original, hashed, version):
         for name in ("RECORD", "METADATA"):
             if contents[f"{info}/{name}"] != original[f"{info}/{name}"]:
                 raise RuntimeError(f"the wheel rebuilt from {sdist.name} has a different {name}")
+        target = REBUILT / distribution.name / rebuilt[0].name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(rebuilt[0], target)
+        return {"distribution": distribution.name, "version": version, "sdist": sdist.name,
+                "sdist_sha256": sha256_file(sdist), "wheel": target.name, "wheel_sha256": sha256_file(target)}
     finally:
         remove_tree(directory)
 

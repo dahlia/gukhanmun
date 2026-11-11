@@ -110,6 +110,7 @@ depends = [
   "py-typecheck",
   "py-dicts-test",
   "py-wheel-smoke",
+  "py-sdist-test",
 ]
 
 [tasks.rust-init]
@@ -737,7 +738,7 @@ run = "uv sync --locked --no-install-workspace"
 description = "Check Python tooling without building the native extension"
 depends = ["py-deps"]
 env = { GUKHANMUN_REPO_ROOT = "{{ config_root }}" }
-run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py tests/python/test_dictionary_packages.py tests/python/test_wheel_smoke.py scripts/python/matrix_test.py"
+run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py tests/python/test_dictionary_packages.py tests/python/test_wheel_smoke.py tests/python/test_dists.py scripts/python/matrix_test.py"
 
 [tasks.py-test-all]
 description = "Test installed wheels on every pinned CPython/PyPy interpreter"
@@ -768,6 +769,16 @@ run = "uv run --no-sync python scripts/python/checks.py test"
 description = "Install the host and data wheels from a local index without Rust and smoke-test them"
 depends = ["py-build", "py-dicts-build"]
 run = "python -I scripts/python/wheel_smoke.py local"
+
+[tasks.py-sdist]
+description = "Build the native Python sdist and check that it stands alone"
+depends = ["rust-init", "py-deps"]
+run = "uv run --no-sync python scripts/python/dists.py sdist"
+
+[tasks.py-sdist-test]
+description = "Rebuild every Python sdist outside the checkout and smoke-test the result"
+depends = ["rust-init", "py-sdist", "py-dicts-build"]
+run = "uv run --no-sync python scripts/python/dists.py sdist-test"
 
 [tasks.py-typecheck]
 description = "Check installed Python types with all five required checkers"

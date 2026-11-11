@@ -767,6 +767,11 @@ To be released.
  -  Preserved `GukhanmunError` codes, messages and cause tuples when copying
     or pickling errors, including errors returned from process workers.
     [[#48], [#15], [#55]]
+ -  Added a standalone `gukhanmun` source distribution. It builds with a
+    Rust 1.95 or later toolchain and a PEP 517 frontend such as pip, without
+    the repository checkout, Git metadata or any dictionary source data, and it
+    leaves out the unused source data of the optional dictionary crates.
+    [[#51], [#15], [#58]]
  -  Added the `stdict`, `opendict` and `loanwords` extras, which install the
     FST data of the *Standard Korean Language Dictionary*, the *Open Korean
     Dictionary* and the NIKL loanword spelling examples, and the
@@ -828,7 +833,9 @@ To be released.
     an underlying cause still have an empty chain. [[#49], [#15], [#57]]
 
 [#49]: https://github.com/dahlia/gukhanmun/issues/49
+[#51]: https://github.com/dahlia/gukhanmun/issues/51
 [#57]: https://github.com/dahlia/gukhanmun/pull/57
+[#58]: https://github.com/dahlia/gukhanmun/pull/58
 
 ### gukhanmun-loanwords-cdb (Python)
 

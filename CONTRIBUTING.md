@@ -67,6 +67,19 @@ with all of them. *scripts/python/wheel\_smoke.py* needs only the standard
 library, so CI runs the same checks on bare interpreters, and it writes an
 evidence record under *target/python/smoke/*. `mise run ci` includes it.
 
+`mise run py-sdist` builds the native sdist and checks that it stands alone:
+the binding crate, the workspace crates it needs, the Cargo manifests and
+lockfile, the Python sources, stubs and licenses, but none of the source data
+of the optional dictionary crates, which the binding does not compile.
+`mise run py-sdist-test` unpacks it outside the checkout and builds a wheel
+from it with `uv build`, then smoke-tests that wheel together with the six data
+wheels that `py-dicts-build` rebuilt from their own sdists.
+*target/python/sdist-rebuilt/rebuilds.json* links each sdist to its rebuilt
+wheel. The native rebuild runs without `--locked`, because maturin ships the
+whole workspace lockfile but lists only the crates the binding needs; the
+check accepts a lockfile that only drops unused entries. `mise run ci`
+includes it.
+
 Install the complete interpreter set only when running the semantic matrix:
 
 ~~~~ sh
