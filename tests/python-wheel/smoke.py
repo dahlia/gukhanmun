@@ -57,8 +57,9 @@ ENTRY = g.DictionaryEntry(hanja="樂山樂水", reading="요산요수")
 def check(name):
     def decorator(function):
         def wrapper(*arguments):
-            function(*arguments)
+            result = function(*arguments)
             CHECKS.append(name)
+            return result
         return wrapper
     return decorator
 
@@ -66,6 +67,14 @@ def check(name):
 def expect(condition, message):
     if not condition:
         raise AssertionError(message)
+
+
+def libc():
+    """The C library; Python before 3.13 cannot name musl, but its SOABI can."""
+    name, version = platform.libc_ver()
+    if not name and (sysconfig.get_config_var("SOABI") or "").endswith("-musl"):
+        return ["musl", version]
+    return [name, version]
 
 
 def installed():
@@ -86,6 +95,7 @@ def installed():
         "system": platform.system(),
         "machine": platform.machine(),
         "pointer_bits": struct.calcsize("P") * 8,
+        "libc": libc(),
         "distribution": distribution.version,
         "wheel_tags": tags,
         "native": native.name,
@@ -300,6 +310,57 @@ def windows_modules():
     return modules
 
 
+def resolve_module(name):
+    """Load a DLL by name through the Windows loader and return its file."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetModuleHandleW.argtypes = (wintypes.LPCWSTR,)
+    kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+    kernel32.GetModuleFileNameW.argtypes = (wintypes.HMODULE, wintypes.LPWSTR, wintypes.DWORD)
+    kernel32.GetModuleFileNameW.restype = wintypes.DWORD
+    # Loading keeps the library mapped for the rest of the process.
+    library = ctypes.WinDLL(name)
+    handle = kernel32.GetModuleHandleW(name) or library._handle
+    size = 260
+    while True:
+        buffer = ctypes.create_unicode_buffer(size)
+        length = kernel32.GetModuleFileNameW(handle, buffer, size)
+        if length == 0:
+            raise ctypes.WinError(ctypes.get_last_error())
+        if length < size - 1:
+            return buffer.value
+        size *= 2
+
+
+@check("windows-import-closure")
+def check_import_closure(record_path, wheel, digest):
+    """Every DLL the extension imports resolves from an allowed location.
+
+    The audit record lists the extension's normal and delay imports.  Each is
+    resolved by the loader in this process, after the extension is imported,
+    and must come from Windows itself, the interpreter or the venv; a library
+    found only through a developer tool directory would be missing elsewhere.
+    The VC runtime is reported separately, because CPython ships its own copy.
+    """
+    records = json.loads(Path(record_path).read_text(encoding="utf-8"))["records"]
+    record = next((item for item in records if item["wheel"] == wheel), None)
+    expect(record is not None, f"the audit record does not describe {wheel}")
+    expect(record["sha256"] == digest, f"the audit record describes another build of {wheel}")
+    roots = {"system": os.environ.get("SYSTEMROOT", r"C:\Windows"),
+             "interpreter": sys.base_prefix, "environment": sys.prefix}
+    canonical = {name: os.path.normcase(os.path.realpath(path)) for name, path in roots.items()}
+    resolved = {}
+    for name in record["pe"]["imports"] + record["pe"]["delay_imports"]:
+        path = resolve_module(name)
+        location = os.path.normcase(os.path.realpath(path))
+        origin = next((root for root, prefix in canonical.items() if contains(prefix, location)), None)
+        expect(origin is not None, f"{name} resolved to {path}, outside Windows and the interpreter")
+        resolved[name] = {"path": path, "origin": origin}
+    return resolved
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("base", "official"), required=True)
@@ -307,6 +368,9 @@ def main():
     parser.add_argument("--expect-implementation", choices=("cpython", "pypy"))
     parser.add_argument("--expect-python")
     parser.add_argument("--expect-machine", choices=("x86_64", "aarch64"))
+    parser.add_argument("--audit-record", type=Path, help="audit record listing the extension's imports")
+    parser.add_argument("--wheel", help="filename of the installed gukhanmun wheel")
+    parser.add_argument("--wheel-sha256", help="SHA-256 of the installed gukhanmun wheel")
     arguments = parser.parse_args()
     info = installed()
     check_location(info)
@@ -324,6 +388,11 @@ def main():
         check_official(arguments.corpus)
     result = {"mode": arguments.mode, "interpreter": info, "checks": CHECKS}
     if os.name == "nt":
+        if arguments.audit_record is not None:
+            if not arguments.wheel or not arguments.wheel_sha256:
+                parser.error("--audit-record requires --wheel and --wheel-sha256")
+            result["windows_imports"] = check_import_closure(arguments.audit_record, arguments.wheel,
+                                                             arguments.wheel_sha256)
         result["windows_modules"] = windows_modules()
     print("SMOKE-RESULT " + json.dumps(result, sort_keys=True))
 

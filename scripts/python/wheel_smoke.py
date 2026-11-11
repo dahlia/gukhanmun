@@ -281,6 +281,14 @@ def extras(staged, version):
     return {extra: tuple(pin) for extra, pin in json.loads(tables.pop()).items()}
 
 
+def audit_flags(arguments, installed):
+    """Pass the audit record of the installed core wheel to the checks."""
+    if getattr(arguments, "audit_record", None) is None:
+        return []
+    return ["--audit-record", arguments.audit_record, "--wheel", installed["gukhanmun"]["filename"],
+            "--wheel-sha256", installed["gukhanmun"]["sha256"]]
+
+
 def smoke(executable, venv, work, arguments, *, label):
     """Run the smoke checks from a directory that contains no package source."""
     directory = Path(tempfile.mkdtemp(prefix=f"smoke-{label}-", dir=work))
@@ -307,6 +315,8 @@ def expectations(arguments):
 def smoke_run(arguments):
     # Commands run from temporary directories; keep the venv symlink itself.
     arguments.python = Path(os.path.abspath(arguments.python))
+    if getattr(arguments, "audit_record", None):
+        arguments.audit_record = Path(os.path.abspath(arguments.audit_record))
     artifacts = collect(arguments.artifacts)
     work = Path(tempfile.mkdtemp(prefix="gukhanmun-wheel-smoke-"))
     try:
@@ -324,7 +334,10 @@ def smoke_run(arguments):
         executable, evidence["pip"] = create_venv(arguments.python, base, work)
         report = pip_install(executable, base, index, f"gukhanmun=={version}", work / "base.json", work)
         evidence["base"] = {"installed": check_report(report, staged, index, {"gukhanmun": version})}
-        evidence["base"]["result"] = smoke(executable, base, work, ["--mode", "base", *flags], label="base")
+        evidence["base"]["result"] = smoke(executable, base, work,
+                                           ["--mode", "base", *flags,
+                                            *audit_flags(arguments, evidence["base"]["installed"])],
+                                           label="base")
 
         resolve = work / "resolve"
         executable, _ = create_venv(arguments.python, resolve, work)
@@ -347,7 +360,9 @@ def smoke_run(arguments):
             corpus = work / "official-corpus.json"
             shutil.copyfile(arguments.official, corpus)
             evidence["official"]["result"] = smoke(
-                executable, official, work, ["--mode", "official", "--corpus", corpus, *flags],
+                executable, official, work,
+                ["--mode", "official", "--corpus", corpus, *flags,
+                 *audit_flags(arguments, evidence["official"]["installed"])],
                 label="official")
         arguments.evidence.parent.mkdir(parents=True, exist_ok=True)
         arguments.evidence.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -376,6 +391,7 @@ def local(arguments):
     arguments.expect_implementation = sys.implementation.name
     arguments.expect_python = f"{version.major}.{version.minor}"
     arguments.expect_machine = machine
+    arguments.audit_record = None
     smoke_run(arguments)
 
 
@@ -399,6 +415,8 @@ def main():
     smoke_parser.add_argument("--expect-implementation", choices=("cpython", "pypy"))
     smoke_parser.add_argument("--expect-python", help="major.minor of the interpreter under test")
     smoke_parser.add_argument("--expect-machine", choices=("x86_64", "aarch64"))
+    smoke_parser.add_argument("--audit-record", type=Path,
+                              help="audit record of the wheels; on Windows it drives the import check")
     commands.add_parser("local", help="test this checkout's host and data wheels with this interpreter")
     arguments = parser.parse_args()
     if arguments.command == "local":

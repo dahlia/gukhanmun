@@ -80,6 +80,32 @@ whole workspace lockfile but lists only the crates the binding needs; the
 check accepts a lockfile that only drops unused entries. `mise run ci`
 includes it.
 
+The release consists of 31 files: a CPython wheel for eight targets, PyPy 3.11
+and 3.12 wheels for five of them, the six data wheels and seven sdists.
+*scripts/python/artifacts.py* defines the targets in one table, and CI
+generates its matrix from it. `mise run py-dist -- <target>` builds, audits
+and executes one target's wheels on a matching host:
+
+~~~~ sh
+mise run py-dist -- linux-x86_64
+~~~~
+
+Linux targets build inside digest-pinned PyPA manylinux and musllinux images
+with their interpreters, so they need Docker or Podman. Set
+`GUKHANMUN_CONTAINER_ENGINE=podman` to use Podman, and
+`GUKHANMUN_CONTAINER_VOLUME_OPTIONS=z` on SELinux hosts. The audit checks the
+wheel structure, the extension's architecture and libraries, and the platform
+floor with the image's `auditwheel`, macOS's `lipo` and `otool`, or `pefile` on
+Windows. The test runs the smoke checks with the oldest and newest CPython and
+each PyPy; musl targets use the image interpreters, and glibc targets also run
+once inside the manylinux image on its glibc. A target refuses to run on
+another OS or architecture, because emulated or cross-compiled artifacts do
+not count as executed. The outputs, with their provenance, audit and evidence
+records, go to _target/python/release/<target>/_. `artifacts.py manifest`
+inventories a directory of release files and records, and
+`artifacts.py verify --complete` requires all 31 files with an audit, the
+required executions and an sdist rebuild for each.
+
 Install the complete interpreter set only when running the semantic matrix:
 
 ~~~~ sh

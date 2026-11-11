@@ -738,7 +738,7 @@ run = "uv sync --locked --no-install-workspace"
 description = "Check Python tooling without building the native extension"
 depends = ["py-deps"]
 env = { GUKHANMUN_REPO_ROOT = "{{ config_root }}" }
-run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py tests/python/test_dictionary_packages.py tests/python/test_wheel_smoke.py tests/python/test_dists.py scripts/python/matrix_test.py"
+run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py tests/python/test_dictionary_packages.py tests/python/test_wheel_smoke.py tests/python/test_dists.py tests/python/test_artifacts.py scripts/python/matrix_test.py"
 
 [tasks.py-test-all]
 description = "Test installed wheels on every pinned CPython/PyPy interpreter"
@@ -779,6 +779,16 @@ run = "uv run --no-sync python scripts/python/dists.py sdist"
 description = "Rebuild every Python sdist outside the checkout and smoke-test the result"
 depends = ["rust-init", "py-sdist", "py-dicts-build"]
 run = "uv run --no-sync python scripts/python/dists.py sdist-test"
+
+[tasks.py-dist]
+description = "Build, audit and execute one release target's wheels (Linux targets need Docker or Podman)"
+usage = 'arg "<target>" help="Target from scripts/python/artifacts.py, e.g. linux-x86_64"'
+depends = ["py-deps", "py-dicts-build"]
+run = [
+  "uv run --no-sync python -I scripts/python/artifacts.py build --target {{usage.target}}",
+  "uv run --no-sync python -I scripts/python/artifacts.py audit --target {{usage.target}}",
+  "uv run --no-sync python -I scripts/python/artifacts.py test --target {{usage.target}}",
+]
 
 [tasks.py-typecheck]
 description = "Check installed Python types with all five required checkers"
