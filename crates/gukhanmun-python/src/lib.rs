@@ -293,16 +293,17 @@ fn build(json: &str, dictionaries: Vec<DictionaryInput>) -> Result<NativeConvert
                 );
             }
             (Some("fst"), Some(bytes), None) => {
-                let dictionary = FstDictionary::from_bytes(&bytes)
-                    .map_err(|e| Failure::new("dictionary-load", e.to_string()))?;
+                // The umbrella error keeps the parser's source() chain for Python.
+                let dictionary =
+                    FstDictionary::from_bytes(&bytes).map_err(|e| map_error(e.into()))?;
                 let role = role
                     .or_else(|| dictionary.source_evidence().map(|e| e.role))
                     .unwrap_or(SourceRole::Override);
                 builder = builder.push_dictionary_with_role(dictionary, role);
             }
             (Some("cdb"), Some(bytes), None) => {
-                let dictionary = CdbDictionary::from_bytes(&bytes)
-                    .map_err(|e| Failure::new("dictionary-load", e.to_string()))?;
+                let dictionary =
+                    CdbDictionary::from_bytes(&bytes).map_err(|e| map_error(e.into()))?;
                 let role = role
                     .or_else(|| dictionary.source_evidence().map(|e| e.role))
                     .unwrap_or(SourceRole::Override);
