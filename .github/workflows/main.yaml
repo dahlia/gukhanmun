@@ -164,6 +164,9 @@ jobs:
       pypi-version: ${{ steps.context.outputs.pypi-version }}
     steps:
     - uses: actions/checkout@v6
+      with:
+        # Downloaded build tools run in these jobs; nothing needs the token.
+        persist-credentials: false
     - uses: jdx/mise-action@v4
       with:
         install: false
@@ -191,6 +194,9 @@ jobs:
       PYPI_VERSION: ${{ needs.python-context.outputs.pypi-version }}
     steps:
     - uses: actions/checkout@v6
+      with:
+        # Downloaded build tools run in these jobs; nothing needs the token.
+        persist-credentials: false
     - uses: actions/cache@v5
       with:
         path: ~/.rustup/toolchains
@@ -242,6 +248,9 @@ jobs:
         git config --global core.autocrlf false
         git config --global core.eol lf
     - uses: actions/checkout@v6
+      with:
+        # Downloaded build tools run in these jobs; nothing needs the token.
+        persist-credentials: false
     # Only mise itself: the full tool set does not exist for every target, and
     # automatic dependency setup would build unrelated tools.
     - uses: jdx/mise-action@v4
@@ -312,6 +321,9 @@ jobs:
         git config --global core.autocrlf false
         git config --global core.eol lf
     - uses: actions/checkout@v6
+      with:
+        # Downloaded build tools run in these jobs; nothing needs the token.
+        persist-credentials: false
     - uses: jdx/mise-action@v4
       with:
         install: false
@@ -367,6 +379,9 @@ jobs:
       MISE_EXEC_AUTO_INSTALL: "false"
     steps:
     - uses: actions/checkout@v6
+      with:
+        # Downloaded build tools run in these jobs; nothing needs the token.
+        persist-credentials: false
     - uses: jdx/mise-action@v4
       with:
         install: false
