@@ -84,6 +84,8 @@ Rust의 `Iterator`, Python의 `convert_iter()`와 `Iterable`은 바꾸지 않습
 | glob                | 글로브      | 글로브      | `*`·`?` 等을 使用하는 패턴 文法. 一般的인 와일드카드나 `match`의 나머지 가지와 區別합니다.                                       |
 | trie                | 트라이      | 트라이      | 接頭辭를 共有하는 探索 構造.                                                                                                     |
 | Setext              | 세텍스트    | 세텍스트    | 밑줄 形式으로 적는 Markdown 헤딩. 마크업 言語 Setext(Structure Enhanced Text)에서 온 固有名詞이므로 英文 表記는 Setext로 씁니다. |
+| stable release      | 安定 버전   | 안정 버전   | 開發 버전과 區別되는 正式 配布 버전.                                                                                             |
+| development release | 開發 버전   | 개발 버전   | `.devN`으로 識別하는 Python 開發 配布版.                                                                                         |
 | wheel               | 휠          | 휠          | Python의 빌드된 配布 形式. 파일 擴張子 `.whl`은 維持합니다.                                                                      |
 | lockstep            | 同一步調    | 동일 보조   | 여러 패키지의 버전을 함께 올리는 方式.                                                                                           |
 | Semantic Versioning | 有意的 버전 | 유의적 버전 | 公開 API의 相容性에 따라 버전을 올리는 規則. [公式 韓國語 飜譯]을 따릅니다.                                                      |

@@ -739,7 +739,7 @@ run = "uv sync --locked --no-install-workspace"
 description = "Check Python tooling without building the native extension"
 depends = ["py-deps"]
 env = { GUKHANMUN_REPO_ROOT = "{{ config_root }}" }
-run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py tests/python/test_release_context.py tests/python/test_bump.py tests/python/test_publish.py tests/python/test_installer.py tests/python/test_dictionary_packages.py tests/python/test_wheel_smoke.py tests/python/test_dists.py tests/python/test_artifacts.py scripts/python/matrix_test.py"
+run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py tests/python/test_release_context.py tests/python/test_bump.py tests/python/test_publish.py tests/python/test_installer.py tests/python/test_verify_tag.py tests/python/test_workflow.py tests/python/test_dictionary_packages.py tests/python/test_wheel_smoke.py tests/python/test_dists.py tests/python/test_artifacts.py scripts/python/matrix_test.py"
 
 [tasks.py-test-all]
 description = "Test installed wheels on every pinned CPython/PyPy interpreter"

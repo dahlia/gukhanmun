@@ -1317,8 +1317,15 @@ sources with the same roles as the JavaScript
 helpers; a private table describes the packages once for the runtime and the
 tooling. Installing data never changes a converter.
 
-Exhaustive release wheel/sdist validation, free-threaded CPython support and
-registry publishing are separate follow-up work.
+CI validates a 31-file wheel/sdist set with its hashes, source commit and
+execution evidence. A separate upload job publishes that tested bundle to
+PyPI through Trusted Publishing, using development versions on eligible
+branches and stable versions on matching signed tags. Tagged GitHub Releases
+attach the same files. Publisher setup and partial-publication recovery are
+documented in [*CONTRIBUTING.md*].
+Free-threaded CPython remains outside the supported matrix.
+
+[*CONTRIBUTING.md*]: https://github.com/dahlia/gukhanmun/blob/main/CONTRIBUTING.md
 
 ### Dictionary configuration
 

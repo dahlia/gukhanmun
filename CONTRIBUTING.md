@@ -139,8 +139,10 @@ native wheel for that environment.
 GitHub Actions also produces the release artifact set on every pull request
 and push, without any registry credentials. A `python-context` job generates
 the target matrix from *scripts/python/artifacts.py* and the artifact
-version: the workspace version on tags and `X.Y.Z.dev0` otherwise, which only
-exercises development versioning and is not a publication version. A workspace
+version: the workspace version on tags, `X.Y.Z.devN` on upstream pushes to
+`main` and `X.Y-maintenance` (with the workflow run number as `N`), and
+`X.Y.Z.dev0` on other non-tag events. The latter only exercises development
+versioning and is never published. A workspace
 version that is already a development release is used as it is. Every job
 that produces or checks artifacts stamps that version first. `python-sdist`
 builds the seven sdists and the data wheels and rebuilds every sdist outside
@@ -148,7 +150,10 @@ the checkout; `python-wheels` builds and audits each target on its native
 runner; `python-wheel-test` installs the wheels on a fresh runner of the
 same kind, without Rust, and executes them. `python-dists` writes the manifest,
 verifies the complete set, and uploads it with the evidence records as the
-`python-dists` artifact.
+`python-dists` artifact. Before uploading it, the job also validates all
+packaged metadata and provenance. `python-publish-check` downloads that same
+immutable artifact ID without registry credentials and writes a validation
+receipt. The complete bundle is retained for 90 days.
 
 
 Running checks
@@ -503,7 +508,8 @@ Artifact builds can stamp a different Python version without touching
 every Python manifest and extras pin, then refreshes *uv.lock*. The value must
 be the PEP 440 spelling of the workspace version, optionally followed by
 `.devN`; local labels such as `+sha` are rejected. Do not commit such a
-stamped version.
+stamped version. `bump-execute` clears any inherited `PYPI_VERSION` so a
+local bump always synchronizes to the version Cargo actually applied.
 
 Run the bump on a clean working tree: `cargo-release` refuses to proceed when
 there are uncommitted changes, and the bump amends its own commit.
@@ -567,8 +573,11 @@ git push origin 1.2.4
 
 The *main.yaml* workflow verifies that the tag is signed and matches
 `workspace.package.version`, runs the full CI gate, verifies locked crate
-packages, publishes all crates to crates.io and all packages to npm and JSR,
-builds release binaries, and creates the GitHub release.
+packages, publishes all crates to crates.io and all packages to npm, JSR and
+PyPI, builds release binaries, and creates the GitHub release. The Python
+upload uses the tested artifact ID and pinned manifest digest; the Release
+attaches those same 31 files plus *python-manifest.json* and
+*python-SHA256SUMS*.
 
 If a new workspace crate or JavaScript package is added, seed its name on the
 relevant registry (crates.io, npm, or JSR) once before relying on trusted
@@ -582,3 +591,117 @@ bumping to the next version:
 mise run bump-execute -- 1.2.5
 git push
 ~~~~
+
+### Python publication and bootstrap
+
+Python publication follows the existing eligible pushes: `main` and
+`X.Y-maintenance` in `dahlia/gukhanmun` publish development versions, and
+matching signed `X.Y.Z` tags publish stable versions. PRs, forks and feature
+branches build and validate artifacts without Python publishing credentials.
+Python versions use [PEP 440], never the Rust/npm `+sha` suffix; the source SHA
+is retained in the manifest and native build records. The core package's
+extras pin all six data distributions to exactly that Python version. Bump the
+workspace to the next version immediately after a stable release: `X.Y.Z.devN`
+sorts before `X.Y.Z`, so development builds of the released base version would
+not be preferred over that stable release.
+
+The `publish-python` job waits for the full gate, semantic matrix and complete
+artifact validation. It installs no Rust and rebuilds nothing. Only that Python
+job gets `id-token: write`; it uses [Trusted Publishing] with no long-lived
+PyPI token fallback. Both the release JSON and [Simple index] inventories must
+confirm file hashes before publication is complete. Data files become visible
+before the native package is uploaded. Development publication creates no
+GitHub Release.
+
+All seven PyPI projects must exist and carry normal Trusted Publishers before
+the first CI upload. Pending publishers cannot bootstrap seven projects at
+once: their identity is unique per owner/repository/workflow/environment, and
+one account can hold at most three pending registrations. Use this one-time
+seed procedure instead:
+
+1.  Merge the Python version-stamping change into `main` first. Start from a
+    clean, disposable checkout of `main` at the source commit to release. Seed
+    shortly before the first normal release, because pip can select a
+    development version when no stable candidate satisfies a request.
+
+2.  Stamp the workspace version plus `.dev0` in every Python manifest and extra
+    pin. For workspace `0.4.0`, use the commands below. Choose a matching native
+    target if the host is not Linux x86\_64; Linux builds require Docker or
+    Podman as described above. Do not commit the stamped manifests or lockfile.
+
+    ~~~~ sh
+    PYPI_VERSION=0.4.0.dev0 mise run py-sync-version
+    mise run py-sdist-test
+    mise run py-dist -- linux-x86_64
+    ~~~~
+
+3.  Stage one audited native CPython wheel, the six data wheels and all seven
+    sdists in a fresh directory. The seed needs 14 files, not the full release
+    matrix. Replace `linux-x86_64` in the paths below with the target you built.
+    Use only files from that same stamped checkout:
+
+    ~~~~ sh
+    seed_dir=$(mktemp -d)
+    cp target/python/release/linux-x86_64/wheels/*-cp311-abi3-*.whl "$seed_dir/"
+    cp target/python/dictionaries/gukhanmun-*/*.whl "$seed_dir/"
+    cp target/python/sdist/*.tar.gz target/python/dictionaries/gukhanmun-*/*.tar.gz "$seed_dir/"
+    ~~~~
+
+4.  Create a temporary account-scoped PyPI API token; project-scoped tokens
+    cannot create the missing projects. Supply it as `UV_PUBLISH_TOKEN` without
+    putting it in shell history, repository files or logs. Perform the single
+    local seed upload, then immediately revoke the token:
+
+    ~~~~ sh
+    mise exec --no-deps -- uv --no-config publish --trusted-publishing never "$seed_dir/"*
+    ~~~~
+
+5.  Register a normal Trusted Publisher on each project: `gukhanmun`,
+    `gukhanmun-stdict-fst`, `gukhanmun-stdict-cdb`, `gukhanmun-opendict-fst`,
+    `gukhanmun-opendict-cdb`, `gukhanmun-loanwords-fst` and
+    `gukhanmun-loanwords-cdb`. Use owner `dahlia`, repository `gukhanmun`,
+    workflow filename `main.yaml` and no environment. Confirm all seven
+    registrations in PyPI before relying on CI publication. Normal publishers
+    can share this identity across existing projects.
+
+The seed has its own `.dev0` version; workflow run numbers are positive, so
+normal development uploads use different versions. The normal uploader refuses
+`.dev0`. Until bootstrap is complete, an eligible CI upload fails with setup
+instructions rather than silently skipping publication. No-environment Trusted
+Publishing trusts the repository/workflow identity: the ref checks in code and
+YAML do not protect against a collaborator who can change that workflow. Tag
+verification preserves the existing signer policy and adds source-commit
+binding; it does not require a particular signer or branch ancestry.
+
+[Trusted Publishing]: https://docs.pypi.org/trusted-publishers/using-a-publisher/
+[Simple index]: https://packaging.python.org/en/latest/specifications/simple-repository-api/
+
+### Partial Python publication and recovery
+
+PyPI uploads are not atomic. Each attempt writes *python-publish-receipt.json*
+and a step summary with completed, missing and conflicting files. The receipt
+records the original artifact ID, manifest digest, run, commit and attempt;
+receipt artifacts have attempt-specific names. A runner cancelled abruptly
+may not write a final receipt, so the next attempt always reads PyPI again.
+
+Rerun the failed upload job against its original successful `python-dists`
+artifact. Do not rerun successful build jobs or select **Re-run all jobs** after
+any upload. A rebuild can produce different bytes under the same filenames;
+only an existing file with the same SHA-256 and size is skipped. Any conflict
+fails before further uploads. An upload response lost in transit counts as
+success only after the registry confirms identical content.
+
+Recovery uses the original artifact ID and manifest digest. If that artifact
+has expired, publish a new version; never accept a rebuilt hash as a duplicate.
+PyPI cannot reuse deleted filenames. A conflicting or deleted stable filename
+therefore requires a new patch version. The normal pipeline deliberately has no
+arbitrary-run recovery input or overwrite switch.
+
+Ongoing development releases consume PyPI storage. Remove obsolete development
+releases or request a quota increase when needed, remembering that removal
+does not make their filenames reusable.
+
+The credential-free `python-publish-check` job can be rerun independently by
+its job ID to check recovery downloads. Its next receipt must retain the same
+artifact ID and manifest hash while recording a newer current attempt. Its
+offline validation does not request PyPI credentials or contact the registry.

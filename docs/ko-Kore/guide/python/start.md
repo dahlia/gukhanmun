@@ -42,6 +42,39 @@ mise run py-typecheck
 同一한 使用 例題를 mypy, Pyright, basedpyright, ty, Pyrefly로 檢査합니다.
 
 
+PyPI 버전 選擇
+--------------
+
+PyPI에 配布版이 올라온 뒤에는 `python -m pip install gukhanmun`으로
+設置할 수 있습니다. 그 前에는 위의 로컬 휠을 使用하십시오. 새로 設置할 때에는
+要求 條件에 맞는 安定 버전(stable release)이 있으면 이를 優先합니다.
+開發 버전(development release)은 `0.4.0.dev123` 같은 버전을 使用하며,
+다음과 같이 明示的으로 要請합니다.
+
+~~~~ sh
+python -m pip install --upgrade --pre gukhanmun
+~~~~
+
+`gukhanmun==0.4.0.dev123`처럼 正確한 버전을 指定할 수도 있습니다.
+例示의 버전은 實際 配布된 버전으로 바꿉니다.
+[公式 辭典 엑스트라(extra)](./dictionaries.md)는 코어 패키지와 正確히 같은
+버전의 데이터를 設置합니다.
+
+`--pre`가 없어도 開發 버전이 設置될 수 있습니다. 要求를 滿足하는 安定 버전이
+없을 때, 첫 安定 버전이 나오기 前 等에는 pip가 開發 버전 等을 選擇할 수
+있습니다. 이미 設置된 버전이 要求를 滿足하고 `--upgrade`가 없으면, pip는
+더 새로운 安定 버전이 있어도 旣存 버전을 그대로 둡니다. pip 26.0 以上을
+使用하십시오. 이 버전은
+[旣存 安定 버전이 要求를 滿足하지 못하는 場合의 選擇도 修正합니다].
+
+設置된 配布版의 버전은 `gukhanmun.__version__`으로 確認합니다. 휠이 없는
+플랫폼에서 原始 코드 配布版을 設置하는 方法은
+〈[支援 플랫폼](./platforms.md)〉을
+參照하십시오.
+
+[旣存 安定 버전이 要求를 滿足하지 못하는 場合의 選擇도 修正합니다]: https://pip.pypa.io/en/stable/news/#v26-0
+
+
 文書 變換
 ---------
 

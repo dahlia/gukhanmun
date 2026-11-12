@@ -45,6 +45,35 @@ The tasks test an installed wheel outside the checkout. `py-typecheck` runs
 mypy, Pyright, basedpyright, ty and Pyrefly against the same consumer examples.
 
 
+Choose a PyPI version
+---------------------
+
+Once distributions are available on PyPI, install the package with
+`python -m pip install gukhanmun`. Until then, use the local wheel above.
+A fresh install prefers a compatible stable release. Development releases
+use versions such as `0.4.0.dev123`; request them explicitly:
+
+~~~~ sh
+python -m pip install --upgrade --pre gukhanmun
+~~~~
+
+Pin a published development version with a requirement such as
+`gukhanmun==0.4.0.dev123`, replacing the example with an available version.
+The [official dictionary extras](./dictionaries.md) pin their data to the same
+version as the core package.
+
+`--pre` is not an absolute requirement for installing development versions:
+pip can select them when no stable candidate satisfies the requirement,
+including before the first stable release exists. Without `--upgrade`, pip
+keeps an already-installed version that satisfies the request, even if the
+index has a newer stable release. Use pip 26.0 or later for the
+development-only fallback described here.
+
+Read `gukhanmun.__version__` to see the installed distribution's version. The
+[platform guide](./platforms.md#building-from-the-source-distribution) explains
+installation from a source distribution when a wheel is unavailable.
+
+
 Convert a document
 ------------------
 
