@@ -32,7 +32,9 @@ python -m pip install /path/to/gukhanmun.whl
 ~~~~
 
 The command above installs a locally built artifact. These instructions do not
-require a published PyPI release. To check the package from the checkout, run:
+require a published PyPI release. See [*Supported platforms*](./platforms.md)
+for the platforms that the release wheels cover and for building from the
+source distribution. To check the package from the checkout, run:
 
 ~~~~ sh
 mise run py-test
