@@ -140,7 +140,8 @@ GitHub Actions also produces the release artifact set on every pull request
 and push, without any registry credentials. A `python-context` job generates
 the target matrix from *scripts/python/artifacts.py* and the artifact
 version: the workspace version on tags and `X.Y.Z.dev0` otherwise, which only
-exercises development versioning and is not a publication version. Every job
+exercises development versioning and is not a publication version. A workspace
+version that is already a development release is used as it is. Every job
 that produces or checks artifacts stamps that version first. `python-sdist`
 builds the seven sdists and the data wheels and rebuilds every sdist outside
 the checkout; `python-wheels` builds and audits each target on its native

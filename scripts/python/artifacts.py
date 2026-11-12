@@ -828,10 +828,18 @@ def ci_version(ref_type, root=ROOT):
     """The artifact version CI builds: the release on tags, `.dev0` otherwise.
 
     `.dev0` only exercises development versioning; it is not a publication
-    identity.  Publishing replaces it with its own development number.
+    identity.  Publishing replaces it with its own development number.  A
+    workspace version that is already a development release stays as it is,
+    because PEP 440 allows only one development segment.
     """
     version = load("sync_version").workspace_version(root)
-    return version if ref_type == "tag" else f"{version}.dev0"
+    if ref_type == "tag" or re.search(r"\.dev\d+$", version):
+        return version
+    # TODO(#52): for publish-eligible pushes (main and maintenance branches),
+    # replace this fixed .dev0 with X.Y.Z.devN, where N is the workflow run
+    # number.  Pull requests, feature branches and forks can keep building
+    # .dev0 and never publish.  See https://github.com/dahlia/gukhanmun/issues/52.
+    return f"{version}.dev0"
 
 
 def ci_context(arguments):

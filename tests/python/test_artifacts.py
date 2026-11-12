@@ -454,12 +454,17 @@ def test_search_paths_must_stay_inside_the_wheel(entry: str, valid: bool) -> Non
             artifacts.check_search_path(entry, "gukhanmun/_native.abi3.so")
 
 
-@pytest.mark.parametrize("cargo,python", [("0.4.0", "0.4.0"), ("1.2.0-rc.2", "1.2.0rc2")])
-def test_ci_builds_dev0_on_branches_and_the_release_on_tags(tmp_path: Path, cargo: str, python: str) -> None:
+@pytest.mark.parametrize("cargo,python,branch", [
+    ("0.4.0", "0.4.0", "0.4.0.dev0"), ("1.2.0-rc.2", "1.2.0rc2", "1.2.0rc2.dev0"),
+    # Already a development release: a second .dev segment is not PEP 440.
+    ("1.2.0-dev.7", "1.2.0.dev7", "1.2.0.dev7"),
+])
+def test_ci_builds_dev0_on_branches_and_the_release_on_tags(
+        tmp_path: Path, cargo: str, python: str, branch: str) -> None:
     (tmp_path / "Cargo.toml").write_text(f'[workspace.package]\nversion = "{cargo}"\n')
     assert artifacts.ci_version("tag", tmp_path) == python
-    assert artifacts.ci_version("branch", tmp_path) == f"{python}.dev0"
-    assert artifacts.ci_version(None, tmp_path) == f"{python}.dev0"
+    assert artifacts.ci_version("branch", tmp_path) == branch
+    assert artifacts.ci_version(None, tmp_path) == branch
 
 
 def test_ci_context_writes_the_matrix_and_version(tmp_path: Path, monkeypatch) -> None:
