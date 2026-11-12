@@ -72,7 +72,10 @@ def build():
         if len(extensions) != 1:
             raise RuntimeError("wheel must contain exactly one private extension")
         metadata = next(name for name in names if name.endswith(".dist-info/METADATA"))
-        check_extras(wheel.read(metadata).decode("utf-8"))
+        text = wheel.read(metadata).decode("utf-8")
+        check_extras(text)
+        check_readme(text, (ROOT / "python/gukhanmun/README.md").read_text(encoding="utf-8"),
+                     label=wheels[0].name)
         if sys.platform.startswith("linux"):
             with tempfile.TemporaryDirectory(prefix="gukhanmun-elf-") as temporary:
                 extension = Path(temporary) / Path(extensions[0]).name
@@ -86,6 +89,19 @@ def build():
                     if "NEEDED" in line and "libpython" in line:
                         raise RuntimeError(f"extension links libpython: {line}")
     print(f"Verified wheel: {wheels[0]}")
+
+
+def check_readme(text, readme, *, label="Python distribution"):
+    """Require the Markdown README in wheel METADATA or sdist PKG-INFO."""
+    fields = email.parser.Parser().parsestr(text)
+    types = fields.get_all("Description-Content-Type") or []
+    if len(types) != 1 or types[0].split(";", 1)[0].strip().lower() != "text/markdown":
+        raise RuntimeError(f"{label} README requires one Markdown Description-Content-Type")
+    body = fields.get_payload()
+    if not readme.strip() or not isinstance(body, str) or not body.strip():
+        raise RuntimeError(f"{label} README description is empty")
+    if body.replace("\r\n", "\n").strip() != readme.replace("\r\n", "\n").strip():
+        raise RuntimeError(f"{label} README description differs from README.md")
 
 
 def check_extras(text):

@@ -528,6 +528,8 @@ def check_structure(path, item, version, root):
         if cached:
             raise RuntimeError(f"{path.name} contains bytecode caches: {cached}")
         check_extras(metadata, version, root, path.name)
+        load("checks").check_readme(metadata, (root / "python/gukhanmun/README.md").read_text(encoding="utf-8"),
+                                  label=path.name)
         data = archive.read(extensions[0])
     return extensions[0], data
 

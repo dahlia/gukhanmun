@@ -6,6 +6,7 @@ build-backend = "maturin"
 name = "gukhanmun"
 version = "0.4.0"
 description = "Convert mixed-script Korean text into hangul with native Rust performance"
+readme = "README.md"
 requires-python = ">=3.11"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]

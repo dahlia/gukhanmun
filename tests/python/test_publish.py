@@ -34,6 +34,7 @@ sys.modules[SPEC.name] = publish
 SPEC.loader.exec_module(publish)
 a = publish.artifacts
 VERSION = "0.4.0.dev7"
+README = (REPOSITORY / "python/gukhanmun/README.md").read_text(encoding="utf-8")
 SHA = "a" * 40
 ENV = {"GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": "dahlia/gukhanmun", "GITHUB_EVENT_NAME": "push",
        "GITHUB_REF": "refs/heads/main", "GITHUB_REF_TYPE": "branch", "GITHUB_SHA": SHA,
@@ -51,9 +52,10 @@ def package_metadata(name, version=None):
     version = VERSION if version is None else version
     text = f"Metadata-Version: 2.4\nName: {name}\nVersion: {version}\n"
     if name == "gukhanmun":
+        text += "Description-Content-Type: text/markdown\n"
         for extra, distribution in a.dictionary_table(REPOSITORY).EXTRAS.items():
             text += f'Provides-Extra: {extra}\nRequires-Dist: {distribution}=={version}; extra == "{extra}"\n'
-    return text + "\n"
+    return text + "\n" + (README if name == "gukhanmun" else "")
 
 
 def write_package(path, description, text=None, project=None, duplicate=False):
@@ -231,8 +233,12 @@ def test_build_provenance_must_cover_every_wheel(release):
     (lambda text: text.replace("Name: gukhanmun\n", "Name: wrong\n"), "Name"),
     (lambda text: text.replace(f"Version: {VERSION}\n", "Version: 0.4.0\n"), "Version"),
     (lambda text: text.replace("Name: gukhanmun\n", "Name: gukhanmun\nName: gukhanmun\n"), "one Name"),
-    (lambda text: text + f'Requires-Dist: gukhanmun-stdict-fst=={VERSION}; extra == "stdict"\n', "duplicate"),
+    (lambda text: text.replace("\n\n", f'\nRequires-Dist: gukhanmun-stdict-fst=={VERSION}; extra == "stdict"\n\n', 1), "duplicate"),
     (lambda text: text.replace(f"gukhanmun-stdict-fst=={VERSION}", "gukhanmun-stdict-fst==0.3.0"), "pin"),
+    (lambda text: text.replace("Description-Content-Type: text/markdown\n", ""), "README"),
+    (lambda text: text.replace("text/markdown", "text/plain"), "README"),
+    (lambda text: text.split("\n\n", 1)[0] + "\n\n", "README"),
+    (lambda text: text.split("\n\n", 1)[0] + "\n\nAnother README", "README"),
 ])
 def test_native_metadata_is_inspected(release, change, message):
     name, description = next((name, d) for name, d in a.expected_files(VERSION).items() if d.get("target"))

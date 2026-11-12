@@ -149,6 +149,8 @@ def fields_for(text, name, version, label, root):
     if name == "gukhanmun":
         try:
             artifacts.check_extras(text, version, root, label)
+            artifacts.load("checks").check_readme(
+                text, (root / "python/gukhanmun/README.md").read_text(encoding="utf-8"), label=label)
         except RuntimeError as error:
             raise PublicationError(str(error)) from error
         # check_extras historically overwrites duplicate extra keys. Require

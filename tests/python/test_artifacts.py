@@ -196,19 +196,23 @@ def test_macos_minimum_reads_either_load_command() -> None:
 EXTRAS = {"stdict": "stdict-fst", "stdict-fst": "stdict-fst", "stdict-cdb": "stdict-cdb",
           "opendict": "opendict-fst", "opendict-fst": "opendict-fst", "opendict-cdb": "opendict-cdb",
           "loanwords": "loanwords-fst", "loanwords-fst": "loanwords-fst", "loanwords-cdb": "loanwords-cdb"}
+README = (REPOSITORY / "python/gukhanmun/README.md").read_text(encoding="utf-8")
 
 
 def native_wheel(directory: Path, name: str, *, extension: str = "gukhanmun/_native.abi3.so",
-                 tag: str | None = None, extra: dict[str, bytes] | None = None, pin: str = "==0.4.0") -> Path:
+                 tag: str | None = None, extra: dict[str, bytes] | None = None, pin: str = "==0.4.0",
+                 description: str = README, content_type: str | None = "text/markdown") -> Path:
     path = directory / name
     info = "gukhanmun-0.4.0.dist-info"
     tag = tag or "-".join(name.removesuffix(".whl").split("-")[2:])
     metadata = ["Metadata-Version: 2.4", "Name: gukhanmun", "Version: 0.4.0"]
+    if content_type is not None:
+        metadata.append(f"Description-Content-Type: {content_type}")
     metadata += [f"Provides-Extra: {extra_name}" for extra_name in EXTRAS]
     metadata += [f'Requires-Dist: gukhanmun-{data}{pin} ; extra == "{extra_name}"'
                  for extra_name, data in EXTRAS.items()]
     files = {f"{info}/WHEEL": f"Wheel-Version: 1.0\nRoot-Is-Purelib: false\nTag: {tag}\n",
-             f"{info}/METADATA": "\n".join(metadata) + "\n", f"{info}/RECORD": "",
+             f"{info}/METADATA": "\n".join(metadata) + "\n\n" + description, f"{info}/RECORD": "",
              f"{info}/licenses/LICENSE": "GPL", "gukhanmun/__init__.py": "", "gukhanmun/py.typed": "",
              "gukhanmun/_native.pyi": "", extension: "binary", **(extra or {})}
     with zipfile.ZipFile(path, "w") as archive:
@@ -228,6 +232,17 @@ def test_wheel_structure_matches_the_target(tmp_path: Path) -> None:
     windows = "gukhanmun-0.4.0-cp311-abi3-win_amd64.whl"
     artifacts.check_structure(native_wheel(tmp_path, windows, extension="gukhanmun/_native.pyd"),
                               artifacts.target("windows-amd64"), "0.4.0", REPOSITORY)
+
+
+@pytest.mark.parametrize("change", [
+    {"content_type": None}, {"content_type": "text/plain"},
+    {"description": ""}, {"description": "Another README"},
+])
+def test_release_wheel_requires_its_markdown_readme(tmp_path: Path, change) -> None:
+    item = artifacts.target("linux-x86_64")
+    name = "gukhanmun-0.4.0-cp311-abi3-manylinux_2_28_x86_64.whl"
+    with pytest.raises(RuntimeError, match="README"):
+        artifacts.check_structure(native_wheel(tmp_path, name, **change), item, "0.4.0", REPOSITORY)
 
 
 @pytest.mark.parametrize("change,message", [
