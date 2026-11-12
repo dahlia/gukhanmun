@@ -262,6 +262,7 @@ def run_record(name: str, file_digest: str, label: str, interpreter: dict, windo
             "installed": {"gukhanmun": {"filename": name, "sha256": file_digest}},
             "result": {"mode": mode, "checks": ["formats", final, *(["windows-import-closure"] if windows else [])],
                        "interpreter": {"implementation": interpreter["implementation"],
+                                       "distribution": "0.4.0", "public_version": "0.4.0",
                                        "python": f"{interpreter['python']}.1",
                                        "libc": interpreter.get("libc", ["glibc", "2.43"])}}}
     return record
@@ -290,7 +291,8 @@ def release(tmp_path: Path) -> Path:
                                 interpreter, item.family == "windows")
             record["official"]["installed"].update(data_installed)
             (directory / f"smoke-{item.id}-{interpreter['label']}.json").write_text(json.dumps(record))
-    smoke = {mode: {"installed": {}, "result": {"mode": mode, "checks": [final]}}
+    smoke = {mode: {"installed": {}, "result": {"mode": mode, "checks": [final],
+                      "interpreter": {"distribution": "0.4.0", "public_version": "0.4.0"}}}
              for mode, final in (("base", "missing-data"), ("official", "official-corpus"))}
     rebuilds = []
     for name, data in expected.items():
@@ -388,6 +390,14 @@ def rewrite(release: Path, name: str, change) -> None:
     artifacts.manifest(SimpleNamespace(dir=release, version="0.4.0"))
 
 
+@pytest.mark.parametrize("field", ["distribution", "public_version"])
+def test_executed_wheel_versions_must_match_manifest(release: Path, field: str) -> None:
+    def change(record):
+        record["base"]["result"]["interpreter"][field] = "0.4.0.dev1"
+    rewrite(release, "smoke-linux-x86_64-cp311.json", change)
+    verify_fails(release, "no base and official execution")
+
+
 def test_the_floor_run_must_execute_on_the_glibc_floor(release: Path) -> None:
     def newer(record: dict) -> None:
         for mode in ("base", "official"):
@@ -460,7 +470,8 @@ def test_search_paths_must_stay_inside_the_wheel(entry: str, valid: bool) -> Non
     ("1.2.0-dev.7", "1.2.0.dev7", "1.2.0.dev7"),
 ])
 def test_ci_builds_dev0_on_branches_and_the_release_on_tags(
-        tmp_path: Path, cargo: str, python: str, branch: str) -> None:
+        tmp_path: Path, monkeypatch, cargo: str, python: str, branch: str) -> None:
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     (tmp_path / "Cargo.toml").write_text(f'[workspace.package]\nversion = "{cargo}"\n')
     assert artifacts.ci_version("tag", tmp_path) == python
     assert artifacts.ci_version("branch", tmp_path) == branch
@@ -468,6 +479,7 @@ def test_ci_builds_dev0_on_branches_and_the_release_on_tags(
 
 
 def test_ci_context_writes_the_matrix_and_version(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     output = tmp_path / "output"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     monkeypatch.setenv("GITHUB_REF_TYPE", "branch")

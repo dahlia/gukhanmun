@@ -82,6 +82,8 @@ def installed():
     distribution = importlib.metadata.distribution("gukhanmun")
     from gukhanmun import _native
 
+    expect(g.__version__ == distribution.version, "__version__ differs from installed metadata")
+
     native = Path(_native.__file__).resolve()
     tags = [line.removeprefix("Tag: ") for line in (distribution.read_text("WHEEL") or "").splitlines()
             if line.startswith("Tag: ")]
@@ -97,6 +99,7 @@ def installed():
         "pointer_bits": struct.calcsize("P") * 8,
         "libc": libc(),
         "distribution": distribution.version,
+        "public_version": g.__version__,
         "wheel_tags": tags,
         "native": native.name,
         "native_sha256": hashlib.sha256(native.read_bytes()).hexdigest(),
