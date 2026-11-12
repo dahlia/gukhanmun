@@ -129,6 +129,8 @@ def test_bump_uses_applied_version_and_amends_all_python_metadata(tmp_path, requ
     assert all(value[0].endswith('==' + expected) for value in extras.values())
     assert (tmp_path / 'uv.lock').read_text() == 'synchronized ' + expected
     amend = next(call for call in state['calls'] if call[:4] == ['git', 'commit', '-S', '--amend'])
+    # Expanded glob arguments use the runner's native path separator.
+    amend = [path.replace('\\', '/') for path in amend]
     # Nushell may preserve or expand a glob depending on the external runner;
     # both must name all seven manifests and the lock in the amend operation.
     assert 'uv.lock' in amend
