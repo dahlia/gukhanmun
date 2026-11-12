@@ -28,8 +28,8 @@ import subprocess
 import sys
 
 
-def validate(ref_object, tag_object, local_object, local_type, local_target, head, source_sha):
-    """Require one annotated tag object and one built commit across all views."""
+def validate(ref_object, tag_object, local_object, local_type, local_target, head, source_sha, tag_name):
+    """Require the requested signed tag name, one tag object and one built commit."""
     if ref_object.get("type") != "tag" or local_type != "tag":
         raise ValueError("release requires an annotated tag locally and remotely")
     object_sha = ref_object.get("sha")
@@ -39,6 +39,8 @@ def validate(ref_object, tag_object, local_object, local_type, local_target, hea
         raise ValueError("remote signed tag object differs from the checkout tag object")
     if tag_object.get("verification", {}).get("verified") is not True:
         raise ValueError("remote tag signature is not verified")
+    if tag_object.get("tag") != tag_name:
+        raise ValueError("signed tag name differs from the requested tag")
     target = tag_object.get("object", {})
     if target.get("type") != "commit":
         raise ValueError("release tag must point directly to a commit")
@@ -60,7 +62,7 @@ def main():
     try:
         validate(args.ref_object, json.load(sys.stdin), git("rev-parse", "--verify", ref),
                  git("cat-file", "-t", ref), git("rev-parse", "--verify", ref + "^{commit}"),
-                 git("rev-parse", "HEAD"), os.environ.get("GITHUB_SHA"))
+                 git("rev-parse", "HEAD"), os.environ.get("GITHUB_SHA"), args.tag)
     except (KeyError, TypeError, ValueError, subprocess.CalledProcessError) as error:
         print(f"release tag identity verification failed: {error}", file=sys.stderr)
         return 1

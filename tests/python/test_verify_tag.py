@@ -31,14 +31,22 @@ SPEC.loader.exec_module(tag)
 
 def inputs():
     return {"ref_object": {"type": "tag", "sha": "a" * 40},
-            "tag_object": {"sha": "a" * 40, "object": {"type": "commit", "sha": "b" * 40},
+            "tag_object": {"sha": "a" * 40, "tag": "0.4.0", "object": {"type": "commit", "sha": "b" * 40},
                            "verification": {"verified": True}},
             "local_object": "a" * 40, "local_type": "tag", "local_target": "b" * 40,
-            "head": "b" * 40, "source_sha": "b" * 40}
+            "head": "b" * 40, "source_sha": "b" * 40, "tag_name": "0.4.0"}
 
 
 def test_same_verified_tag_and_built_commit_pass():
     tag.validate(**inputs())
+
+
+@pytest.mark.parametrize("signed_name", ["v0.4.0", "0.4.1", None])
+def test_signed_tag_name_must_match_requested_release(signed_name):
+    arguments = inputs()
+    arguments["tag_object"]["tag"] = signed_name
+    with pytest.raises(ValueError, match="signed tag name"):
+        tag.validate(**arguments)
 
 
 @pytest.mark.parametrize("field,value,message", [
