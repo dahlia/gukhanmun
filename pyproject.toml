@@ -25,6 +25,7 @@ dev = [
     { include-group = "mypy" },
     { include-group = "build" },
     { include-group = "release" },
+    { include-group = "installer" },
     "pyright==1.1.414",
     "basedpyright==1.40.2",
     "ty==0.0.99",
@@ -33,6 +34,7 @@ dev = [
     "tox-uv-bare==1.37.7",
 ]
 test = ["pytest==9.2.0"]
+installer = ["pip==26.0"]
 mypy = ["mypy==2.4.1"]
 # Build backends of the dictionary data distributions and the native package;
 # exported as hashed build constraints by scripts/python/dictionaries.py and
