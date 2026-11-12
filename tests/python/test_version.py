@@ -54,8 +54,13 @@ def data_versions(root: Path) -> set[str]:
             for name in DATA}
 
 
-def invoke(root: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([sys.executable, "-I", SCRIPT, root], text=True, capture_output=True)
+def invoke(root: Path, *arguments: str, pypi_version: str | None = None) -> subprocess.CompletedProcess[str]:
+    # An inherited PYPI_VERSION must not change what the default path tests.
+    environment = {key: value for key, value in os.environ.items() if key != "PYPI_VERSION"}
+    if pypi_version is not None:
+        environment["PYPI_VERSION"] = pypi_version
+    return subprocess.run([sys.executable, "-I", SCRIPT, root, *arguments],
+                          text=True, capture_output=True, env=environment)
 
 
 @pytest.mark.parametrize("cargo,python", [
@@ -76,6 +81,68 @@ def test_sync_preserves_other_manifest_text(tmp_path: Path, cargo: str, python: 
     again = invoke(tmp_path)
     assert again.returncode == 0
     assert manifest.read_text() == expected
+
+
+@pytest.mark.parametrize("cargo,requested", [
+    ("0.4.0", "0.4.0"), ("0.4.0", "0.4.0.dev0"), ("0.4.0", "0.4.0.dev17"),
+    ("1.2.0-rc.2", "1.2.0rc2"), ("1.2.0-rc.2", "1.2.0rc2.dev3"),
+])
+def test_explicit_artifact_version_is_stamped_everywhere(tmp_path: Path, cargo: str, requested: str) -> None:
+    manifest, _ = project(tmp_path, cargo)
+    result = invoke(tmp_path, pypi_version=requested)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == requested
+    data = tomllib.loads(manifest.read_text())["project"]
+    assert data["version"] == requested
+    assert data["optional-dependencies"] == {
+        extra: [f"gukhanmun-{name}=={requested}"] for extra, name in EXTRAS.items()}
+    assert data_versions(tmp_path) == {requested}
+    # The Rust workspace keeps its own version.
+    assert tomllib.loads((tmp_path / "Cargo.toml").read_text())["workspace"]["package"]["version"] == cargo
+
+
+def test_version_option_overrides_the_environment(tmp_path: Path) -> None:
+    manifest, _ = project(tmp_path, "0.4.0")
+    result = invoke(tmp_path, "--version", "0.4.0.dev5", pypi_version="0.4.0.dev9")
+    assert result.returncode == 0, result.stderr
+    assert tomllib.loads(manifest.read_text())["project"]["version"] == "0.4.0.dev5"
+
+
+def test_empty_version_option_is_rejected(tmp_path: Path) -> None:
+    manifest, original = project(tmp_path, "0.4.1")
+    result = invoke(tmp_path, "--version", "", pypi_version="0.4.1.dev2")
+    assert result.returncode != 0
+    assert "not a PEP 440" in result.stderr
+    assert manifest.read_text() == original
+    assert data_versions(tmp_path) == {"0.4.0"}
+
+
+def test_empty_artifact_version_uses_the_workspace_version(tmp_path: Path) -> None:
+    manifest, _ = project(tmp_path, "0.4.1")
+    result = invoke(tmp_path, pypi_version="")
+    assert result.returncode == 0, result.stderr
+    assert tomllib.loads(manifest.read_text())["project"]["version"] == "0.4.1"
+
+
+@pytest.mark.parametrize("cargo,requested,message", [
+    ("0.4.0", "0.4.0.dev3+abc1234", "local label"),
+    ("0.4.0", "0.4.0-dev.3", "not canonical"),
+    ("0.4.0", "0.4.0.post1", "post-release"),
+    ("0.4.0", "1!0.4.0", "epoch"),
+    ("0.4.0", "0.4.1", "must be"),
+    ("0.4.0", "0.4.0rc1", "must be"),
+    ("0.4.0", "0.4.0.dev3.dev4", "not a PEP 440"),
+    ("1.2.0-dev.7", "1.2.0.dev8", "must be"),
+    ("0.4.0", "not-a-version", "not a PEP 440"),
+])
+def test_invalid_artifact_version_leaves_every_manifest_unchanged(
+        tmp_path: Path, cargo: str, requested: str, message: str) -> None:
+    manifest, original = project(tmp_path, cargo)
+    result = invoke(tmp_path, pypi_version=requested)
+    assert result.returncode != 0
+    assert message in result.stderr
+    assert manifest.read_text() == original
+    assert data_versions(tmp_path) == {"0.4.0"}
 
 
 @pytest.mark.parametrize("version", ["1.2.0-preview-special", "1.2.0-1", "1.2.0-post.1"])

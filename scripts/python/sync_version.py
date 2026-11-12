@@ -20,6 +20,12 @@ The core distribution and the six dictionary data distributions always share
 one version, and each core extra pins its data distribution to exactly that
 version.  All new manifest texts are computed and validated before any
 file is written, so an invalid manifest leaves every manifest unchanged.
+
+`PYPI_VERSION` (or `--version`) overrides the derived version for artifact
+builds.  It must be the canonical PEP 440 spelling of the workspace version,
+optionally followed by a `.devN` segment; local labels such as `+sha` are
+rejected because package indexes refuse them.  The Rust crates keep the
+workspace version either way.
 """
 import argparse
 import importlib.util
@@ -30,7 +36,7 @@ import sys
 import tempfile
 import tomllib
 
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 
 _VERSION = re.compile(r"""(?m)^(version\s*=\s*)(["'])([^"'\n]*)\2(?=[ \t]*(?:#.*)?$)""")
 _TABLE = (Path(__file__).resolve().parents[2]
@@ -109,7 +115,8 @@ def write_atomic(path: Path, text: str) -> None:
         pending.unlink(missing_ok=True)
 
 
-def sync_version(root: Path) -> str:
+def workspace_version(root: Path) -> str:
+    """Return the PEP 440 spelling of the Rust workspace version."""
     cargo = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
     raw = cargo["workspace"]["package"]["version"]
     if not isinstance(raw, str):
@@ -117,7 +124,34 @@ def sync_version(root: Path) -> str:
     parsed = Version(raw)
     if parsed.post is not None:
         raise ValueError("a Rust prerelease cannot become a Python post-release")
-    version = str(parsed)
+    return str(parsed)
+
+
+def requested_version(base: str, requested: str) -> str:
+    """Validate an explicit artifact version against the workspace version."""
+    try:
+        parsed = Version(requested)
+    except InvalidVersion as error:
+        raise ValueError(f"PYPI_VERSION {requested!r} is not a PEP 440 version") from error
+    if str(parsed) != requested:
+        raise ValueError(f"PYPI_VERSION {requested!r} is not canonical; use {str(parsed)!r}")
+    if parsed.local is not None:
+        raise ValueError(f"PYPI_VERSION {requested!r} has a local label, which package indexes reject")
+    if parsed.epoch or parsed.post is not None:
+        raise ValueError(f"PYPI_VERSION {requested!r} must not have an epoch or post-release")
+    if requested == base:
+        return requested
+    # Only a development release of the workspace version itself is allowed.
+    if Version(base).dev is None and parsed.dev is not None:
+        if requested.removesuffix(f".dev{parsed.dev}") == base:
+            return requested
+    raise ValueError(f"PYPI_VERSION {requested!r} must be {base!r} or {base!r} plus .devN")
+
+
+def sync_version(root: Path, requested: str | None = None) -> str:
+    version = workspace_version(root)
+    if requested is not None:
+        version = requested_version(version, requested)
     pending = []
     core, *data = manifests(root)
     for manifest in [core, *data]:
@@ -140,9 +174,12 @@ def sync_version(root: Path) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path, nargs="?", default=Path(__file__).resolve().parents[2])
+    parser.add_argument("--version", help="artifact version (default: $PYPI_VERSION, else the workspace version)")
     args = parser.parse_args()
+    # An empty environment value means "not set"; an explicit empty option is an error.
+    requested = args.version if args.version is not None else os.environ.get("PYPI_VERSION") or None
     try:
-        print(sync_version(args.root))
+        print(sync_version(args.root, requested))
     except (OSError, KeyError, TypeError, ValueError) as error:
         print(f"could not synchronize Python version: {error}", file=sys.stderr)
         return 1

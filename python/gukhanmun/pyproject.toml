@@ -36,4 +36,14 @@ manifest-path = "../../crates/gukhanmun-python/Cargo.toml"
 python-source = "src"
 module-name = "gukhanmun._native"
 # Tooling loads modules from the source tree; never ship its bytecode caches.
-exclude = ["src/**/__pycache__/**", "src/**/*.py[cod]"]
+# The sdist also carries the optional dictionary crates, because Cargo needs
+# every crate of the dependency graph; their features are off, so drop their
+# separately licensed source data.  Only a leading **/ matches files of path
+# dependencies.
+exclude = [
+  "src/**/__pycache__/**",
+  "src/**/*.py[cod]",
+  { path = "**/gukhanmun-stdict/data/**", format = "sdist" },
+  { path = "**/gukhanmun-opendict/data/**", format = "sdist" },
+  { path = "**/gukhanmun-loanwords/data/**", format = "sdist" },
+]

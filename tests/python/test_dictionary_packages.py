@@ -83,7 +83,7 @@ def test_manifest_matches_the_table(distribution) -> None:
 def test_build_group_pins_the_data_build_backend() -> None:
     root = tomllib.loads((REPOSITORY / "pyproject.toml").read_text(encoding="utf-8"))
     groups = root["dependency-groups"]
-    assert groups["build"] == ["hatchling==1.33.0"]
+    assert "hatchling==1.33.0" in groups["build"]
     assert {"include-group": "build"} in groups["dev"]
 
 

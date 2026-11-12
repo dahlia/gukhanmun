@@ -58,6 +58,54 @@ wheels and sdists; `mise run py-dicts-test` installs them through the core
 extras from those local artifacts and tests the official data. `mise run ci`
 includes both.
 
+`mise run py-wheel-smoke` installs the host wheel and the data wheels the way
+users would: each venv's own pip installs wheels only, from a local package
+index of those artifacts, with no Rust tools on `PATH` and no inherited pip
+settings. It then runs *tests/python-wheel/smoke.py* without the core
+package's data, resolves every extra, and runs the official dictionary corpus
+with all of them. *scripts/python/wheel\_smoke.py* needs only the standard
+library, so CI runs the same checks on bare interpreters, and it writes an
+evidence record under *target/python/smoke/*. `mise run ci` includes it.
+
+`mise run py-sdist` builds the native sdist and checks that it stands alone:
+the binding crate, the workspace crates it needs, the Cargo manifests and
+lockfile, the Python sources, stubs and licenses, but none of the source data
+of the optional dictionary crates, which the binding does not compile.
+`mise run py-sdist-test` unpacks it outside the checkout and builds a wheel
+from it with `uv build`, then smoke-tests that wheel together with the six data
+wheels that `py-dicts-build` rebuilt from their own sdists.
+*target/python/sdist-rebuilt/rebuilds.json* links each sdist to its rebuilt
+wheel. The native rebuild runs without `--locked`, because maturin ships the
+whole workspace lockfile but lists only the crates the binding needs; the
+check accepts a lockfile that only drops unused entries. `mise run ci`
+includes it.
+
+The release consists of 31 files: a CPython wheel for eight targets, PyPy 3.11
+and 3.12 wheels for five of them, the six data wheels and seven sdists.
+*scripts/python/artifacts.py* defines the targets in one table, and CI
+generates its matrix from it. `mise run py-dist -- <target>` builds, audits
+and executes one target's wheels on a matching host:
+
+~~~~ sh
+mise run py-dist -- linux-x86_64
+~~~~
+
+Linux targets build inside digest-pinned PyPA manylinux and musllinux images
+with their interpreters, so they need Docker or Podman. Set
+`GUKHANMUN_CONTAINER_ENGINE=podman` to use Podman, and
+`GUKHANMUN_CONTAINER_VOLUME_OPTIONS=z` on SELinux hosts. The audit checks the
+wheel structure, the extension's architecture and libraries, and the platform
+floor with the image's `auditwheel`, macOS's `lipo` and `otool`, or `pefile` on
+Windows. The test runs the smoke checks with the oldest and newest CPython and
+each PyPy; musl targets use the image interpreters, and glibc targets also run
+once inside the manylinux image on its glibc. A target refuses to run on
+another OS or architecture, because emulated or cross-compiled artifacts do
+not count as executed. The outputs, with their provenance, audit and evidence
+records, go to _target/python/release/<target>/_. `artifacts.py manifest`
+inventories a directory of release files and records, and
+`artifacts.py verify --complete` requires all 31 files with an audit, the
+required executions and an sdist rebuild for each.
+
 Install the complete interpreter set only when running the semantic matrix:
 
 ~~~~ sh
@@ -76,19 +124,31 @@ test group, builds a noneditable wheel for each interpreter/ABI, and copies
 runtime tests to temporary directories outside the checkout. Logs identify the
 interpreter, base installation, installed distribution and native module hash.
 
-These are development and semantic checks. Exhaustive release wheel/sdist
-validation and free-threaded CPython support are separate work. Core tests use
-synthetic dictionaries and do not require the optional official datasets.
+These are development and semantic checks; the release artifacts are
+validated separately, as described below. Free-threaded CPython is not
+supported. Core tests use synthetic dictionaries and do not require the
+optional official datasets.
 
 GitHub Actions runs installed-wheel semantic tests on CPython 3.11–3.15 and
 PyPy 3.11/3.12 on Linux. On macOS and Windows, the standard `ci` job tests
 installed wheels with the current development CPython and runs all five type
 checkers against them. The Python semantic jobs add CPython 3.11 and
 PyPy 3.11/3.12. Each job installs its selected mise interpreter and builds a
-native wheel for that environment. Exhaustive release wheel/sdist validation
-remains separate work under [#51].
+native wheel for that environment.
 
-[#51]: https://github.com/dahlia/gukhanmun/issues/51
+GitHub Actions also produces the release artifact set on every pull request
+and push, without any registry credentials. A `python-context` job generates
+the target matrix from *scripts/python/artifacts.py* and the artifact
+version: the workspace version on tags and `X.Y.Z.dev0` otherwise, which only
+exercises development versioning and is not a publication version. A workspace
+version that is already a development release is used as it is. Every job
+that produces or checks artifacts stamps that version first. `python-sdist`
+builds the seven sdists and the data wheels and rebuilds every sdist outside
+the checkout; `python-wheels` builds and audits each target on its native
+runner; `python-wheel-test` installs the wheels on a fresh runner of the
+same kind, without Rust, and executes them. `python-dists` writes the manifest,
+verifies the complete set, and uploads it with the evidence records as the
+`python-dists` artifact.
 
 
 Running checks
@@ -437,6 +497,13 @@ and runs `sacho next`. Python versions use [PEP 440] spelling, such as
 `1.2.0rc2` for the Rust version `1.2.0-rc.2`. The `bump-execute` task amends the
 signed commit with those manifests, the lockfile, *changes.d/next*, and
 *CHANGES.md*. It never tags, pushes, or publishes.
+
+Artifact builds can stamp a different Python version without touching
+*Cargo.toml*: `PYPI_VERSION=1.2.5.dev3 mise run py-sync-version` writes it to
+every Python manifest and extras pin, then refreshes *uv.lock*. The value must
+be the PEP 440 spelling of the workspace version, optionally followed by
+`.devN`; local labels such as `+sha` are rejected. Do not commit such a
+stamped version.
 
 Run the bump on a clean working tree: `cargo-release` refuses to proceed when
 there are uncommitted changes, and the bump amends its own commit.
