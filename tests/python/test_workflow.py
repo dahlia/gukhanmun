@@ -56,6 +56,14 @@ def test_every_consumer_requires_original_identity_before_download():
         assert 'overwrite: true' not in text
 
 
+def test_python_publisher_pins_external_actions():
+    # Non-GitHub actions in this OIDC job must not follow movable refs.
+    for action in re.findall(r"(?m)^ +(?:- +)?uses: +(\S+)", job('publish-python')):
+        if action.startswith(('actions/', './')):
+            continue
+        assert re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", action), action
+
+
 def test_bundle_is_fully_validated_before_last_immutable_upload():
     text = job('python-dists')
     assert text.index('artifacts.py verify') < text.index('publish.py validate') < text.index('name: python-dists')
