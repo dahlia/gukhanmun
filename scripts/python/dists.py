@@ -269,6 +269,22 @@ def rebuild_native(sdist_path, constraints_dir):
         shutil.rmtree(directory, ignore_errors=True)
 
 
+def check_data_record(record, version, directory=DICTIONARIES):
+    """A data rebuild record must still describe the files on disk.
+
+    Both the data sdist and the wheel rebuilt from it are compared with the
+    hashes that py-dicts-build recorded, so a replaced or missing file cannot
+    pass as a tested rebuild.
+    """
+    if record["version"] != version:
+        raise RuntimeError(f"{record['sdist']} is not version {version}")
+    for path, digest in ((directory / record["distribution"] / record["sdist"], record["sdist_sha256"]),
+                         (directory / "rebuilt" / record["distribution"] / record["wheel"],
+                          record["wheel_sha256"])):
+        if not path.is_file() or sha256(path) != digest:
+            raise RuntimeError(f"{path} is missing or changed after py-dicts-build recorded it")
+
+
 def sdist_test(arguments, root=ROOT):
     version = core_version(root)
     archives = list(SDIST.glob("*.tar.gz"))
@@ -286,11 +302,7 @@ def sdist_test(arguments, root=ROOT):
     records = [{"distribution": "gukhanmun", "sdist": native.name, "sdist_sha256": sha256(native),
                 "wheel": wheel.name, "wheel_sha256": sha256(wheel), "cargo_lock": lock}, *data_records]
     for record in data_records:
-        if record["version"] != version:
-            raise RuntimeError(f"{record['sdist']} is not version {version}")
-        rebuilt = DICTIONARIES / "rebuilt" / record["distribution"] / record["wheel"]
-        if sha256(rebuilt) != record["wheel_sha256"]:
-            raise RuntimeError(f"{rebuilt} changed after py-dicts-build recorded it")
+        check_data_record(record, version)
     evidence = OUTPUT / "smoke" / "sdist-rebuild.json"
     smoke = Path(__file__).with_name("wheel_smoke.py")
     run([arguments.python, "-I", smoke, "run", "--artifacts", wheel.parent,

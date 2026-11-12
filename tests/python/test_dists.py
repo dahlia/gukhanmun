@@ -240,3 +240,28 @@ def test_build_group_pins_the_native_build_backend() -> None:
 def test_the_python_binding_crate_stays_private() -> None:
     crate = tomllib.loads((REPOSITORY / "crates/gukhanmun-python/Cargo.toml").read_text(encoding="utf-8"))
     assert crate["package"]["publish"] is False
+
+
+def test_data_records_must_match_the_sdist_and_the_rebuilt_wheel(tmp_path: Path) -> None:
+    import hashlib
+
+    sdist = tmp_path / "gukhanmun-stdict-fst" / "gukhanmun_stdict_fst-0.4.0.tar.gz"
+    wheel = tmp_path / "rebuilt" / "gukhanmun-stdict-fst" / "gukhanmun_stdict_fst-0.4.0-py3-none-any.whl"
+    for path in (sdist, wheel):
+        path.parent.mkdir(parents=True)
+        path.write_bytes(path.name.encode())
+    record = {"distribution": "gukhanmun-stdict-fst", "version": "0.4.0", "sdist": sdist.name,
+              "sdist_sha256": hashlib.sha256(sdist.read_bytes()).hexdigest(), "wheel": wheel.name,
+              "wheel_sha256": hashlib.sha256(wheel.read_bytes()).hexdigest()}
+    dists.check_data_record(record, "0.4.0", tmp_path)
+    with pytest.raises(RuntimeError, match="is not version 0.4.1"):
+        dists.check_data_record(record, "0.4.1", tmp_path)
+    for path in (sdist, wheel):
+        original = path.read_bytes()
+        path.write_bytes(b"replaced")
+        with pytest.raises(RuntimeError, match="missing or changed"):
+            dists.check_data_record(record, "0.4.0", tmp_path)
+        path.unlink()
+        with pytest.raises(RuntimeError, match="missing or changed"):
+            dists.check_data_record(record, "0.4.0", tmp_path)
+        path.write_bytes(original)
