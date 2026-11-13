@@ -127,7 +127,7 @@ def check_sdist(path, version):
                     and relative.parts[1] in DICTIONARY_CRATES and relative.parts[2] == "data":
                 raise RuntimeError(f"{path.name} contains unused dictionary data {text}")
         read = lambda name: archive.extractfile(f"{prefix}/{name}").read().decode("utf-8")  # noqa: E731
-        required = {"pyproject.toml", "PKG-INFO", "LICENSE", "Cargo.toml", "Cargo.lock",
+        required = {"pyproject.toml", "PKG-INFO", "README.md", "LICENSE", "Cargo.toml", "Cargo.lock",
                     "crates/gukhanmun-python/Cargo.toml", "crates/gukhanmun-python/build.rs",
                     "crates/gukhanmun-python/src/lib.rs",
                     *(f"src/gukhanmun/{name}" for name in PYTHON_SOURCES),
@@ -144,7 +144,9 @@ def check_sdist(path, version):
         if (fields["Name"] != "gukhanmun" or fields["Version"] != version
                 or fields["License-Expression"] != "GPL-3.0-only"):
             raise RuntimeError(f"{path.name} has unexpected PKG-INFO metadata")
-        load("checks").check_extras(read("PKG-INFO"))
+        checks = load("checks")
+        checks.check_extras(read("PKG-INFO"))
+        checks.check_readme(read("PKG-INFO"), read("README.md"), label=path.name)
     return sorted(names)
 
 

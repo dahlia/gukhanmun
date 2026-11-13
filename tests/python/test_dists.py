@@ -31,20 +31,22 @@ SPEC.loader.exec_module(dists)
 EXTRAS = {"stdict": "stdict-fst", "stdict-fst": "stdict-fst", "stdict-cdb": "stdict-cdb",
           "opendict": "opendict-fst", "opendict-fst": "opendict-fst", "opendict-cdb": "opendict-cdb",
           "loanwords": "loanwords-fst", "loanwords-fst": "loanwords-fst", "loanwords-cdb": "loanwords-cdb"}
+README = "# Gukhanmun\n\nConvert hanja into hangul.\n"
 
 
 def pkg_info(version: str = "0.4.0") -> str:
     lines = ["Metadata-Version: 2.4", "Name: gukhanmun", f"Version: {version}",
-             "License-Expression: GPL-3.0-only"]
+             "License-Expression: GPL-3.0-only", "Description-Content-Type: text/markdown"]
     lines += [f"Provides-Extra: {extra}" for extra in EXTRAS]
     lines += [f'Requires-Dist: gukhanmun-{data}=={version} ; extra == "{extra}"' for extra, data in EXTRAS.items()]
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines) + "\n\n" + README
 
 
 def members(version: str = "0.4.0") -> dict[str, bytes]:
     files = {
         "pyproject.toml": b"[project]\n",
         "PKG-INFO": pkg_info(version).encode(),
+        "README.md": README.encode(),
         "LICENSE": b"GPL",
         "Cargo.toml": b'[workspace]\nmembers = ["crates/gukhanmun", "crates/gukhanmun-python"]\n',
         "Cargo.lock": b"version = 4\n",
@@ -83,6 +85,10 @@ def test_a_complete_archive_passes(tmp_path: Path) -> None:
     (lambda files: files.update({"src/gukhanmun/__pycache__/x.cpython-315.pyc": b"x"}), "contains"),
     (lambda files: files.update({".git/HEAD": b"x"}), "contains"),
     (lambda files: files.pop("Cargo.lock"), "lacks"),
+    (lambda files: files.pop("README.md"), "lacks"),
+    (lambda files: files.update({"PKG-INFO": pkg_info().split("\n\n", 1)[0].encode()}), "README"),
+    (lambda files: files.update({"PKG-INFO": pkg_info().replace("text/markdown", "text/plain").encode()}), "README"),
+    (lambda files: files.update({"README.md": b"Another README"}), "README"),
     (lambda files: files.pop("src/gukhanmun/_native.pyi"), "lacks"),
     (lambda files: files.pop("crates/gukhanmun-opendict/ATTRIBUTION.md"), "lacks"),
     (lambda files: files.pop("crates/gukhanmun/Cargo.toml"), "workspace members"),
@@ -90,7 +96,8 @@ def test_a_complete_archive_passes(tmp_path: Path) -> None:
     (lambda files: files.update({"PKG-INFO": pkg_info().replace("==0.4.0 ; extra == \"stdict\"",
                                                                 ">=0.4.0 ; extra == \"stdict\"").encode()}),
      "extras"),
-], ids=["stdict-data", "opendict-data", "bytecode", "git", "lock", "stub", "attribution", "member",
+], ids=["stdict-data", "opendict-data", "bytecode", "git", "lock", "readme-file", "readme-empty",
+        "readme-type", "readme-mismatch", "stub", "attribution", "member",
         "license", "pin"])
 def test_incomplete_or_unclean_archives_are_rejected(tmp_path: Path, change, message: str) -> None:
     files = members()

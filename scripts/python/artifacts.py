@@ -528,6 +528,8 @@ def check_structure(path, item, version, root):
         if cached:
             raise RuntimeError(f"{path.name} contains bytecode caches: {cached}")
         check_extras(metadata, version, root, path.name)
+        load("checks").check_readme(metadata, (root / "python/gukhanmun/README.md").read_text(encoding="utf-8"),
+                                  label=path.name)
         data = archive.read(extensions[0])
     return extensions[0], data
 
@@ -825,21 +827,10 @@ def stamp(arguments):
 
 
 def ci_version(ref_type, root=ROOT):
-    """The artifact version CI builds: the release on tags, `.dev0` otherwise.
-
-    `.dev0` only exercises development versioning; it is not a publication
-    identity.  Publishing replaces it with its own development number.  A
-    workspace version that is already a development release stays as it is,
-    because PEP 440 allows only one development segment.
-    """
-    version = load("sync_version").workspace_version(root)
-    if ref_type == "tag" or re.search(r"\.dev\d+$", version):
-        return version
-    # TODO(#52): for publish-eligible pushes (main and maintenance branches),
-    # replace this fixed .dev0 with X.Y.Z.devN, where N is the workflow run
-    # number.  Pull requests, feature branches and forks can keep building
-    # .dev0 and never publish.  See https://github.com/dahlia/gukhanmun/issues/52.
-    return f"{version}.dev0"
+    """Build exactly the version the independent publication context derives."""
+    environment = dict(os.environ)
+    environment["GITHUB_REF_TYPE"] = ref_type
+    return load("release_context").resolve(environment, root)["version"]
 
 
 def ci_context(arguments):
@@ -983,7 +974,7 @@ def completeness(directory, data, listed):
                 continue
             label = f"{item.id}-{interpreter['label']}"
             if not any(executed_with(record, label, name, hashes.get(name), interpreter,
-                                     windows=item.family == "windows") for record in executed):
+                                     windows=item.family == "windows", version=version) for record in executed):
                 problems.append(f"no base and official execution of {name} with {interpreter['label']}")
     for name, description in expected.items():
         if description["kind"] == "wheel" and description.get("target") is None:
@@ -1005,7 +996,7 @@ def passed(record, mode):
     return result.get("mode") == mode and FINAL_CHECKS[mode] in result.get("checks", [])
 
 
-def executed_with(record, label, name, digest, interpreter, windows=False):
+def executed_with(record, label, name, digest, interpreter, windows=False, version=None):
     if record.get("label") != label:
         return False
     for mode in ("base", "official"):
@@ -1019,6 +1010,8 @@ def executed_with(record, label, name, digest, interpreter, windows=False):
             return False
         installed = result.get("installed", {}).get("gukhanmun", {})
         info = result.get("result", {}).get("interpreter", {})
+        if version is not None and (info.get("distribution") != version or info.get("public_version") != version):
+            return False
         if (installed.get("filename") != name or installed.get("sha256") != digest
                 or info.get("implementation") != interpreter["implementation"]
                 or not str(info.get("python", "")).startswith(interpreter["python"] + ".")):
@@ -1047,6 +1040,9 @@ def rebuild_completeness(directory, data, expected, hashes):
     for mode in ("base", "official"):
         if not passed(smoke, mode):
             problems.append(f"the sdist rebuild lacks its {mode} execution")
+        info = smoke.get(mode, {}).get("result", {}).get("interpreter", {})
+        if info.get("distribution") != data["version"] or info.get("public_version") != data["version"]:
+            problems.append(f"the sdist rebuild has inconsistent {mode} version metadata")
     return problems
 
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import copy
 import errno
+import importlib.metadata
 import multiprocessing
 import os
 import pickle
@@ -38,6 +39,10 @@ ENUMS = (
     g.ContextWindow, g.HomophoneDetection, g.Recovery, g.PunctuationPreset,
     g.SpaceAfter, g.DictionaryFormat, g.InputFormat, g.ErrorCode,
 )
+
+
+def test_public_version_comes_from_installed_metadata() -> None:
+    assert g.__version__ == importlib.metadata.version("gukhanmun")
 
 
 def dictionary() -> g.MapDictionarySource:

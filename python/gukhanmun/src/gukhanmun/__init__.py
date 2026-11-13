@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from importlib.metadata import version as _distribution_version
+
 from ._api import ConversionStream, Converter as Converter
 from ._types import (
     Preset as Preset,
@@ -51,7 +53,10 @@ from ._types import (
     GukhanmunError as GukhanmunError,
 )
 
+__version__: str = _distribution_version("gukhanmun")
+
 __all__ = [
+    "__version__",
     "Converter",
     "ConversionStream",
     "Preset",

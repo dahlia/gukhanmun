@@ -196,19 +196,23 @@ def test_macos_minimum_reads_either_load_command() -> None:
 EXTRAS = {"stdict": "stdict-fst", "stdict-fst": "stdict-fst", "stdict-cdb": "stdict-cdb",
           "opendict": "opendict-fst", "opendict-fst": "opendict-fst", "opendict-cdb": "opendict-cdb",
           "loanwords": "loanwords-fst", "loanwords-fst": "loanwords-fst", "loanwords-cdb": "loanwords-cdb"}
+README = (REPOSITORY / "python/gukhanmun/README.md").read_text(encoding="utf-8")
 
 
 def native_wheel(directory: Path, name: str, *, extension: str = "gukhanmun/_native.abi3.so",
-                 tag: str | None = None, extra: dict[str, bytes] | None = None, pin: str = "==0.4.0") -> Path:
+                 tag: str | None = None, extra: dict[str, bytes] | None = None, pin: str = "==0.4.0",
+                 description: str = README, content_type: str | None = "text/markdown") -> Path:
     path = directory / name
     info = "gukhanmun-0.4.0.dist-info"
     tag = tag or "-".join(name.removesuffix(".whl").split("-")[2:])
     metadata = ["Metadata-Version: 2.4", "Name: gukhanmun", "Version: 0.4.0"]
+    if content_type is not None:
+        metadata.append(f"Description-Content-Type: {content_type}")
     metadata += [f"Provides-Extra: {extra_name}" for extra_name in EXTRAS]
     metadata += [f'Requires-Dist: gukhanmun-{data}{pin} ; extra == "{extra_name}"'
                  for extra_name, data in EXTRAS.items()]
     files = {f"{info}/WHEEL": f"Wheel-Version: 1.0\nRoot-Is-Purelib: false\nTag: {tag}\n",
-             f"{info}/METADATA": "\n".join(metadata) + "\n", f"{info}/RECORD": "",
+             f"{info}/METADATA": "\n".join(metadata) + "\n\n" + description, f"{info}/RECORD": "",
              f"{info}/licenses/LICENSE": "GPL", "gukhanmun/__init__.py": "", "gukhanmun/py.typed": "",
              "gukhanmun/_native.pyi": "", extension: "binary", **(extra or {})}
     with zipfile.ZipFile(path, "w") as archive:
@@ -228,6 +232,17 @@ def test_wheel_structure_matches_the_target(tmp_path: Path) -> None:
     windows = "gukhanmun-0.4.0-cp311-abi3-win_amd64.whl"
     artifacts.check_structure(native_wheel(tmp_path, windows, extension="gukhanmun/_native.pyd"),
                               artifacts.target("windows-amd64"), "0.4.0", REPOSITORY)
+
+
+@pytest.mark.parametrize("change", [
+    {"content_type": None}, {"content_type": "text/plain"},
+    {"description": ""}, {"description": "Another README"},
+])
+def test_release_wheel_requires_its_markdown_readme(tmp_path: Path, change) -> None:
+    item = artifacts.target("linux-x86_64")
+    name = "gukhanmun-0.4.0-cp311-abi3-manylinux_2_28_x86_64.whl"
+    with pytest.raises(RuntimeError, match="README"):
+        artifacts.check_structure(native_wheel(tmp_path, name, **change), item, "0.4.0", REPOSITORY)
 
 
 @pytest.mark.parametrize("change,message", [
@@ -262,6 +277,7 @@ def run_record(name: str, file_digest: str, label: str, interpreter: dict, windo
             "installed": {"gukhanmun": {"filename": name, "sha256": file_digest}},
             "result": {"mode": mode, "checks": ["formats", final, *(["windows-import-closure"] if windows else [])],
                        "interpreter": {"implementation": interpreter["implementation"],
+                                       "distribution": "0.4.0", "public_version": "0.4.0",
                                        "python": f"{interpreter['python']}.1",
                                        "libc": interpreter.get("libc", ["glibc", "2.43"])}}}
     return record
@@ -290,7 +306,8 @@ def release(tmp_path: Path) -> Path:
                                 interpreter, item.family == "windows")
             record["official"]["installed"].update(data_installed)
             (directory / f"smoke-{item.id}-{interpreter['label']}.json").write_text(json.dumps(record))
-    smoke = {mode: {"installed": {}, "result": {"mode": mode, "checks": [final]}}
+    smoke = {mode: {"installed": {}, "result": {"mode": mode, "checks": [final],
+                      "interpreter": {"distribution": "0.4.0", "public_version": "0.4.0"}}}
              for mode, final in (("base", "missing-data"), ("official", "official-corpus"))}
     rebuilds = []
     for name, data in expected.items():
@@ -388,6 +405,14 @@ def rewrite(release: Path, name: str, change) -> None:
     artifacts.manifest(SimpleNamespace(dir=release, version="0.4.0"))
 
 
+@pytest.mark.parametrize("field", ["distribution", "public_version"])
+def test_executed_wheel_versions_must_match_manifest(release: Path, field: str) -> None:
+    def change(record):
+        record["base"]["result"]["interpreter"][field] = "0.4.0.dev1"
+    rewrite(release, "smoke-linux-x86_64-cp311.json", change)
+    verify_fails(release, "no base and official execution")
+
+
 def test_the_floor_run_must_execute_on_the_glibc_floor(release: Path) -> None:
     def newer(record: dict) -> None:
         for mode in ("base", "official"):
@@ -460,7 +485,8 @@ def test_search_paths_must_stay_inside_the_wheel(entry: str, valid: bool) -> Non
     ("1.2.0-dev.7", "1.2.0.dev7", "1.2.0.dev7"),
 ])
 def test_ci_builds_dev0_on_branches_and_the_release_on_tags(
-        tmp_path: Path, cargo: str, python: str, branch: str) -> None:
+        tmp_path: Path, monkeypatch, cargo: str, python: str, branch: str) -> None:
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     (tmp_path / "Cargo.toml").write_text(f'[workspace.package]\nversion = "{cargo}"\n')
     assert artifacts.ci_version("tag", tmp_path) == python
     assert artifacts.ci_version("branch", tmp_path) == branch
@@ -468,6 +494,7 @@ def test_ci_builds_dev0_on_branches_and_the_release_on_tags(
 
 
 def test_ci_context_writes_the_matrix_and_version(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     output = tmp_path / "output"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     monkeypatch.setenv("GITHUB_REF_TYPE", "branch")

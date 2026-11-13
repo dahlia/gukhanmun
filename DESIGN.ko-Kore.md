@@ -1074,8 +1074,15 @@ PyPy 3.11/3.12를 提供한다. tox는 明示한 인터프리터마다 非編輯
 런타임과 道具에 必要한 패키지 情報를 記述한다. 데이터를 設置해도 變換器는
 달라지지 않는다.
 
-릴리스 휠/原本 配布版(sdist)의 全面的 檢證, 프리 스레딩 CPython 支援과
-레지스트리 配布는 別途 後續 作業이다.
+CI는 휠/原本 配布版(sdist) 파일 31個와 그 해시, 出處 커밋, 實行 根據를 함께
+檢證한다. 別途 配布 作業은 檢證된 같은 파일들을 PyPI에 上傳하며, PyPI가
+發給하는 短期 토큰만 使用한다. 許容된 브랜치에서는 開發 버전(development
+release), 一致하는 署名 태그에서는 安定 버전(stable release)을 使用한다.
+GitHub 릴리스에도 같은 파일들을 添附한다. 初期 登錄과 部分 失敗의 復舊는
+[*CONTRIBUTING.md*]에 說明한다.
+프리 스레딩(free-threading) CPython은 支援 範圍 밖이다.
+
+[*CONTRIBUTING.md*]: https://github.com/dahlia/gukhanmun/blob/main/CONTRIBUTING.md
 
 ### 辭典 設定
 

@@ -20,8 +20,10 @@ from typing import assert_type
 from gukhanmun import (
     ConversionStream, Converter, CustomPunctuationProfile, DictionaryEntry, Directives, ErrorCause, ErrorCode,
     DictionaryFormat, GukhanmunError, HtmlOptions, InputFormat, MapDictionarySource, UrlDictionarySource,
-    MarkdownOptions, Preset, ResolvedOptions, SourceRole, StopStyle, UNSET, UnsetType,
+    MarkdownOptions, Preset, ResolvedOptions, SourceRole, StopStyle, UNSET, UnsetType, __version__,
 )
+
+assert_type(__version__, str)
 
 entry = DictionaryEntry(hanja="漢字", reading="한자")
 dictionary = MapDictionarySource(entries=[entry], role=SourceRole.OVERRIDE)
