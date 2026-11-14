@@ -26,6 +26,8 @@ import os
 from pathlib import Path
 import re
 import secrets
+import socket
+import ssl
 import stat
 import sys
 import time
@@ -218,6 +220,16 @@ class Redirects(urllib.request.HTTPRedirectHandler):
         allowed_url(newurl, self.hosts)
         if request.data is not None and urllib.parse.urlsplit(request.full_url).netloc != urllib.parse.urlsplit(newurl).netloc:
             raise InvalidDump("credential-bearing cross-origin redirect refused")
+        target = urllib.parse.urlsplit(newurl)
+        if request.full_url == LISTINGS["opendict"] and request.data is None and target.netloc == "kdict.korean.go.kr" and target.path == "/login":
+            # The listing supplies an HTTP returnUrl that resets the login
+            # connection. Upgrade only this known return destination; keep
+            # the login redirect and cookies in the normal session flow.
+            query = urllib.parse.parse_qsl(target.query, keep_blank_values=True)
+            insecure = LISTINGS["opendict"].replace("https://", "http://", 1)
+            if ("returnUrl", insecure) in query:
+                query = [(key, LISTINGS["opendict"] if key == "returnUrl" and value == insecure else value) for key, value in query]
+                newurl = urllib.parse.urlunsplit(target._replace(query=urllib.parse.urlencode(query)))
         return super().redirect_request(request, response, code, message, headers, newurl)
 
 
@@ -231,17 +243,44 @@ class Session:
 
     def open(self, url, data=None, retry=False):
         allowed_url(url, self.hosts)
+        parsed = urllib.parse.urlsplit(url)
+        # Use only known public route labels: neither queries nor arbitrary
+        # response/error text are safe to print during account operations.
+        operation = {
+            "/login/loginForm.do": "login page",
+            "/login/loginLogin.do": "login submission",
+            "/login": "login page",
+            "/sign/loginProc": "login submission",
+            "/mypage/download/downloadList.do": "download listing",
+            "/member/memberDownloadList": "download listing",
+            "/common/download.do": "archive download",
+            "/member/fileDownload": "archive download",
+        }.get(parsed.path, "request")
+        # This is the initial request; an allowed redirect may fail elsewhere.
+        context = f"requesting {parsed.netloc} {operation}"
         body = urllib.parse.urlencode(data).encode() if data is not None else None
         for attempt in range(3 if retry else 1):
             try:
                 return self.opener.open(urllib.request.Request(url, data=body), timeout=60)
             except urllib.error.HTTPError as error:
-                if not retry or error.code not in (429, 500, 502, 503, 504) or attempt == 2:
-                    raise InvalidDump("NIKL HTTP request failed") from None
                 error.close()
-            except (urllib.error.URLError, TimeoutError, ConnectionError):
+                if not retry or error.code not in (429, 500, 502, 503, 504) or attempt == 2:
+                    raise InvalidDump(f"{context}: NIKL HTTP request failed (HTTP {error.code})") from None
+            except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
                 if not retry or attempt == 2:
-                    raise InvalidDump("NIKL connection failed") from None
+                    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+                    category = "transport error"
+                    for error_type, label in (
+                        (TimeoutError, "timeout"),
+                        (socket.gaierror, "DNS failure"),
+                        (ssl.SSLError, "TLS failure"),
+                        (ConnectionResetError, "connection reset"),
+                        (ConnectionRefusedError, "connection refused"),
+                    ):
+                        if isinstance(reason, error_type):
+                            category = label
+                            break
+                    raise InvalidDump(f"{context}: NIKL connection failed ({category}, attempt {attempt + 1})") from None
             time.sleep(attempt + 1)
 
     def page(self, url, data=None):
@@ -414,7 +453,7 @@ def collect(destination, prior, sessions=Session):
                     stream.write(block)
             source = validate_archive(path, kind, identity["link_key"], filename)
             if not source["archive_date"].startswith(identity["month"]):
-                raise InvalidDump("listing/archive month mismatch")
+                raise InvalidDump(f"{kind}: listing/archive month mismatch (listing {identity['month']}, archive {source['archive_date']})")
             if discover(kind, session.page(LISTINGS[kind])) != identity:
                 raise InvalidDump("source changed during collection; retry next run")
             outcome["dictionaries"][kind] = {"status": "downloaded", "source": source}
