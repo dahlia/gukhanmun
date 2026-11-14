@@ -7,7 +7,7 @@ Python API
 ==========
 
 公開 타입은 `gukhanmun`에서 가져옵니다. 擴張 모듈 `gukhanmun._native`는
-非公開입니다. 로컬 휠(wheel) 設置와 基本 例題는
+非公開입니다. PyPI 設置는 〈[設置](../guide/python/install.mdx)〉를, 基本 例題는
 [Python 案內](../guide/python/start.md)를 參考하세요.
 
 
@@ -177,7 +177,7 @@ HTTP 應答을 읽는 期限이며, 헤더와 청크 構文에도 適用합니�
 
 `gukhanmun.dictionaries`는 選擇的 데이터 配布版에서 公式 辭典을 불러옵니다.
 코어 패키지의 엑스트라로 設置합니다.
-〈[公式 辭典](../guide/python/dictionaries.md)〉을 參照하십시오.
+〈[辭典](../guide/python/dictionaries.md)〉을 參照하십시오.
 
 ~~~~ text
 stdict(*, format: DictionaryFormat = DictionaryFormat.FST) -> FileDictionarySource

@@ -9,6 +9,7 @@ Gukhanmun
 [![crates.io][crates.io badge]][crates.io]
 [![JSR][JSR badge]][JSR]
 [![npm][npm badge]][npm]
+[![PyPI][PyPI badge]][PyPI]
 [![GitHub Actions][GitHub Actions badge]][GitHub Actions]
 [![License: GPL-3.0-only][GPL badge]][GPL]
 [![GitHub Sponsors][GitHub Sponsors badge]][GitHub Sponsors]
@@ -23,7 +24,7 @@ to [Seonbi], narrowed to the hanja-to-hangul conversion pipeline and extended
 along several axes: streaming I/O, pluggable dictionaries, lattice-based
 segmentation, and a wider range of output formats. The library is implemented
 in Rust and exposed as a Rust library, a command-line tool, a WebAssembly
-package, and a native Node-API addon.
+package, a native Node-API addon, and a Python package.
 
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
 [crates.io]: https://crates.io/crates/gukhanmun
@@ -31,6 +32,8 @@ package, and a native Node-API addon.
 [JSR]: https://jsr.io/@gukhanmun
 [npm badge]: https://img.shields.io/npm/v/@gukhanmun/types?logo=npm
 [npm]: https://www.npmjs.com/package/@gukhanmun/types
+[PyPI badge]: https://img.shields.io/pypi/v/gukhanmun?logo=pypi
+[PyPI]: https://pypi.org/project/gukhanmun/
 [GitHub Actions badge]: https://github.com/dahlia/gukhanmun/actions/workflows/main.yaml/badge.svg
 [GitHub Actions]: https://github.com/dahlia/gukhanmun/actions/workflows/main.yaml
 [GPL badge]: https://img.shields.io/github/license/dahlia/gukhanmun
@@ -51,16 +54,17 @@ Features
     longest match. 行事場所 segments as 行事 + 場所, not 行事場 + 所.
  -  Pluggable dictionaries: in-memory map, mmap-friendly FST files, or CDB
     files, composable via `ChainDictionary`.
- -  The bundled *Standard Korean Language Dictionary* (標準國語大辭典) and
-    *Open Korean Dictionary* (우리말샘) ship as compiled FST/CDB, so there is
-    nothing extra to download.
+ -  The *Standard Korean Language Dictionary* (標準國語大辭典) and
+    *Open Korean Dictionary* (우리말샘) ship as compiled FST/CDB data. Rust
+    bundles them; JavaScript and Python provide separate, opt-in data packages.
  -  Format adapters for plain text, HTML fragments, and Markdown. The engine is
     format-neutral; adapters handle parsing and serialization.
- -  Five rendering modes: hangul-only, hangul(hanja) parentheses,
-    hanja(hangul) parentheses, ruby markup, and original mixed script with
-    selective glossing.
- -  Streaming-first: the engine buffers only within a single hanja conversion
-    span, not the whole document.
+ -  Six rendering modes: hangul-only, hangul(hanja) parentheses,
+    hanja(hangul) parentheses, ruby on hangul, ruby on hanja, and original
+    mixed script with selective glossing.
+ -  The engine supports incremental conversion. Context-dependent annotation
+    may buffer more input; the Python chunked API buffers the whole document
+    until finalization.
  -  Initial sound law (頭音法則) for South Korean orthography, applied to
     fallback readings. Dictionary entries encode the correct reading already.
  -  The core crate (`gukhanmun-core`) is `no_std` + `alloc`, suitable for
@@ -68,6 +72,9 @@ Features
  -  JavaScript and TypeScript bindings ship in two flavours: a WebAssembly
     package that runs in browsers, Deno, Node.js, Bun, and edge runtimes,
     and a native Node-API addon for higher server-side throughput.
+ -  Python bindings provide typed, immutable configuration and reusable
+    converters. Native conversion releases the global interpreter lock (GIL),
+    and a configured converter can be shared across threads.
 
 
 Installation
@@ -145,7 +152,7 @@ bun  add       @gukhanmun/wasm @gukhanmun/stdict-fst
 deno add --jsr @gukhanmun/wasm @gukhanmun/stdict-fst
 ~~~~
 
-Of you need better server-side performance and don't mind a native dependency,
+If you need better server-side performance and don't mind a native dependency,
 install the Node-API package instead:
 
 ~~~~ sh
@@ -155,6 +162,30 @@ yarn add     @gukhanmun/napi     @gukhanmun/stdict-fst
 bun  add     @gukhanmun/napi     @gukhanmun/stdict-fst
 deno add npm:@gukhanmun/napi jsr:@gukhanmun/stdict-fst
 ~~~~
+
+### Python library
+
+Requires Python 3.11 or later. Use pip in your virtual environment, or add the
+package to a uv-managed project:
+
+~~~~ sh
+python -m pip install gukhanmun
+# Or, in a uv project:
+uv add gukhanmun
+~~~~
+
+The base package has no required third-party Python dependencies and includes
+no official dictionary data. To install the optional *Standard Korean Language
+Dictionary*, use `python -m pip install 'gukhanmun[stdict]'` or
+`uv add 'gukhanmun[stdict]'`, then explicitly add `stdict()` from
+`gukhanmun.dictionaries` to a converter. Installing an extra does not activate
+it automatically.
+
+See the [Python installation guide] for supported wheels, source builds, and
+prerelease installation, and the [Python quick start] for conversion examples.
+
+[Python installation guide]: https://gukhanmun.org/guide/python/install
+[Python quick start]: https://gukhanmun.org/guide/python/start
 
 
 Quick start
@@ -181,8 +212,21 @@ let output = convert_plain_text("漢字", &dict, RenderMode::HangulOnly);
 assert_eq!(output, "한자");
 ~~~~
 
+The Python example supplies its own reading and needs no optional data:
+
+~~~~ python
+from gukhanmun import Converter, DictionaryEntry, InputFormat, MapDictionarySource
+
+converter = Converter(dictionaries=[
+    MapDictionarySource(entries=[DictionaryEntry(hanja="漢字", reading="한자")]),
+])
+
+assert converter.convert("漢字를 한글로") == "한자를 한글로"
+assert converter.convert("<p>漢字</p>", format=InputFormat.HTML) == "<p>한자</p>"
+~~~~
+
 For the full guide, including HTML/Markdown adapters, rendering modes, presets,
-and the JavaScript API, visit <https://gukhanmun.org/>.
+and the JavaScript and Python APIs, visit <https://gukhanmun.org/>.
 
 
 Crates
@@ -251,6 +295,36 @@ version as the Rust crates.
 [npm:@gukhanmun/loanwords-fst]: https://www.npmjs.com/package/@gukhanmun/loanwords-fst
 [jsr:@gukhanmun/loanwords-cdb]: https://jsr.io/@gukhanmun/loanwords-cdb
 [npm:@gukhanmun/loanwords-cdb]: https://www.npmjs.com/package/@gukhanmun/loanwords-cdb
+
+
+PyPI packages
+-------------
+
+All seven Python distributions share one version derived from the workspace,
+using PEP 440 spelling. The six optional data distributions have
+platform-independent wheels and no dependency on the native package.
+
+| Distribution                | Description                                                          |
+| --------------------------- | -------------------------------------------------------------------- |
+| [`gukhanmun`][PyPI]         | Native converter, typed Python API, and optional dictionary loaders. |
+| [`gukhanmun-stdict-fst`]    | *Standard Korean Language Dictionary* data, FST format.              |
+| [`gukhanmun-stdict-cdb`]    | *Standard Korean Language Dictionary* data, CDB format.              |
+| [`gukhanmun-opendict-fst`]  | Four *Open Korean Dictionary* categories, FST format.                |
+| [`gukhanmun-opendict-cdb`]  | Four *Open Korean Dictionary* categories, CDB format.                |
+| [`gukhanmun-loanwords-fst`] | NIKL loanword spelling examples, FST format.                         |
+| [`gukhanmun-loanwords-cdb`] | NIKL loanword spelling examples, CDB format.                         |
+
+Dictionary data retains its own license and attribution requirements, separate
+from the library's GPL license. See [*Official dictionaries*] and the *LICENSE*
+and *ATTRIBUTION.md* files in each data distribution.
+
+[`gukhanmun-stdict-fst`]: https://pypi.org/project/gukhanmun-stdict-fst/
+[`gukhanmun-stdict-cdb`]: https://pypi.org/project/gukhanmun-stdict-cdb/
+[`gukhanmun-opendict-fst`]: https://pypi.org/project/gukhanmun-opendict-fst/
+[`gukhanmun-opendict-cdb`]: https://pypi.org/project/gukhanmun-opendict-cdb/
+[`gukhanmun-loanwords-fst`]: https://pypi.org/project/gukhanmun-loanwords-fst/
+[`gukhanmun-loanwords-cdb`]: https://pypi.org/project/gukhanmun-loanwords-cdb/
+[*Official dictionaries*]: https://gukhanmun.org/guide/python/dictionaries
 
 
 Design documentation

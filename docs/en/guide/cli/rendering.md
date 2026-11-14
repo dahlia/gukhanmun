@@ -43,7 +43,7 @@ echo "漢字" | gukhanmun --rendering hanja-hangul-parens
 ~~~~
 
 
-hanja variant sets
+Hanja variant sets
 ------------------
 
 Recognition accepts supported traditional, simplified, Japanese, Asahi, and

@@ -1,15 +1,16 @@
 ---
-title: 公式 辭典
-description: Python 엑스트라로 《標準國語大辭典》, 《우리말샘》과 國立國語院 《外來語 表記 用例》 데이터를 設置하고, gukhanmun.dictionaries로 明示的으로 活性化하는 方法을 說明합니다.
+title: 辭典
+description: Python에서 公式 辭典, 메모리 內 項目과 컴파일된 FST/CDB 辭典을 불러오고, 出處 役割과 選擇 政策을 設定하는 方法입니다.
 ---
 
-公式 辭典
-=========
+辭典
+====
 
-公式 辭典은 `gukhanmun` 패키지와 別個인 選擇的 데이터 配布版으로 提供됩니다.
-엑스트라로 데이터를 設置하고, `gukhanmun.dictionaries`의 函數로 變換器에
-追加합니다. 데이터를 設置하는 것만으로는 變換器가 달라지지 않으며, 어느
-프리셋도 이 데이터를 불러오지 않습니다.
+프로그램의 語彙는 메모리 內 項目으로 定義하거나, 컴파일된 FST/CDB 辭典으로
+불러옵니다. 公式 辭典은 `gukhanmun` 패키지와 別個인 選擇的 데이터 配布版으로
+提供됩니다. 엑스트라로 데이터를 設置하고, `gukhanmun.dictionaries`의 函數로
+變換器에 追加합니다. 데이터를 設置하는 것만으로는 變換器가 달라지지 않으며,
+어느 프리셋도 이 데이터를 불러오지 않습니다.
 
 ~~~~ python
 from gukhanmun import Converter
@@ -38,29 +39,9 @@ assert converter.convert("無條件降服") == "무조건항복"
 데이터 配布版은 依存性이 없는 플랫폼 獨立的 휠(wheel)입니다. `gukhanmun`을
 가져오지 않으므로, `gukhanmun`만 設置하면 公式 데이터는 包含되지 않습니다.
 
-이 패키지들은 아직 PyPI에 配布되지 않았습니다. 配布되기 前까지는 貯藏所를
-체크아웃하여 빌드하고, 로컬 產出物에서 設置합니다.
-
-~~~~ sh
-mise run py-build
-mise run py-dicts-build
-pip install --no-index \
-            --find-links target/python/wheels \
-            --find-links target/python/dictionaries/gukhanmun-stdict-fst \
-            'gukhanmun[stdict]==0.4.0'
-~~~~
-
-`0.4.0`은 빌드한 버전으로 바꿉니다. *target/python/wheels/* 디렉터리에는 빌드한
-플랫폼用 `gukhanmun` 휠만 들어 있습니다. 設置할 데이터 配布版마다
-`--find-links`를 하나씩 追加합니다. `--no-index`는 빼지 마십시오. 아직 PyPI에는
-Gukhanmun 配布版이 登錄되어 있지 않으므로, 그곳에 같은 이름으로 올라온 패키지가
-로컬 빌드 代身 設置될 수 있습니다.
-
-PyPI에 配布된 뒤에는 그곳에서 엑스트라를 設置합니다.
-
-~~~~ sh
-pip install 'gukhanmun[stdict,loanwords]'
-~~~~
+〈[設置](./install.mdx#公式-辭典)〉에 따라 PyPI의 엑스트라를 設置합니다.
+例를 들어 `gukhanmun[stdict,loanwords]`를 使用할 수 있습니다. 設置 文書에는
+pip·uv·Poetry 命令과 프리릴리스(pre-release)·로컬 빌드 使用法이 있습니다.
 
 
 變換器에 辭典 追加
@@ -186,16 +167,94 @@ except GukhanmunError as error:
 해시와 다르면, 誤謬 메시지가 `pip install --force-reinstall`로 再設置할 것을
 案內하며, 根本 原因이 있으면 `error.chain`에 남습니다.
 
-案內되는 命令은 PyPI에서 設置합니다. 패키지가 PyPI에 配布되기 前까지는
-〈[데이터 設置](#데이터-設置)〉와 같은 `--no-index`와 `--find-links` 옵션을
-덧붙입니다.
+案內하는 命令은 PyPI를 使用합니다. 다른 패키지 管理者나 로컬 빌드는
+〈[設置](./install.mdx)〉를 參照하십시오.
 
-~~~~ sh
-pip install --force-reinstall --no-index \
-            --find-links target/python/wheels \
-            --find-links target/python/dictionaries/gukhanmun-stdict-fst \
-            'gukhanmun[stdict]==0.4.0'
+
+實行 中의 辭典 項目
+-------------------
+
+애플리케이션 語彙에는 `MapDictionarySource`를 使用합니다. 項目
+시퀀스(sequence)는 反復되는 漢字 表記를 하나의 對應으로 合치는 代身 競爭하는
+讀音으로 維持합니다.
+
+~~~~ python
+from gukhanmun import ContextWindow, Converter, DictionaryEntry, MapDictionarySource
+
+source = MapDictionarySource([
+    DictionaryEntry("東京", "동경"),
+    DictionaryEntry("東京", "도쿄", preference=10),
+    DictionaryEntry("年代", "연대", suffix_reading="년대"),
+    DictionaryEntry("庫間", "곳간", require_hanja=True),
+])
+converter = Converter(dictionaries=[source], homophone_window=ContextWindow.OFF)
+assert converter.convert("東京") == "도쿄"
+assert converter.convert("東京을") == "동경을"
+assert converter.convert("東京를") == "도쿄를"
+assert converter.convert("1990年代 年代") == "1990년대 연대"
+assert converter.convert("庫間") == "곳간(庫間)"
 ~~~~
+
+基本的으로 더 높은 `preference`가 優先하지만, 뒤따르는 韓國語 助詞가
+代身 이에 맞는 候補를 選擇할 수 있습니다. 例示의 `東京을`에서는 `을`이
+`동경`을 選擇합니다. `suffix_reading`은 單語 첫머리가 아닐 때,
+例를 들어 數詞 뒤에 使用할 讀音을 提供합니다. 項目의 `require_hanja`와
+`require_hangul`은 別途의 [指示](./directives.md)처럼 註解(annotation) 標識를
+要求합니다.
+
+`MapDictionarySource`는 項目을 變更할 수 없는 튜플(tuple)로 複寫합니다.
+나중에 原本 목록을 바꾸어도 設定된 出處(source)나 變換器는 바뀌지 않습니다.
+
+
+出處 役割 結合
+--------------
+
+맵 出處의 基本 役割은 `SourceRole.OVERRIDE`입니다. 使用者 덮어쓰기(override)는
+같은 表記와 消費 길이의 協力 參考/外來語 候補를 代替하며, 앞의 덮어쓰기
+出處가 優先합니다. 덮어쓰기를 公式 出處와 明示的으로 結合할 수 있습니다.
+
+~~~~ python
+from gukhanmun.dictionaries import loanwords, stdict
+
+converter = Converter(dictionaries=[stdict(), loanwords(), source])
+~~~~
+
+이 例題는 公式 엑스트라(extra)가 設置되어 있어야 합니다. 맵 出處는 마지막에
+있어도 一致하는 協力 候補를 덮어씁니다.
+
+`source_policy`는 出處 사이의 協力을 制御합니다.
+
+| `SourcePolicy`                | 選擇                                                       |
+| ----------------------------- | ---------------------------------------------------------- |
+| `REFERENCE_AUTHORIZED` (基本) | 參考 根據로 代替 表記를 許容함                             |
+| `REFERENCE_FIRST`             | 參考 候補를 優先함                                         |
+| `LOANWORD_FIRST`              | 外來語 候補를 優先함                                       |
+| `ORDERED`                     | 役割과 `reference_only`를 無視하고 出處 登錄 順序를 使用함 |
+
+`ORDERED`를 뺀 세 協力 政策에서 `reference_only=True`는 獨立的인 外來語
+選擇을 除外하되,
+參考 根據로 許容한 表記는 維持합니다. 出處 役割만으로는 表記를 許容하는 데
+必要한 語彙 根據가 생기지 않습니다.
+
+
+컴파일된 辭典과 遠隔 辭典
+-------------------------
+
+`FileDictionarySource`는 原始 바이트나 파일시스템(filesystem) 經路를
+明示的 `DictionaryFormat.FST` 또는 `CDB`와 함께 받습니다.
+`UrlDictionarySource`는 變換器 生成 中 明示的 HTTP(S) URL을 불러옵니다.
+文字列 經路를 URL로 推測하지는 않습니다. 둘 다 한 番 불러오며, 變換 呼出은
+辭典 入出力을 遂行하지 않습니다.
+
+바이너리 出處의 役割은 明示的 役割, 파일에 內藏된 役割 메타데이터,
+`OVERRIDE` 順으로
+定합니다. 파일名은 役割을 決定하지 않습니다. URL 오리진(origin) 制限,
+타임아웃(timeout), 다운로드 制限은
+[API 參考 文書](../../api/python.md#辭典-入力과-項目)를 參照하십시오.
+
+큰 使用者 定義 辭典을 컴파일하려면
+[辭典 빌드 案內](../cli/dictionary.md#使用者-定義-辭典-構築)를 따릅니다. 生成된
+FST/CDB 파일은 위의 Python 出處와 함께 使用할 수 있습니다.
 
 
 라이선스

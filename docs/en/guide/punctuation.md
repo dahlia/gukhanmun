@@ -43,6 +43,18 @@ const converter = await load({ punctuation: "traditional" });
 converter.convert("첫째, 둘째."); // "첫째、둘째。"
 ~~~~
 
+In Python, pass a `PunctuationPreset` member as the `punctuation` option:
+
+~~~~ python
+from gukhanmun import Converter, PunctuationPreset
+
+converter = Converter(punctuation=PunctuationPreset.MODERN)
+assert converter.convert("첫째、둘째。") == "첫째, 둘째."
+~~~~
+
+To define a custom profile in Python, see
+[*Conversion options*](./python/conversion.md#punctuation-and-recovery).
+
 The CLI accepts a preset name, for example `--punctuation modern`. For a custom
 JSON configuration, use `--punctuation-profile profile.json` instead. These
 flags are mutually exclusive.

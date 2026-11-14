@@ -85,6 +85,7 @@ Rust의 `Iterator`, Python의 `convert_iter()`와 `Iterable`은 바꾸지 않습
 | trie                | 트라이      | 트라이      | 接頭辭를 共有하는 探索 構造.                                                                                                     |
 | Setext              | 세텍스트    | 세텍스트    | 밑줄 形式으로 적는 Markdown 헤딩. 마크업 言語 Setext(Structure Enhanced Text)에서 온 固有名詞이므로 英文 表記는 Setext로 씁니다. |
 | stable release      | 安定 버전   | 안정 버전   | 開發 버전과 區別되는 正式 配布 버전.                                                                                             |
+| pre-release         | 프리릴리스  | 프리릴리스  | 安定 버전 前의 試驗用 配布版. Python 開發 버전도 이 選擇에 包含됩니다.                                                           |
 | development release | 開發 버전   | 개발 버전   | `.devN`으로 識別하는 Python 開發 配布版.                                                                                         |
 | wheel               | 휠          | 휠          | Python의 빌드된 配布 形式. 파일 擴張子 `.whl`은 維持합니다.                                                                      |
 | lockstep            | 同一步調    | 동일 보조   | 여러 패키지의 버전을 함께 올리는 方式.                                                                                           |

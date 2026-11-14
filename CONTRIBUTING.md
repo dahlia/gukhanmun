@@ -252,9 +252,10 @@ Follow these prose conventions:
  -  Wrap inline code in backticks (`mise run check`, `--flag`).
  -  Use the official spelling of proper nouns exactly.  If unsure, verify on
     the official website (e.g., Node.js, not NodeJS or Node).
- -  Write “hangul” and “hanja” in lowercase; they are common nouns, not proper
-    nouns.  Ethnic and language names are proper nouns and take an initial
-    capital: Korean, Sino-Korean, Chinese.
+ -  Treat “hangul” and “hanja” as common nouns. Use lowercase within sentences
+    and headings, and capitalize them only at the start of a sentence or
+    heading, for example, “Hanja variant sets”. Ethnic and language names are
+    proper nouns and take an initial capital: Korean, Sino-Korean, Chinese.
  -  When linking between pages of the Rspress documentation site under *docs/*,
     use a relative path ending in the *.md* or *.mdx* extension, optionally
     followed by an anchor (for example,

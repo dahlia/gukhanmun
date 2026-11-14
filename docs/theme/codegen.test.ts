@@ -89,3 +89,188 @@ test("ko-kp examples leave loanwords off", () => {
   assert.match(examples.rust, /Preset::KoKp/);
   assert.doesNotMatch(examples.js, /loanwordsFst/);
 });
+
+test("Python without dictionaries needs only the core package", () => {
+  const python = generateExamples(config([])).python;
+  assert.equal(
+    python,
+    [
+      "# python -m pip install gukhanmun",
+      "",
+      "from gukhanmun import Converter",
+      "",
+      "converter = Converter()",
+      'output = converter.convert("香港")',
+      "print(output)",
+    ].join("\n"),
+  );
+});
+
+test("Python lists every selected dictionary in priority order and deduplicates extras", () => {
+  const python = generateExamples(config([...DICT_ORDER].reverse())).python;
+  assert.match(python, /^# python -m pip install 'gukhanmun\[loanwords,opendict,stdict\]'/);
+  assert.equal(python.match(/# python -m pip install/g)?.length, 1);
+  assert.match(
+    python,
+    /dictionaries=\[loanwords\(\), opendict_north_korean\(\), opendict_general\(\), opendict_dialect\(\), opendict_archaic\(\), stdict\(\)\]/,
+  );
+  for (
+    const loader of [
+      "loanwords",
+      "stdict",
+      "opendict_general",
+      "opendict_north_korean",
+      "opendict_dialect",
+      "opendict_archaic",
+    ]
+  ) {
+    assert.match(python, new RegExp(`    ${loader},`));
+  }
+  assert.doesNotMatch(python, /\bawait\b|async |load\(/);
+});
+
+test("Python presets keep dictionary loading explicit", () => {
+  const python = generateExamples(config(["loanwords", "stdict"], "ko-kr")).python;
+  assert.match(python, /preset=Preset\.KO_KR/);
+  assert.match(python, /from gukhanmun\.dictionaries import loanwords, stdict/);
+  assert.match(python, /dictionaries=\[loanwords\(\), stdict\(\)\]/);
+  assert.match(python, /gukhanmun\[loanwords,stdict\]/);
+});
+
+test("Python preserves ko-kp overrides relative to that preset's defaults", () => {
+  const cfg = config([], "ko-kp");
+  // The configuration helper uses ko-kr values; these must override ko-kp.
+  let python = generateExamples(cfg).python;
+  assert.match(python, /preset=Preset\.KO_KP/);
+  assert.match(python, /initial_sound_law=True/);
+  assert.match(python, /homophone_window=ContextWindow\.PER_BLOCK/);
+  cfg.initialSoundLaw = false;
+  cfg.homophoneWindow = "off";
+  python = generateExamples(cfg).python;
+  assert.doesNotMatch(python, /initial_sound_law=|homophone_window=|ContextWindow/);
+});
+
+test("Python translates every nondefault option to its actual enum and keyword", () => {
+  const cfg: CodegenConfig = {
+    ...config([]),
+    format: "html",
+    rendering: "original",
+    originalGloss: "ruby",
+    hanjaVariantSet: "simplified",
+    segmentation: "eager",
+    numerals: "smart",
+    initialSoundLaw: false,
+    homophoneWindow: "per-document",
+    homophoneDetection: "dictionary-wide",
+    firstOccurrenceWindow: "per-section",
+    recovery: "lenient",
+  };
+  const python = generateExamples(cfg).python;
+  for (
+    const field of [
+      "rendering=RenderMode.ORIGINAL",
+      "original_gloss=OriginalGloss.RUBY",
+      "hanja_variant_set=HanjaVariantSet.SIMPLIFIED",
+      "segmentation=Segmentation.EAGER",
+      "numerals=NumeralStrategy.SMART",
+      "initial_sound_law=False",
+      "homophone_window=ContextWindow.PER_DOCUMENT",
+      "homophone_detection=HomophoneDetection.DICTIONARY_WIDE",
+      "first_occurrence_window=ContextWindow.PER_SECTION",
+      "recovery=Recovery.LENIENT",
+    ]
+  ) assert.ok(python.includes(field), field);
+  assert.doesNotMatch(python, /converter\.options\.[a-z_]+\s*=/);
+});
+
+test("Python converts text, HTML and CommonMark with the proper format enum", () => {
+  const cfg = config([]);
+  cfg.input = "<p>漢字</p>";
+  assert.match(generateExamples(cfg).python, /converter\.convert\("<p>漢字<\/p>"\)/);
+  cfg.format = "html";
+  assert.match(generateExamples(cfg).python, /format=InputFormat\.HTML/);
+  cfg.format = "markdown";
+  const python = generateExamples(cfg).python;
+  assert.match(python, /format=InputFormat\.MARKDOWN/);
+  assert.doesNotMatch(python, /gfm=True/);
+});
+
+test("Python constructs typed directives and HTML preservation records", () => {
+  const cfg: CodegenConfig = {
+    ...config([]),
+    format: "html",
+    recovery: "lenient",
+    requireHanja: ["漢字"],
+    requireHangul: ["漢字"],
+    skipAnnotation: ["東京"],
+    preserveClasses: ["keep", 'quoted"class'],
+    preserveAttributes: ["data-keep", "translate"],
+  };
+  const python = generateExamples(cfg).python;
+  assert.match(python, /directives=Directives\(/);
+  assert.match(python, /require_hanja=\["漢字"\]/);
+  assert.match(python, /require_hangul=\["漢字"\]/);
+  assert.match(python, /skip_annotation=\["東京"\]/);
+  assert.match(python, /html=HtmlOptions\(/);
+  assert.ok(python.includes(String.raw`preserve_classes=["keep", "quoted\"class"]`));
+  assert.match(
+    python,
+    /preserve_attributes=\[AttributeMatcher\("data-keep"\), AttributeMatcher\("translate"\)\]/,
+  );
+  cfg.format = "markdown";
+  const markdown = generateExamples(cfg).python;
+  assert.match(markdown, /directives=Directives\(/);
+  assert.doesNotMatch(markdown, /HtmlOptions|AttributeMatcher|recovery=/);
+});
+
+test("Python string literals preserve controls, astral scalars and lone surrogates", () => {
+  const cfg = config([]);
+  cfg.input = [
+    'quote"',
+    "slash\\",
+    "\n\r\t",
+    "\0",
+    "\x01",
+    "\x7f",
+    "\x85",
+    "\u2028",
+    "\u2029",
+    "😀",
+    "\u{20000}",
+    "\ud800",
+    "\udfff",
+  ].join("|");
+  const python = generateExamples(cfg).python;
+  const literal = String
+    .raw`"quote\"|slash\\|\n\r\t|\x00|\x01|\x7f|\x85|\u2028|\u2029|\U0001f600|\U00020000|\ud800|\udfff"`;
+  assert.ok(python.includes(`output = converter.convert(${literal})`));
+  assert.doesNotMatch(python, /\ud800|\udfff|\u2028|\u2029/);
+});
+
+test("Python escapes user-controlled directive and preservation strings too", () => {
+  const cfg = config([]);
+  cfg.format = "html";
+  cfg.requireHanja = ['漢"字\\'];
+  cfg.preserveClasses = ['keep"\\'];
+  cfg.preserveAttributes = ['data-"\\'];
+  const python = generateExamples(cfg).python;
+  assert.ok(python.includes(String.raw`require_hanja=["漢\"字\\"]`));
+  assert.ok(python.includes(String.raw`preserve_classes=["keep\"\\"]`));
+  assert.ok(python.includes(String.raw`AttributeMatcher("data-\"\\")`));
+});
+
+test("Python generation leaves frozen live settings unchanged", () => {
+  const cfg = config(["stdict"], "ko-kp");
+  Object.freeze(cfg.dicts);
+  for (
+    const items of [
+      cfg.requireHanja,
+      cfg.requireHangul,
+      cfg.skipAnnotation,
+      cfg.preserveClasses,
+      cfg.preserveAttributes,
+    ]
+  ) Object.freeze(items);
+  Object.freeze(cfg);
+  assert.doesNotThrow(() => generateExamples(cfg).python);
+});

@@ -1,0 +1,197 @@
+---
+title: 設置
+description: pip, uv, Poetry로 PyPI의 Gukhanmun을 設置하고, 選擇的 辭典 데이터, 프리릴리스나 로컬 빌드를 使用하는 方法입니다.
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+設置
+====
+
+Gukhanmun은 Python 3.11 以上이 必要합니다. 프로젝트에서 使用하는 道具로
+[PyPI]의 `gukhanmun` 패키지를 設置합니다.
+
+<Tabs groupId="python-package-manager">
+<Tab label="pip">
+
+~~~~ sh
+python -m pip install gukhanmun
+~~~~
+
+</Tab>
+<Tab label="uv">
+
+~~~~ sh
+uv add gukhanmun
+~~~~
+
+</Tab>
+<Tab label="Poetry">
+
+~~~~ sh
+poetry add gukhanmun
+~~~~
+
+</Tab>
+</Tabs>
+
+pip는 프로젝트의 假想 環境(virtual environment)에서 使用합니다. uv와 Poetry
+命令은 旣存 프로젝트에 依存性을 追加하고 잠금 파일(lockfile)을 更新합니다.
+프로젝트의 Python 버전 條件은 Gukhanmun의 最低 버전과 相容해야 합니다.
+이 프로젝트에서는 `uv run python`이나 `poetry run python`으로 例題를 實行합니다.
+
+프로젝트 메타데이터 없이 uv로 環境만 管理한다면 `uv venv`로 만든 뒤
+`uv pip install gukhanmun`으로 設置합니다. Conda 環境에서는 그 環境의
+`python -m pip`를 使用합니다. 여기서는 PyPI 配布版을 設置합니다.
+
+相容하는 휠(wheel)이 있으면 Rust 없이 設置할 수 있습니다. CPython·PyPy
+휠의 支援 範圍와 原始 코드 빌드 要件은
+〈[支援 플랫폼](./platforms.md)〉을 參照하십시오.
+
+[PyPI]: https://pypi.org/project/gukhanmun/
+
+
+公式 辭典
+---------
+
+基本 패키지는 必須的인 第三者 Python 實行 依存性이나 公式 辭典 데이터를
+包含하지 않습니다. 必要한 데이터는 엑스트라(extra)로 設置합니다.
+
+<Tabs groupId="python-package-manager">
+<Tab label="pip">
+
+~~~~ sh
+python -m pip install 'gukhanmun[stdict,loanwords]'
+~~~~
+
+</Tab>
+<Tab label="uv">
+
+~~~~ sh
+uv add 'gukhanmun[stdict,loanwords]'
+~~~~
+
+</Tab>
+<Tab label="Poetry">
+
+~~~~ sh
+poetry add 'gukhanmun[stdict,loanwords]'
+~~~~
+
+</Tab>
+</Tabs>
+
+`stdict`, `opendict`, `loanwords`는 FST 데이터를 選擇합니다. 各 辭典에는
+`stdict-cdb`처럼 `-fst`와 `-cdb`를 붙인 엑스트라도 있습니다. 데이터 依存性은
+코어 패키지의 正確한 버전에 固定됩니다.
+
+엑스트라를 設置해도 데이터는 自動으로 活性化되지 않습니다.
+프리셋(preset)은 公式 辭典을 불러오지 않습니다. 도우미 函數가 返還하는 辭典
+出處를 `Converter(dictionaries=...)`에 追加해야 합니다.
+分類·形式·라이선스는 〈[辭典](./dictionaries.md)〉을, 最初의 變換 例題는
+〈[빠른 始作](./start.md)〉을 參照하십시오.
+
+
+프리릴리스 빌드
+---------------
+
+普通은 條件에 맞는 安定 버전(stable release)을 設置합니다. `0.4.0.dev123`
+같은 開發 버전(development release)을 包含한 프리릴리스(pre-release)를
+選擇하려면 다음과 같이 設定합니다.
+
+<Tabs groupId="python-package-manager">
+<Tab label="pip">
+
+~~~~ sh
+python -m pip install --upgrade --pre gukhanmun
+~~~~
+
+</Tab>
+<Tab label="uv">
+
+~~~~ sh
+uv add --upgrade-package gukhanmun --prerelease allow gukhanmun
+~~~~
+
+</Tab>
+<Tab label="Poetry">
+
+~~~~ sh
+poetry add --allow-prereleases gukhanmun@latest
+~~~~
+
+</Tab>
+</Tabs>
+
+uv의 `--prerelease allow`는 다른 依存性의 프리릴리스도 許容합니다. 特定
+Gukhanmun 빌드를 選擇하려면 正確한 버전을 指定합니다.
+
+<Tabs groupId="python-package-manager">
+<Tab label="pip">
+
+~~~~ sh
+python -m pip install 'gukhanmun==0.4.0.dev123'
+~~~~
+
+</Tab>
+<Tab label="uv">
+
+~~~~ sh
+uv add 'gukhanmun==0.4.0.dev123'
+~~~~
+
+</Tab>
+<Tab label="Poetry">
+
+~~~~ sh
+poetry add 'gukhanmun==0.4.0.dev123'
+~~~~
+
+</Tab>
+</Tabs>
+
+`0.4.0.dev123`은 實際 配布된 버전으로 바꿉니다.
+`gukhanmun[stdict]==0.4.0.dev123`처럼 같은 要求 안에 엑스트라도 넣을 수
+있습니다.
+
+pip에서는 `--pre`가 絕對的인 要件은 아닙니다. pip 26.0 以上은 要求를 滿足하는
+安定 버전이 없을 때 開發 버전을 選擇할 수 있습니다. `--upgrade`가 없고
+設置된 버전이 要求를 滿足하면 그 버전을 維持합니다. 設置된 버전은
+`gukhanmun.__version__`으로 確認합니다. 各 道具의
+[設置][pip]·[프리릴리스][uv]·[依存性][Poetry] 參考 文書에서 選擇 規則을
+確認할 수 있습니다.
+
+[pip]: https://pip.pypa.io/en/stable/cli/pip_install/
+[uv]: https://docs.astral.sh/uv/concepts/resolution/#pre-release-handling
+[Poetry]: https://python-poetry.org/docs/dependency-specification/#prereleases
+
+
+로컬 휠 빌드와 設置
+-------------------
+
+Gukhanmun 自體를 開發할 때에는 貯藏所를 체크아웃하여 휠을 빌드합니다.
+
+~~~~ sh
+mise install
+mise run py-build
+~~~~
+
+휠은 *target/python/wheels/* 아래에 生成됩니다. 實際 파일名을 指定하여
+프로젝트 環境에 設置합니다.
+
+~~~~ sh
+python -m pip install /path/to/gukhanmun-0.4.0-cp311-abi3-linux_x86_64.whl
+~~~~
+
+위 파일名은 Linux x86\_64用 例示이므로 自身이 빌드한 휠을 使用합니다.
+uv 環境에는 `uv pip install /path/to/package.whl`로 設置할 수 있습니다.
+選擇的 데이터 패키지도 빌드하려면 `mise run py-dicts-build`를 實行한 뒤,
+`--no-index`와 함께 *target/python/wheels/* 및 必要한 各 데이터 配布版 디렉터리,
+例를 들어 *target/python/dictionaries/gukhanmun-stdict-fst/* 디렉터리를
+`--find-links`로 指定합니다. 이렇게 하면 로컬 코어 빌드와 正確한 버전으로
+固定된 데이터를 함께 使用합니다.
+
+寄與者用 檢査는 `mise run py-test`와 `mise run py-typecheck`입니다. 貯藏所
+밖에 設置한 휠을 檢査하며, 後者는 mypy, Pyright, basedpyright, ty,
+Pyrefly를 實行합니다. 配布된 原始 코드 아카이브를 빌드하는 方法은
+〈[支援 플랫폼](./platforms.md#原始-코드-配布版에서-빌드)〉을 參照하십시오.

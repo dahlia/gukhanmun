@@ -80,7 +80,7 @@ console.log(g.convert("東京에서 東洋까지"));
 ~~~~
 
 
-hanja variant sets
+Hanja variant sets
 ------------------
 
 Variant recognition is always enabled. Set `hanjaVariantSet` only when you want

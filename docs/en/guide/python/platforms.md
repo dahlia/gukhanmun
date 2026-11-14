@@ -10,9 +10,8 @@ The `gukhanmun` package comes as wheels for common platforms and as a source
 distribution (sdist). A wheel installs without a Rust toolchain; any other
 platform builds the package from its sdist.
 
-The packages are not published on PyPI yet. Until they are, build a wheel
-locally as described in
-[*Python quick start*](./start.md#build-and-install-a-local-wheel).
+Install from PyPI with pip, uv or Poetry as described in
+[*Installation*](./install.mdx).
 
 
 Wheels
@@ -56,18 +55,26 @@ tested. Neither are 32-bit platforms.
 Building from the source distribution
 -------------------------------------
 
-On a platform without a wheel, or when you ask for one explicitly, pip builds
-the package from its sdist. Until the packages are published, build the sdist
-in a checkout and install that archive, replacing `0.4.0` with the version you
-built:
+On an unsupported wheel target, a source build may work if the interpreter
+and Rust toolchain support it. The interpreter exclusions above still apply.
+To build the published source distribution explicitly, use:
 
 ~~~~ sh
-mise run py-sdist
-pip install target/python/sdist/gukhanmun-0.4.0.tar.gz
+python -m pip install --force-reinstall --no-cache-dir --no-binary gukhanmun gukhanmun
 ~~~~
 
-Once the packages are on PyPI, `pip install --no-binary gukhanmun gukhanmun`
-builds the published sdist instead.
+For uv's environment interface, use:
+
+~~~~ sh
+uv pip install --reinstall-package gukhanmun --no-cache --no-binary gukhanmun gukhanmun
+~~~~
+
+The reinstall flags replace an existing core installation. The cache flags
+prevent reuse of cached wheels; see the [pip] and [uv] caching documentation.
+
+To build an archive from a checkout instead, run `mise run py-sdist` and
+install the resulting *target/python/sdist/gukhanmun-0.4.0.tar.gz*, replacing
+the version with the one you built.
 
 The build needs:
 
@@ -83,4 +90,6 @@ any dictionary source data. The dictionary data distributions are pure Python
 packages with platform-independent wheels, and their sdists already contain
 the data.
 
+[pip]: https://pip.pypa.io/en/stable/topics/caching/#disabling-caching
+[uv]: https://docs.astral.sh/uv/concepts/cache/#cache-directory
 [rustup]: https://rustup.rs/
