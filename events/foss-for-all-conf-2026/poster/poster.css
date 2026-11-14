@@ -1,0 +1,701 @@
+/* Gukhanmun poster, FOSS for All Conference 2026.  A0 portrait.
+ *
+ * One rule carries the design: vermilion marks what Gukhanmun produced
+ * (ruby readings, converted hangul).  Everything else stays in the
+ * project's achromatic charcoal, following docs/ and og.svg.
+ */
+
+@page {
+  size: 841mm 1189mm;
+  margin: 0;
+}
+
+:root {
+  --paper: #ffffff;
+  --ink: #111111;
+  --text: #2b2b2b;
+  --muted: #6e6e6e;
+  --rule: #d4d4d4;
+  --tint: #f2f2f2;
+  --gen: #d63a1f;
+
+  --sans: "Inter", "Noto Sans CJK KR", sans-serif;
+  --display: "Inter Display", "Inter", "Noto Sans CJK KR", sans-serif;
+  --mono: "Noto Sans Mono", "Noto Sans Mono CJK KR", monospace;
+
+  --margin: 32mm;
+  --gap: 11mm;
+  --col-gap: 18mm;
+  --body: 24pt;
+  --body-en: 19pt;
+  --note: 19pt;
+  --note-en: 16pt;
+  --h2: 50pt;
+  --h2-en: 28pt;
+  --h3: 28pt;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--body);
+  line-height: 1.5;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  width: 841mm;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+i {
+  font-style: italic;
+}
+
+/* Ruby: the readings Gukhanmun generated. */
+ruby {
+  ruby-position: over;
+}
+
+rt {
+  color: var(--gen);
+  font-size: 0.46em;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+rp {
+  display: none;
+}
+
+.gen {
+  color: var(--gen);
+}
+
+.poster {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 1189mm;
+  padding: var(--margin);
+}
+
+/* Headings: Korean in mixed script, English beneath in grey. */
+h2 {
+  color: var(--ink);
+  font-size: var(--h2);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.h2-en {
+  color: var(--muted);
+  font-size: var(--h2-en);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.sec-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6mm;
+  margin-bottom: 5mm;
+}
+
+h3 {
+  color: var(--ink);
+  font-size: var(--h3);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.h3-en {
+  color: var(--muted);
+  font-size: var(--body-en);
+  line-height: 1.25;
+}
+
+p.ko {
+  line-height: 1.8;
+}
+
+p.en {
+  color: var(--muted);
+  font-size: var(--body-en);
+  line-height: 1.4;
+  margin-top: 2mm;
+}
+
+.note {
+  font-size: var(--note);
+  line-height: 1.85;
+  margin-top: 4mm;
+}
+
+.note-en {
+  color: var(--muted);
+  font-size: var(--note-en);
+  line-height: 1.35;
+}
+
+/* Masthead */
+.masthead {
+  display: grid;
+  grid-template-columns: 112mm 1fr auto;
+  gap: 0 14mm;
+  align-items: end;
+  padding-bottom: 7mm;
+  border-bottom: 0.6mm solid var(--ink);
+}
+
+.logo {
+  display: block;
+  width: 121mm;
+  height: 121mm;
+  margin: -8mm 0 -8mm -8mm; /* The square sits inside a 7% inner margin. */
+}
+
+.wordmark {
+  font-family: var(--display);
+  font-size: 124pt;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+  color: var(--ink);
+}
+
+.slogan {
+  color: var(--ink);
+  font-size: 64pt;
+  font-weight: 300;
+  line-height: 1.5;
+  margin-top: 2mm;
+}
+
+.slogan-en {
+  color: var(--muted);
+  font-size: 30pt;
+  line-height: 1.2;
+}
+
+.byline {
+  text-align: right;
+}
+
+.author {
+  color: var(--ink);
+  font-size: 36pt;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.author span {
+  display: block;
+  font-size: 26pt;
+  line-height: 1.2;
+}
+
+.grant {
+  color: var(--muted);
+  font-size: 19pt;
+  margin-top: 3mm;
+}
+
+/* Hero */
+.hero {
+  display: grid;
+  grid-template-columns: 330mm 1fr;
+  gap: 8mm var(--col-gap);
+}
+
+.paper-frame {
+  position: relative;
+}
+
+.paper img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Outlines the Bank of Korea advertisement in the scan. */
+.paper-mark {
+  position: absolute;
+  left: 1.9%;
+  top: 69.3%;
+  width: 46.5%;
+  height: 29.7%;
+  border: 1mm solid var(--gen);
+}
+
+.paper figcaption {
+  color: var(--muted);
+  font-size: 14pt;
+  line-height: 1.5;
+  margin-top: 2mm;
+}
+
+.what p.ko {
+  margin-top: 4mm;
+  font-size: 27pt;
+}
+
+.what p.en {
+  margin-top: 4mm;
+  font-size: 21pt;
+}
+
+.convert {
+  grid-column: 1 / -1;
+}
+
+.convert p {
+  font-size: 70pt;
+  font-weight: 300;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.convert-src {
+  color: var(--ink);
+}
+
+.year {
+  display: inline-block;
+  width: 24mm;
+  color: var(--muted);
+  font-size: 20pt;
+  font-weight: 500;
+  vertical-align: 0.9em;
+}
+
+.convert-out .year {
+  color: var(--gen);
+}
+
+/* Noto Sans CJK KR sets hangul 0.92em wide and hanja 1em, so track each
+ * converted word out to one em per syllable; the trailing letter-spacing
+ * after its last syllable keeps word starts in step with the hanja above. */
+.convert-out .w {
+  letter-spacing: 0.08em;
+}
+
+/* Why not a lookup table */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10mm;
+}
+
+.cards li {
+  border-top: 1px solid var(--rule);
+  padding-top: 4mm;
+}
+
+.pairs {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 5mm;
+  align-items: baseline;
+  margin-top: 4mm;
+  font-size: 34pt;
+  font-weight: 300;
+  line-height: 1.3;
+}
+
+.pairs dt {
+  color: var(--ink);
+}
+
+.pairs dd {
+  white-space: nowrap;
+}
+
+.pairs dd.keep:not(.seg) {
+  color: var(--ink);
+}
+
+.seg span {
+  color: var(--ink);
+}
+
+.seg span + span {
+  border-left: 0.8mm solid var(--gen);
+  margin-left: 1.5mm;
+  padding-left: 1.5mm;
+}
+
+.seg-wrong span {
+  color: var(--rule);
+  text-decoration: line-through;
+  text-decoration-thickness: 0.5mm;
+}
+
+.seg-wrong span + span {
+  border-left-color: var(--rule);
+}
+
+/* Three-column rows */
+.cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--col-gap);
+}
+
+.cols-2-1 {
+  grid-template-columns: 2fr 1fr;
+}
+
+.cols > section {
+  border-top: 0.6mm solid var(--ink);
+  padding-top: 5mm;
+}
+
+/* Rendering modes */
+.mode-list dt {
+  border-top: 1px solid var(--rule);
+  padding-top: 2mm;
+  color: var(--ink);
+  font-size: 18pt;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.mode-list dt span[lang="en"] {
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 2mm;
+}
+
+.mode-list dd {
+  color: var(--ink);
+  font-size: 22pt;
+  line-height: 1.85;
+  padding-bottom: 1.5mm;
+}
+
+/* Dictionaries */
+.dict-list li + li {
+  margin-top: 4mm;
+}
+
+.dict-list h3 {
+  font-size: 25pt;
+}
+
+.dict-list p.ko {
+  font-size: 21pt;
+}
+
+.dict-list p.en {
+  font-size: 16pt;
+  margin-top: 0;
+}
+
+.thanks {
+  margin-top: 6mm;
+  padding: 5mm 6mm;
+  background: var(--tint);
+}
+
+.thanks p.ko {
+  color: var(--ink);
+  font-size: 22pt;
+  font-weight: 500;
+}
+
+.thanks p.en {
+  font-size: 16pt;
+}
+
+/* Install */
+.platforms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2.5mm;
+}
+
+.platforms li {
+  border: 1px solid var(--rule);
+  border-radius: 99mm;
+  color: var(--ink);
+  font-size: 19pt;
+  font-weight: 500;
+  line-height: 1.7;
+  padding: 0 5mm;
+}
+
+.platforms li.new {
+  border-color: var(--ink);
+}
+
+.platforms small {
+  color: var(--muted);
+  font-size: 13pt;
+  font-weight: 400;
+}
+
+.install p.ko {
+  margin-top: 4mm;
+  font-size: 21pt;
+}
+
+.install p.en {
+  font-size: 16pt;
+  margin-top: 0;
+}
+
+pre {
+  margin-top: 5mm;
+  padding: 5mm 6mm;
+  background: var(--ink);
+  border-radius: 2.5mm;
+  color: #f2f2f2;
+  font-family: var(--mono);
+  font-size: 15.5pt;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+p code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+/* Timeline */
+.events {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8mm;
+  position: relative;
+  padding-top: 10mm;
+}
+
+/* The solid line starts at Gukhanmun's first entry; a dashed line bridges
+ * the years since Seonbi, its predecessor. */
+.events::before {
+  content: "";
+  position: absolute;
+  top: 2.4mm;
+  left: calc((100% - 5 * 8mm) / 6 + 8mm);
+  right: 0;
+  height: 0.6mm;
+  background: var(--ink);
+}
+
+.events li {
+  position: relative;
+}
+
+.events li::before {
+  content: "";
+  position: absolute;
+  top: -10mm;
+  left: 0;
+  width: 5.4mm;
+  height: 5.4mm;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 0.8mm solid var(--ink);
+}
+
+.events li.prelude::after {
+  content: "";
+  position: absolute;
+  top: -7.6mm;
+  left: 5.4mm;
+  right: -8mm;
+  height: 0.6mm;
+  background: repeating-linear-gradient(90deg, var(--muted) 0 3mm, transparent 3mm 5mm);
+}
+
+.events li.prelude::before {
+  border-color: var(--muted);
+}
+
+.events li.prelude time,
+.events li.prelude .ko {
+  color: var(--muted);
+}
+
+.events li.grant-event::before {
+  background: var(--ink);
+  width: 8mm;
+  height: 8mm;
+  top: -11.3mm;
+}
+
+.events time {
+  display: block;
+  color: var(--ink);
+  font-size: 18pt;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.events .ko {
+  display: block;
+  color: var(--ink);
+  font-size: 24pt;
+  font-weight: 500;
+  line-height: 1.7;
+}
+
+.events .detail {
+  display: block;
+  color: var(--text);
+  font-size: 18pt;
+  line-height: 1.4;
+}
+
+.events .detail + span[lang="en"] {
+  margin-top: 1mm;
+}
+
+.events span[lang="en"] {
+  display: block;
+  color: var(--muted);
+  font-size: 16pt;
+  line-height: 1.35;
+}
+
+/* Roadmap */
+.roadmap li {
+  border-top: 1px solid var(--rule);
+  padding: 0.5mm 0 1.5mm;
+}
+
+.roadmap .ko {
+  display: block;
+  color: var(--ink);
+  font-size: 21pt;
+  font-weight: 500;
+  line-height: 1.7;
+}
+
+.roadmap li > span[lang="en"] {
+  display: block;
+  color: var(--muted);
+  font-size: 16pt;
+  line-height: 1.3;
+}
+
+/* Get involved */
+.involve {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6mm 18mm;
+  align-items: end;
+  border-top: 0.6mm solid var(--ink);
+  padding-top: 8mm;
+}
+
+.question {
+  color: var(--ink);
+  font-size: 42pt;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.question-en {
+  color: var(--muted);
+  font-size: 26pt;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.audiences {
+  margin: 4mm 0 4mm;
+  font-size: 21pt;
+  line-height: 1.8;
+}
+
+.audiences span[lang="en"],
+.involve-text li span[lang="en"] {
+  display: block;
+  color: var(--muted);
+  font-size: 16pt;
+  line-height: 1.3;
+}
+
+.involve-text li {
+  border-top: 1px solid var(--rule);
+  padding: 1.5mm 0 2mm;
+  font-size: 21pt;
+  line-height: 1.8;
+}
+
+.involve-text li .ko {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.qr {
+  display: flex;
+  align-items: flex-end;
+  gap: 10mm;
+}
+
+.qr li {
+  display: flex;
+  flex-direction: column;
+  width: 60mm;
+}
+
+.qr li.qr-main {
+  width: 84mm;
+}
+
+.qr img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.qr b {
+  margin-top: 3mm;
+  color: var(--ink);
+  font-size: 21pt;
+  line-height: 1.6;
+}
+
+.qr span {
+  color: var(--muted);
+  font-size: 12pt;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.credits {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 14pt;
+  line-height: 1.8;
+}
+
+.credits .ko {
+  color: var(--text);
+}
+
+.events span.url {
+  margin-top: 2mm;
+  font-family: var(--mono);
+  font-size: 14pt;
+}

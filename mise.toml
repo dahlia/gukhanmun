@@ -1,3 +1,8 @@
+monorepo_root = true
+
+[monorepo]
+config_roots = ["events/*"]
+
 [tools]
 "github:crate-ci/cargo-release" = "1.1.2"
 "github:mitsuhiko/insta" = "1.47.2"

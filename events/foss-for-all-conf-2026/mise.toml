@@ -1,0 +1,6 @@
+# Tasks for FOSS for All Conference 2026 materials.  Run from anywhere in the
+# repository, for example: mise run //events/foss-for-all-conf-2026:poster
+[tasks.poster]
+description = "Build the A0 poster PDF and its preview images"
+dir = "{{config_root}}/poster"
+run = "node build.mts"
