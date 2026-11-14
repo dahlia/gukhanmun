@@ -1,4 +1,4 @@
-// Gukhanmun: Generates CLI/Rust/JavaScript example code from playground state.
+// Gukhanmun: Generates CLI/Rust/JavaScript/Python examples from playground state.
 // Copyright (C) 2026  Hong Minhee
 //
 // This program is free software: you can redistribute it and/or modify
@@ -51,12 +51,14 @@ export const DICT_ORDER: DictId[] = [
 ];
 
 // Per-target identifiers for each dictionary: how to refer to it from the
-// JavaScript packages, the Rust crates, and the CLI's `--dictionary` flag.
+// JavaScript/Python packages, the Rust crates, and the CLI's `--dictionary` flag.
 interface DictMeta {
   jsPackage: string; // import source for the loader
   jsLoader: string; // FileDictionarySource loader function
   rustExpr: string; // &'static dictionary accessor expression
   cliFile: string; // file name for the CLI `--dictionary` fallback
+  pythonLoader: string; // gukhanmun.dictionaries loader function
+  pythonExtra: string; // core extra selecting the loader's FST data
 }
 
 // The Rust accessors use the umbrella `gukhanmun` crate's re-exports
@@ -68,36 +70,48 @@ const DICT_META: Record<DictId, DictMeta> = {
     jsLoader: "loanwordsFst",
     rustExpr: "gukhanmun::loanwords::dictionary()",
     cliFile: "loanwords.fst",
+    pythonLoader: "loanwords",
+    pythonExtra: "loanwords",
   },
   "stdict": {
     jsPackage: "@gukhanmun/stdict-fst",
     jsLoader: "stdictFst",
     rustExpr: "gukhanmun::stdict::ko_kr()",
     cliFile: "stdict.fst",
+    pythonLoader: "stdict",
+    pythonExtra: "stdict",
   },
   "opendict-general": {
     jsPackage: "@gukhanmun/opendict-fst",
     jsLoader: "opendictGeneralFst",
     rustExpr: "gukhanmun::opendict::general()",
     cliFile: "opendict-general.fst",
+    pythonLoader: "opendict_general",
+    pythonExtra: "opendict",
   },
   "opendict-north-korean": {
     jsPackage: "@gukhanmun/opendict-fst",
     jsLoader: "opendictNorthKoreanFst",
     rustExpr: "gukhanmun::opendict::north_korean()",
     cliFile: "opendict-north-korean.fst",
+    pythonLoader: "opendict_north_korean",
+    pythonExtra: "opendict",
   },
   "opendict-dialect": {
     jsPackage: "@gukhanmun/opendict-fst",
     jsLoader: "opendictDialectFst",
     rustExpr: "gukhanmun::opendict::dialect()",
     cliFile: "opendict-dialect.fst",
+    pythonLoader: "opendict_dialect",
+    pythonExtra: "opendict",
   },
   "opendict-archaic": {
     jsPackage: "@gukhanmun/opendict-fst",
     jsLoader: "opendictArchaicFst",
     rustExpr: "gukhanmun::opendict::archaic()",
     cliFile: "opendict-archaic.fst",
+    pythonLoader: "opendict_archaic",
+    pythonExtra: "opendict",
   },
 };
 
@@ -502,6 +516,156 @@ export function generateJs(cfg: CodegenConfig): string {
     `console.log(g.convert(${convertArgs}));`;
 }
 
+// ── Python ─────────────────────────────────────────────────────────────────
+
+// Quote by Unicode code point, not UTF-16 code unit: Python's \u escapes do
+// not combine surrogate pairs. Lone surrogates remain escaped so generating
+// the snippet never replaces them or produces invalid UTF-8 source. The
+// Python API will reject such an invalid input when conversion is attempted.
+function pythonString(value: string): string {
+  let literal = '"';
+  for (const character of value) {
+    const code = character.codePointAt(0)!;
+    if (character === '"') literal += '\\"';
+    else if (character === "\\") literal += "\\\\";
+    else if (character === "\n") literal += "\\n";
+    else if (character === "\r") literal += "\\r";
+    else if (character === "\t") literal += "\\t";
+    else if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) {
+      literal += `\\x${code.toString(16).padStart(2, "0")}`;
+    } else if (
+      (code >= 0xd800 && code <= 0xdfff) || code === 0x2028 || code === 0x2029
+    ) {
+      literal += `\\u${code.toString(16).padStart(4, "0")}`;
+    } else if (code > 0xffff) {
+      literal += `\\U${code.toString(16).padStart(8, "0")}`;
+    } else {
+      literal += character;
+    }
+  }
+  return `${literal}"`;
+}
+
+function pythonCall(name: string, fields: string[]): string {
+  if (!fields.length) return `${name}()`;
+  const indented = fields.map((field) => field.split("\n").map((line) => `    ${line}`).join("\n"));
+  return `${name}(\n${indented.join(",\n")},\n)`;
+}
+
+function pythonImport(module: string, symbols: Iterable<string>): string {
+  const names = [...symbols].sort();
+  const statement = `from ${module} import ${names.join(", ")}`;
+  if (statement.length <= 88) return statement;
+  return `from ${module} import (\n${names.map((name) => `    ${name},`).join("\n")}\n)`;
+}
+
+export function generatePython(cfg: CodegenConfig): string {
+  const html = isHtml(cfg);
+  const dicts = enabledDicts(cfg);
+  const symbols = new Set<string>(["Converter"]);
+  const fields: string[] = [];
+  // Only these two defaults vary by Python preset. Compare every live option
+  // with its actual inherited value, even when activePreset is supplied.
+  const presetDefaults = cfg.activePreset === "ko-kp"
+    ? { ...DEFAULTS, initialSoundLaw: false, homophoneWindow: "off" }
+    : DEFAULTS;
+
+  function enumValue(category: string, value: string): string {
+    symbols.add(category);
+    return `${category}.${value.toUpperCase().replace(/-/g, "_")}`;
+  }
+  function enumOption(
+    keyword: string,
+    category: string,
+    value: string,
+    fallback: string,
+  ): void {
+    if (value !== fallback) fields.push(`${keyword}=${enumValue(category, value)}`);
+  }
+
+  if (cfg.activePreset) {
+    fields.push(`preset=${enumValue("Preset", cfg.activePreset)}`);
+  }
+  enumOption("rendering", "RenderMode", cfg.rendering, DEFAULTS.rendering);
+  enumOption("original_gloss", "OriginalGloss", cfg.originalGloss, DEFAULTS.originalGloss);
+  enumOption("hanja_variant_set", "HanjaVariantSet", cfg.hanjaVariantSet, DEFAULTS.hanjaVariantSet);
+  enumOption("segmentation", "Segmentation", cfg.segmentation, DEFAULTS.segmentation);
+  enumOption("numerals", "NumeralStrategy", cfg.numerals, DEFAULTS.numerals);
+  if (cfg.initialSoundLaw !== presetDefaults.initialSoundLaw) {
+    fields.push(`initial_sound_law=${cfg.initialSoundLaw ? "True" : "False"}`);
+  }
+  enumOption(
+    "homophone_window",
+    "ContextWindow",
+    cfg.homophoneWindow,
+    presetDefaults.homophoneWindow,
+  );
+  enumOption(
+    "homophone_detection",
+    "HomophoneDetection",
+    cfg.homophoneDetection,
+    DEFAULTS.homophoneDetection,
+  );
+  enumOption(
+    "first_occurrence_window",
+    "ContextWindow",
+    cfg.firstOccurrenceWindow,
+    DEFAULTS.firstOccurrenceWindow,
+  );
+  if (html) enumOption("recovery", "Recovery", cfg.recovery, DEFAULTS.recovery);
+
+  if (dicts.length) {
+    fields.push(
+      `dictionaries=[${dicts.map((id) => `${DICT_META[id].pythonLoader}()`).join(", ")}]`,
+    );
+  }
+  const directiveFields: string[] = [];
+  for (
+    const [items, keyword] of [
+      [cfg.requireHanja, "require_hanja"],
+      [cfg.requireHangul, "require_hangul"],
+      [cfg.skipAnnotation, "skip_annotation"],
+    ] as const
+  ) {
+    if (items.length) directiveFields.push(`${keyword}=[${items.map(pythonString).join(", ")}]`);
+  }
+  if (directiveFields.length) {
+    symbols.add("Directives");
+    fields.push(`directives=${pythonCall("Directives", directiveFields)}`);
+  }
+  if (html && (cfg.preserveClasses.length || cfg.preserveAttributes.length)) {
+    symbols.add("HtmlOptions");
+    const htmlFields: string[] = [];
+    if (cfg.preserveClasses.length) {
+      htmlFields.push(`preserve_classes=[${cfg.preserveClasses.map(pythonString).join(", ")}]`);
+    }
+    if (cfg.preserveAttributes.length) {
+      symbols.add("AttributeMatcher");
+      htmlFields.push(
+        `preserve_attributes=[${
+          cfg.preserveAttributes.map((name) => `AttributeMatcher(${pythonString(name)})`).join(", ")
+        }]`,
+      );
+    }
+    fields.push(`html=${pythonCall("HtmlOptions", htmlFields)}`);
+  }
+
+  const input = pythonString(cfg.input);
+  const format = cfg.format === "text" ? "" : `, format=${enumValue("InputFormat", cfg.format)}`;
+  const imports = [pythonImport("gukhanmun", symbols)];
+  if (dicts.length) {
+    imports.push(
+      pythonImport("gukhanmun.dictionaries", dicts.map((id) => DICT_META[id].pythonLoader)),
+    );
+  }
+  const extras = [...new Set(dicts.map((id) => DICT_META[id].pythonExtra))];
+  const requirement = extras.length ? shellQuote(`gukhanmun[${extras.join(",")}]`) : "gukhanmun";
+  return `# python -m pip install ${requirement}\n\n${imports.join("\n")}\n\n` +
+    `converter = ${pythonCall("Converter", fields)}\n` +
+    `output = converter.convert(${input}${format})\n` +
+    `print(output)`;
+}
+
 // ── CLI ────────────────────────────────────────────────────────────────────
 
 export function generateCli(cfg: CodegenConfig): string {
@@ -602,13 +766,14 @@ export function generateCli(cfg: CodegenConfig): string {
   return `${comment}${pipe}${cmd}`;
 }
 
-// Generates all three example snippets for the given configuration.
+// Generates all four example snippets for the given configuration.
 export function generateExamples(
   cfg: CodegenConfig,
-): { cli: string; rust: string; js: string } {
+): { cli: string; rust: string; js: string; python: string } {
   return {
     cli: generateCli(cfg),
     rust: generateRust(cfg),
     js: generateJs(cfg),
+    python: generatePython(cfg),
   };
 }

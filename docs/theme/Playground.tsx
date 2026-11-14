@@ -36,7 +36,7 @@ import type {
 import type { Highlighter } from "shiki";
 import { DICT_ORDER, type DictId, generateExamples } from "./codegen";
 
-type CodeTab = "cli" | "rust" | "js";
+type CodeTab = "cli" | "rust" | "js" | "python";
 
 type FormatKey = "text" | "markdown" | "html";
 type Status = "loading" | "ready" | "error";
@@ -46,11 +46,12 @@ const CODE_LANG: Record<CodeTab, string> = {
   cli: "bash",
   rust: "rust",
   js: "javascript",
+  python: "python",
 };
 
 // Lazily-created Shiki highlighter, shared across renders and component
 // instances.  Loaded on first use so the sizeable grammar/theme data stays out
-// of the initial bundle; only the three languages and two themes we render are
+// of the initial bundle; only the four languages and two themes we render are
 // requested.
 let highlighterPromise: Promise<Highlighter> | null = null;
 function getHighlighter(): Promise<Highlighter> {
@@ -58,7 +59,7 @@ function getHighlighter(): Promise<Highlighter> {
     highlighterPromise = import("shiki").then((shiki) =>
       shiki.createHighlighter({
         themes: ["github-light", "github-dark"],
-        langs: ["bash", "rust", "javascript"],
+        langs: ["bash", "rust", "javascript", "python"],
       })
     );
   }
@@ -677,6 +678,7 @@ export function Playground() {
     ["cli", "CLI"],
     ["rust", "Rust"],
     ["js", "JavaScript"],
+    ["python", "Python"],
   ];
 
   return (
