@@ -51,7 +51,7 @@ builder.rendering(RenderOptions {
 ~~~~
 
 
-hanja variant sets
+Hanja variant sets
 ------------------
 
 Variant recognition is always enabled. `Builder::hanja_variant_set`

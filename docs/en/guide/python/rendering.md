@@ -85,7 +85,7 @@ assert converter.convert("漢字") == "漢字(한자)"
 `RenderMode.ORIGINAL`; it does not select the main rendering mode.
 
 
-hanja variant sets
+Hanja variant sets
 ------------------
 
 A hanja character can have several variant spellings. Recognition of supported
