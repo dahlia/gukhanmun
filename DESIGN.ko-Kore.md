@@ -970,6 +970,27 @@ CDB·FST 백엔드, 內藏 loanwords·stdict·opendict 辭典을 活性化한다
 個別 選擇 可能하다. 모두 꺼 두면 엔진과
 `UnihanCharDict`만 남는 Rust API 專用 빌드가 되며, 임베디드 環境에 適合하다.
 
+### 變換 所有權
+
+`Builder<'a>`와 `Converter<'a>`는 빌린 辭典과 로컬 콜백을 받는다. 辭典이나
+保存 述語(predicate)에 `Send`·`Sync`를 要求하지 않으므로, 呼出者는 스레드
+로컬 狀態나 自身의 스코프에서 빌린 값을 捕獲한 콜백을 使用할 수 있다.
+
+`SharedBuilder`는 各 필드가 `Send + Sync + 'static`을 滿足하는 所有型
+`SharedConverter`를 만든다. 같은 境界를 滿足하는 所有型 辭典, 리터럴 指示,
+所有權을 가진 스레드 安全 HTML 保存 述語를 받는다. 呼出者는
+`Arc<SharedConverter>` 하나를 共有하여 平文 텍스트·HTML·Markdown 文書를
+竝行 變換할 수 있다. HTML과 Markdown 메서드는 各 機能 플래그로 制御하며,
+反復子 變換은 旣存 `Builder`·`Converter`를 通해 提供한다.
+
+두 파사드는 빌드 時 프리셋을 解決하고 同一한 辭典 체인을 構成한다. 出處
+役割, 重疊된 政策과 句 根據의 所有權을 保存하고, 順序 基盤 出處 政策用으로
+構成한 語彙 索引을 維持하며, 같은 實行 헬퍼를 使用한다. 各 變換은 構文
+分析機·엔진·미들웨어 狀態를 새로 만든다. 各 呼出은 臨時 指示·HTML 리더
+어댑터를 만든다. 리터럴 指示 文字列은 複製하며,
+HTML 保存 述語는 不變 런타임에서 빌린다. 이 述語는 여러 스레드에서 同時에
+實行될 수 있으므로 捕獲한 데이터도 共有 빌더의 境界를 滿足해야 한다.
+
 ### JavaScript 패키지
 
 JavaScript 側은 타입 專用 패키지 하나와, 런타임 具顯體別 패키지들로 分離된다:
@@ -989,8 +1010,10 @@ JavaScript 側은 타입 專用 패키지 하나와, 런타임 具顯體別 패�
  -  *@gukhanmun/stdict-fst* (npm·JSR): 內藏 stdict를 FST 形態의 `Uint8Array`로
     내보내기.
  -  *@gukhanmun/stdict-cdb* (npm·JSR): 同一한 辭典을 CDB 形態로 提供.
- -  *@gukhanmun/stdict-min* (npm·JSR): 同音異義 項目과 模糊 讀音만 줄여서 담은
-    縮小 FST. 크기에 敏感한 文脈用.
+ -  *@gukhanmun/opendict-fst*·*@gukhanmun/opendict-cdb* (npm·JSR):
+    《우리말샘》의 네 分類.
+ -  *@gukhanmun/loanwords-fst*·*@gukhanmun/loanwords-cdb* (npm·JSR):
+    國立國語院의 《外來語 表記 用例》.
 
 타입 專用 패키지를 따로 두는 理由는 API 契約의 正本이 한 곳에만 있어야 하기
 때문이다. 萬一 契約이 *@gukhanmun/wasm*에 살고 *@gukhanmun/napi*가 그것을
@@ -1035,52 +1058,94 @@ Unicode 스칼라 單位로 動作하기 때문이다. 바이트 單位 청크�
 
 ### Python 패키지
 
-Python 配布版은 *python/gukhanmun/* 아래에 있으며, 타입이 指定된 Python
-클래스와 標準 라이브러리 enum을 公開한다. 非公開 擴張 모듈
-`gukhanmun._native`는 配布하지 않는 *crates/gukhanmun-python/* 크레이트에서
-PyO3와 maturin으로 빌드한다. Rust 크레이트는 워크스페이스 버전을 相續하며,
-Python 매니페스트는 이에 同期化한 패키지 버전을 貯藏한다.
+`gukhanmun` Python 配布版은 *python/gukhanmun/* 아래에 있으며, 스네이크
+케이스(snake\_case) 키워드 옵션을 받는 不變 `Converter(...)`를 公開한다.
+Python 파사드는 標準 라이브러리 `enum.Enum` 클래스와 變更할 수 없는 設定
+레코드를 定義한다. 옵션에는 宣言된 列擧型 멤버를 傳達하며, 文字列을 暗默的으로
+받지 않는다. 設定에서 읽은 文字列은 `Preset("ko-kr")`처럼 明示的으로
+變換한다. *packages/types/index.ts*가 動作 契約의 基準이며, 實行 可能한
+對應 테스트가 生成子 필드, 解決된 設定과 列擧型 값을 이 契約에 對照한다.
+公開 패키지는 實行에 必須的인 第三者 Python 패키지에 依存하지 않는다.
+
+非公開 擴張 모듈 `gukhanmun._native`는 `publish = false`인
+*crates/gukhanmun-python/* 크레이트에서 PyO3와 maturin으로 빌드한다.
+Python 값은 檢證을 거쳐 所有權을 가진 Rust 데이터로 變換되며, 그 뒤 스레드가
+Python 인터프리터와의 連結을 解除한다. 一般 CPython에서는 GIL(global
+interpreter lock)을 解除한다. 네이티브 핸들은 `SharedConverter`를 所有하므로,
+한 變換器를 여러 스레드에서 共有하되 構文 分析機·엔진·미들웨어 狀態는 文書마다
+따로 維持한다. 連結을 解除한 境界에서 Rust 패닉(panic)을 捕捉해 `INTERNAL`
+誤謬로 바꾼다. Python 시그널(signal)은 네이티브 作業이 끝난 뒤 確認하므로, 긴
+變換 中에는 `KeyboardInterrupt`가 늦어질 수 있다. Python 콜백은 받지 않는다.
+指示는 리터럴 目錄이며 HTML 保存은 클래스·屬性 規則으로 設定한다.
 
 `Converter(...)`는 生成 時 設定을 複寫하고 明示한 메모리/FST/CDB 辭典을
-불러온다. 어느 프리셋도 公式 辭典을 自動으로 불러오지 않는다. 네이티브
-핸들은 `SharedConverter`를 所有한다. 變換 中에는 Python 連結을 解除하고
-不變 辭典을 共有하며, 構文 分析機와 미들웨어 狀態는 文書別로 維持한다.
-시그널은 네이티브 作業이 끝난 뒤 確認한다.
+불러온다. 파일 出處에는 바이트나 파일시스템 經路를 넘기며, URL은 別途
+`UrlDictionarySource`로 指定한다. 이 出處는 HTTP(S) 다운로드, 同一 出處
+리다이렉트(redirect), 應答 크기 制限과 應答 읽기 制限 時間을 使用한다.
+變換 呼出 中에는 辭典 入出力이 없다. 어느 프리셋도 公式 辭典을 自動으로
+불러오지 않으며, 엑스트라(extra)를 設置해도 變換器의 基本값은 달라지지 않는다.
+`converter.options`는 解決된 不變 設定을 提供한다. 文章 符號 프로파일은
+省略한 덮어쓰기(`UNSET`, 相續), `None`(該當 文章 符號 役割 保存), 明示한
+스타일을 區別한다.
 
-初期 Python 스트림은 文字列 청크를 `finish()`까지 모은다.
-`convert_iter()`도 反復 可能 客體를 같은 一括 變換 動作에 連結한다.
-公開 設定과 內部 레코드는 變更할 수 없다. 誤謬는 列擧型 코드와 가장 깊은
-根本 原因부터 羅列한 不變 튜플을 提供한다. 로컬 mise 作業은 휠(wheel)을 빌드하고
-貯藏所 밖에서 實行 및 타입을 檢査한다.
+`convert()`는 平文 텍스트·HTML·Markdown을 받으며,
+`MarkdownOptions(gfm=True)`는 GFM을 켠다. `stream()`은 自身의 變換器에
+對한 參照를 維持하는 單一 消費者用 `ConversionStream`을 만든다. 成功한
+`push()`는 빈 文字列을 返還하고, `finish()`가 모은 入力 全體를 한 番 變換한다.
+成功的 終了나 `push()`·`finish()`의 失敗 後에는 그 스트림을 다시 쓸 수 없다.
+`convert_iter()`는 反復 可能 客體를 같은 一括 變換 動作에 連結하며, 入力이
+正常的으로 끝난 뒤에만 最終化한다. 청크를 받는 인터페이스이며, 메모리 使用量이
+制限되는 스트리밍이나 非同期 具顯은 아니다.
 
-mise 設定은 開發 및 檢査用 인터프리터를 固定하고, uv는 假想 워크스페이스의
-依存性 잠금을 管理한다. 選擇的 Python 道具 프로파일은 CPython 3.11–3.15와
-PyPy 3.11/3.12를 提供한다. tox는 明示한 인터프리터마다 非編輯 可能 휠을
-빌드하고, 貯藏所 밖으로 複寫한 테스트로 設置된 패키지를 檢査한다. 빠른
-道具 테스트는 네이티브 빌드 없이 實行하며, 全體 로컬 게이트는 基本
-인터프리터의 實行 및 設置된 휠의 타입도 檢査한다.
+公開 Python 原始 코드와 함께 *py.typed* 및 네이티브 境界用 스텁(stub)을
+配布한다. mise는 인터프리터를 固定하고, uv는 假想 워크스페이스의 依存性
+잠금을 管理한다. 自動 依存性 設定 中에는 네이티브 擴張을 빌드하지 않는다.
+選擇的 Python 道具 프로파일은 CPython 3.11–3.15와 PyPy 3.11/3.12를
+提供한다. tox는 明示한 인터프리터/ABI마다 非編輯 可能 휠(wheel)을 빌드하고,
+貯藏所 밖으로 複寫한 테스트로 設置된 패키지를 檢査한다. mypy·Pyright·
+basedpyright·ty·Pyrefly는 正常 例題와 拒否해야 할 使用 例題로 設置된
+패키지를 檢査하며, stubtest는 네이티브 시그니처(signature)를 스텁과 對照한다.
+빠른 道具 테스트는 네이티브 빌드가 必要 없고, 全體 로컬 게이트는 實行·타입·
+데이터·配布 產出物 檢査를 包含한다.
 
-公式 辭典은 *python/* 아래에 出處와 形式別로 하나씩, 리소스만 담은 여섯
-選擇的 配布版으로 提供한다. `gukhanmun-stdict-fst`, `gukhanmun-stdict-cdb`,
-`gukhanmun-opendict-fst`, `gukhanmun-opendict-cdb`, `gukhanmun-loanwords-fst`,
-`gukhanmun-loanwords-cdb`가 그것이다. 이들은 依存性 없는 純粹 Hatchling
-휠이며 `gukhanmun`을 가져오지 않으므로, 依存 關係는 코어 패키지의
-버전을 正確히 固定한 엑스트라에서 데이터로만 向한다. 바이너리는 別途로 빌드하지
-않는다. 스테이징은 JavaScript 패키지의 生成器가 만든 產出物을 複寫하고,
-正準 出處에서 生成한 라이선스, 出處 表示와 由來 情報 파일을 追加한다.
-`gukhanmun.dictionaries`는 `importlib.resources`로 設置된 리소스를 읽어
-所有權을 갖는 바이트로 만들고, 記錄된 크기 및 해시와 對照한 뒤, JavaScript
-헬퍼와 같은 役割을 가진 一般 파일 出處를 返還한다. 非公開 테이블 하나가
-런타임과 道具에 必要한 패키지 情報를 記述한다. 데이터를 設置해도 變換器는
-달라지지 않는다.
+公式 辭典은 *python/* 아래에 리소스만 담은 여섯 選擇的 配布版으로 提供한다.
+`gukhanmun-stdict-fst`, `gukhanmun-stdict-cdb`, `gukhanmun-opendict-fst`,
+`gukhanmun-opendict-cdb`, `gukhanmun-loanwords-fst`, `gukhanmun-loanwords-cdb`가
+그것이다. 依存性 없는 플랫폼 中立 Hatchling 휠이며 네이티브 패키지를 가져오지
+않는다. 코어 엑스트라는 各 데이터 配布版의 버전을 코어 配布版 自身의 버전과
+正確히 같게 固定한다. `stdict`·`opendict`·`loanwords` 엑스트라는 FST
+配布版을 選擇하며, 明示的 FST 別名과 CDB 엑스트라도 提供한다.
+스테이징(staging)은 旣存 JavaScript 辭典 生成器의 產出物을 再使用하고 라이선스,
+出處 表示와 由來 情報를 追加한다. `gukhanmun.dictionaries`는
+`importlib.resources`로 設置된 리소스를 읽고, 記錄된 크기·해시를 檢査하며,
+패키지의 gzip 데이터를 풀어 一般 파일 出處에 所有權을 가진 바이트를 담아
+返還한다. 헬퍼는 參考/外來語 役割을 保存하고 《우리말샘》의 네 分類를 모두
+公開한다. 選擇的 데이터가 없거나 損傷되면 設置나 再設置 命令을 包含한 코드를
+가진 誤謬를 낸다.
 
-CI는 휠/原本 配布版(sdist) 파일 31個와 그 해시, 出處 커밋, 實行 根據를 함께
-檢證한다. 別途 配布 作業은 檢證된 같은 파일들을 PyPI에 上傳하며, PyPI가
-發給하는 短期 토큰만 使用한다. 許容된 브랜치에서는 開發 버전(development
-release), 一致하는 署名 태그에서는 安定 버전(stable release)을 使用한다.
-GitHub 릴리스에도 같은 파일들을 添附한다. 初期 登錄과 部分 失敗의 復舊는
-[*CONTRIBUTING.md*]에 說明한다.
-프리 스레딩(free-threading) CPython은 支援 範圍 밖이다.
+릴리스 產出物은 Python 3.11을 基準으로 한 CPython `abi3` 휠 여덟 個,
+PyPy 專用 휠 열 個, 데이터 휠 여섯 個, 原始 코드 配布版(sdist) 일곱 個로,
+같은 Python 버전의 파일 31個다. CPython 휠은 x86\_64/aarch64의 glibc 2.28과
+musl 1.2, x86\_64/arm64의 macOS 11, AMD64/ARM64의 Windows 10을 支援하되,
+인터프리터 自體의 運營體制 要件도 滿足해야 한다. PyPy 3.11/3.12 휠은 위의
+glibc·macOS 타깃과 Windows AMD64를 支援한다. 프리 스레딩(free-threading)
+CPython, 32비트 타깃, musl이나 Windows ARM64의 PyPy는 支援 範圍 밖이다. 各 支援
+타깃은 네이티브 設置·實行 根據를 갖추며, 모든 原始 코드 配布版을 貯藏所 밖에서
+다시 빌드한다. 네이티브 原始 코드 配布版에는 必要한 Rust/Python 原始 코드와
+Cargo 메타데이터를 담고, 選擇的 辭典의 原本 데이터는 담지 않는다. 데이터 原始
+코드 配布版에는 리소스가 이미 들어 있다.
+
+CI는 이 產出物을 해시, 出處 커밋, 플랫폼 檢査, 實行 根據와 原始 코드 配布版
+再빌드 記錄과 함께 目錄化한다. 認證 情報 없는 作業이 完全한 不變 產出物 묶음을
+檢證한다. 別途 作業이 PyPI Trusted Publishing으로 認證 情報를 받고, 原來
+產出物 ID로 묶음을 받아 固定한 매니페스트 해시를 檢證한 뒤, 再빌드 없이 그
+파일들을 上傳한다. 데이터 配布版을 먼저 上傳하고 보이는 것을 確認한 뒤 코어
+패키지를 上傳한다. 再實行은 레지스트리의 해시·크기와
+一致하는 파일만 건너뛰고, 內容이 衝突하면 配布를 멈춘다. 試圖別 受領 記錄이
+部分 進行 狀態를 남긴다. 許容된 上流 브랜치 푸시는 開發 버전(development
+release)을 配布하며, 一致하는 署名 태그는 安定 버전(stable release)을 配布하고
+같은 파일·매니페스트·체크섬(checksum)을 GitHub 릴리스에 添附한다. 初期 登錄과
+復舊 節次는 [*CONTRIBUTING.md*]에 說明한다.
 
 [*CONTRIBUTING.md*]: https://github.com/dahlia/gukhanmun/blob/main/CONTRIBUTING.md
 
@@ -1118,42 +1183,81 @@ export interface MapDictionarySource {
 덮어쓰기 辭典 中에는 앞의 것이 優先한다. 바인딩에는 텍스트 파서가 들어가지
 않으며, 項目 目錄은 `gukhanmun-core`의 `MapDictionary`가 된다.
 
+Python은 構造的 記述子 代身 變更할 수 없는 `MapDictionarySource`,
+`FileDictionarySource`, `UrlDictionarySource` 레코드를 使用한다. 맵 項目은
+겨루는 讀音, 優先度와 接尾 讀音을 維持한다. 파일 出處는 바이트나 經路를 받으며,
+文字列 經路를 URL로 推測하지 않는다. 세 出處 타입은 JavaScript 바인딩과 같은
+役割 優先順位 및 根據를 保存하는 辭典 체인을 使用한다. 各 公式 Python
+辭典 出處 헬퍼는 `FileDictionarySource` 하나를 返還하며, 이를 變換器의 辭典
+시퀀스에 項目으로 넘긴다. 對應하는 `*_bytes()` 헬퍼는 辭典 바이트를 返還한다.
+
 ### 레지스트리 對照表
 
-| 패키지                  | crates.io | npm         | JSR             |
-| ----------------------- | --------- | ----------- | --------------- |
-| `gukhanmun-core`        | 예        | 아니오      | 아니오          |
-| `gukhanmun-html`        | 예        | 아니오      | 아니오          |
-| `gukhanmun-markdown`    | 예        | 아니오      | 아니오          |
-| `gukhanmun-cdb`         | 예        | 아니오      | 아니오          |
-| `gukhanmun-fst`         | 예        | 아니오      | 아니오          |
-| `gukhanmun-stdict`      | 예        | 아니오      | 아니오          |
-| `gukhanmun-mkdict`      | 예        | 아니오      | 아니오          |
-| `gukhanmun`             | 예        | 아니오      | 아니오          |
-| `gukhanmun-cli`         | 예        | 아니오      | 아니오          |
-| `gukhanmun-wasm`        | 예        | 아니오      | 아니오          |
-| `gukhanmun-napi`        | 예        | 아니오      | 아니오          |
-| `@gukhanmun/types`      | 아니오    | 예 (宣言만) | 예 (`.ts` 原本) |
-| `@gukhanmun/wasm`       | 아니오    | 예          | 예              |
-| `@gukhanmun/napi`       | 아니오    | 예          | 아니오          |
-| `@gukhanmun/stdict-fst` | 아니오    | 예          | 예              |
-| `@gukhanmun/stdict-cdb` | 아니오    | 예          | 예              |
-| `@gukhanmun/stdict-min` | 아니오    | 예          | 예              |
+| 패키지                     | crates.io | npm         | JSR             | PyPI   |
+| -------------------------- | --------- | ----------- | --------------- | ------ |
+| `gukhanmun-core`           | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-html`           | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-markdown`       | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-cdb`            | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-fst`            | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-stdict`         | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-opendict`       | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-loanwords`      | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-mkdict`         | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun`                | 예        | 아니오      | 아니오          | 예     |
+| `gukhanmun-cli`            | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-wasm`           | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-napi`           | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-python`         | 아니오    | 아니오      | 아니오          | 아니오 |
+| `@gukhanmun/types`         | 아니오    | 예 (宣言만) | 예 (`.ts` 原本) | 아니오 |
+| `@gukhanmun/wasm`          | 아니오    | 예          | 예              | 아니오 |
+| `@gukhanmun/napi`          | 아니오    | 예          | 아니오          | 아니오 |
+| `@gukhanmun/stdict-fst`    | 아니오    | 예          | 예              | 아니오 |
+| `@gukhanmun/stdict-cdb`    | 아니오    | 예          | 예              | 아니오 |
+| `@gukhanmun/opendict-fst`  | 아니오    | 예          | 예              | 아니오 |
+| `@gukhanmun/opendict-cdb`  | 아니오    | 예          | 예              | 아니오 |
+| `@gukhanmun/loanwords-fst` | 아니오    | 예          | 예              | 아니오 |
+| `@gukhanmun/loanwords-cdb` | 아니오    | 예          | 예              | 아니오 |
+| `gukhanmun-stdict-fst`     | 아니오    | 아니오      | 아니오          | 예     |
+| `gukhanmun-stdict-cdb`     | 아니오    | 아니오      | 아니오          | 예     |
+| `gukhanmun-opendict-fst`   | 아니오    | 아니오      | 아니오          | 예     |
+| `gukhanmun-opendict-cdb`   | 아니오    | 아니오      | 아니오          | 예     |
+| `gukhanmun-loanwords-fst`  | 아니오    | 아니오      | 아니오          | 예     |
+| `gukhanmun-loanwords-cdb`  | 아니오    | 아니오      | 아니오          | 예     |
 
 CLI 바이너리는 各 릴리스 GitHub Releases에 플랫폼別(Linux x86\_64·aarch64, macOS
 arm64·x86\_64, Windows x86\_64) 添附된다.
 
-버전은 모든 패키지에서 同一步調(lockstep)로 進行한다. 每 릴리스 태그가 Rust
-워크스페이스의 모든 크레이트 버전과 모든 JavaScript 패키지 버전을 同時에
-올린다. 어떤 패키지는 該當 릴리스에서 機能的 變化가 없을 수도 있는데, 그래도
-버전은 올라간다. 言語 間 이야기를 明確하게 維持하기 爲함이다. 패키지 個別
-有意的 버전(Semantic Versioning) 管理 代身 同一步調를 擇한 理由는 依存 範圍
-不一致 費用(*@gukhanmun/wasm@1.2*와 *@gukhanmun/types@1.3*을 함께 設置한
-使用者가 混亂스러운 타입 誤謬를 보는 等)이 가끔 일어나는 「實質 變化 없는 버전
-올림」 費用보다 크기 때문이다. 태그 푸시에 反應하는 CI 워크플로가 crates.io에
-配布하고, NAPI 事前 빌드 바이너리를 플랫폼別로 竝列 빌드하고, npm·JSR에
-配布한다. 같은 태그에서 다시 配布를 實行해도 重複 덮어쓰기를 拒否하는
-레지스트리들 對象으로는 無動作이다.
+公開 패키지의 버전은 모두 同一步調(lockstep)로 進行한다.
+*Cargo.toml*의 `workspace.package.version`만 手動으로 選擇하며, 다음에
+計劃한 릴리스 버전을 나타낸다. `mise run bump-execute`는 워크스페이스와
+JavaScript 매니페스트, 일곱 Python 매니페스트, 正確한 엑스트라 버전 固定과
+*uv.lock*을 하나의 署名 커밋에서 함께 올린다. 릴리스 태그는 버전을 바꾸지 않고
+그 버전을 配布한다. 機能이 달라지지 않은 패키지도 言語 間 依存性을 맞추기
+爲해 함께 올린다. 配布를 함께 調整하여 個別 버전을 使用하는 런타임·共有
+타입·辭典 패키지 사이의 依存 範圍 不一致를 防止한다. 태그 워크플로는
+크레이트를 crates.io에, JavaScript 패키지를 npm/JSR에 配布하고, 플랫폼別
+NAPI 事前 빌드 바이너리를 빌드하며, 릴리스 바이너리를 GitHub 릴리스에 添附한다.
+非公開 `gukhanmun-python` 크레이트는 Python 原始 코드
+配布版에 담되 crates.io에는 配布하지 않는다.
+
+Python은 PEP 440 表記를 使用한다. `dahlia/gukhanmun`의 `main`이나
+`X.Y-maintenance`에 許容된 푸시는 워크플로 實行 番號를 `N`으로 삼아
+`X.Y.Z.devN`을 配布하며, 一致하는 署名 `X.Y.Z` 태그는 安定 버전을 配布한다.
+Rust/npm 開發 버전의 `+sha` 接尾辭는 Python 버전에 넣지 않고, 出處 SHA를
+由來 情報에 別途로 남긴다. `gukhanmun.__version__`은 設置된 配布版의
+메타데이터를 읽는다. PR·포크·機能 브랜치는 配布 認證 情報 없이
+`X.Y.Z.dev0` 產出物을 檢證하며, 워크스페이스가 이미 開發 버전이면 그 버전을
+維持한다. `X.Y.Z.devN`은 `X.Y.Z`보다 앞서므로,
+安定 릴리스 後에는 다음 開發 週期의 워크스페이스 버전을 새로 올려야 한다.
+
+PyPI 配布는 原子的이지 않다. 上傳 作業은 檢證된 原來 묶음을 使用하며, 이미
+配布된 파일을 해시·크기로 對照하고, 試圖마다 完了·누락·衝突 파일을 記錄한다.
+上傳 作業을 다시 實行해 같은 內容의 部分 配布를 마칠 수 있지만, 上傳 後
+다시 빌드한 다른 바이트를 같은 파일名에 代入할 수는 없다. 初期 登錄은 한 番의
+시드(seed) 上傳으로 일곱 PyPI 프로젝트를 만든 뒤, 貯藏所 워크플로의 一般
+Trusted Publisher를 設定한다. 通常 開發·安定 配布는 長期 토큰을 代替 手段으로
+두지 않고 Trusted Publishing을 使用한다.
 
 
 엔지니어링 政策
@@ -1226,6 +1330,14 @@ export type ErrorCode =
 바인딩은 FFI 境界에서 Rust의 `source()` 사슬을 巡廻하면서, 誤謬에 `chain`
 屬性을 構成한다. JavaScript 呼出者는 追加 FFI 없이도 原因을 살펴볼 수 있다.
 
+Python은 같은 코드를 `GukhanmunError.code`의 `ErrorCode` 列擧型 멤버로
+提供한다. `message`는 文字列이고, `chain`은 가장 깊은 根本 原因부터 直接
+原因까지 나열한 不變 `ErrorCause` 튜플이다. 잘못된 引數 타입은 `TypeError`를
+내고, 有效하지 않은 設定값은 `INVALID_INPUT`을 使用한다. 파일/URL 動作의
+失敗는 `DICTIONARY_LOAD`를 使用하고 Python 原因을 保存한다. 入力 텍스트의
+單獨 서로게이트(surrogate)는 `UnicodeEncodeError`를 내며, Python 中斷은
+그대로 傳播한다.
+
 ### 로깅
 
 *gukhanmun-core*와 同伴 크레이트들은 `tracing` 크레이트에 條件 없이 依存한다.
@@ -1293,8 +1405,9 @@ CI는 네 가지 모두를 stable·beta·워크스페이스의 MSRV(最低 支�
 境遇에 둘을 덮어쓴다. `ko-kp` 프리셋은
 朝鮮民主主義人民共和國의 慣行, 卽 頭音法則을 適用하지 않고 漢字語를 한글로
 表記하는 慣行(래일, 류행, 녀자)을 反映한다. 《우리말샘》 北韓語 分類를
-包含하고, 外來語 表記 用例는 基本으로 끈다. JavaScript 프리셋은 言語 옵션을
-設定하지만, 辭典 패키지는 使用者가 明示的으로 불러와야 한다.
+包含하고, 外來語 表記 用例는 基本으로 끈다. JavaScript와 Python 프리셋은
+言語 옵션을 設定하지만, 辭典 패키지는 使用者가 明示的으로 불러와야 한다.
+Python 辭典 엑스트라를 設置하는 것만으로는 그 辭典을 活性化하지 않는다.
 
 CLI는 두 프리셋을 `--preset ko-kr`·`--preset ko-kp`로 露出한다. 個別 옵션은
 프리셋 위에서 덮어쓸 수 있다. 例를 들어 `--preset ko-kr --no-loanwords`는

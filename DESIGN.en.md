@@ -1224,8 +1224,10 @@ stays small:
  -  *@gukhanmun/stdict-fst* (npm and JSR): the bundled stdict as an FST file,
     exported as a `Uint8Array`.
  -  *@gukhanmun/stdict-cdb* (npm and JSR): the same dictionary as a CDB file.
- -  *@gukhanmun/stdict-min* (npm and JSR): a reduced FST containing only
-    homophonous entries and ambiguous readings, for size-sensitive contexts.
+ -  *@gukhanmun/opendict-fst* and *@gukhanmun/opendict-cdb* (npm and JSR):
+    the four *Open Korean Dictionary* categories.
+ -  *@gukhanmun/loanwords-fst* and *@gukhanmun/loanwords-cdb* (npm and JSR):
+    the National Institute of Korean Language’s loanword spelling examples.
 
 The reason for the type-only package is that the canonical API contract should
 live in exactly one place. If the contract lived in *@gukhanmun/wasm* and
@@ -1276,54 +1278,101 @@ transform.
 
 ### Python package
 
-The Python distribution lives under *python/gukhanmun/* and exposes typed
-Python classes and standard-library enums. Its private `gukhanmun._native`
-extension is built from the unpublished *crates/gukhanmun-python/* crate using
-PyO3 and maturin. The crate inherits the workspace version; the Python manifest
-stores a synchronized version for Python packaging.
+The `gukhanmun` Python distribution lives under *python/gukhanmun/* and exposes
+an immutable `Converter(...)` with snake\_case keyword options. The Python
+façade defines standard-library `enum.Enum` classes and frozen configuration
+records. Options accept the declared enum members, not implicit strings;
+configuration read from a string can use an explicit conversion such as
+`Preset("ko-kr")`. *packages/types/index.ts* is the behavior baseline, and
+executable parity tests compare the constructor fields, resolved view and enum
+values with that contract. The public package has no required third-party
+Python runtime dependencies.
 
-`Converter(...)` snapshots configuration and loads explicit map/FST/CDB
-sources during construction. Neither preset loads official dictionary data.
-The native handle owns a `SharedConverter`; conversion releases the GIL
-and shares immutable dictionaries while keeping parser and middleware state
-local to each document. Signals are checked after native work completes.
+The private `gukhanmun._native` extension is built with PyO3 and maturin from
+*crates/gukhanmun-python/*, a `publish = false` crate. Python values are
+validated and converted to owned Rust data before the thread detaches from
+the Python interpreter. On ordinary CPython this releases the global
+interpreter lock (GIL).
+The native handle owns a `SharedConverter`, so the same configured
+converter can serve concurrent threads while parser, engine and middleware
+state remains local to each document. The detached boundary catches Rust
+panics and translates them to `INTERNAL` errors. Python signals are checked
+after native work returns; a long conversion can delay `KeyboardInterrupt`.
+Python callbacks are not part of this interface: directives are literal lists,
+and HTML preservation uses class and attribute rules.
 
-The current Python stream implementation buffers string chunks until
-`finish()`, and `convert_iter()` adapts an iterable to the same batch-equivalent
-behavior. Public options and nested records are immutable. Errors expose enum
-codes and a frozen cause tuple ordered deepest/root first. The local mise tasks
-build a wheel and test its runtime and typing outside the checkout.
+`Converter(...)` snapshots configuration and loads explicit map/FST/CDB sources
+at construction time. File sources accept owned bytes or filesystem paths;
+URL sources are a separate `UrlDictionarySource` with HTTP(S) downloads,
+same-origin redirects, response-size limits and response-reading deadlines.
+Conversion calls perform no dictionary I/O. Neither preset loads official
+dictionary data, and installing an extra does not change converter defaults.
+`converter.options` exposes the frozen, resolved settings. Punctuation profiles
+distinguish an omitted override (`UNSET`, which inherits), `None` (which
+preserves that punctuation role), and an explicit style.
 
-The mise configuration selects pinned development and test interpreters, while
-uv manages locked dependencies in a virtual workspace. The optional Python tool
-profile provides CPython 3.11–3.15 and PyPy 3.11/3.12. The tox runner builds
-noneditable wheels with each explicit interpreter and tests the installed
-package using copied tests outside the checkout. Fast tooling tests run without
-a native build; the full local gate also checks the default interpreter's
-runtime and installed-wheel types.
+`convert()` accepts plain text, HTML or Markdown, with
+`MarkdownOptions(gfm=True)` enabling GFM. `stream()` creates a single-consumer
+`ConversionStream` that holds a reference to its converter. Each successful
+`push()` returns an empty string; `finish()` converts all buffered input once.
+After a successful finish, or after any push or finish failure, the stream
+accepts no further calls. `convert_iter()` adapts an iterable to the same
+batch-equivalent behavior, finalizing only after normal input exhaustion. It is
+a chunked interface, not a bounded-memory or asynchronous streaming
+implementation.
 
-The official dictionaries ship as six optional, resource-only distributions
-under *python/*, one per source and format: `gukhanmun-stdict-fst`,
-`gukhanmun-stdict-cdb`, `gukhanmun-opendict-fst`, `gukhanmun-opendict-cdb`,
-`gukhanmun-loanwords-fst` and `gukhanmun-loanwords-cdb`. They are pure Hatchling
-wheels with no dependencies and never import `gukhanmun`, so the dependency
-runs only from the core package's exactly pinned extras to the data. Their
-binaries are not built separately: staging copies the artifacts that the
-JavaScript packages' generators produce and adds license, attribution and
-provenance files generated from canonical sources. `gukhanmun.dictionaries`
-reads the installed resources through `importlib.resources` into owned bytes,
-checks them against the recorded sizes and hashes, and returns ordinary file
-sources with the same roles as the JavaScript
-helpers; a private table describes the packages once for the runtime and the
-tooling. Installing data never changes a converter.
+The public Python source ships with *py.typed* and a stub for the native
+boundary. mise selects pinned interpreters and uv manages locked dependencies
+in a virtual workspace without building the native extension during automatic
+dependency setup. The optional Python tool profile provides CPython 3.11–3.15
+and PyPy 3.11/3.12. tox builds a noneditable wheel for each explicit
+interpreter/ABI and runs copied tests outside the checkout. mypy, Pyright,
+basedpyright, ty and Pyrefly check the installed package with positive and
+negative consumer examples; stubtest compares native signatures with the stub.
+Fast tooling tests need no native build, while the full local gate includes
+runtime, typing, data and artifact checks.
 
-CI validates a 31-file wheel/sdist set with its hashes, source commit and
-execution evidence. A separate upload job publishes that tested bundle to
-PyPI through Trusted Publishing, using development versions on eligible
-branches and stable versions on matching signed tags. Tagged GitHub Releases
-attach the same files. Publisher setup and partial-publication recovery are
-documented in [*CONTRIBUTING.md*].
-Free-threaded CPython remains outside the supported matrix.
+Official dictionaries ship as six optional, resource-only distributions under
+*python/*: `gukhanmun-stdict-fst`, `gukhanmun-stdict-cdb`,
+`gukhanmun-opendict-fst`, `gukhanmun-opendict-cdb`, `gukhanmun-loanwords-fst`
+and `gukhanmun-loanwords-cdb`. They are platform-independent Hatchling wheels
+with no dependencies and never import the native package. Core extras pin
+each data distribution to exactly the core distribution's own version. The
+`stdict`, `opendict` and `loanwords` extras select the FST distributions;
+explicit FST aliases and CDB extras are also available.
+Staging reuses the existing JavaScript dictionary generators' outputs and adds
+licenses, attribution and provenance. `gukhanmun.dictionaries` reads installed
+resources through `importlib.resources`, checks recorded sizes and hashes,
+decompresses packaged gzip data and returns owned bytes in ordinary file
+sources. Helpers preserve the reference/loanword roles and expose all four
+*Open Korean Dictionary* categories. Missing or damaged optional data produces
+a coded error with an installation or reinstallation command.
+
+Release artifacts comprise eight CPython `abi3` wheels with a Python 3.11
+baseline, ten PyPy-specific wheels, six data wheels and seven source
+distributions (sdists), 31 files at one coordinated Python version. CPython
+wheels cover glibc 2.28 and musl 1.2 on x86\_64/aarch64, macOS 11 on
+x86\_64/arm64, and Windows 10 on AMD64/ARM64, subject to the interpreter's own
+OS requirements. PyPy 3.11/3.12 wheels cover the glibc and macOS targets
+above and Windows AMD64. Free-threaded CPython, 32-bit targets, and PyPy on
+musl or Windows ARM64 are outside this matrix. Each advertised target has
+native install and execution evidence, and each sdist is rebuilt outside the
+checkout. The native sdist carries the required Rust/Python sources and Cargo
+metadata, without the optional dictionaries' source data; data sdists already
+contain their resources.
+
+CI inventories those artifacts with hashes, source commit, platform audits,
+execution evidence and sdist rebuild records. A credential-free job validates
+the complete immutable bundle. A separate job obtains PyPI Trusted Publishing
+credentials, retrieves the original bundle by artifact ID, verifies its pinned
+manifest hash, and uploads its files without rebuilding. Data distributions
+are uploaded first and confirmed visible before the core package is uploaded.
+Reruns skip only files whose hashes and sizes match the registry; a content
+conflict stops publication, and attempt-specific receipts record partial
+progress. Eligible upstream branch pushes publish development versions;
+matching signed tags publish stable versions and attach the same files,
+manifest and checksums to GitHub Releases. Publisher bootstrap and recovery
+procedures live in [*CONTRIBUTING.md*].
 
 [*CONTRIBUTING.md*]: https://github.com/dahlia/gukhanmun/blob/main/CONTRIBUTING.md
 
@@ -1363,42 +1412,85 @@ spelling and consumed length; earlier overrides take priority. Entry lists
 become `MapDictionary` values in `gukhanmun-core` with no text parser in the
 bindings.
 
+Python uses frozen `MapDictionarySource`, `FileDictionarySource` and
+`UrlDictionarySource` records instead of structural descriptors. Map entries
+retain competing readings, preferences and suffix readings. File sources
+accept bytes or paths; a string path is never guessed to be a URL. All three
+source types use the same role precedence and evidence-aware dictionary chain
+as the JavaScript bindings. Each official Python source helper returns one
+`FileDictionarySource`, supplied as an item in the converter's dictionary
+sequence. The corresponding `*_bytes()` helpers return dictionary bytes.
+
 ### Registry matrix
 
-| Package                 | crates.io | npm                     | JSR                |
-| ----------------------- | --------- | ----------------------- | ------------------ |
-| `gukhanmun-core`        | yes       | no                      | no                 |
-| `gukhanmun-html`        | yes       | no                      | no                 |
-| `gukhanmun-markdown`    | yes       | no                      | no                 |
-| `gukhanmun-cdb`         | yes       | no                      | no                 |
-| `gukhanmun-fst`         | yes       | no                      | no                 |
-| `gukhanmun-stdict`      | yes       | no                      | no                 |
-| `gukhanmun-mkdict`      | yes       | no                      | no                 |
-| `gukhanmun`             | yes       | no                      | no                 |
-| `gukhanmun-cli`         | yes       | no                      | no                 |
-| `gukhanmun-wasm`        | yes       | no                      | no                 |
-| `gukhanmun-napi`        | yes       | no                      | no                 |
-| `@gukhanmun/types`      | no        | yes (declarations only) | yes (`.ts` source) |
-| `@gukhanmun/wasm`       | no        | yes                     | yes                |
-| `@gukhanmun/napi`       | no        | yes                     | no                 |
-| `@gukhanmun/stdict-fst` | no        | yes                     | yes                |
-| `@gukhanmun/stdict-cdb` | no        | yes                     | yes                |
-| `@gukhanmun/stdict-min` | no        | yes                     | yes                |
+| Package                    | crates.io | npm                     | JSR                | PyPI |
+| -------------------------- | --------- | ----------------------- | ------------------ | ---- |
+| `gukhanmun-core`           | yes       | no                      | no                 | no   |
+| `gukhanmun-html`           | yes       | no                      | no                 | no   |
+| `gukhanmun-markdown`       | yes       | no                      | no                 | no   |
+| `gukhanmun-cdb`            | yes       | no                      | no                 | no   |
+| `gukhanmun-fst`            | yes       | no                      | no                 | no   |
+| `gukhanmun-stdict`         | yes       | no                      | no                 | no   |
+| `gukhanmun-opendict`       | yes       | no                      | no                 | no   |
+| `gukhanmun-loanwords`      | yes       | no                      | no                 | no   |
+| `gukhanmun-mkdict`         | yes       | no                      | no                 | no   |
+| `gukhanmun`                | yes       | no                      | no                 | yes  |
+| `gukhanmun-cli`            | yes       | no                      | no                 | no   |
+| `gukhanmun-wasm`           | yes       | no                      | no                 | no   |
+| `gukhanmun-napi`           | yes       | no                      | no                 | no   |
+| `gukhanmun-python`         | no        | no                      | no                 | no   |
+| `@gukhanmun/types`         | no        | yes (declarations only) | yes (`.ts` source) | no   |
+| `@gukhanmun/wasm`          | no        | yes                     | yes                | no   |
+| `@gukhanmun/napi`          | no        | yes                     | no                 | no   |
+| `@gukhanmun/stdict-fst`    | no        | yes                     | yes                | no   |
+| `@gukhanmun/stdict-cdb`    | no        | yes                     | yes                | no   |
+| `@gukhanmun/opendict-fst`  | no        | yes                     | yes                | no   |
+| `@gukhanmun/opendict-cdb`  | no        | yes                     | yes                | no   |
+| `@gukhanmun/loanwords-fst` | no        | yes                     | yes                | no   |
+| `@gukhanmun/loanwords-cdb` | no        | yes                     | yes                | no   |
+| `gukhanmun-stdict-fst`     | no        | no                      | no                 | yes  |
+| `gukhanmun-stdict-cdb`     | no        | no                      | no                 | yes  |
+| `gukhanmun-opendict-fst`   | no        | no                      | no                 | yes  |
+| `gukhanmun-opendict-cdb`   | no        | no                      | no                 | yes  |
+| `gukhanmun-loanwords-fst`  | no        | no                      | no                 | yes  |
+| `gukhanmun-loanwords-cdb`  | no        | no                      | no                 | yes  |
 
 CLI binaries ship as platform releases (Linux x86\_64 and aarch64, macOS arm64
 and x86\_64, Windows x86\_64) attached to the GitHub Releases for each version.
 
-Versioning is lockstep across all packages. Every release tag advances every
-crate's version (in the Rust workspace) and every JavaScript package's version
-in tandem. Some packages have no functional change at a given release; their
-version still advances so that the cross-language story is unambiguous. We
-chose lockstep over per-package semver because the cost of mis-coordinated
-dependency ranges (a user installing *@gukhanmun/wasm@1.2* with
-*@gukhanmun/types@1.3* and getting confusing type errors) outweighs the cost of
-an occasional no-op version bump. The CI workflow that fires on tag push
-publishes to crates.io, builds the per-platform NAPI prebuilts in parallel,
-publishes to npm, and publishes to JSR. Re-running a publish on the same tag is
-a no-op against the registries that reject overwriting.
+Versioning is lockstep across all public packages. The
+`workspace.package.version` in *Cargo.toml* is the only manually chosen
+version; it names the next planned release. `mise run bump-execute` updates
+the workspace and synchronizes JavaScript manifests, all seven Python
+manifests, exact extra pins and *uv.lock* in one signed bump commit. A release
+tag publishes that version without changing it. Packages with no functional
+change still advance together to keep cross-language dependencies aligned.
+Coordinated releases avoid dependency-range drift between independently
+versioned runtimes, shared types and dictionary packages. The tag workflow
+publishes crates to crates.io and JavaScript packages to npm/JSR, builds
+per-platform NAPI prebuilts, and attaches release binaries to GitHub Releases.
+The private `gukhanmun-python` crate is packaged in the Python sdist, not
+published to crates.io.
+
+Python uses PEP 440 spelling, including `X.Y.Z.devN` for eligible pushes to
+`main` or `X.Y-maintenance` in `dahlia/gukhanmun`, where `N` is the workflow run
+number. Matching signed `X.Y.Z` tags publish stable versions. Python versions
+omit the Rust/npm development version's `+sha` suffix; provenance retains the
+source SHA separately, and `gukhanmun.__version__` reads installed distribution
+metadata. PRs, forks and feature branches validate `X.Y.Z.dev0` artifacts
+without publishing credentials, or retain the workspace version if it is already
+a development release. The next development cycle needs a new
+workspace version after each stable release, since `X.Y.Z.devN` sorts before
+`X.Y.Z`.
+
+Publication to PyPI is not atomic. The upload job uses the original tested
+bundle, reconciles already-published files by hash and size, and records each
+attempt's completed, missing and conflicting files. Rerunning the upload job
+can complete a partial release with identical files; rebuilding after an upload
+cannot substitute new bytes under the same filenames. Bootstrap creates all
+seven PyPI projects with one seed upload, then configures normal Trusted
+Publishers for the repository workflow. Normal development and stable
+publication use Trusted Publishing without a long-lived token fallback.
 
 
 Engineering policies
@@ -1474,6 +1566,14 @@ The bindings walk the Rust `source()` chain at the FFI boundary and materialize
 a `chain` property on the error, so JavaScript callers can inspect causes
 without needing further FFI calls.
 
+Python exposes the same codes as `ErrorCode` enum members in
+`GukhanmunError.code`. Its `message` is a string and `chain` is a frozen tuple
+of `ErrorCause` records ordered from deepest/root cause to immediate cause.
+Wrong argument types raise `TypeError`; invalid configuration values use
+`INVALID_INPUT`. File/URL operational failures use `DICTIONARY_LOAD` and
+preserve their Python causes. Source text containing lone surrogates raises
+`UnicodeEncodeError`. Python interruptions propagate unchanged.
+
 ### Logging
 
 *gukhanmun-core* and its siblings depend on the `tracing` crate
@@ -1547,8 +1647,9 @@ dictionaries override both for the same spelling and consumed length. The
 `ko-kp` preset matches the North Korean convention of writing Sino-Korean words
 in hangul without the initial sound law applied (래일, 류행, 녀자). It includes
 the *Open Korean Dictionary* North Korean category, with loanword examples
-disabled by default. JavaScript presets configure the linguistic options but
-require callers to load dictionary packages explicitly.
+disabled by default. JavaScript and Python presets configure the linguistic
+options but require callers to load dictionary packages explicitly. Installing
+a Python dictionary extra alone never activates that dictionary.
 
 The CLI exposes both as `--preset ko-kr` and `--preset ko-kp`. Individual
 options remain settable to override the preset, for example
