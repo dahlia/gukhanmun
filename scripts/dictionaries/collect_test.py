@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import urllib.error
 import urllib.request
 import zipfile
@@ -92,6 +92,73 @@ class CollectorTests(unittest.TestCase):
         with patch.object(session.opener, "open", side_effect=error):
             with self.assertRaises(c.InvalidDump) as raised:
                 session.open(c.ENDPOINTS["opendict"])
+        self.assertNotIn("private-secret", str(raised.exception))
+
+    def test_opendict_login_redirect_upgrades_only_known_return_url(self):
+        session = c.Session("opendict")
+        redirect = c.Redirects(session.hosts)
+        listing = c.LISTINGS["opendict"]
+        insecure = listing.replace("https://", "http://", 1)
+        query = [("loginReq", "new"), ("returnUrl", insecure), ("empty", "")]
+        url = "https://kdict.korean.go.kr/login?" + c.urllib.parse.urlencode(query)
+        request = urllib.request.Request(listing)
+        result = redirect.redirect_request(request, None, 302, "", {}, url)
+        self.assertEqual(c.urllib.parse.urlsplit(result.full_url)._replace(query="").geturl(), "https://kdict.korean.go.kr/login")
+        self.assertEqual(c.urllib.parse.parse_qsl(c.urllib.parse.urlsplit(result.full_url).query, keep_blank_values=True), [("loginReq", "new"), ("returnUrl", listing), ("empty", "")])
+        self.assertEqual(request.full_url, listing)
+        # Other routes and return destinations retain their original meaning.
+        for source, target in [
+            ("https://opendict.korean.go.kr/", url),
+            (listing, url.replace("/login?", "/other?")),
+            (listing, "https://kdict.korean.go.kr/login?returnUrl=" + c.urllib.parse.quote(listing, safe="")),
+            (listing, "https://kdict.korean.go.kr/login?returnUrl=http%3A%2F%2Fexample.test%2F"),
+        ]:
+            with self.subTest(source=source, target=target):
+                result = redirect.redirect_request(urllib.request.Request(source), None, 302, "", {}, target)
+                self.assertEqual(result.full_url, target)
+        # Normalization must not bypass either redirect security boundary.
+        with self.assertRaises(c.InvalidDump):
+            redirect.redirect_request(urllib.request.Request(listing, data=b"secret"), None, 302, "", {}, url)
+        with self.assertRaises(c.InvalidDump):
+            redirect.redirect_request(request, None, 302, "", {}, url.replace("kdict.korean.go.kr", "example.test"))
+
+    def test_connection_diagnostics_and_retry_boundaries(self):
+        session = c.Session("opendict")
+        url = c.LISTINGS["opendict"] + "?password=private-secret"
+        cases = [
+            (TimeoutError("private-secret"), "timeout"),
+            (c.socket.gaierror("private-secret"), "DNS failure"),
+            (c.ssl.SSLError("private-secret"), "TLS failure"),
+            (ConnectionResetError("private-secret"), "connection reset"),
+            (ConnectionRefusedError("private-secret"), "connection refused"),
+            ("private-secret", "transport error"),
+        ]
+        for reason, category in cases:
+            with self.subTest(category=category), patch.object(session.opener, "open", side_effect=urllib.error.URLError(reason)) as opened, patch.object(c.time, "sleep") as sleep:
+                with self.assertRaises(c.InvalidDump) as raised:
+                    session.open(url, retry=True)
+                self.assertEqual(str(raised.exception), f"requesting opendict.korean.go.kr download listing: NIKL connection failed ({category}, attempt 3)")
+                self.assertEqual(opened.call_count, 3)
+                self.assertEqual(sleep.call_count, 2)
+        with patch.object(session.opener, "open", side_effect=TimeoutError("private-secret")) as opened, patch.object(c.time, "sleep") as sleep:
+            with self.assertRaisesRegex(c.InvalidDump, "attempt 1"):
+                session.open("https://kdict.korean.go.kr/sign/loginProc", {"password": "private-secret"})
+            self.assertEqual(opened.call_count, 1)
+            sleep.assert_not_called()
+
+    def test_http_diagnostics_keep_status_without_response_material(self):
+        session = c.Session("stdict")
+        response = Mock()
+        error = urllib.error.HTTPError("https://private-secret.test/", 503, "private-secret", {}, response)
+        with patch.object(session.opener, "open", side_effect=error) as opened, patch.object(c.time, "sleep"):
+            with self.assertRaises(c.InvalidDump) as raised:
+                session.open(c.LISTINGS["stdict"], retry=True)
+        self.assertEqual(str(raised.exception), "requesting stdict.korean.go.kr download listing: NIKL HTTP request failed (HTTP 503)")
+        self.assertEqual(opened.call_count, 3)
+        response.read.assert_not_called()
+        with patch.object(session.opener, "open", side_effect=urllib.error.URLError("private-secret")):
+            with self.assertRaises(c.InvalidDump) as raised:
+                session.open("https://stdict.korean.go.kr/private-secret?password=private-secret")
         self.assertNotIn("private-secret", str(raised.exception))
 
     @unittest.skipIf(c.os.name == "nt", "symlink creation requires elevated Windows privileges")
@@ -180,6 +247,21 @@ class CollectorTests(unittest.TestCase):
             with patch.dict(c.os.environ, NIKL_USERNAME="synthetic", NIKL_PASSWORD="synthetic"), patch.object(c, "login", side_effect=c.InvalidDump("login failed")):
                 with self.assertRaises(c.InvalidDump): c.collect(path2, {}, sessions=Fake)
             self.assertFalse(path2.exists())
+
+    def test_month_mismatch_reports_validated_public_dates(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "collection"
+            response = Mock()
+            response.headers.get_filename.return_value = "public.zip"
+            response.read.return_value = b""
+            session = Mock()
+            session.open.return_value.__enter__ = Mock(return_value=response)
+            session.open.return_value.__exit__ = Mock(return_value=False)
+            with patch.dict(c.os.environ, NIKL_USERNAME="private-secret", NIKL_PASSWORD="private-secret"), patch.object(c, "login", return_value={"link_key": "123", "month": "2026-11"}), patch.object(c, "validate_archive", return_value={"archive_date": "2026-10-12"}):
+                with self.assertRaises(c.InvalidDump) as raised:
+                    c.collect(path, {}, sessions=lambda kind: session)
+            self.assertEqual(str(raised.exception), "stdict: listing/archive month mismatch (listing 2026-11, archive 2026-10-12)")
+            self.assertFalse(path.exists())
 
     def test_skip_fingerprint_covers_editorial_and_output_drift(self):
         with tempfile.TemporaryDirectory() as temp:
