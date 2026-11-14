@@ -9,6 +9,7 @@ Gukhanmun
 [![crates.io][crates.io badge]][crates.io]
 [![JSR][JSR badge]][JSR]
 [![npm][npm badge]][npm]
+[![PyPI][PyPI badge]][PyPI]
 [![GitHub Actions][GitHub Actions badge]][GitHub Actions]
 [![License: GPL-3.0-only][GPL badge]][GPL]
 [![GitHub Sponsors][GitHub Sponsors badge]][GitHub Sponsors]
@@ -21,7 +22,7 @@ Gukhanmun은 國漢文混用體로 쓰인 韓國語 텍스트를 한글 專用 �
 Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變換 파이프라인에
 集中하면서 스트리밍 入出力·結合 可能한 辭典·格子(lattice) 基盤 分割·多樣한
 出力 形式 等의 軸으로 擴張되었습니다. Rust 라이브러리·命令줄 道具·WebAssembly
-패키지·네이티브 Node-API 애드온 形態로 提供됩니다.
+패키지·네이티브 Node-API 애드온·Python 패키지 形態로 提供됩니다.
 
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
 [crates.io]: https://crates.io/crates/gukhanmun
@@ -29,6 +30,8 @@ Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變
 [JSR]: https://jsr.io/@gukhanmun
 [npm badge]: https://img.shields.io/npm/v/@gukhanmun/types?logo=npm
 [npm]: https://www.npmjs.com/package/@gukhanmun/types
+[PyPI badge]: https://img.shields.io/pypi/v/gukhanmun?logo=pypi
+[PyPI]: https://pypi.org/project/gukhanmun/
 [GitHub Actions badge]: https://github.com/dahlia/gukhanmun/actions/workflows/main.yaml/badge.svg
 [GitHub Actions]: https://github.com/dahlia/gukhanmun/actions/workflows/main.yaml
 [GPL badge]: https://img.shields.io/github/license/dahlia/gukhanmun
@@ -49,14 +52,16 @@ Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變
     行事場 + 所가 아니라 行事 + 場所로 正確하게 分離됩니다.
  -  結合 可能한 辭典: 메모리 內 맵·mmap 親和的 FST 파일·CDB 파일을 쓸 수
     있으며, `ChainDictionary`로 合成할 수 있습니다.
- -  《標準國語大辭典》과 《우리말샘》이 컴파일된 FST·CDB 形態로 內藏되어 있어
-    別途의 다운로드가 必要 없습니다.
+ -  《標準國語大辭典》과 《우리말샘》을 컴파일된 FST·CDB 데이터로 提供합니다.
+    Rust는 이를 內藏하며, JavaScript와 Python은 別途의 選擇的 데이터 패키지로
+    提供합니다.
  -  平文 텍스트·HTML 조각(fragment)·Markdown 形式 어댑터를 提供합니다. 엔진은
     形式 中立的이며, 解析과 直列化는 어댑터가 擔當합니다.
- -  다섯 가지 렌더링 모드: 한글 專用·한글(漢字) 括弧·漢字(한글) 括弧·루비(ruby)
-    마크업·選擇的 倂記를 곁들인 國漢文 原文.
- -  스트리밍 優先 設計: 엔진은 單一 漢字 變換 候補 範圍 內에서만 버퍼링하며,
-    文書 全體를 메모리에 올리지 않습니다.
+ -  여섯 가지 렌더링 모드: 한글 專用·한글(漢字) 括弧·漢字(한글) 括弧·한글 위
+    루비(ruby)·漢字 위 루비·選擇的 倂記를 곁들인 國漢文 原文.
+ -  엔진은 漸進的 變換을 支援합니다. 文脈에 依存하는 註解(annotation)는 더 많은
+    入力을 모을 수 있으며, Python 청크 API는 最終化할 때까지 文書 全體를
+    버퍼링합니다.
  -  韓國 正書法을 爲한 頭音法則을 폴백 讀音에 適用합니다. 辭典 項目은 이미
     正確한 讀音을 들고 있다고 假定합니다.
  -  核心 크레이트(`gukhanmun-core`)는 `no_std` + `alloc`으로, 임베디드
@@ -64,6 +69,9 @@ Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變
  -  JavaScript·TypeScript 바인딩을 두 가지 形態로 提供합니다: 브라우저·
     Deno·Node.js·Bun·에지 런타임에서 動作하는 WebAssembly 패키지와 서버
     사이드 高性能用 네이티브 Node-API 애드온.
+ -  Python 바인딩은 타입이 指定된 不變 設定과 再使用 可能한 變換器를
+    提供합니다. 네이티브 變換은 GIL(global interpreter lock)을 解除하며,
+    設定된 變換器를 여러 스레드에서 共有할 수 있습니다.
 
 
 設置
@@ -152,6 +160,30 @@ bun  add     @gukhanmun/napi     @gukhanmun/stdict-fst
 deno add npm:@gukhanmun/napi jsr:@gukhanmun/stdict-fst
 ~~~~
 
+### Python 라이브러리
+
+Python 3.11 以上이 必要합니다. 假想 環境에서는 pip를 使用하거나, uv가
+管理하는 프로젝트에 패키지를 追加합니다.
+
+~~~~ sh
+python -m pip install gukhanmun
+# 또는 uv 프로젝트에서:
+uv add gukhanmun
+~~~~
+
+基本 패키지는 實行에 必須的인 第三者 Python 依存性이 없고 公式 辭典 데이터를
+包含하지 않습니다. 選擇的 《標準國語大辭典》은
+`python -m pip install 'gukhanmun[stdict]'` 또는
+`uv add 'gukhanmun[stdict]'`로 設置한 뒤, `gukhanmun.dictionaries`의
+`stdict()`를 變換器에 明示的으로 追加합니다. 엑스트라(extra)를 設置하는
+것만으로는 自動 活性化되지 않습니다.
+
+支援 휠(wheel), 原始 코드 빌드와 事前 릴리스(pre-release) 設置는
+[Python 設置 案內]를, 變換 例題는 [Python 빠른 始作]을 參照하십시오.
+
+[Python 設置 案內]: https://gukhanmun.org/ko-Kore/guide/python/install
+[Python 빠른 始作]: https://gukhanmun.org/ko-Kore/guide/python/start
+
 
 使用 例
 -------
@@ -177,8 +209,21 @@ let output = convert_plain_text("漢字", &dict, RenderMode::HangulOnly);
 assert_eq!(output, "한자");
 ~~~~
 
-HTML·Markdown 어댑터·렌더링 모드·프리셋·JavaScript API를 包含한 全體 案內는
-<https://gukhanmun.org/> 文書 사이트를 參照하십시오.
+다음 Python 例題는 讀音을 直接 指定하므로 選擇的 데이터가 必要 없습니다.
+
+~~~~ python
+from gukhanmun import Converter, DictionaryEntry, InputFormat, MapDictionarySource
+
+converter = Converter(dictionaries=[
+    MapDictionarySource(entries=[DictionaryEntry(hanja="漢字", reading="한자")]),
+])
+
+assert converter.convert("漢字를 한글로") == "한자를 한글로"
+assert converter.convert("<p>漢字</p>", format=InputFormat.HTML) == "<p>한자</p>"
+~~~~
+
+HTML·Markdown 어댑터·렌더링 모드·프리셋·JavaScript 및 Python API를 包含한
+全體 案內는 <https://gukhanmun.org/> 文書 사이트를 參照하십시오.
 
 
 크레이트 構成
@@ -248,6 +293,37 @@ npm/JSR 패키지 構成
 [npm:@gukhanmun/loanwords-fst]: https://www.npmjs.com/package/@gukhanmun/loanwords-fst
 [jsr:@gukhanmun/loanwords-cdb]: https://jsr.io/@gukhanmun/loanwords-cdb
 [npm:@gukhanmun/loanwords-cdb]: https://www.npmjs.com/package/@gukhanmun/loanwords-cdb
+
+
+PyPI 패키지 構成
+----------------
+
+일곱 Python 配布版은 워크스페이스에서 導出한 한 버전을 PEP 440 表記로
+共有합니다.
+여섯 選擇的 데이터 配布版은 플랫폼 中立 휠을 提供하며 네이티브 패키지에
+依存하지 않습니다.
+
+| 配布版                      | 說明                                                                  |
+| --------------------------- | --------------------------------------------------------------------- |
+| [`gukhanmun`][PyPI]         | 네이티브 變換器, 타입이 指定된 Python API와 選擇的 辭典 로더(loader). |
+| [`gukhanmun-stdict-fst`]    | FST 形式의 《標準國語大辭典》 데이터.                                 |
+| [`gukhanmun-stdict-cdb`]    | CDB 形式의 《標準國語大辭典》 데이터.                                 |
+| [`gukhanmun-opendict-fst`]  | FST 形式의 《우리말샘》 네 分類.                                      |
+| [`gukhanmun-opendict-cdb`]  | CDB 形式의 《우리말샘》 네 分類.                                      |
+| [`gukhanmun-loanwords-fst`] | FST 形式의 國立國語院 《外來語 表記 用例》.                           |
+| [`gukhanmun-loanwords-cdb`] | CDB 形式의 國立國語院 《外來語 表記 用例》.                           |
+
+辭典 데이터에는 라이브러리의 GPL 라이선스와 別途인 데이터 라이선스 및 出處
+表示 要件을 維持합니다. 〈[公式 辭典]〉과 各 데이터 配布版의 *LICENSE* 및
+*ATTRIBUTION.md*를 參照하십시오.
+
+[`gukhanmun-stdict-fst`]: https://pypi.org/project/gukhanmun-stdict-fst/
+[`gukhanmun-stdict-cdb`]: https://pypi.org/project/gukhanmun-stdict-cdb/
+[`gukhanmun-opendict-fst`]: https://pypi.org/project/gukhanmun-opendict-fst/
+[`gukhanmun-opendict-cdb`]: https://pypi.org/project/gukhanmun-opendict-cdb/
+[`gukhanmun-loanwords-fst`]: https://pypi.org/project/gukhanmun-loanwords-fst/
+[`gukhanmun-loanwords-cdb`]: https://pypi.org/project/gukhanmun-loanwords-cdb/
+[公式 辭典]: https://gukhanmun.org/ko-Kore/guide/python/dictionaries
 
 
 設計 文書
