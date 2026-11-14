@@ -60,14 +60,21 @@ and Rust toolchain support it. The interpreter exclusions above still apply.
 To build the published source distribution explicitly, use:
 
 ~~~~ sh
-python -m pip install --no-binary gukhanmun gukhanmun
+python -m pip install --force-reinstall --no-cache-dir --no-binary gukhanmun gukhanmun
 ~~~~
 
-For uv's environment interface, use
-`uv pip install --no-binary gukhanmun gukhanmun`. To build an archive from a
-checkout instead, run `mise run py-sdist` and install the resulting
-*target/python/sdist/gukhanmun-0.4.0.tar.gz*, replacing the version with the
-one you built.
+For uv's environment interface, use:
+
+~~~~ sh
+uv pip install --reinstall-package gukhanmun --no-cache --no-binary gukhanmun gukhanmun
+~~~~
+
+The reinstall flags replace an existing core installation. The cache flags
+prevent reuse of cached wheels; see the [pip] and [uv] caching documentation.
+
+To build an archive from a checkout instead, run `mise run py-sdist` and
+install the resulting *target/python/sdist/gukhanmun-0.4.0.tar.gz*, replacing
+the version with the one you built.
 
 The build needs:
 
@@ -83,4 +90,6 @@ any dictionary source data. The dictionary data distributions are pure Python
 packages with platform-independent wheels, and their sdists already contain
 the data.
 
+[pip]: https://pip.pypa.io/en/stable/topics/caching/#disabling-caching
+[uv]: https://docs.astral.sh/uv/concepts/cache/#cache-directory
 [rustup]: https://rustup.rs/

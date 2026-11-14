@@ -59,11 +59,18 @@ musl과 Windows ARM64用 PyPy는 없으므로, 이 플랫폼에는 PyPy 휠도 �
 配布된 原始 코드 配布版을 明示的으로 빌드하려면 다음을 使用합니다.
 
 ~~~~ sh
-python -m pip install --no-binary gukhanmun gukhanmun
+python -m pip install --force-reinstall --no-cache-dir --no-binary gukhanmun gukhanmun
 ~~~~
 
-uv의 環境 인터페이스(interface)에서는
-`uv pip install --no-binary gukhanmun gukhanmun`을 使用합니다.
+uv의 環境 인터페이스(interface)에서는 다음 命令을 使用합니다.
+
+~~~~ sh
+uv pip install --reinstall-package gukhanmun --no-cache --no-binary gukhanmun gukhanmun
+~~~~
+
+再設置 플래그는 旣存 코어 設置를 代替합니다. 캐시(cache) 플래그는 캐시된
+휠의 再使用을 막습니다. [pip]과 [uv]의 캐시 文書를 參照하십시오.
+
 체크아웃에서 아카이브를 빌드하려면 `mise run py-sdist`를 實行한 뒤
 *target/python/sdist/gukhanmun-0.4.0.tar.gz*를 設置합니다. 버전은 實際 빌드한
 값으로 바꿉니다.
@@ -82,4 +89,6 @@ uv의 環境 인터페이스(interface)에서는
 提供하는 純粹 Python 패키지이며, 그 原始 코드 配布版에도 데이터가 이미 들어
 있습니다.
 
+[pip]: https://pip.pypa.io/en/stable/topics/caching/#disabling-caching
+[uv]: https://docs.astral.sh/uv/concepts/cache/#cache-directory
 [rustup]: https://rustup.rs/
