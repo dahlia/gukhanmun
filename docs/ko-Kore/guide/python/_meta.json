@@ -1,6 +1,12 @@
 [
   "install",
   "start",
-  "platforms",
-  "dictionaries"
+  "dictionaries",
+  "conversion",
+  "rendering",
+  "directives",
+  "markdown",
+  "html",
+  "streaming",
+  "platforms"
 ]

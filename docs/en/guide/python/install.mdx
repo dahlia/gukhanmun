@@ -90,7 +90,7 @@ core package's exact version.
 Installing an extra does not load its data. Presets never load official
 dictionaries. Pass the source returned by a dictionary helper to
 `Converter(dictionaries=...)`. See
-[*Official dictionaries*](./dictionaries.md) for the available categories,
+[*Dictionaries*](./dictionaries.md) for the available categories,
 formats and licenses, then follow the [quick start](./start.md).
 
 
@@ -186,8 +186,9 @@ python -m pip install /path/to/gukhanmun-0.4.0-cp311-abi3-linux_x86_64.whl
 The filename above is an example for Linux x86\_64; use the wheel you built.
 In a uv environment, use `uv pip install` with the same path.
 To build the optional data packages too, run `mise run py-dicts-build` and use
-`--no-index` with `--find-links` for *target/python/wheels/* and each needed
-*target/python/dictionaries/gukhanmun-*/ directory. This keeps a local core
+`--no-index` with `--find-links` for *target/python/wheels/* and each data
+distribution directory you need, such as
+*target/python/dictionaries/gukhanmun-stdict-fst/*. This keeps a local core
 build and its exactly pinned data packages together.
 
 Contributor checks are `mise run py-test` and `mise run py-typecheck`. They

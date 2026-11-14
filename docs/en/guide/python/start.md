@@ -44,132 +44,33 @@ entries or compiled FST/CDB data when word readings are needed, or install and
 add the [official dictionaries](./dictionaries.md).
 
 
-Load a compiled dictionary
---------------------------
+Reuse a converter
+-----------------
 
-~~~~ python
-from pathlib import Path
-from gukhanmun import Converter, DictionaryFormat, FileDictionarySource
-
-converter = Converter(dictionaries=[
-    FileDictionarySource(Path("custom.gukfst"), format=DictionaryFormat.FST),
-])
-~~~~
-
-`FileDictionarySource()` also accepts `bytes`, `bytearray` and `memoryview`.
-Mutable buffers are copied. Paths are read during converter construction;
-conversion calls do no dictionary I/O. A string is always a filesystem path,
-even when it resembles a URL.
-
-For a remote dictionary, use an explicit `UrlDictionarySource()`:
-
-~~~~ python
-from gukhanmun import UrlDictionarySource
-
-source = UrlDictionarySource(
-    "https://example.com/custom.gukfst",
-    format=DictionaryFormat.FST,
-    timeout=30.0,
-    max_bytes=64 * 1024 * 1024,
-    total_timeout=30.0,
-)
-# Converter(dictionaries=[source]) fetches this example resource.
-~~~~
-
-Only HTTP(S) URLs are accepted. Redirects must keep the initial URL's scheme,
-hostname and effective port; a different origin raises
-`INVALID_INPUT` before the target is requested. Configure the final dictionary
-URL directly when it is hosted on another origin. `timeout` is a positive,
-finite socket-operation timeout in seconds. `max_bytes` limits the dictionary
-body, and `total_timeout` limits HTTP response reading across redirects,
-including headers and chunk framing. Cancellation during synchronous DNS lookup
-or connection setup can be delayed beyond `total_timeout`. Exceeding either
-bound raises `DICTIONARY_LOAD` with an `IO` cause. The loader does not use
-proxy environment variables.
-
-Map sources default to `SourceRole.OVERRIDE`. Binary sources use an explicit
-role when supplied, otherwise their embedded evidence role, otherwise
-`OVERRIDE`. Source filenames never determine roles. See the
-[API reference](../../api/python.md) for source cooperation policies.
+Dictionary resources are loaded during construction, so configure one
+converter and reuse it across documents. Its settings are immutable: inspect
+the resolved configuration through `converter.options`, and create a new
+converter to change it. A converter can be shared across threads, as shown in
+[*Parallel documents*](./streaming.md#parallel-documents).
 
 
-Change rendering and punctuation
---------------------------------
+Choose the next task
+--------------------
 
-~~~~ python
-from gukhanmun import (
-    Converter, CustomPunctuationProfile, PunctuationPreset, RenderMode,
-)
-
-converter = Converter(
-    rendering=RenderMode.HANGUL_HANJA_PARENS,
-    punctuation=CustomPunctuationProfile(
-        base=PunctuationPreset.MODERN,
-        period=None,
-    ),
-)
-~~~~
-
-An omitted custom punctuation field has the value `UNSET`, which inherits the
-base profile. `None` preserves that punctuation role unchanged. A `StopStyle`
-or `DelimiterStyle` supplies an explicit output style. In this example, commas
-inherit the modern style while periods retain their input form.
-
-`converter.options` is a frozen `ResolvedOptions` value. Its punctuation
-profile and nested styles are also frozen. A different configuration needs a
-new converter.
+| Task                                             | Guide                                 |
+| ------------------------------------------------ | ------------------------------------- |
+| Add official, in-memory or compiled dictionaries | [Dictionaries](./dictionaries.md)     |
+| Set presets, numbers and annotation windows      | [Conversion options](./conversion.md) |
+| Compare parentheses, ruby and original text      | [Rendering modes](./rendering.md)     |
+| Force or suppress annotations for a term         | [Directives](./directives.md)         |
+| Preserve HTML subtrees or handle malformed input | [HTML processing](./html.md)          |
+| Convert Markdown and GFM                         | [Markdown conversion](./markdown.md)  |
+| Feed chunks or convert documents in parallel     | [Streaming API](./streaming.md)       |
 
 
-Convert chunks
---------------
+Handle errors
+-------------
 
-~~~~ python
-converter = Converter()
-stream = converter.stream()
-assert stream.push("漢") == ""
-assert stream.push("字") == ""
-assert stream.finish() == converter.convert("漢字")
-
-assert "".join(converter.convert_iter(["漢", "字"])) == converter.convert("漢字")
-~~~~
-
-The current stream implementation buffers all chunks and returns output only
-from `finish()`.
-Chunk boundaries do not change the result. A stream retains its converter and
-has one consumer. After successful finalization or any push/finalization
-failure, further calls raise `RuntimeError`. `convert_iter()` propagates
-upstream iterator errors and finalizes only after normal exhaustion.
-
-
-Handle errors and share a converter
------------------------------------
-
-~~~~ python
-from gukhanmun import (
-    Converter, DictionaryFormat, ErrorCode, FileDictionarySource, GukhanmunError,
-)
-
-try:
-    Converter(dictionaries=[
-        FileDictionarySource(b"invalid binary", format=DictionaryFormat.FST),
-    ])
-except GukhanmunError as error:
-    assert error.code is ErrorCode.DICTIONARY_LOAD
-    print(error.message)
-    for cause in error.chain:
-        print(cause.code, cause.message)
-~~~~
-
-`error.chain` is an immutable tuple, ordered deepest/root cause first. Wrong
-argument types raise `TypeError`; invalid option values raise a coded
-`GukhanmunError`. Lone Unicode surrogates in source text raise
-`UnicodeEncodeError`. Invalid Unicode in constructor text options, such as
-entries, directives, HTML rules, punctuation and URLs, raises `GukhanmunError`
-with `ErrorCode.INVALID_INPUT`. A file path the operating system cannot encode
-raises `GukhanmunError` with `ErrorCode.DICTIONARY_LOAD`.
-
-The same converter can serve concurrent threads. Native conversion releases
-the GIL and keeps each document's parser and annotation state independent.
-Python signals are checked after native work completes; a long conversion
-may delay `KeyboardInterrupt` until then. Streams themselves are mutable and
-must each have a single consumer.
+The [API reference](../../api/python.md#errors) explains `GukhanmunError`, its
+`ErrorCode`, and the root-first `chain` of causes. Wrong argument types raise
+`TypeError`; lone Unicode surrogates in input raise `UnicodeEncodeError`.

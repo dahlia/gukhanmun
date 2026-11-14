@@ -42,6 +42,19 @@ const converter = await load({ punctuation: "traditional" });
 converter.convert("첫째, 둘째."); // "첫째、둘째。"
 ~~~~
 
+Python에서는 `PunctuationPreset` 列擧型(enum)의 멤버를 `punctuation` 옵션에
+傳達합니다.
+
+~~~~ python
+from gukhanmun import Converter, PunctuationPreset
+
+converter = Converter(punctuation=PunctuationPreset.MODERN)
+assert converter.convert("첫째、둘째。") == "첫째, 둘째."
+~~~~
+
+Python의 使用者 指定 프로파일은
+〈[變換 옵션](./python/conversion.md#文章-符號와-復舊)〉을 參照하십시오.
+
 CLI에서는 `--punctuation modern`을 使用합니다. 커스텀 JSON 設定은
 `--punctuation-profile profile.json`으로 읽습니다. 두 플래그는 함께 쓸 수
 없습니다.

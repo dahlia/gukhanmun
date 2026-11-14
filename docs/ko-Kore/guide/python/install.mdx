@@ -88,7 +88,7 @@ poetry add 'gukhanmun[stdict,loanwords]'
 엑스트라를 設置해도 데이터는 自動으로 活性化되지 않습니다.
 프리셋(preset)은 公式 辭典을 불러오지 않습니다. 도우미 函數가 返還하는 辭典
 出處를 `Converter(dictionaries=...)`에 追加해야 합니다.
-分類·形式·라이선스는 〈[公式 辭典](./dictionaries.md)〉을, 最初의 變換 例題는
+分類·形式·라이선스는 〈[辭典](./dictionaries.md)〉을, 最初의 變換 例題는
 〈[빠른 始作](./start.md)〉을 參照하십시오.
 
 
@@ -186,9 +186,10 @@ python -m pip install /path/to/gukhanmun-0.4.0-cp311-abi3-linux_x86_64.whl
 위 파일名은 Linux x86\_64用 例示이므로 自身이 빌드한 휠을 使用합니다.
 uv 環境에는 `uv pip install /path/to/package.whl`로 設置할 수 있습니다.
 選擇的 데이터 패키지도 빌드하려면 `mise run py-dicts-build`를 實行한 뒤,
-`--no-index`와 함께 *target/python/wheels/* 및 必要한 各
-*target/python/dictionaries/gukhanmun-*/ 디렉터리를 `--find-links`로 指定합니다.
-이렇게 하면 로컬 코어 빌드와 正確한 버전으로 固定된 데이터를 함께 使用합니다.
+`--no-index`와 함께 *target/python/wheels/* 및 必要한 各 데이터 配布版 디렉터리,
+例를 들어 *target/python/dictionaries/gukhanmun-stdict-fst/* 디렉터리를
+`--find-links`로 指定합니다. 이렇게 하면 로컬 코어 빌드와 正確한 버전으로
+固定된 데이터를 함께 使用합니다.
 
 寄與者用 檢査는 `mise run py-test`와 `mise run py-typecheck`입니다. 貯藏所
 밖에 設置한 휠을 檢査하며, 後者는 mypy, Pyright, basedpyright, ty,
