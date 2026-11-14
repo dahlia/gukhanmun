@@ -63,7 +63,7 @@ Start here: [*Installation*](./javascript/install).
 ### Python
 
 The Python package provides a reusable `Converter(...)` with typed keyword
-options and explicit dictionary sources. Build a local wheel, then convert
+options and explicit dictionary sources. Install from PyPI, then convert
 plain text, HTML or Markdown in the same process.
 
-Start here: [*Python quick start*](./python/start.md).
+Start here: [*Installation*](./python/install.mdx).

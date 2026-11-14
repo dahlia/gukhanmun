@@ -7,8 +7,9 @@ Python API
 ==========
 
 Import public types from `gukhanmun`. The extension module `gukhanmun._native`
-is private. Start with the [Python guide](../guide/python/start.md) for local
-wheel installation and a complete conversion example.
+is private. See [*Installation*](../guide/python/install.mdx) for PyPI
+installation and the [quick start](../guide/python/start.md) for a complete
+conversion example.
 
 
 Converter

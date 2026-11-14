@@ -1,0 +1,197 @@
+---
+title: Installation
+description: Install Gukhanmun from PyPI with pip, uv or Poetry, add optional dictionary data, or choose a prerelease or local build.
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+Installation
+============
+
+Gukhanmun requires Python 3.11 or later. Install the `gukhanmun` package from
+[PyPI] with the tool you use for your project:
+
+<Tabs groupId="python-package-manager">
+<Tab label="pip">
+
+~~~~ sh
+python -m pip install gukhanmun
+~~~~
+
+</Tab>
+<Tab label="uv">
+
+~~~~ sh
+uv add gukhanmun
+~~~~
+
+</Tab>
+<Tab label="Poetry">
+
+~~~~ sh
+poetry add gukhanmun
+~~~~
+
+</Tab>
+</Tabs>
+
+Use pip in your project's virtual environment. The uv and Poetry commands add
+a dependency to an existing project and update its lockfile; the project's
+Python requirement must be compatible with Gukhanmun's minimum version.
+Run Python examples with `uv run python` or `poetry run python` in those
+projects.
+
+If you use uv to manage an environment without project metadata, create it
+with `uv venv` and install with `uv pip install gukhanmun` instead. In a Conda
+environment, use that environment's `python -m pip`; these instructions install
+the PyPI distribution.
+
+If a wheel matches your platform, no Rust toolchain is needed. See
+[*Supported platforms*](./platforms.md) for the CPython and PyPy wheel matrix
+and source-build requirements.
+
+[PyPI]: https://pypi.org/project/gukhanmun/
+
+
+Official dictionaries
+---------------------
+
+The base package has no required third-party Python runtime dependencies and
+includes no official dictionary data. Install the data you need through extras:
+
+<Tabs groupId="python-package-manager">
+<Tab label="pip">
+
+~~~~ sh
+python -m pip install 'gukhanmun[stdict,loanwords]'
+~~~~
+
+</Tab>
+<Tab label="uv">
+
+~~~~ sh
+uv add 'gukhanmun[stdict,loanwords]'
+~~~~
+
+</Tab>
+<Tab label="Poetry">
+
+~~~~ sh
+poetry add 'gukhanmun[stdict,loanwords]'
+~~~~
+
+</Tab>
+</Tabs>
+
+`stdict`, `opendict` and `loanwords` select FST data. Each also has `-fst` and
+`-cdb` extras, such as `stdict-cdb`. All data dependencies are pinned to the
+core package's exact version.
+
+Installing an extra does not load its data. Presets never load official
+dictionaries. Pass the source returned by a dictionary helper to
+`Converter(dictionaries=...)`. See
+[*Official dictionaries*](./dictionaries.md) for the available categories,
+formats and licenses, then follow the [quick start](./start.md).
+
+
+Prerelease builds
+-----------------
+
+Ordinary installation uses a compatible stable release. To opt into
+prereleases, including development builds such as `0.4.0.dev123`, use:
+
+<Tabs groupId="python-package-manager">
+<Tab label="pip">
+
+~~~~ sh
+python -m pip install --upgrade --pre gukhanmun
+~~~~
+
+</Tab>
+<Tab label="uv">
+
+~~~~ sh
+uv add --upgrade-package gukhanmun --prerelease allow gukhanmun
+~~~~
+
+</Tab>
+<Tab label="Poetry">
+
+~~~~ sh
+poetry add --allow-prereleases gukhanmun@latest
+~~~~
+
+</Tab>
+</Tabs>
+
+uv's `--prerelease allow` also permits prereleases of other dependencies.
+Use an exact pin to select a particular Gukhanmun build:
+
+<Tabs groupId="python-package-manager">
+<Tab label="pip">
+
+~~~~ sh
+python -m pip install 'gukhanmun==0.4.0.dev123'
+~~~~
+
+</Tab>
+<Tab label="uv">
+
+~~~~ sh
+uv add 'gukhanmun==0.4.0.dev123'
+~~~~
+
+</Tab>
+<Tab label="Poetry">
+
+~~~~ sh
+poetry add 'gukhanmun==0.4.0.dev123'
+~~~~
+
+</Tab>
+</Tabs>
+
+Replace `0.4.0.dev123` with a published version. Add extras inside the same
+requirement, for example `gukhanmun[stdict]==0.4.0.dev123`.
+
+For pip, `--pre` is not an absolute requirement: pip 26.0 or later can select
+a development release when no stable candidate satisfies the requirement.
+Without `--upgrade`, pip keeps an installed version that already satisfies the
+request. Read `gukhanmun.__version__` to check the installed version. The tools'
+[installation][pip], [prerelease][uv] and [dependency][Poetry] references
+explain their selection rules.
+
+[pip]: https://pip.pypa.io/en/stable/cli/pip_install/
+[uv]: https://docs.astral.sh/uv/concepts/resolution/#pre-release-handling
+[Poetry]: https://python-poetry.org/docs/dependency-specification/#prereleases
+
+
+Build and install a local wheel
+-------------------------------
+
+For development on Gukhanmun itself, build a wheel from a repository checkout:
+
+~~~~ sh
+mise install
+mise run py-build
+~~~~
+
+The wheel is written under *target/python/wheels/*. Install the wheel into your
+project's environment by path:
+
+~~~~ sh
+python -m pip install /path/to/gukhanmun-0.4.0-cp311-abi3-linux_x86_64.whl
+~~~~
+
+The filename above is an example for Linux x86\_64; use the wheel you built.
+In a uv environment, use `uv pip install` with the same path.
+To build the optional data packages too, run `mise run py-dicts-build` and use
+`--no-index` with `--find-links` for *target/python/wheels/* and each needed
+*target/python/dictionaries/gukhanmun-*/ directory. This keeps a local core
+build and its exactly pinned data packages together.
+
+Contributor checks are `mise run py-test` and `mise run py-typecheck`. They
+check an installed wheel outside the checkout; the latter runs mypy, Pyright,
+basedpyright, ty and Pyrefly. Building the published source archive instead
+is described in
+[*Supported platforms*](./platforms.md#building-from-the-source-distribution).

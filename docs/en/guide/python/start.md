@@ -1,77 +1,14 @@
 ---
 title: Python quick start
-description: Build the Gukhanmun Python package locally and convert text, HTML and Markdown with typed options and explicit dictionaries.
+description: Convert text, HTML and Markdown in Python with a reusable Gukhanmun converter, explicit dictionaries and typed options.
 ---
 
 Python quick start
 ==================
 
-`Converter(...)` creates a reusable Python converter backed by Rust. Configure
-it once, then pass each document to `convert()`. The Python package requires
-Python 3.11 or later and has no required third-party Python runtime
-dependencies.
-
-
-Build and install a local wheel
--------------------------------
-
-From the repository root, install the configured development tools and build
-the package:
-
-~~~~ sh
-mise install
-mise run py-build
-~~~~
-
-The wheel is written under *target/python/wheels/*. Install that wheel into
-your project's Python environment, replacing the example path with its actual
-filename:
-
-~~~~ sh
-python -m pip install /path/to/gukhanmun.whl
-~~~~
-
-The command above installs a locally built artifact. These instructions do not
-require a published PyPI release. See [*Supported platforms*](./platforms.md)
-for the platforms that the release wheels cover and for building from the
-source distribution. To check the package from the checkout, run:
-
-~~~~ sh
-mise run py-test
-mise run py-typecheck
-~~~~
-
-The tasks test an installed wheel outside the checkout. `py-typecheck` runs
-mypy, Pyright, basedpyright, ty and Pyrefly against the same consumer examples.
-
-
-Choose a PyPI version
----------------------
-
-Once distributions are available on PyPI, install the package with
-`python -m pip install gukhanmun`. Until then, use the local wheel above.
-A fresh install prefers a compatible stable release. Development releases
-use versions such as `0.4.0.dev123`; request them explicitly:
-
-~~~~ sh
-python -m pip install --upgrade --pre gukhanmun
-~~~~
-
-Pin a published development version with a requirement such as
-`gukhanmun==0.4.0.dev123`, replacing the example with an available version.
-The [official dictionary extras](./dictionaries.md) pin their data to the same
-version as the core package.
-
-`--pre` is not an absolute requirement for installing development versions:
-pip can select them when no stable candidate satisfies the requirement,
-including before the first stable release exists. Without `--upgrade`, pip
-keeps an already-installed version that satisfies the request, even if the
-index has a newer stable release. Use pip 26.0 or later for the
-development-only fallback described here.
-
-Read `gukhanmun.__version__` to see the installed distribution's version. The
-[platform guide](./platforms.md#building-from-the-source-distribution) explains
-installation from a source distribution when a wheel is unavailable.
+[Install Gukhanmun](./install.mdx) before running these examples.
+`Converter(...)` creates a reusable converter backed by Rust. Configure it
+once, then pass each document to `convert()`.
 
 
 Convert a document
@@ -97,11 +34,11 @@ from gukhanmun import MarkdownOptions
 result = converter.convert("# 漢字", format=MarkdownOptions(gfm=True))
 ~~~~
 
-Pass enum members to options. Convert a string from a configuration file
-explicitly, for example `Preset("ko-kr")`. Passing `preset="ko-kr"` directly
-to `Converter()` raises `TypeError`.
+Options take enum members, not strings. If a value arrives as a string,
+convert it first, for example `Preset("ko-kr")`. Passing `preset="ko-kr"`
+directly to `Converter()` raises `TypeError`.
 
-Neither preset loads official dictionaries automatically. With no explicit
+Presets do not load official dictionaries. With no explicit
 sources, conversion uses the built-in character fallback. Supply runtime
 entries or compiled FST/CDB data when word readings are needed, or install and
 add the [official dictionaries](./dictionaries.md).

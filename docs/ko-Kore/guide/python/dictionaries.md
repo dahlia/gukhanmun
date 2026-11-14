@@ -38,29 +38,9 @@ assert converter.convert("無條件降服") == "무조건항복"
 데이터 配布版은 依存性이 없는 플랫폼 獨立的 휠(wheel)입니다. `gukhanmun`을
 가져오지 않으므로, `gukhanmun`만 設置하면 公式 데이터는 包含되지 않습니다.
 
-이 패키지들은 아직 PyPI에 配布되지 않았습니다. 配布되기 前까지는 貯藏所를
-체크아웃하여 빌드하고, 로컬 產出物에서 設置합니다.
-
-~~~~ sh
-mise run py-build
-mise run py-dicts-build
-pip install --no-index \
-            --find-links target/python/wheels \
-            --find-links target/python/dictionaries/gukhanmun-stdict-fst \
-            'gukhanmun[stdict]==0.4.0'
-~~~~
-
-`0.4.0`은 빌드한 버전으로 바꿉니다. *target/python/wheels/* 디렉터리에는 빌드한
-플랫폼用 `gukhanmun` 휠만 들어 있습니다. 設置할 데이터 配布版마다
-`--find-links`를 하나씩 追加합니다. `--no-index`는 빼지 마십시오. 아직 PyPI에는
-Gukhanmun 配布版이 登錄되어 있지 않으므로, 그곳에 같은 이름으로 올라온 패키지가
-로컬 빌드 代身 設置될 수 있습니다.
-
-PyPI에 配布된 뒤에는 그곳에서 엑스트라를 設置합니다.
-
-~~~~ sh
-pip install 'gukhanmun[stdict,loanwords]'
-~~~~
+〈[設置](./install.mdx#公式-辭典)〉에 따라 PyPI의 엑스트라를 設置합니다.
+例를 들어 `gukhanmun[stdict,loanwords]`를 使用할 수 있습니다. 設置 文書에는
+pip·uv·Poetry 命令과 프리릴리스(pre-release)·로컬 빌드 使用法이 있습니다.
 
 
 變換器에 辭典 追加
@@ -186,16 +166,8 @@ except GukhanmunError as error:
 해시와 다르면, 誤謬 메시지가 `pip install --force-reinstall`로 再設置할 것을
 案內하며, 根本 原因이 있으면 `error.chain`에 남습니다.
 
-案內되는 命令은 PyPI에서 設置합니다. 패키지가 PyPI에 配布되기 前까지는
-〈[데이터 設置](#데이터-設置)〉와 같은 `--no-index`와 `--find-links` 옵션을
-덧붙입니다.
-
-~~~~ sh
-pip install --force-reinstall --no-index \
-            --find-links target/python/wheels \
-            --find-links target/python/dictionaries/gukhanmun-stdict-fst \
-            'gukhanmun[stdict]==0.4.0'
-~~~~
+案內하는 命令은 PyPI를 使用합니다. 다른 패키지 管理者나 로컬 빌드는
+〈[設置](./install.mdx)〉를 參照하십시오.
 
 
 라이선스

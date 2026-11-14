@@ -40,30 +40,10 @@ The data distributions are platform-independent wheels without dependencies.
 They do not import `gukhanmun`, so `gukhanmun` installed alone stays free of
 official data.
 
-The packages are not on PyPI yet. Until they are, build them from a checkout of
-the repository and install from the local artifacts:
-
-~~~~ sh
-mise run py-build
-mise run py-dicts-build
-pip install --no-index \
-            --find-links target/python/wheels \
-            --find-links target/python/dictionaries/gukhanmun-stdict-fst \
-            'gukhanmun[stdict]==0.4.0'
-~~~~
-
-Replace `0.4.0` with the version you built. *target/python/wheels/* holds a
-`gukhanmun` wheel for the building platform only; add one `--find-links` for
-each data distribution you install. Keep `--no-index`: no Gukhanmun
-distribution is registered on PyPI yet, so a package published there under
-the same name could otherwise be installed instead of your local build.
-
-Once the packages are published on PyPI, install the extras from there
-instead:
-
-~~~~ sh
-pip install 'gukhanmun[stdict,loanwords]'
-~~~~
+Install the extras from PyPI as shown in
+[*Installation*](./install.mdx#official-dictionaries), for example
+`gukhanmun[stdict,loanwords]`. The installation guide has pip, uv and Poetry
+commands, plus separate instructions for prereleases and local builds.
 
 
 Add dictionaries to a converter
@@ -189,16 +169,8 @@ damaged, for example a file is missing or no longer matches the size and hash
 recorded in *provenance.json*, the error suggests reinstalling it with
 `pip install --force-reinstall`, and `error.chain` keeps any underlying cause.
 
-The suggested commands install from PyPI. Until the packages are published
-there, add the `--no-index` and `--find-links` options from
-[*Install the data*](#install-the-data), for example:
-
-~~~~ sh
-pip install --force-reinstall --no-index \
-            --find-links target/python/wheels \
-            --find-links target/python/dictionaries/gukhanmun-stdict-fst \
-            'gukhanmun[stdict]==0.4.0'
-~~~~
+The suggested commands use PyPI. For another package manager or a local build,
+follow [*Installation*](./install.mdx).
 
 
 Licenses

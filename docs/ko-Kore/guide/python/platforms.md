@@ -10,9 +10,8 @@ description: Gukhanmun Python 휠이 支援하는 플랫폼과 인터프리터, 
 配布版(sdist)으로 提供됩니다. 휠은 Rust 툴체인 없이 設置되며, 그 밖의
 플랫폼에서는 原始 코드 配布版으로 패키지를 빌드합니다.
 
-이 패키지들은 아직 PyPI에 配布되지 않았습니다. 配布되기 前까지는
-〈[Python 빠른 始作](./start.md#로컬-휠wheel-빌드와-設置)〉에서 說明한 대로
-로컬에서 휠을 빌드합니다.
+pip·uv·Poetry를 使用한 PyPI 設置는 〈[設置](./install.mdx)〉를
+參照하십시오.
 
 
 휠
@@ -55,17 +54,19 @@ musl과 Windows ARM64用 PyPy는 없으므로, 이 플랫폼에는 PyPy 휠도 �
 原始 코드 配布版에서 빌드
 -------------------------
 
-휠이 없는 플랫폼에서, 또는 明示的으로 要請하면 pip는 原始 코드 配布版으로
-패키지를 빌드합니다. 패키지가 配布되기 前까지는 체크아웃에서 原始 코드 配布版을
-빌드하여 그 아카이브를 設置합니다. `0.4.0`은 빌드한 버전으로 바꿉니다.
+휠이 없는 플랫폼에서도 인터프리터와 Rust 툴체인이 支援한다면 原始 코드로
+빌드할 수 있습니다. 위에서 除外한 인터프리터는 여전히 支援하지 않습니다.
+配布된 原始 코드 配布版을 明示的으로 빌드하려면 다음을 使用합니다.
 
 ~~~~ sh
-mise run py-sdist
-pip install target/python/sdist/gukhanmun-0.4.0.tar.gz
+python -m pip install --no-binary gukhanmun gukhanmun
 ~~~~
 
-패키지가 PyPI에 配布된 뒤에는 `pip install --no-binary gukhanmun gukhanmun`이
-配布된 原始 코드 配布版을 빌드합니다.
+uv의 環境 인터페이스(interface)에서는
+`uv pip install --no-binary gukhanmun gukhanmun`을 使用합니다.
+체크아웃에서 아카이브를 빌드하려면 `mise run py-sdist`를 實行한 뒤
+*target/python/sdist/gukhanmun-0.4.0.tar.gz*를 設置합니다. 버전은 實際 빌드한
+값으로 바꿉니다.
 
 빌드에는 다음이 必要합니다.
 

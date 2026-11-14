@@ -7,7 +7,7 @@ Python API
 ==========
 
 公開 타입은 `gukhanmun`에서 가져옵니다. 擴張 모듈 `gukhanmun._native`는
-非公開입니다. 로컬 휠(wheel) 設置와 基本 例題는
+非公開입니다. PyPI 設置는 〈[設置](../guide/python/install.mdx)〉를, 基本 例題는
 [Python 案內](../guide/python/start.md)를 參考하세요.
 
 

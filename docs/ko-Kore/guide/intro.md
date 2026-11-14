@@ -61,7 +61,7 @@ Markdown, HTML(`<ruby>` 마크업 包含) 等 여러 形式으로 生成합니�
 ### Python
 
 Python 패키지는 타입이 指定된 키워드 設定과 明示的 辭典 入力을 받는
-`Converter(...)`를 提供합니다. 로컬 휠(wheel)을 빌드하여 Python 프로세스
+`Converter(...)`를 提供합니다. PyPI에서 設置하여 Python 프로세스
 안에서 平文 텍스트, HTML, Markdown을 變換합니다.
 
-[Python 빠른 始作](./python/start.md)을 參考하세요.
+[設置](./python/install.mdx)를 參考하세요.
