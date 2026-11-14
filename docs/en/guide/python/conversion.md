@@ -142,12 +142,18 @@ assert converter.convert("甲") == "한"
 
 Each `convert()` call starts a new document and its own tracking state.
 
+For HTML and Markdown, the windows use these structural scopes:
+
 | Window                       | Scope                              |
 | ---------------------------- | ---------------------------------- |
 | `ContextWindow.OFF`          | No homophone tracking              |
 | `ContextWindow.PER_BLOCK`    | Paragraph, list and heading blocks |
 | `ContextWindow.PER_SECTION`  | Until the next heading             |
 | `ContextWindow.PER_DOCUMENT` | The entire input                   |
+
+With `InputFormat.TEXT`, both `PER_BLOCK` and `PER_SECTION` cover the entire
+document. Blank lines and heading-like text do not create boundaries. These
+format-dependent scopes also apply to `first_occurrence_window`.
 
 `homophone_detection` defaults to `HomophoneDetection.CONTEXT_LOCAL`, which
 requires a conflicting word to appear in the window. `DICTIONARY_WIDE` also

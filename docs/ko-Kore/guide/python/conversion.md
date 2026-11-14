@@ -138,12 +138,18 @@ assert converter.convert("甲") == "한"
 
 各 `convert()` 呼出은 새 文書와 그 文書만의 追跡 狀態로 始作합니다.
 
+HTML과 Markdown 入力의 窓은 다음 構造的 範圍를 使用합니다.
+
 | 窓                           | 範圍                       |
 | ---------------------------- | -------------------------- |
 | `ContextWindow.OFF`          | 同音異義語를 追跡하지 않음 |
 | `ContextWindow.PER_BLOCK`    | 段落·목록·標題 블록        |
 | `ContextWindow.PER_SECTION`  | 다음 標題까지              |
 | `ContextWindow.PER_DOCUMENT` | 入力 全體                  |
+
+`InputFormat.TEXT`에서는 `PER_BLOCK`과 `PER_SECTION`이 모두 文書 全體를
+範圍로 삼습니다. 빈 줄과 標題처럼 보이는 텍스트는 境界를 만들지 않습니다.
+이 入力 形式別 範圍는 `first_occurrence_window`에도 適用됩니다.
 
 `homophone_detection`의 基本값은 `HomophoneDetection.CONTEXT_LOCAL`이며,
 衝突하는 單語가 窓 안에 實際로 나타나야 합니다. `DICTIONARY_WIDE`는 불러온 辭典
