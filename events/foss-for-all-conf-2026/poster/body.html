@@ -1,0 +1,220 @@
+<main class="poster">
+
+<header class="masthead">
+  <img class="logo" src="logo-square.svg" alt="Gukhanmun">
+  <div class="masthead-title">
+    <h1 class="wordmark" lang="en">Gukhanmun</h1>
+    <p class="slogan">國漢文과 오늘의 讀者 사이</p>
+    <p class="slogan-en" lang="en">Bridging mixed-script Korean and today’s readers</p>
+  </div>
+  <div class="byline">
+    <p class="author">洪 民憙 <span lang="en">Hong Minhee</span></p>
+    <p class="grant" lang="en">FOSS for All Microgrants 2026</p>
+  </div>
+</header>
+
+<section class="hero">
+  <figure class="paper">
+    <div class="paper-frame">
+      <img src="kyunghyang-1981-05-07.png" alt="Kyunghyang Shinmun, May 7, 1981">
+      <span class="paper-mark" aria-hidden="true"></span>
+    </div>
+    <figcaption>《京鄕新聞》 1981年 5月 7日字 <span lang="en">Kyunghyang Shinmun, May 7, 1981. Naver News Library.</span></figcaption>
+  </figure>
+  <div class="what">
+    <h2>國漢文混用體란?</h2>
+    <p class="h2-en" lang="en">What is mixed-script Korean?</p>
+    <p class="ko">國漢文混用體는 漢字語를 漢字로, 固有語와 助詞·語尾를 한글로 섞어 쓰는 表記法입니다. 20世紀 내내 新聞과 書籍, 學術 論文에 널리 쓰였습니다. 그러나 只今의 讀者 大部分은 漢字를 넉넉히 배우지 못했기 때문에, 이 時期의 記錄은 韓國語 母語 話者에게도 읽기 어렵습니다.</p>
+    <p class="en" lang="en">Korean has its own alphabet, hangul. For most of the 20th century, though, newspapers, books, and scholarship wrote Sino-Korean words in hanja (Chinese characters), keeping hangul for native words and grammatical endings. This is mixed-script Korean, 國漢文混用體 (gukhanmun honyongche). Most Korean readers today learned few hanja at school, so decades of printed records are hard to read even for native speakers.</p>
+  </div>
+  <div class="convert">
+    <p class="convert-src keep"><span class="year" lang="en">1981</span>韓國銀行 通貨安定證券 一般公募 發行公告</p>
+    <p class="convert-out"><span class="year" lang="en">2026</span><span class="gen"><span class="w">한국은행</span> <span class="w">통화안정증권</span> <span class="w">일반공모</span> <span class="w">발행공고</span></span></p>
+  </div>
+</section>
+
+<section class="why">
+  <div class="sec-head">
+    <h2>單純한 對應表로는 안 되는 理由</h2>
+    <p class="h2-en" lang="en">Why not just a lookup table?</p>
+  </div>
+  <ul class="cards">
+    <li>
+      <h3>한 글字, 여러 讀音</h3>
+      <p class="h3-en" lang="en">One character, many sounds</p>
+      <dl class="pairs">
+        <dt class="keep">音樂</dt><dd class="gen">음악</dd>
+        <dt class="keep">快樂</dt><dd class="gen">쾌락</dd>
+        <dt class="keep">樂山樂水</dt><dd class="gen">요산요수</dd>
+      </dl>
+      <p class="note"><span class="keep">樂</span>은 單語에 따라 악·락·요로 읽힙니다.</p>
+      <p class="note-en" lang="en">樂 reads 악 (<i>ak</i>), 락 (<i>rak</i>), or 요 (<i>yo</i>) depending on the word.</p>
+    </li>
+    <li>
+      <h3>頭音法則</h3>
+      <p class="h3-en" lang="en">Initial sound law</p>
+      <dl class="pairs">
+        <dt class="keep">李舜臣</dt><dd class="gen">이순신</dd>
+        <dt class="keep">女子</dt><dd class="gen">여자</dd>
+      </dl>
+      <p class="note">韓國 正書法에서는 單語 첫머리의 ㄹ·ㄴ이 바뀝니다.</p>
+      <p class="note-en" lang="en">Word-initial ㄹ and ㄴ change in South Korean orthography.</p>
+    </li>
+    <li>
+      <h3>格子 分割</h3>
+      <p class="h3-en" lang="en">Lattice segmentation</p>
+      <dl class="pairs">
+        <dt class="keep">行事場所</dt><dd class="keep seg"><span>行事</span><span>場所</span></dd>
+        <dt class="keep"></dt><dd class="keep seg seg-wrong"><span>行事場</span><span>所</span></dd>
+      </dl>
+      <p class="note">가장 긴 一致를 먼저 고르지 않고, 辭典 一致의 格子에서 最適의 分割을 찾습니다.</p>
+      <p class="note-en" lang="en">Gukhanmun finds the best split over a lattice of dictionary matches, not the longest match first.</p>
+    </li>
+    <li>
+      <h3>外來語</h3>
+      <p class="h3-en" lang="en">Loanwords</p>
+      <dl class="pairs">
+        <dt class="keep">北京</dt><dd class="gen">베이징</dd>
+        <dt class="keep">東京</dt><dd class="gen">도쿄</dd>
+      </dl>
+      <p class="note">地名은 國立國語院 外來語 表記 用例를 따릅니다.</p>
+      <p class="note-en" lang="en">Place names follow the NIKL loanword spelling examples.</p>
+    </li>
+    <li>
+      <h3>同音異義語</h3>
+      <p class="h3-en" lang="en">Homophones</p>
+      <dl class="pairs">
+        <dt class="keep">詐欺</dt><dd class="keep"><span class="gen">사기</span>(詐欺)</dd>
+        <dt class="keep">士氣</dt><dd class="keep"><span class="gen">사기</span>(士氣)</dd>
+        <dt class="keep">史記</dt><dd class="keep"><span class="gen">사기</span>(史記)</dd>
+      </dl>
+      <p class="note">讀音이 겹치면 漢字를 自動으로 남깁니다.</p>
+      <p class="note-en" lang="en">When readings would collide, Gukhanmun keeps the hanja automatically.</p>
+    </li>
+  </ul>
+</section>
+
+<div class="cols">
+  <section class="modes">
+    <div class="sec-head">
+      <h2>다섯 가지 出力 方式</h2>
+      <p class="h2-en" lang="en">Five ways to render</p>
+    </div>
+    <dl class="mode-list">
+      <dt>한글 專用 <span lang="en">Hangul only</span></dt>
+      <dd class="keep"><span class="gen">대한민국</span>은 <span class="gen">민주공화국</span>이다.</dd>
+      <dt><span class="keep">한글(漢字)</span> <span lang="en">Hangul (hanja)</span></dt>
+      <dd class="keep"><span class="gen">대한민국</span>(大韓民國)은 <span class="gen">민주</span>(民主)<span class="gen">공화국</span>(共和國)이다.</dd>
+      <dt><span class="keep">漢字(한글)</span> <span lang="en">Hanja (hangul)</span></dt>
+      <dd class="keep">大韓民國(<span class="gen">대한민국</span>)은 民主(<span class="gen">민주</span>)共和國(<span class="gen">공화국</span>)이다.</dd>
+      <dt>루비 <span lang="en">Ruby</span></dt>
+      <dd>大韓民國은 民主共和國이다.</dd>
+      <dt>原文 維持 <span lang="en">Original</span></dt>
+      <dd class="keep">大韓民國은 民主共和國이다.</dd>
+    </dl>
+    <p class="note">이 포스터의 讀音도 Gukhanmun의 루비 出力으로 달았습니다.</p>
+    <p class="note-en" lang="en">The hangul readings above the hanja on this poster were generated by Gukhanmun’s ruby output.</p>
+  </section>
+
+  <section class="dicts">
+    <div class="sec-head">
+      <h2>內藏 辭典</h2>
+      <p class="h2-en" lang="en">Built-in dictionaries</p>
+    </div>
+    <ul class="dict-list">
+      <li>
+        <h3>《標準國語大辭典》</h3>
+        <p class="ko">國立國語院이 編纂한 規範 辭典. 約 50萬 表題語.</p>
+        <p class="en" lang="en"><i>Standard Korean Language Dictionary</i>: NIKL’s normative dictionary, the reference for standard spelling. About 500,000 entries.</p>
+      </li>
+      <li>
+        <h3>《우리말샘》</h3>
+        <p class="ko">누구나 參與하는 開放型 辭典. 100萬 餘 表題語로 現存 最大 規模.</p>
+        <p class="en" lang="en"><i>Open Korean Dictionary</i>: the largest Korean dictionary, open to public contributions. Over one million entries.</p>
+      </li>
+      <li>
+        <h3>外來語 表記 用例</h3>
+        <p class="ko"><span class="keep">北京</span> → 베이징처럼 外來語 讀音의 根據.</p>
+        <p class="en" lang="en"><i>NIKL loanword spelling examples</i>: the source for readings such as 北京 → 베이징.</p>
+      </li>
+    </ul>
+    <div class="thanks">
+      <p class="ko">國立國語院이 2019年 두 辭典을 CC BY-SA 2.0 KR로 公開한 德分에 Gukhanmun이 存在할 수 있었습니다. 感謝합니다.</p>
+      <p class="en" lang="en">Gukhanmun exists because the National Institute of Korean Language (NIKL) released both dictionaries under CC BY-SA 2.0 KR in 2019. Thank you.</p>
+    </div>
+  </section>
+
+  <section class="install">
+    <div class="sec-head">
+      <h2>設置</h2>
+      <p class="h2-en" lang="en">Install</p>
+    </div>
+    <ul class="platforms">
+      <li>命令줄 道具 <span lang="en">CLI</span></li>
+      <li lang="en">Rust</li>
+      <li lang="en">WebAssembly</li>
+      <li lang="en">Node-API</li>
+      <li class="new"><span lang="en">Python</span> <small>0.4.0 新規</small></li>
+    </ul>
+    <p class="ko">平文 텍스트·HTML·Markdown을 그대로 變換합니다.</p>
+    <p class="en" lang="en">Converts plain text, HTML, and Markdown, from one Rust engine.</p>
+<pre><code>mise use -g aqua:dahlia/gukhanmun
+winget install HongMinhee.Gukhanmun
+cargo install gukhanmun-cli
+pip install 'gukhanmun[stdict]'
+npm add @gukhanmun/wasm \
+        @gukhanmun/stdict-fst</code></pre>
+    <p class="note"><code>.deb</code>·<code>.rpm</code>·Homebrew·Arch Linux 等 더 많은 패키징을 準備 中입니다. 寄與 歡迎!</p>
+    <p class="note-en" lang="en">More packages are on the way: .deb, .rpm, Homebrew, Arch Linux, and more. Contributions welcome!</p>
+  </section>
+</div>
+
+<div class="cols cols-2-1">
+  <section class="timeline">
+    <div class="sec-head">
+      <h2>沿革</h2>
+      <p class="h2-en" lang="en">Timeline</p>
+    </div>
+    <ol class="events">
+      <li class="prelude"><time lang="en">2019-10</time><span class="ko">Seonbi 0.1.0</span><span class="detail">精神的 前身</span><span lang="en">Spiritual predecessor</span><span class="url" lang="en">github.com/dahlia/seonbi</span></li>
+      <li><time lang="en">2026-05</time><span class="ko">첫 커밋</span><span lang="en">First commit</span></li>
+      <li><time lang="en">2026-06</time><span class="ko">0.1.0, 0.2.0</span><span class="detail">첫 릴리스</span><span lang="en">First releases</span></li>
+      <li class="grant-event"><time lang="en">2026-10-19</time><span class="ko">Microgrants 選定</span><span lang="en">Selected for FOSS for All Microgrants</span></li>
+      <li><time lang="en">2026-10-24</time><span class="ko">0.3.0</span><span class="detail">外來語 辭典, 異體字 集合, 文章 符號 프로파일</span><span lang="en">Loanword dictionary, hanja variant sets, punctuation profiles</span></li>
+      <li><time lang="en">2026-11</time><span class="ko">0.4.0</span><span class="detail">Python 바인딩, 辭典 根據에 基盤한 讀音</span><span lang="en">Python bindings, readings backed by dictionary evidence</span></li>
+    </ol>
+  </section>
+
+  <section class="roadmap">
+    <div class="sec-head">
+      <h2>앞으로</h2>
+      <p class="h2-en" lang="en">Roadmap</p>
+    </div>
+    <ul>
+      <li><span class="ko">PHP 等 더 많은 言語 바인딩</span><span lang="en">More language bindings, starting with PHP</span></li>
+      <li><span class="ko">HTTP 서버 모드</span><span lang="en">HTTP server mode for any language</span></li>
+      <li><span class="ko">辭典別 讀音 프로파일</span><span lang="en">Reading profiles: <span class="keep">北京</span> as 북경, <span class="keep">東京</span> as 도쿄</span></li>
+      <li><span class="ko">더 많은 辭典과 패키징</span><span lang="en">More dictionaries and packages</span></li>
+    </ul>
+  </section>
+</div>
+
+<footer class="involve">
+  <div class="involve-text">
+    <p class="question">옛 韓國語 文獻을 다루시나요?</p>
+    <p class="question-en" lang="en">Working with older Korean texts?</p>
+    <p class="audiences"><span class="ko">史學·國文學 硏究者, 自然語 處理 硏究者, 디지털 아카이브와 出版社를 爲한 道具입니다.</span> <span lang="en">Built for historians, scholars of Korean literature, NLP researchers, digital archives, and publishers.</span></p>
+    <ul>
+      <li><span class="ko">틀린 讀音을 찾으셨나요? 이 포스터에서 찾으셨더라도 알려 주세요!</span> <span lang="en">Spotted a wrong reading? Tell us, even if it’s on this poster!</span></li>
+      <li><span class="ko">例文 提供, 바인딩·패키징 寄與, 後援 모두 歡迎합니다.</span> <span lang="en">Sample texts, bindings, packages, and sponsorship are all welcome.</span></li>
+    </ul>
+  </div>
+  <ul class="qr">
+    <li class="qr-main"><img src="qr-playground.svg" alt=""><b>플레이그라운드 <span lang="en">Try it</span></b><span lang="en">gukhanmun.org/playground</span></li>
+    <li><img src="qr-github.svg" alt=""><b lang="en">GitHub</b><span lang="en">github.com/dahlia/gukhanmun</span></li>
+    <li><img src="qr-sponsor.svg" alt=""><b>後援 <span lang="en">Sponsor</span></b><span lang="en">gukhanmun.org/sponsorship</span></li>
+  </ul>
+  <p class="credits"><span class="ko">FOSS for All과 後援者 여러분께 感謝드립니다.</span> <span lang="en">Thank you to FOSS for All and its donors. Gukhanmun is free software under GPL-3.0. 《標準國語大辭典》 and 《우리말샘》 © NIKL, CC BY-SA 2.0 KR.</span></p>
+</footer>
+
+</main>
