@@ -17,11 +17,21 @@
 import assert from "node:assert/strict";
 import { botBranch, target, validTarget } from "./targets.ts";
 import type { Execute } from "./model.ts";
-function fixture(branches: string[], compatible = true): Execute {
+function fixture(
+  branches: string[],
+  compatible = true,
+  withoutFeature: string[] = [],
+  onlyStdict: string[] = [],
+): Execute {
   return (_cmd, args) => {
     if (args[0] === "fetch") return Promise.resolve("");
     if (args[0] === "for-each-ref") {
-      return Promise.resolve(branches.map((b) => `${b} ${"a".repeat(40)}`).join("\n"));
+      return Promise.resolve(branches.map((b, i) => `${b} ${String(i + 1).repeat(40)}`).join("\n"));
+    }
+    if (args[0] === "ls-tree") {
+      const branch = branches[Number(args[2][0]) - 1];
+      if (onlyStdict.includes(branch)) return Promise.resolve(args[4]);
+      return Promise.resolve(withoutFeature.includes(branch) ? "" : args.slice(4).join("\n"));
     }
     if (args[0] === "show") {
       if (args[1].endsWith("interface.json")) {
@@ -37,26 +47,48 @@ function fixture(branches: string[], compatible = true): Execute {
     throw new Error("unexpected inspection");
   };
 }
-Deno.test("newest numeric maintenance only, without main or compatibility fallback", async () => {
+Deno.test("oldest numeric maintenance containing the dictionaries, or main", async () => {
   for (
     const [branches, expected] of [
-      [["main", "0.9-maintenance", "0.10-maintenance"], "0.10-maintenance"],
-      [["1.99-maintenance", "2.0-maintenance", "02.1-maintenance"], "2.0-maintenance"],
+      [["main", "0.10-maintenance", "0.9-maintenance"], "0.9-maintenance"],
+      [["1.99-maintenance", "2.0-maintenance", "02.1-maintenance"], "1.99-maintenance"],
+      [["main", "01.2-maintenance"], "main"],
+      [["main"], "main"],
     ] as [string[], string][]
   ) assert.equal((await target(fixture(branches))).branch, expected);
-  await assert.rejects(
-    () => target(fixture(["main", "0.10-maintenance"], false)),
-    /0.10-maintenance needs/,
+  assert.equal(
+    (await target(
+      fixture(["main", "0.2-maintenance", "0.3-maintenance"], true, ["0.2-maintenance"]),
+    )).branch,
+    "0.3-maintenance",
   );
-  await assert.rejects(() => target(fixture(["main", "01.2-maintenance"])), /no maintenance/);
+  assert.equal(
+    (await target(fixture(["main", "0.2-maintenance"], true, ["0.2-maintenance"]))).branch,
+    "main",
+  );
+  assert.equal(
+    (await target(
+      fixture(["main", "0.1-maintenance", "0.2-maintenance"], true, [], ["0.1-maintenance"]),
+    )).branch,
+    "0.2-maintenance",
+  );
+  // No compatibility fallback to newer lines or main once a dictionary line is chosen.
+  await assert.rejects(
+    () => target(fixture(["main", "0.9-maintenance", "0.10-maintenance"], false)),
+    /0.9-maintenance needs/,
+  );
+  await assert.rejects(() => target(fixture(["main"], false)), /main needs/);
+  await assert.rejects(() => target(fixture(["01.2-maintenance"])), /no dictionary/);
   await assert.rejects(
     () => target(() => Promise.reject(new Error("fetch failed"))),
     /fetch failed/,
   );
   for (
-    const value of ["main", "0.2-maintenance/evil", "../0.2-maintenance", "01.2-maintenance", null]
+    const value of ["0.2-maintenance/evil", "../0.2-maintenance", "01.2-maintenance", null]
   ) assert.equal(validTarget(value), false);
   assert.equal(botBranch("0.10-maintenance"), "automation/dictionary-data-0.10-maintenance");
+  assert.equal(validTarget("main"), true);
+  assert.equal(botBranch("main"), "automation/dictionary-data-main");
   await assert.rejects(
     () => target(fixture(["0.2-maintenance"]), "-upload-pack=evil"),
     /invalid remote/,

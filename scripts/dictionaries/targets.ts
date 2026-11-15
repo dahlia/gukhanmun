@@ -1,4 +1,4 @@
-// Gukhanmun: Selects only the newest supported maintenance line for dictionary updates.
+// Gukhanmun: Selects the oldest dictionary maintenance line, or main.
 // Copyright (C) 2026  Hong Minhee
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,23 +16,23 @@
 
 import { command } from "./model.ts";
 import type { Execute } from "./model.ts";
-/** A maintenance head pinned before credential-bearing collection. */
+/** A target head pinned before credential-bearing collection. */
 export interface Target {
   branch: string;
   oid: string;
 }
 const component = "(0|[1-9][0-9]*)";
 const pattern = new RegExp(`^${component}\\.${component}-maintenance$`);
-/** Accepts canonical maintenance names only; main is never eligible. */
+/** Accepts canonical maintenance names and the main fallback. */
 export function validTarget(value: unknown): value is string {
-  return typeof value === "string" && pattern.test(value);
+  return typeof value === "string" && (value === "main" || pattern.test(value));
 }
 /** Stable proposal head for one maintenance version line. */
 export function botBranch(branch: string): string {
   if (!validTarget(branch)) throw new Error("invalid dictionary target");
   return `automation/dictionary-data-${branch}`;
 }
-/** Selects newest major/minor numerically and fails before downloads if unsupported. */
+/** Selects the oldest line containing both dictionaries, then checks update compatibility. */
 export async function target(execute: Execute = command, remote = "origin"): Promise<Target> {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(remote)) throw new Error("invalid remote name");
   await execute("git", ["fetch", "--prune", remote, `+refs/heads/*:refs/remotes/${remote}/*`]);
@@ -45,16 +45,31 @@ export async function target(execute: Execute = command, remote = "origin"): Pro
       const [branch, oid] = line.split(" ");
       if (!/^[a-f0-9]{40,64}$/.test(oid ?? "")) throw new Error("invalid target object");
       return { branch, oid };
-    }).filter((t) => validTarget(t.branch));
-  heads.sort((a, b) => {
+    });
+  const candidates = heads.filter((t) => pattern.test(t.branch));
+  candidates.sort((a, b) => {
     const aa = pattern.exec(a.branch)!, bb = pattern.exec(b.branch)!;
     for (const i of [1, 2]) {
-      if (BigInt(aa[i]) !== BigInt(bb[i])) return BigInt(aa[i]) > BigInt(bb[i]) ? -1 : 1;
+      if (BigInt(aa[i]) !== BigInt(bb[i])) return BigInt(aa[i]) < BigInt(bb[i]) ? -1 : 1;
     }
     return 0;
   });
-  if (!heads.length) throw new Error("no maintenance branch exists; main is not a fallback");
-  const selected = heads[0];
+  let selected = heads.find((t) => t.branch === "main");
+  for (const candidate of candidates) {
+    const features = ["stdict", "opendict"].map((kind) => `crates/gukhanmun-${kind}/Cargo.toml`);
+    const present = await execute("git", [
+      "ls-tree",
+      "--name-only",
+      candidate.oid,
+      "--",
+      ...features,
+    ]);
+    if (features.every((path) => present.split("\n").includes(path))) {
+      selected = candidate;
+      break;
+    }
+  }
+  if (!selected) throw new Error("no dictionary maintenance branch or main exists");
   try {
     const marker = JSON.parse(
       await execute("git", ["show", `${selected.oid}:scripts/dictionaries/interface.json`]),

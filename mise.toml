@@ -1,7 +1,6 @@
 [tools]
 "github:crate-ci/cargo-release" = "1.1.2"
 "github:mitsuhiko/insta" = "1.47.2"
-"github:rhysd/actionlint" = "1.7.12"
 dasel = "3.11"
 node = "26"
 python = "3.15"
@@ -12,6 +11,7 @@ bun = "1"
 "pipx:fonttools" = { version = "4.63.0", extras = "woff" }
 "github:koalaman/shellcheck" = "0.11.0"
 "github:dahlia/sacho" = "0.3.2"
+jactionlint = { version = "2.6.0", workflow = "release.yaml" }
 
 [tools.rust]
 version = "1.95.0"
@@ -47,7 +47,7 @@ env = { PWD = "{{ config_root }}" }
 [tasks.check]
 description = "Run fast checks suitable for pre-commit"
 depends = [
-  "actionlint",
+  "jactionlint",
   "changelog-check",
   "fmt-check",
   "typecheck",
@@ -63,8 +63,12 @@ description = "Validate changelog fragments and materialized output"
 run = "sacho check"
 
 [tasks.actionlint]
-description = "Lint GitHub Actions workflows"
-run = "actionlint"
+description = "Lint GitHub Actions workflows (compatibility alias)"
+depends = ["jactionlint"]
+
+[tasks.jactionlint]
+description = "Check GitHub Actions workflow correctness"
+run = "jactionlint --profile correctness"
 
 [tasks.ci]
 description = "Run the full CI verification gate"
@@ -666,7 +670,7 @@ depends = ["rust-init"]
 run = 'deno run -A scripts/dictionaries/update.ts $env.usage_input'
 
 [tasks.dicts-target]
-description = "Select only the newest compatible maintenance line"
+description = "Select the oldest maintenance line containing the dictionaries, or main"
 usage = 'arg "[remote]" default="origin"'
 extends = "nu"
 run = 'deno run -A scripts/dictionaries/targets.ts $env.usage_remote'

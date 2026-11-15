@@ -4,11 +4,14 @@ Dictionary data updates
 The weekly workflow checks the authenticated JSON download listings of the
 *Standard Korean Dictionary* (標準國語大辭典) and the *Open Korean Dictionary*
 (우리말샘). It runs on Wednesdays and accepts a manual trigger. It opens a
-reviewable data PR against the newest numeric `*.*-maintenance` line, never
-`main`. Selection fails before login when that line lacks interface version 1,
-staging-aware extraction tasks, metadata integration, or Sacho. Backport the
-infrastructure to that maintenance line before enabling collection; the updater
-does not choose an older line instead.
+reviewable data PR against the oldest existing numeric `*.*-maintenance` line
+containing both dictionaries, or `main` when no such line exists. Delete a
+maintenance branch when its series is no longer supported. Release the update
+there, then forward port it through newer lines to `main`, rather than opening
+duplicate data PRs. Selection fails before login when the chosen target lacks
+interface version 1, staging-aware extraction tasks, metadata integration, or
+Sacho. Backport the infrastructure before enabling collection; incompatibility
+does not select a newer line instead.
 
 
 Local collection and regeneration
@@ -29,7 +32,7 @@ curated decisions, and stages both dictionaries before replacing files. Any
 failure during application or changelog generation restores the previous files.
 Run `mise run ci` and inspect the diff before committing.
 
-To inspect the newest eligible remote line locally, use
+To inspect the selected remote line locally, use
 `mise run dicts-target -- dahlia` (or the name of your GitHub remote). A private
 source-state file can be produced with
 `mise run dicts-state -- /path/to/pinned-target /tmp/dictionary-state.json`.
@@ -85,13 +88,13 @@ so a modified workflow on another ref cannot read the account credentials.
 The workflow's ref condition alone does not enforce this boundary.
 
 Collection receives account secrets only for its collection step. Preparation
-runs the pinned maintenance branch's code with no account or write credentials.
+runs the pinned target branch's code with no account or write credentials.
 Only successful preparation and full `mise run ci` permit publication. Archives
 and public artifacts expire after one day; no session material is uploaded.
 
 The publisher accepts only allowlisted data, provenance, notices, fragments and
 *CHANGES.md*. It checks file hashes, modes and the complete tested Git tree,
-then rechecks the newest target and its head. It refuses branches containing
+then rechecks the selected target and its head. It refuses branches containing
 human commits and uses a pinned force-with-lease for bot-only updates. It never
 executes code from an existing PR. Unchanged runs leave existing PRs alone;
 cleanup of obsolete proposals is a maintainer task. A dedicated status records

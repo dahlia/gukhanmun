@@ -29,7 +29,7 @@ jobs:
     - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
       with:
         cache: false
-    - name: Select the latest released maintenance series and main
+    - name: Select the oldest loanword maintenance branch, or main
       id: select
       env:
         GH_TOKEN: ${{ github.token }}
@@ -50,7 +50,7 @@ jobs:
         cache: false
     - name: Build the trusted main collector without API credentials
       run: mise run loanwords-tools
-    - name: Collect one complete source for every target
+    - name: Collect one complete source for the selected target
       env:
         NIKL_LOANWORD_API_KEY: ${{ secrets.NIKL_LOANWORD_API_KEY }}
         GUKHANMUN_LOANWORDS_BIN: ${{ github.workspace }}/target/loanwords-tools/debug/gukhanmun-loanwords

@@ -23,7 +23,6 @@ export interface Target {
 export type Execute = (cmd: string, args: string[], optional?: boolean) => Promise<string>;
 const feature = "crates/gukhanmun-loanwords/Cargo.toml";
 const component = "(0|[1-9][0-9]*)";
-const stable = new RegExp(`^${component}\\.${component}\\.${component}$`);
 const maintenance = new RegExp(`^${component}\\.${component}-maintenance$`);
 /** Accepts only canonical supported target branch names. */
 export function validTarget(branch: unknown): branch is string {
@@ -34,14 +33,13 @@ export function botBranch(target: string): string {
   if (!validTarget(target)) throw new Error("invalid update target");
   return target === "main" ? "automation/loanword-data" : `automation/loanword-data-${target}`;
 }
-/** Selects the newest shipped loanword series, failing closed on missing maintenance. */
+/** Selects the oldest existing loanword maintenance line, or main if none exists. */
 export async function targets(execute: Execute): Promise<Target[]> {
   await execute("git", [
     "fetch",
     "--prune",
     "origin",
     "+refs/heads/*:refs/remotes/origin/*",
-    "--tags",
   ]);
   const heads = (await execute("git", [
     "for-each-ref",
@@ -53,36 +51,23 @@ export async function targets(execute: Execute): Promise<Target[]> {
     return { branch, oid };
   });
   const main = heads.find((t) => t.branch === "main");
-  if (!main) throw new Error("main branch is missing");
-  const tags = (await execute("git", ["for-each-ref", "--format=%(refname:strip=2)", "refs/tags/"]))
-    .split("\n").filter((name) => stable.test(name));
-  const shipped: string[] = [];
-  for (const tag of tags) {
-    const oid = await execute("git", ["rev-parse", `refs/tags/${tag}^{commit}`]);
-    if (await execute("git", ["ls-tree", "--name-only", oid, "--", feature]) === feature) {
-      shipped.push(tag);
+  const candidates = heads.filter((t) => maintenance.test(t.branch));
+  candidates.sort((a, b) => {
+    const aa = maintenance.exec(a.branch)!, bb = maintenance.exec(b.branch)!;
+    for (const i of [1, 2]) {
+      if (BigInt(aa[i]) !== BigInt(bb[i])) return BigInt(aa[i]) < BigInt(bb[i]) ? -1 : 1;
     }
-  }
-  shipped.sort((a, b) => {
-    const aa = a.split(".").map(BigInt), bb = b.split(".").map(BigInt);
-    for (let i = 0; i < 3; i++) if (aa[i] !== bb[i]) return aa[i] > bb[i] ? -1 : 1;
     return 0;
   });
-  if (!shipped.length) return [main];
-  const latest = shipped[0];
-  const branch = `${latest.split(".").slice(0, 2).join(".")}-maintenance`;
-  const target = heads.find((t) => t.branch === branch);
-  const release = await execute("git", ["rev-parse", `refs/tags/${latest}^{commit}`]);
-  if (
-    !target ||
-    await execute("git", ["ls-tree", "--name-only", target.oid, "--", feature]) !== feature ||
-    await execute("git", ["merge-base", release, target.oid], true) !== release
-  ) {
-    throw new Error(
-      `released loanwords ${latest} have no eligible ${branch}; create or repair that branch`,
-    );
+  for (const candidate of candidates) {
+    if (
+      await execute("git", ["ls-tree", "--name-only", candidate.oid, "--", feature]) === feature
+    ) {
+      return [candidate];
+    }
   }
-  return [target, main];
+  if (!main) throw new Error("main branch is missing");
+  return [main];
 }
 async function command(cmd: string, args: string[], optional = false): Promise<string> {
   const result = await new Deno.Command(cmd, { args, stdout: "piped", stderr: "piped" }).output();
@@ -111,7 +96,8 @@ if (import.meta.main) {
     for (const line of prs.split("\n").filter(Boolean)) {
       const [number, base, head] = JSON.parse(line);
       if (
-        typeof head === "string" && head.startsWith("automation/loanword-data-") &&
+        typeof head === "string" &&
+        (head === "automation/loanword-data" || head.startsWith("automation/loanword-data-")) &&
         !selected.some((t) => t.branch === base)
       ) {
         console.log(

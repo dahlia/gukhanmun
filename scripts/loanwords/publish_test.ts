@@ -294,7 +294,9 @@ Deno.test("real Git publication rebuilds forged bot trees and parents, and binds
       await candidate(prior, target, execute);
       assert.equal(JSON.parse(await Deno.readTextFile(prior)).records_sha256, "synthetic");
       const selected = await targets(execute);
-      assert.equal(selected[0].branch, target); // Both annotated and lightweight release tags are inspected.
+      assert.equal(selected.length, 1);
+      assert.equal(selected[0].branch, target);
+      assert.equal(selected[0].oid, await f.git(["rev-parse", `refs/remotes/origin/${target}`]));
       await Deno.writeTextFile(
         `${artifact}/manifest.json`,
         JSON.stringify({

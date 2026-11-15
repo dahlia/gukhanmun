@@ -41,6 +41,8 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
     const save = (v: unknown) => Deno.writeFile(`${directory}/manifest.json`, json(v));
     await save(m);
     assert.equal((await validate(directory)).target, "0.10-maintenance");
+    await save({ ...m, target: "main" });
+    assert.equal((await validate(directory)).target, "main");
     for (
       const files of [
         [{ ...file, path: "../escape" }],
@@ -55,7 +57,7 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
       await assert.rejects(() => validate(directory));
     }
     for (
-      const value of [{ ...m, target: "main" }, { ...m, status: "unchanged" }, {
+      const value of [{ ...m, target: "feature" }, { ...m, status: "unchanged" }, {
         ...m,
         controller: "arbitrary",
       }]
@@ -94,6 +96,8 @@ async function fixture() {
     ]
   ) await git("git", ["config", key, value]);
   const files = {
+    "crates/gukhanmun-stdict/Cargo.toml": "# synthetic",
+    "crates/gukhanmun-opendict/Cargo.toml": "# synthetic",
     "scripts/dictionaries/interface.json": '{"version":1}',
     "mise.toml":
       "[tasks.stdict-extract]\n[tasks.opendict-extract]\n[tasks.ci]\n# GUKHANMUN_DICTS_OUTPUT_DIR",
@@ -142,7 +146,7 @@ Deno.test("real Git publication binds tested trees and refuses human or stale pr
       "wrong-tree",
       "wrong-controller",
       "advanced",
-      "newer-line",
+      "older-line",
       "wrong-pr-base",
       "symlink-ancestor",
     ] as const
@@ -195,8 +199,8 @@ Deno.test("real Git publication binds tested trees and refuses human or stale pr
           await git("git", ["push", "--quiet", "origin", "HEAD:refs/heads/0.10-maintenance"]);
           await git("git", ["switch", "--detach", base]);
         }
-        if (scenario === "newer-line") {
-          await git("git", ["push", "--quiet", "origin", "HEAD:refs/heads/1.0-maintenance"]);
+        if (scenario === "older-line") {
+          await git("git", ["push", "--quiet", "origin", "HEAD:refs/heads/0.9-maintenance"]);
         }
         if (scenario === "symlink-ancestor") {
           if (Deno.build.os === "windows") return;
@@ -229,7 +233,7 @@ Deno.test("real Git publication binds tested trees and refuses human or stale pr
             "wrong-tree",
             "wrong-controller",
             "advanced",
-            "newer-line",
+            "older-line",
             "wrong-pr-base",
             "symlink-ancestor",
           ].includes(scenario)
