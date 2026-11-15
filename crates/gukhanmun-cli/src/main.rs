@@ -19,7 +19,8 @@ use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use clap::{Args, Parser, ValueEnum};
+use clap::{Args, CommandFactory, Parser, ValueEnum, ValueHint};
+
 use gukhanmun::cdb::CdbDictionary;
 use gukhanmun::fst::FstDictionary;
 use gukhanmun::html::{HtmlElementInfo, HtmlFragmentReader, HtmlFragmentWriter, HtmlScopeData};
@@ -34,6 +35,8 @@ use gukhanmun::{
 };
 use tracing_subscriber::EnvFilter;
 
+mod completions;
+
 const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
 
 #[derive(Debug, Parser)]
@@ -43,6 +46,11 @@ const FST_MAGIC: &[u8; 8] = b"GUKHMFST";
     about = "Convert Korean mixed-script plain text into hangul text."
 )]
 struct Cli {
+    /// Write a shell completion script to stdout and exit without converting.
+    /// Use shell redirection to save it; cannot be combined with conversion options.
+    #[arg(long, value_enum, exclusive = true, help_heading = "Shell completions")]
+    generate_completion: Option<completions::Shell>,
+
     #[command(flatten)]
     io: IoArgs,
 
@@ -75,12 +83,12 @@ struct Cli {
 #[command(next_help_heading = "Input/output")]
 struct IoArgs {
     /// Input file to read from; reads from standard input when omitted.
-    #[arg(value_name = "INPUT")]
+    #[arg(value_name = "INPUT", value_hint = ValueHint::FilePath)]
     input: Option<PathBuf>,
 
     /// Output file to write to; writes to standard output when omitted.
     /// When the same path as INPUT, the file is replaced atomically.
-    #[arg(short, long, value_name = "PATH")]
+    #[arg(short, long, value_name = "PATH", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
 
     /// Input/output format.  Inferred from the input file extension when omitted
@@ -90,7 +98,7 @@ struct IoArgs {
     /// are accepted for text/markdown; use "text/markdown; variant=GFM" to
     /// enable GitHub Flavored Markdown (tables, footnotes, strikethrough, task
     /// lists).  Unrecognised parameters are ignored.
-    #[arg(short, long, value_name = "MIME", value_parser = parse_format)]
+    #[arg(short, long, value_name = "MIME", value_parser = parse_format, value_hint = ValueHint::Other)]
     format: Option<Format>,
 }
 
@@ -127,15 +135,15 @@ struct LanguageArgs {
     /// Path to a user-supplied dictionary file (.gukfst or .gukcdb).  May be
     /// repeated; later dictionaries take priority over earlier ones and over
     /// every bundled dictionary.
-    #[arg(short = 'd', long = "dictionary", value_name = "PATH")]
+    #[arg(short = 'd', long = "dictionary", value_name = "PATH", value_hint = ValueHint::FilePath)]
     dictionaries: Vec<PathBuf>,
 
     /// Additional reference dictionary (.gukfst or .gukcdb). May be repeated.
-    #[arg(long = "reference-dictionary", value_name = "PATH")]
+    #[arg(long = "reference-dictionary", value_name = "PATH", value_hint = ValueHint::FilePath)]
     reference_dictionaries: Vec<PathBuf>,
 
     /// Additional loanword dictionary (.gukfst or .gukcdb). May be repeated.
-    #[arg(long = "loanword-dictionary", value_name = "PATH")]
+    #[arg(long = "loanword-dictionary", value_name = "PATH", value_hint = ValueHint::FilePath)]
     loanword_dictionaries: Vec<PathBuf>,
 
     /// Cooperation policy; ordered restores the original dictionary-order policy.
@@ -211,7 +219,7 @@ struct RenderingPolicyArgs {
     punctuation: Option<String>,
 
     /// JSON punctuation profile, with optional base and per-role overrides.
-    #[arg(long, value_name = "PATH", conflicts_with = "punctuation")]
+    #[arg(long, value_name = "PATH", conflicts_with = "punctuation", value_hint = ValueHint::FilePath)]
     punctuation_profile: Option<PathBuf>,
 
     /// Controls how hanja annotations appear in the output.  hangul-only
@@ -260,35 +268,35 @@ struct DirectiveArgs {
     /// `action<TAB>pattern<TAB>kind`; actions are require-hanja,
     /// require-hangul, or skip-annotation, and kind is literal or glob.  May be
     /// repeated.
-    #[arg(long = "directives", value_name = "PATH")]
+    #[arg(long = "directives", value_name = "PATH", value_hint = ValueHint::FilePath)]
     directive_files: Vec<PathBuf>,
 
     /// Require visible hanja for a literal hanja form.  May be repeated.
-    #[arg(long = "require-hanja", value_name = "HANJA")]
+    #[arg(long = "require-hanja", value_name = "HANJA", value_hint = ValueHint::Other)]
     require_hanja: Vec<String>,
 
     /// Require visible hanja for hanja forms matched by a CLI glob pattern.
     /// The pattern supports `*` for any sequence and `?` for one character.
-    #[arg(long = "require-hanja-glob", value_name = "PATTERN")]
+    #[arg(long = "require-hanja-glob", value_name = "PATTERN", value_hint = ValueHint::Other)]
     require_hanja_glob: Vec<String>,
 
     /// Require a hangul gloss for a literal hanja form.  May be repeated.
-    #[arg(long = "require-hangul", value_name = "HANJA")]
+    #[arg(long = "require-hangul", value_name = "HANJA", value_hint = ValueHint::Other)]
     require_hangul: Vec<String>,
 
     /// Require a hangul gloss for hanja forms matched by a CLI glob pattern.
     /// The pattern supports `*` for any sequence and `?` for one character.
-    #[arg(long = "require-hangul-glob", value_name = "PATTERN")]
+    #[arg(long = "require-hangul-glob", value_name = "PATTERN", value_hint = ValueHint::Other)]
     require_hangul_glob: Vec<String>,
 
     /// Collapse annotation rendering for a literal hanja form.  May be repeated.
-    #[arg(long = "skip-annotation", value_name = "HANJA")]
+    #[arg(long = "skip-annotation", value_name = "HANJA", value_hint = ValueHint::Other)]
     skip_annotation: Vec<String>,
 
     /// Collapse annotation rendering for hanja forms matched by a CLI glob
     /// pattern.  The pattern supports `*` for any sequence and `?` for one
     /// character.
-    #[arg(long = "skip-annotation-glob", value_name = "PATTERN")]
+    #[arg(long = "skip-annotation-glob", value_name = "PATTERN", value_hint = ValueHint::Other)]
     skip_annotation_glob: Vec<String>,
 }
 
@@ -301,7 +309,7 @@ struct HtmlArgs {
     /// (`pre`, `code`, `kbd`, `script`, `style`, `textarea`) and the
     /// inherited `lang` rule.  May be repeated.  Only valid with
     /// `--format text/html`.
-    #[arg(long = "html-preserve-class", value_name = "CLASS")]
+    #[arg(long = "html-preserve-class", value_name = "CLASS", value_hint = ValueHint::Other)]
     html_preserve_class: Vec<String>,
 
     /// Preserve any HTML element matching an attribute predicate.  Accepts
@@ -310,7 +318,7 @@ struct HtmlArgs {
     /// the attribute is present with the exact value).  Matched elements and
     /// their descendants pass through untouched.  May be repeated.  Only
     /// valid with `--format text/html`.
-    #[arg(long = "html-preserve-attr", value_name = "KEY[=VALUE]")]
+    #[arg(long = "html-preserve-attr", value_name = "KEY[=VALUE]", value_hint = ValueHint::Other)]
     html_preserve_attr: Vec<String>,
 }
 
@@ -325,7 +333,7 @@ struct MarkdownArgs {
     /// change.  When given without a leading YAML front matter block, a warning
     /// is logged and only the Markdown body is converted.  Only valid with
     /// `--format text/markdown`.
-    #[arg(long = "markdown-frontmatter-convert", value_name = "JSONPATH")]
+    #[arg(long = "markdown-frontmatter-convert", value_name = "JSONPATH", value_hint = ValueHint::Other)]
     frontmatter_convert: Vec<String>,
 }
 
@@ -404,6 +412,12 @@ enum CliHomophoneDetection {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Some(shell) = cli.generate_completion {
+        let mut stdout = io::stdout().lock();
+        completions::write_completion(shell, Cli::command(), &mut stdout)?;
+        stdout.flush()?;
+        return Ok(());
+    }
     let default_level = if cli.verbose { "debug" } else { "warn" };
     tracing_subscriber::fmt()
         .with_env_filter(

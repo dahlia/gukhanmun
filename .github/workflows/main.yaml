@@ -664,10 +664,30 @@ jobs:
           fi
         fi
 
+  completions-test:
+    name: shell completions
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - name: Install completion test shells
+      run: sudo apt-get update && sudo apt-get install -y zsh fish
+    # pwsh is provided by the Ubuntu runner; Nushell is pinned in mise.toml.
+    - name: Exercise syntax and completion candidates in all five shells
+      run: mise run completions-test
+    - name: Test completion bundle failure paths
+      run: mise run completions-unit
+
   artifact-context:
     name: artifact context
     runs-on: ubuntu-latest
-    needs: ci
+    needs: [ci, completions-test]
     if: >-
       github.event_name == 'push' &&
       (
@@ -933,10 +953,66 @@ jobs:
         path: gukhanmun_napi.node
         if-no-files-found: error
 
+  build-completions:
+    name: build shared completions
+    runs-on: ubuntu-latest
+    needs: artifact-context
+    if: needs.artifact-context.outputs.should-publish == 'true'
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/cache@v5
+      with:
+        path: ~/.rustup/toolchains
+        key: rustup-v1-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+    - uses: jdx/mise-action@v4
+      with:
+        cache: true
+    - name: Prepare dev artifact version
+      if: github.ref_type != 'tag'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
+          set -x
+        fi
+
+        edit_toml() {
+          local query="$1"
+          dasel -i toml --root "$query" < Cargo.toml > Cargo.toml.tmp
+          mv Cargo.toml.tmp Cargo.toml
+        }
+
+        edit_toml "workspace.package.version = \"${{ needs.artifact-context.outputs.version }}\""
+        dasel -i toml -o json 'workspace.dependencies' < Cargo.toml |
+          jq -r 'keys[]' |
+          while read -r crate
+        do
+          crate="${crate%$'\r'}"
+          edit_toml "workspace.dependencies.get(\"$crate\").version = \"${{ needs.artifact-context.outputs.version }}\""
+        done
+
+        cargo update --workspace
+    - name: Generate with the host CLI from this exact source revision
+      env:
+        ARTIFACT_VERSION: ${{ needs.artifact-context.outputs.version }}
+      run: mise run completions -- --revision "$GITHUB_SHA" --version "$ARTIFACT_VERSION"
+    - name: Verify completion provenance and hashes
+      env:
+        ARTIFACT_VERSION: ${{ needs.artifact-context.outputs.version }}
+      run: |
+        args=(--revision "$GITHUB_SHA" --version "$ARTIFACT_VERSION")
+        if [[ "$GITHUB_REF_TYPE" == tag ]]; then args+=(--require-clean); fi
+        python -B scripts/completions/generate.py verify "${args[@]}"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: cli-completions
+        path: target/completions/
+        if-no-files-found: error
+
   build-release-binaries:
     name: build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    needs: artifact-context
+    needs: [artifact-context, build-completions]
     if: needs.artifact-context.outputs.should-publish == 'true'
     strategy:
       fail-fast: false
@@ -1123,6 +1199,18 @@ jobs:
             throw "$binary imports dynamic CRT DLLs: $($forbidden -join ', ')"
           }
         }
+    - uses: actions/download-artifact@v8
+      with:
+        name: cli-completions
+        path: target/completions/
+    - name: Verify shared completion bundle before archiving
+      shell: bash
+      env:
+        ARTIFACT_VERSION: ${{ needs.artifact-context.outputs.version }}
+      run: |
+        args=(--revision "$GITHUB_SHA" --version "$ARTIFACT_VERSION")
+        if [[ "$GITHUB_REF_TYPE" == tag ]]; then args+=(--require-clean); fi
+        python -B scripts/completions/generate.py verify "${args[@]}"
     - name: Archive release binaries
       shell: bash
       run: |
@@ -1136,15 +1224,16 @@ jobs:
         cp "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}" "dist/$asset/"
         cp "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}" "dist/$asset/"
         cp LICENSE NOTICE.md README.*.md "dist/$asset/"
+        cp -R target/completions "dist/$asset/completions"
 
         if [[ "${{ matrix.archive }}" == "zip" ]]; then
           (cd "dist/$asset" && 7z a "../$asset.zip" \
-            LICENSE NOTICE.md README.*.md \
+            LICENSE NOTICE.md README.*.md completions \
             "gukhanmun${{ matrix.exe }}" \
             "gukhanmun-mkdict${{ matrix.exe }}")
         else
           tar -cjf "dist/$asset.tar.bz2" -C "dist/$asset" \
-            LICENSE NOTICE.md README.*.md \
+            LICENSE NOTICE.md README.*.md completions \
             "gukhanmun${{ matrix.exe }}" \
             "gukhanmun-mkdict${{ matrix.exe }}"
         fi

@@ -101,6 +101,7 @@ description = "Run the full CI verification gate"
 depends = [
   "check",
   "changelog-test",
+  "completions-unit",
   "test",
   "docs-test",
   "doc",
@@ -227,6 +228,20 @@ run = [
   "hongdown --no-line-width --check scripts/loanwords/update-pr.md scripts/loanwords/conflicts-pr.md",
   "mise fmt --check",
 ]
+
+[tasks.completions]
+description = "Generate version-matched completions with a host executable"
+depends = ["rust-init"]
+run = "python -B scripts/completions/generate.py generate"
+
+[tasks.completions-test]
+description = "Validate generated completions in all five shells"
+depends = ["completions"]
+run = "python -B scripts/completions/shells.py"
+
+[tasks.completions-unit]
+description = "Test completion bundle generation and verification"
+run = 'python -B -m unittest discover -s scripts/completions -p "*_test.py"'
 
 [tasks.test]
 description = "Run Rust workspace tests"
