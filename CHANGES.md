@@ -19,6 +19,33 @@ Version 0.3.2
 
 To be released.
 
+### gukhanmun
+
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
+
+[#18]: https://github.com/dahlia/gukhanmun/issues/18
+
+### gukhanmun-cli
+
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
+
+### gukhanmun-loanwords
+
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
+
+### @gukhanmun/loanwords-cdb
+
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
+
+### @gukhanmun/loanwords-fst
+
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
+
 <!-- sacho:unreleased:end -->
 
 
