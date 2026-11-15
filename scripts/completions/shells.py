@@ -244,6 +244,11 @@ def powershell(binary, source, directory, env):
         ("gukhanmun --preset ko-", None, ["ko-kr", "ko-kp"]),
         ("gukhanmun -p ko-", None, ["ko-kr", "ko-kp"]),
         ("gukhanmun --preset=ko-", None, ["--preset=ko-kr", "--preset=ko-kp"]),
+        ("gukhanmun --preset ko-f", None, []),
+        ("gukhanmun --preset ko-fZZ trailing.txt", len("gukhanmun --preset ko-f"), []),
+        ("gukhanmun --preset=ko-f", None, []),
+        ("gukhanmun -Spko-f", None, []),
+        ("gukhanmun -Sp=ko-f", None, []),
         ("gukhanmun --preset ko- trailing.txt", len("gukhanmun --preset ko-"), ["ko-kr", "ko-kp"]),
         ("gukhanmun -s e", None, ["eager"]),
         ("gukhanmun -Sp ko-", None, ["ko-kr", "ko-kp"]),
@@ -255,20 +260,35 @@ def powershell(binary, source, directory, env):
         ("gukhanmun -S --pres", None, ["--preset"]),
         ("gukhanmun --numeral-strategy sma", None, ["smart"]),
         ("gukhanmun --generate-completion ", None, SHELLS),
+        ("gukhanmun --require-hanja ko-f", None, []),
+        ("gukhanmun --require-hanja ", None, []),
+        ("gukhanmun --require-hanja=", None, []),
         ("gukhanmun --dictionary spac", None, ["space name.gukfst"]),
+        ("gukhanmun --dictionary ko-f", None, ["ko-file.txt"]),
         ("gukhanmun --output=spac", None, ["space name.gukfst"]),
         ("gukhanmun sampl", None, ["sample.txt"]),
+        ("gukhanmun ko-f", None, ["ko-file.txt"]),
+        ("gukhanmun -- ko-f", None, ["ko-file.txt"]),
     ]
     for line, cursor, expected in cases:
-        script = setup + f"$r=TabExpansion2 {quote(line)} {cursor if cursor is not None else len(line)}; "
-        script += "ConvertTo-Json -Compress -InputObject @($r.CompletionMatches | ForEach-Object { $_.CompletionText })"
-        candidates = json.loads(run([binary, "-NoProfile", "-NonInteractive", "-Command", script], directory, env))
+        script = setup + f"$line={quote(line)}; $r=TabExpansion2 $line {cursor if cursor is not None else len(line)}; "
+        script += (
+            "ConvertTo-Json -Compress -InputObject @{ "
+            "candidates=@($r.CompletionMatches | ForEach-Object { $_.CompletionText }); "
+            "replacement=$line.Substring($r.ReplacementIndex, $r.ReplacementLength) }"
+        )
+        result = json.loads(run([binary, "-NoProfile", "-NonInteractive", "-Command", script], directory, env))
+        candidates = result["candidates"]
         # Native filename completions preserve their quoting and optional ./ prefix.
         normalized = [value.strip("'\"").removeprefix("./") for value in candidates]
         for value in candidates:
             if "=" in value:
                 normalized.append(value.split("=", 1)[1].strip("'\"").removeprefix("./"))
         require(normalized, expected, f"PowerShell {line} at {cursor}")
+        if not expected:
+            unchanged = result["replacement"] or " "
+            if candidates != [unchanged]:
+                raise AssertionError(f"PowerShell non-path completion changed input: {line!r}: {candidates!r}")
         if line == "gukhanmun -Sp ko-" and set(normalized) != {"ko-kr", "ko-kp"}:
             raise AssertionError(f"PowerShell short cluster offered non-preset candidates: {candidates!r}")
 

@@ -86,20 +86,31 @@ __GUKHANMUN_SCHEMA__
         if ($null -ne $valueOption) {
             if ($valueOption.values.Count -gt 0) {
                 $valuePrefix = $word.Trim("'`"")
+                $matched = $false
                 foreach ($value in $valueOption.values) {
                     if ($value.StartsWith($valuePrefix, [StringComparison]::Ordinal)) {
+                        $matched = $true
                         $candidate = $prefix + $value
                         if ($candidate -match '[\s''"]') { $candidate = "'" + $candidate.Replace("'", "''") + "'" }
                         [System.Management.Automation.CompletionResult]::new(
                             $candidate, $value, 'ParameterValue', $value)
                     }
                 }
+                if ($matched) { return }
             } elseif ($valueOption.path) {
                 foreach ($file in [System.Management.Automation.CompletionCompleters]::CompleteFilename($word)) {
                     [System.Management.Automation.CompletionResult]::new(
                         $prefix + $file.CompletionText, $file.ListItemText, $file.ResultType, $file.ToolTip)
                 }
+                return
             }
+            # An empty pipeline enables PowerShell's filename fallback. Keep the
+            # input unchanged when a non-path value has no candidates. The public
+            # CompletionResult constructor rejects empty text, so an empty word
+            # uses whitespace, which leaves the argument unfilled.
+            $unchanged = if ($null -ne $current) { $current.Extent.Text } else { ' ' }
+            [System.Management.Automation.CompletionResult]::new(
+                $unchanged, $unchanged, 'ParameterValue', 'No completions')
             return
         }
         if (-not $terminated -and $word.StartsWith('-')) {
