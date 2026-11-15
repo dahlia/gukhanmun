@@ -103,6 +103,39 @@ class BundleTests(unittest.TestCase):
         self.assertEqual([call[2] for call in self.calls if call[1:2] == ["--generate-completion"]],
                          ["bash", "zsh", "fish", "powershell", "nushell"])
 
+    def test_checkout_change_during_generation_leaves_existing_bundle_untouched(self):
+        self.generate()
+        (self.directory / "notes.txt").write_bytes(b"keep this user file")
+        before = self.snapshot()
+        self.dirty = b""
+        for phase in ("build", "last shell"):
+            checkout_revision = REVISION
+
+            def build(root):
+                nonlocal checkout_revision
+                self.assertEqual(root, self.root)
+                if phase == "build":
+                    checkout_revision = OTHER_REVISION
+                return self.binary
+
+            def execute(command, **kwargs):
+                nonlocal checkout_revision
+                result = self.fake_run(command, **kwargs)
+                if phase == "last shell" and command == [str(self.binary), "--generate-completion", "nushell"]:
+                    checkout_revision = OTHER_REVISION
+                if command == ["git", "rev-parse", "HEAD"]:
+                    return (checkout_revision + "\n").encode()
+                return result
+
+            with self.subTest(phase=phase), \
+                    patch.object(g, "run", side_effect=execute), \
+                    patch.object(g, "build_host_binary", side_effect=build), \
+                    patch.object(g, "publish") as publish, \
+                    self.assertRaisesRegex(RuntimeError, "checkout revision changed"):
+                g.generate(self.directory, root=self.root, revision=REVISION, version="0.4.0")
+            publish.assert_not_called()
+            self.assertEqual(before, self.snapshot())
+
     def test_wrong_expected_version_and_revision_fail_before_build_or_publish(self):
         for arguments, message in (({"version": "9.9.9"}, "workspace version"),
                                    ({"revision": OTHER_REVISION}, "checkout revision"),

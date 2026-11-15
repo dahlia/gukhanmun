@@ -140,7 +140,8 @@ To be released.
  -  Added `--generate-completion` for Bash, zsh, fish, PowerShell and Nushell,
     with option, value and file candidates derived from the CLI definition.
     Platform binary archives now include matching completion scripts and their
-    source revision, version and SHA-256 metadata. [[#61], [#75]]
+    source revision, version and SHA-256 metadata. Bundle generation rejects a
+    checkout revision change during the build. [[#61], [#75]]
  -  Added source-attested phrase resolution for bundled and custom
     dictionaries. `無條件降服` now uses the bundled *Standard Korean
     Dictionary*'s attested `무조건항복` reading. When evidence conflicts or

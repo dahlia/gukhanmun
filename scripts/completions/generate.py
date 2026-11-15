@@ -142,6 +142,9 @@ def generate(output_dir=DEFAULT_DIRECTORY, binary=None, revision=None, version=N
         "worktree_dirty": dirty,
         "files": {name: hashlib.sha256(data).hexdigest() for name, data in files.items()},
     }
+    final_revision = run(["git", "rev-parse", "HEAD"], root=root).decode("ascii").strip()
+    if final_revision != source_revision:
+        raise RuntimeError("checkout revision changed during completion generation")
     publish(Path(output_dir), files, manifest)
     return manifest
 
