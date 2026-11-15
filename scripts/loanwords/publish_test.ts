@@ -358,7 +358,9 @@ async function publicationCases(layout: ChangelogLayout): Promise<void> {
           "synthetic",
         );}
       const selected = await targets(execute);
-      assert.equal(selected[0].branch, target); // Both annotated and lightweight release tags are inspected.
+      assert.equal(selected.length, 1);
+      assert.equal(selected[0].branch, target);
+      assert.equal(selected[0].oid, await f.git(["rev-parse", `refs/remotes/origin/${target}`]));
       await Deno.writeTextFile(
         `${artifact}/manifest.json`,
         JSON.stringify({

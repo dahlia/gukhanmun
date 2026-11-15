@@ -46,6 +46,11 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
       (await validate(directory, { base: "b".repeat(40), layout: "legacy" })).target,
       "0.10-maintenance",
     );
+    await save({ ...m, target: "main" });
+    assert.equal(
+      (await validate(directory, { base: "b".repeat(40), layout: "legacy" })).target,
+      "main",
+    );
     for (
       const files of [
         [{ ...file, path: "../escape" }],
@@ -60,7 +65,7 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
       await assert.rejects(() => validate(directory, { base: "b".repeat(40), layout: "legacy" }));
     }
     for (
-      const value of [{ ...m, target: "main" }, { ...m, status: "unchanged" }, {
+      const value of [{ ...m, target: "feature" }, { ...m, status: "unchanged" }, {
         ...m,
         controller: "arbitrary",
       }]
@@ -105,6 +110,8 @@ async function fixture(layout: ChangelogLayout = "legacy") {
     ]
   ) await git("git", ["config", key, value]);
   const files = {
+    "crates/gukhanmun-stdict/Cargo.toml": "# synthetic",
+    "crates/gukhanmun-opendict/Cargo.toml": "# synthetic",
     "scripts/dictionaries/interface.json": '{"version":1}',
     "mise.toml":
       "[tasks.stdict-extract]\n[tasks.opendict-extract]\n[tasks.ci]\n# GUKHANMUN_DICTS_OUTPUT_DIR",
@@ -153,7 +160,7 @@ async function publicationCases(layout: ChangelogLayout): Promise<void> {
       "wrong-tree",
       "wrong-controller",
       "advanced",
-      "newer-line",
+      "older-line",
       "wrong-pr-base",
       "symlink-ancestor",
     ] as const
@@ -206,8 +213,8 @@ async function publicationCases(layout: ChangelogLayout): Promise<void> {
           await git("git", ["push", "--quiet", "origin", "HEAD:refs/heads/0.10-maintenance"]);
           await git("git", ["switch", "--detach", base]);
         }
-        if (scenario === "newer-line") {
-          await git("git", ["push", "--quiet", "origin", "HEAD:refs/heads/1.0-maintenance"]);
+        if (scenario === "older-line") {
+          await git("git", ["push", "--quiet", "origin", "HEAD:refs/heads/0.9-maintenance"]);
         }
         if (scenario === "symlink-ancestor") {
           if (Deno.build.os === "windows") return;
@@ -240,7 +247,7 @@ async function publicationCases(layout: ChangelogLayout): Promise<void> {
             "wrong-tree",
             "wrong-controller",
             "advanced",
-            "newer-line",
+            "older-line",
             "wrong-pr-base",
             "symlink-ancestor",
           ].includes(scenario)

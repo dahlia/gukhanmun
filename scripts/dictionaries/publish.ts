@@ -174,7 +174,7 @@ export async function publish(directory: string, root: string, execute: Execute)
   if (m.controller !== Deno.env.get("GITHUB_SHA")) throw new Error("artifact controller mismatch");
   const fresh = await target(execute);
   if (fresh.branch !== m.target || fresh.oid !== m.base) {
-    throw new Error("latest maintenance target advanced; rerun");
+    throw new Error("selected dictionary target advanced; rerun");
   }
   const branch = botBranch(m.target);
   const old =
