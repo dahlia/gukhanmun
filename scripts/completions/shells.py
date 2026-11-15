@@ -345,7 +345,7 @@ def main():
     manifest = bundle.verify(args.dir, revision=revision, version=version)
     with tempfile.TemporaryDirectory(prefix="gukhanmun-regenerate-") as temporary:
         regenerated = Path(temporary)
-        bundle.generate(regenerated, binary=args.binary, revision=revision, version=version)
+        bundle.generate(regenerated, binary=args.binary, revision=revision, version=version, excluded_dir=args.dir)
         for filename in [*FILES.values(), "manifest.json"]:
             if (args.dir / filename).read_bytes() != (regenerated / filename).read_bytes():
                 raise AssertionError(f"Completion regeneration changed {filename}")

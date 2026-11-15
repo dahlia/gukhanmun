@@ -143,8 +143,10 @@ To be released.
     source revision, version and SHA-256 metadata. Bundle generation rejects a
     checkout revision change during the build. Bundle metadata records source
     changes present before or after generation, excluding only untracked files
-    created by the bundle generator. PowerShell completion preserves unmatched
-    non-path values without offering filenames. [[#61], [#75]]
+    created by the bundle generator. Bundle validation supports output
+    directories inside the checkout even when Git does not ignore them.
+    PowerShell completion preserves unmatched non-path values without offering
+    filenames. [[#61], [#75]]
  -  Added source-attested phrase resolution for bundled and custom
     dictionaries. `無條件降服` now uses the bundled *Standard Korean
     Dictionary*'s attested `무조건항복` reading. When evidence conflicts or

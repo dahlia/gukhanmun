@@ -27,6 +27,7 @@ import unittest
 from unittest.mock import patch
 
 import generate as g
+import shells
 
 
 REVISION = "1234567890abcdef" * 2 + "12345678"
@@ -136,6 +137,7 @@ class BundleTests(unittest.TestCase):
         self.directory = self.root / "completion [files] 한글"
 
         def execute(command, **kwargs):
+            kwargs.setdefault("root", self.root)
             if command[0] == "git":
                 return original_run(command, **kwargs, env=git_env)
             return self.fake_run(command, **kwargs)
@@ -148,6 +150,18 @@ class BundleTests(unittest.TestCase):
             self.assertEqual(first, second)
             self.assertEqual(before, self.snapshot())
             g.verify(self.directory, require_clean=True)
+            original_generate = g.generate
+            with patch.object(shells, "ROOT", self.root), \
+                    patch.object(shells, "executable", return_value="fish"), \
+                    patch.object(shells, "fish") as shell_check, \
+                    patch.object(g, "generate", side_effect=lambda directory, **kwargs:
+                                 original_generate(directory, root=self.root, **kwargs)), \
+                    patch.object(sys, "argv", ["shells.py", "--dir", str(self.directory),
+                                              "--binary", str(self.binary), "--shell", "fish"]), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                shells.main()
+            shell_check.assert_called_once()
+            self.assertEqual(before, self.snapshot())
             notes = self.directory / "notes.txt"
             notes.write_text("unrelated user file\n", encoding="utf-8")
             self.assertTrue(g.generate(self.directory, binary=self.binary, root=self.root)["worktree_dirty"])

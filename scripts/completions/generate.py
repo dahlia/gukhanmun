@@ -123,8 +123,12 @@ def source_worktree_dirty(root, output_dir):
                for record in status.split(b"\0"))
 
 
-def generate(output_dir=DEFAULT_DIRECTORY, binary=None, revision=None, version=None, *, root=ROOT):
-    """Prepare every shell before publishing scripts and their source identity."""
+def generate(output_dir=DEFAULT_DIRECTORY, binary=None, revision=None, version=None, *, root=ROOT, excluded_dir=None):
+    """Publish scripts and source identity, optionally excluding an existing bundle.
+
+    Regeneration can write elsewhere while excluding the original bundle's
+    untracked outputs from source status, just as its initial generation did.
+    """
     root = Path(root).resolve()
     with (root / "Cargo.toml").open("rb") as stream:
         workspace_version = tomllib.load(stream)["workspace"]["package"]["version"]
@@ -136,7 +140,8 @@ def generate(output_dir=DEFAULT_DIRECTORY, binary=None, revision=None, version=N
         check_revision(revision)
         if revision != source_revision:
             raise RuntimeError(f"checkout revision {source_revision} does not match expected {revision}")
-    initial_dirty = source_worktree_dirty(root, output_dir)
+    bundle_dir = output_dir if excluded_dir is None else excluded_dir
+    initial_dirty = source_worktree_dirty(root, bundle_dir)
     executable = Path(binary).resolve() if binary is not None else build_host_binary(root)
     actual_version = run([str(executable), "--version"], root=root).decode("utf-8").strip()
     if actual_version != f"gukhanmun {workspace_version}":
@@ -149,7 +154,7 @@ def generate(output_dir=DEFAULT_DIRECTORY, binary=None, revision=None, version=N
             raise RuntimeError(f"CLI emitted an empty completion script for {shell}")
         data.decode("utf-8")
         files[name] = data if data.endswith(b"\n") else data + b"\n"
-    final_dirty = source_worktree_dirty(root, output_dir)
+    final_dirty = source_worktree_dirty(root, bundle_dir)
     dirty = initial_dirty or final_dirty
     manifest = {
         "schema_version": 1,
