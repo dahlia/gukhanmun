@@ -92,8 +92,11 @@ To be released.
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
 
 [#15]: https://github.com/dahlia/gukhanmun/issues/15
+[#18]: https://github.com/dahlia/gukhanmun/issues/18
 [#33]: https://github.com/dahlia/gukhanmun/issues/33
 [#34]: https://github.com/dahlia/gukhanmun/pull/34
 [#38]: https://github.com/dahlia/gukhanmun/issues/38
@@ -177,6 +180,8 @@ To be released.
     `--source-policy` to select a policy and `--reference-only` to exclude
     independent loanwords; custom `-d` dictionaries remain authored overrides.
     [[#42], [#44]]
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
 
 ### gukhanmun-core (Rust)
 
@@ -298,6 +303,8 @@ To be released.
  -  The bundled loanword dictionary now declares its source role and preserves
     all contributing source IDs for cooperation with reference dictionaries.
     [[#42], [#44]]
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
 
 ### gukhanmun-mkdict (Rust)
 
@@ -444,6 +451,8 @@ To be released.
  -  The official CDB loader now declares the loanword role and ships typed
     contributor evidence for reference-authorized cooperation. Evidence-bearing
     dictionaries require version 4 readers. [[#42], [#44]]
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
 
 ### @gukhanmun/loanwords-fst (JavaScript/TypeScript)
 
@@ -452,6 +461,8 @@ To be released.
  -  The official FST loader now declares the loanword role and ships typed
     contributor evidence for reference-authorized cooperation. Evidence-bearing
     dictionaries require version 4 readers. [[#42], [#44]]
+ -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
+    records) and regenerated its dictionary data. [[#18]]
 
 ### @gukhanmun/napi (JavaScript/TypeScript)
 

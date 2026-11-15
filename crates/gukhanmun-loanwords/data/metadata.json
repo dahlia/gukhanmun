@@ -1,9 +1,9 @@
 {
-  "build_date": "2026-10-17T22:03:14.000Z",
+  "build_date": "2026-11-15T03:23:03.000Z",
   "selector": "0003",
   "source": "National Institute of Korean Language loanword spelling examples",
   "source_url": "https://korean.go.kr/kornorms/exampleReqList.do",
-  "records_sha256": "c4b904f283651177089973cc33ddc9a3fdc13a9fbcd408b23fffb85a51e41395",
+  "records_sha256": "35df9580ebefa9d538ae7e5cbf81a0e065140d91a5569ed4d25ebc1c0ea0f2dc",
   "record_count": "67303",
   "license": "NIKL free use; see ATTRIBUTION.md"
 }
