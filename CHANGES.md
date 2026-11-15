@@ -137,6 +137,16 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%2Dcli%20%28Rust%29 -->
 
+ -  Added `--generate-completion` for Bash, zsh, fish, PowerShell and Nushell,
+    with option, value and file candidates derived from the CLI definition.
+    Platform binary archives now include matching completion scripts and their
+    source revision, version and SHA-256 metadata. Bundle generation rejects a
+    checkout revision change during the build. Bundle metadata records source
+    changes present before or after generation, excluding only untracked files
+    created by the bundle generator. Bundle validation supports output
+    directories inside the checkout even when Git does not ignore them.
+    PowerShell completion preserves unmatched non-path values without offering
+    filenames. [[#61], [#75]]
  -  Added source-attested phrase resolution for bundled and custom
     dictionaries. `無條件降服` now uses the bundled *Standard Korean
     Dictionary*'s attested `무조건항복` reading. When evidence conflicts or
@@ -177,6 +187,9 @@ To be released.
     `--source-policy` to select a policy and `--reference-only` to exclude
     independent loanwords; custom `-d` dictionaries remain authored overrides.
     [[#42], [#44]]
+
+[#61]: https://github.com/dahlia/gukhanmun/issues/61
+[#75]: https://github.com/dahlia/gukhanmun/pull/75
 
 ### gukhanmun-core (Rust)
 

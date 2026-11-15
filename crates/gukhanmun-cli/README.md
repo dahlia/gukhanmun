@@ -66,6 +66,23 @@ Options
 | `--output`/`-o`             | Output file path; defaults to standard output                                                              |
 
 
+Shell completions
+-----------------
+
+Run `gukhanmun --generate-completion bash > gukhanmun.bash` to generate a
+script for the public command. Supported shell names are `bash`, `zsh`,
+`fish`, `powershell` and `nushell`. Generation uses the CLI's own definitions,
+reads no input and loads no dictionaries. It cannot be combined with
+conversion arguments. PowerShell is tested with PowerShell 7.
+
+Platform release archives include a matching *completions/* bundle with
+source revision, version and SHA-256 metadata. From source, use
+`mise run completions`; see the [CLI guide] for the generation contract,
+verification task and Nushell invocation caveats.
+
+[CLI guide]: https://gukhanmun.org/guide/cli/start#generating-shell-completions
+
+
 License
 -------
 
