@@ -53,7 +53,7 @@ class BundleTests(unittest.TestCase):
         self.assertEqual(kwargs.get("root"), self.root)
         if command == ["git", "rev-parse", "HEAD"]:
             return (REVISION + "\n").encode()
-        if command == ["git", "status", "--porcelain", "--untracked-files=normal"]:
+        if command == ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"]:
             return self.dirty
         if command == [str(self.binary), "--version"]:
             return self.cli_version
@@ -102,6 +102,65 @@ class BundleTests(unittest.TestCase):
         build.assert_called_once_with(self.root)
         self.assertEqual([call[2] for call in self.calls if call[1:2] == ["--generate-completion"]],
                          ["bash", "zsh", "fish", "powershell", "nushell"])
+
+    def test_dirtiness_before_or_after_build_is_preserved(self):
+        for initial, final in ((b" M Cargo.toml\0", b""), (b"", b" M Cargo.toml\0")):
+            self.dirty = initial
+
+            def build(root):
+                self.dirty = final
+                return self.binary
+
+            with self.subTest(initial=initial, final=final), \
+                    patch.object(g, "run", side_effect=self.fake_run), \
+                    patch.object(g, "build_host_binary", side_effect=build):
+                manifest = g.generate(self.directory, root=self.root)
+            self.assertTrue(manifest["worktree_dirty"])
+            with self.assertRaisesRegex(RuntimeError, "dirty worktree"):
+                g.verify(self.directory, require_clean=True)
+
+    def test_untracked_outputs_do_not_dirty_real_checkout(self):
+        original_run = g.run
+        git_env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+        def git(*arguments):
+            return original_run(["git", *arguments], root=self.root, env=git_env)
+
+        git("init", "--quiet")
+        source = self.root / "source.rs"
+        source.write_text("original source\n", encoding="utf-8")
+        git("add", "Cargo.toml", self.binary.name, source.name)
+        git("-c", "user.name=Test", "-c", "user.email=test@example.com",
+            "-c", "commit.gpgsign=false", "-c", f"core.hooksPath={self.root / '.git' / 'no-hooks'}",
+            "commit", "--quiet", "-m", "Initial fixture")
+        self.directory = self.root / "completion [files] 한글"
+
+        def execute(command, **kwargs):
+            if command[0] == "git":
+                return original_run(command, **kwargs, env=git_env)
+            return self.fake_run(command, **kwargs)
+
+        with patch.object(g, "run", side_effect=execute):
+            first = g.generate(self.directory, binary=self.binary, root=self.root)
+            before = self.snapshot()
+            second = g.generate(self.directory, binary=self.binary, root=self.root)
+            self.assertFalse(first["worktree_dirty"])
+            self.assertEqual(first, second)
+            self.assertEqual(before, self.snapshot())
+            g.verify(self.directory, require_clean=True)
+            notes = self.directory / "notes.txt"
+            notes.write_text("unrelated user file\n", encoding="utf-8")
+            self.assertTrue(g.generate(self.directory, binary=self.binary, root=self.root)["worktree_dirty"])
+            notes.unlink()
+            source.write_text("changed source\n", encoding="utf-8")
+            self.assertTrue(g.generate(self.directory, binary=self.binary, root=self.root)["worktree_dirty"])
+            git("restore", source.name)
+            git("add", str(self.directory.relative_to(self.root)))
+            git("-c", "user.name=Test", "-c", "user.email=test@example.com",
+                "-c", "commit.gpgsign=false", "-c", f"core.hooksPath={self.root / '.git' / 'no-hooks'}",
+                "commit", "--quiet", "-m", "Track bundle fixture")
+            (self.directory / "gukhanmun.bash").write_bytes(b"changed tracked output\n")
+            self.assertTrue(g.generate(self.directory, binary=self.binary, root=self.root)["worktree_dirty"])
 
     def test_checkout_change_during_generation_leaves_existing_bundle_untouched(self):
         self.generate()

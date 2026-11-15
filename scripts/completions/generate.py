@@ -108,6 +108,21 @@ def publish(directory, files, manifest):
             os.replace(staging / name, directory / name)
 
 
+def source_worktree_dirty(root, output_dir):
+    """Ignore only untracked bundle outputs, retaining all source changes."""
+    excluded = set()
+    try:
+        relative = Path(output_dir).resolve().relative_to(root)
+    except ValueError:
+        pass
+    else:
+        excluded = {os.fsencode((relative / name).as_posix())
+                    for name in (*SHELL_FILES.values(), "manifest.json")}
+    status = run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], root=root)
+    return any(record and not (record.startswith(b"?? ") and record[3:] in excluded)
+               for record in status.split(b"\0"))
+
+
 def generate(output_dir=DEFAULT_DIRECTORY, binary=None, revision=None, version=None, *, root=ROOT):
     """Prepare every shell before publishing scripts and their source identity."""
     root = Path(root).resolve()
@@ -121,6 +136,7 @@ def generate(output_dir=DEFAULT_DIRECTORY, binary=None, revision=None, version=N
         check_revision(revision)
         if revision != source_revision:
             raise RuntimeError(f"checkout revision {source_revision} does not match expected {revision}")
+    initial_dirty = source_worktree_dirty(root, output_dir)
     executable = Path(binary).resolve() if binary is not None else build_host_binary(root)
     actual_version = run([str(executable), "--version"], root=root).decode("utf-8").strip()
     if actual_version != f"gukhanmun {workspace_version}":
@@ -133,7 +149,8 @@ def generate(output_dir=DEFAULT_DIRECTORY, binary=None, revision=None, version=N
             raise RuntimeError(f"CLI emitted an empty completion script for {shell}")
         data.decode("utf-8")
         files[name] = data if data.endswith(b"\n") else data + b"\n"
-    dirty = bool(run(["git", "status", "--porcelain", "--untracked-files=normal"], root=root))
+    final_dirty = source_worktree_dirty(root, output_dir)
+    dirty = initial_dirty or final_dirty
     manifest = {
         "schema_version": 1,
         "command": "gukhanmun",
