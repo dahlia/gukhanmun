@@ -124,6 +124,10 @@ Cargo가 交叉 컴파일(cross-compilation) 對象으로 設定되어 있어도
 完成 候補를 檢證합니다. 生成 後 한 셸만 檢査하려면
 `mise run completions-test -- --shell nushell`을 實行합니다.
 
+全體 檢査는 Linux, macOS, WSL 같은 Unix 環境에서 實行해야 합니다. Bash와 zsh
+檢査에서 쓰는 Python의 `pty`와 `termios` 모듈은 Windows版 Python에서 使用할 수
+없습니다.
+
 묶음은 *target/completions/* 디렉터리에 生成됩니다:
 
 | 셸         | 파일              |

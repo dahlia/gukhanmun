@@ -126,6 +126,10 @@ a target executable. The second task requires all five shells and checks syntax
 and actual completion candidates. To check one shell after generation, run
 `mise run completions-test -- --shell nushell`.
 
+Run the full test in a Unix environment, such as Linux, macOS or WSL. The Bash
+and zsh checks use Python's `pty` and `termios` modules, which are
+unavailable on native Windows.
+
 The bundle goes to *target/completions/*:
 
 | Shell      | File              |
