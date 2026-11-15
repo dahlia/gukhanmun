@@ -153,6 +153,10 @@ To be released.
     exceeds work limits, the existing selection is kept, and ambiguous readings
     without matching phrase evidence keep their existing defaults.
     [[#41], [#45]]
+ -  Added standalone PyPI wheels for installing the CLI with
+    `pipx install gukhanmun-cli` or `uv tool install gukhanmun-cli`, without
+    compiling Rust. The wheels include `gukhanmun-mkdict`, the bundled
+    dictionaries and version-matched shell completions. [[#72], [#76]]
  -  Added support for custom version 4 FST/CDB dictionaries carrying source
     evidence or phrase constraints; older dictionary files remain supported.
     [[#41], [#42], [#44], [#45]]
@@ -189,7 +193,9 @@ To be released.
     [[#42], [#44]]
 
 [#61]: https://github.com/dahlia/gukhanmun/issues/61
+[#72]: https://github.com/dahlia/gukhanmun/issues/72
 [#75]: https://github.com/dahlia/gukhanmun/pull/75
+[#76]: https://github.com/dahlia/gukhanmun/pull/76
 
 ### gukhanmun-core (Rust)
 
@@ -324,6 +330,9 @@ To be released.
     not add phrase keys to word candidates. Builds use format version 4 when
     either kind of evidence is supplied, version 3 for aliases alone, and
     version 1 or 2 otherwise. [[#38], [#39], [#41], [#42], [#44], [#45]]
+ -  Added `gukhanmun-mkdict` to the standalone PyPI wheels. Install it together
+    with `gukhanmun` using `pipx install gukhanmun-cli` or
+    `uv tool install gukhanmun-cli`, without compiling Rust. [[#72], [#76]]
 
 ### gukhanmun-napi (Rust)
 
@@ -858,6 +867,22 @@ To be released.
 [#51]: https://github.com/dahlia/gukhanmun/issues/51
 [#57]: https://github.com/dahlia/gukhanmun/pull/57
 [#58]: https://github.com/dahlia/gukhanmun/pull/58
+
+### gukhanmun-cli (Python)
+
+<!-- sacho:section:v1 id=gukhanmun%2Dcli%20%28Python%29 -->
+
+ -  Added standalone CLI wheels for Python 3.11 or later on Linux, macOS and
+    Windows, on x86\_64 and aarch64. Install with `pipx install gukhanmun-cli`
+    or `uv tool install gukhanmun-cli`, without Rust or the Python library's
+    dictionary packages. The wheels include the `gukhanmun` and
+    `gukhanmun-mkdict` executables, bundled dictionaries and shell completion
+    resources for `gukhanmun`; no source distribution or runtime executable
+    download is used. [[#72], [#76]]
+ -  Added opt-in development releases with PEP 440 versions. Install with
+    `uv tool install --prerelease allow gukhanmun-cli` or
+    `pipx install --pip-args='--pre' gukhanmun-cli`; ordinary installation
+    prefers a compatible stable release when one exists. [[#72], [#76]]
 
 ### gukhanmun-loanwords-cdb (Python)
 

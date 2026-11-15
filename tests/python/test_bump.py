@@ -76,8 +76,8 @@ sys.exit(code)
 
 
 def fixture(tmp_path):
-    # Reuse the actual manifest fixture, including all seven extras and data
-    # distributions, rather than testing a simplified independent layout.
+    # Reuse the actual eight-distribution fixture, including the independent
+    # CLI and the dictionary extras, rather than a simplified layout.
     spec = importlib.util
     definition = spec.spec_from_file_location('version_fixture', ROOT / 'tests/python/test_version.py')
     module = spec.module_from_spec(definition)
@@ -124,7 +124,7 @@ def test_bump_uses_applied_version_and_amends_all_python_metadata(tmp_path, requ
     assert result.returncode == 0, result.stdout + result.stderr
     assert state['amended']
     versions = [tomllib.loads(path.read_text())['project']['version'] for path in (tmp_path / 'python').glob('*/pyproject.toml')]
-    assert len(versions) == 7 and set(versions) == {expected}
+    assert len(versions) == 8 and set(versions) == {expected}
     extras = tomllib.loads((tmp_path / 'python/gukhanmun/pyproject.toml').read_text())['project']['optional-dependencies']
     assert all(value[0].endswith('==' + expected) for value in extras.values())
     assert (tmp_path / 'uv.lock').read_text() == 'synchronized ' + expected
@@ -132,9 +132,9 @@ def test_bump_uses_applied_version_and_amends_all_python_metadata(tmp_path, requ
     # Expanded glob arguments use the runner's native path separator.
     amend = [path.replace('\\', '/') for path in amend]
     # Nushell may preserve or expand a glob depending on the external runner;
-    # both must name all seven manifests and the lock in the amend operation.
+    # both must name all eight manifests and the lock in the amend operation.
     assert 'uv.lock' in amend
-    assert 'python/*/pyproject.toml' in amend or sum(path.endswith('/pyproject.toml') for path in amend) == 7
+    assert 'python/*/pyproject.toml' in amend or sum(path.endswith('/pyproject.toml') for path in amend) == 8
     staged = next(call for call in state['calls'] if call[:2] == ['git', 'add'])
     assert 'uv.lock' in staged and 'changes.d/next' in staged and 'CHANGES.md' in staged
 

@@ -46,6 +46,9 @@ def project(root: Path, version: str) -> tuple[Path, str]:
         data = root / "python" / name / "pyproject.toml"
         data.parent.mkdir(parents=True)
         data.write_text(DATA_SOURCE.format(name=name))
+    cli = root / "python/gukhanmun-cli/pyproject.toml"
+    cli.parent.mkdir(parents=True)
+    cli.write_text(DATA_SOURCE.format(name="gukhanmun-cli"))
     return manifest, source
 
 
@@ -78,6 +81,8 @@ def test_sync_preserves_other_manifest_text(tmp_path: Path, cargo: str, python: 
     assert tomllib.loads(manifest.read_text())["project"]["optional-dependencies"] == {
         extra: [f"gukhanmun-{data}=={python}"] for extra, data in EXTRAS.items()}
     assert data_versions(tmp_path) == {python}
+    cli = tomllib.loads((tmp_path / "python/gukhanmun-cli/pyproject.toml").read_text())["project"]
+    assert cli == {"name": "gukhanmun-cli", "version": python}
     again = invoke(tmp_path)
     assert again.returncode == 0
     assert manifest.read_text() == expected
@@ -97,6 +102,7 @@ def test_explicit_artifact_version_is_stamped_everywhere(tmp_path: Path, cargo: 
     assert data["optional-dependencies"] == {
         extra: [f"gukhanmun-{name}=={requested}"] for extra, name in EXTRAS.items()}
     assert data_versions(tmp_path) == {requested}
+    assert tomllib.loads((tmp_path / "python/gukhanmun-cli/pyproject.toml").read_text())["project"]["version"] == requested
     # The Rust workspace keeps its own version.
     assert tomllib.loads((tmp_path / "Cargo.toml").read_text())["workspace"]["package"]["version"] == cargo
 
@@ -163,7 +169,17 @@ def test_invalid_data_manifest_leaves_every_manifest_unchanged(tmp_path: Path) -
     assert DATA[-1] in result.stderr
     assert manifest.read_text() == original
     assert {tomllib.loads((tmp_path / "python" / name / "pyproject.toml").read_text())["project"]["version"]
-            for name in DATA[:-1]} == {"0.4.0"}
+             for name in DATA[:-1]} == {"0.4.0"}
+
+
+def test_invalid_cli_manifest_leaves_every_manifest_unchanged(tmp_path: Path) -> None:
+    manifest, original = project(tmp_path, "0.4.1")
+    cli = tmp_path / "python/gukhanmun-cli/pyproject.toml"
+    cli.write_text('[project]\nname = "gukhanmun-cli"\ndynamic = ["version"]\n')
+    result = invoke(tmp_path)
+    assert result.returncode != 0 and "gukhanmun-cli" in result.stderr
+    assert manifest.read_text() == original
+    assert data_versions(tmp_path) == {"0.4.0"}
 
 
 @pytest.mark.parametrize("change", [

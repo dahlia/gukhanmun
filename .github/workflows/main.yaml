@@ -156,6 +156,55 @@ jobs:
         set -euo pipefail
         mise run py-test-all -- -e "$PYTHON_ENV"
 
+  cli-context:
+    name: CLI build context
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.native.outputs.version }}
+      should-publish: ${{ steps.native.outputs.should-publish }}
+      stamp-native-version: ${{ steps.native.outputs.stamp-native-version }}
+      commit: ${{ steps.native.outputs.commit }}
+      python-version: ${{ steps.python.outputs.python-version }}
+      python-eligible: ${{ steps.python.outputs.python-eligible }}
+      python-reason: ${{ steps.python.outputs.python-reason }}
+      python-outcome: ${{ steps.python.outcome }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: jdx/mise-action@v4
+      with:
+        install: false
+        cache: false
+        env: false
+    - name: Resolve native context independently of Python packaging
+      id: native
+      shell: bash
+      run: |
+        set -euo pipefail
+        mise install python@3.15.2
+        mise exec --no-deps python@3.15.2 -- python -I scripts/python/cli_context.py native
+    - name: Resolve CLI Python context
+      id: python
+      continue-on-error: true
+      shell: bash
+      run: |
+        set -euo pipefail
+        mise install uv
+        tools="$(mise exec --no-deps uv python@3.15.2 -- python -I scripts/python/artifacts.py tools | tail -n 1)"
+        mise exec --no-deps uv python@3.15.2 -- "$tools" -I scripts/python/cli_context.py python
+    - name: Resolve the independent six-host CLI matrix
+      id: matrix
+      continue-on-error: true
+      shell: bash
+      run: |
+        set -euo pipefail
+        matrix="$(mise exec --no-deps python@3.15.2 -- python -I scripts/python/cli_artifacts.py matrix)"
+        echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   python-context:
     name: Python artifact context
     runs-on: ubuntu-latest
@@ -687,7 +736,7 @@ jobs:
   artifact-context:
     name: artifact context
     runs-on: ubuntu-latest
-    needs: [ci, completions-test]
+    needs: [ci, completions-test, cli-context]
     if: >-
       github.event_name == 'push' &&
       (
@@ -705,6 +754,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 0
+        persist-credentials: false
     - uses: actions/cache@v5
       with:
         path: ~/.rustup/toolchains
@@ -769,37 +819,15 @@ jobs:
     - name: Resolve artifact version
       id: version
       shell: bash
+      env:
+        NATIVE_VERSION: ${{ needs.cli-context.outputs.version }}
+        SHOULD_PUBLISH: ${{ needs.cli-context.outputs.should-publish }}
       run: |
         set -euo pipefail
-        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
-          set -x
-        fi
-
-        workspace_version="$(dasel -i toml -o yaml 'workspace.package.version' < Cargo.toml)"
-        should_publish=true
-        if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-          if [[ ! "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Release tags must use x.y.z without a v prefix: $GITHUB_REF_NAME"
-            exit 1
-          fi
-
-          if [[ "$GITHUB_REF_NAME" != "$workspace_version" ]]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match workspace.package.version $workspace_version"
-            exit 1
-          fi
-
-          artifact_version="$workspace_version"
-        elif [[ "$GITHUB_REF_NAME" == "main" || "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+-maintenance$ ]]; then
-          short_sha="$(git rev-parse --short "$GITHUB_SHA")"
-          artifact_version="${workspace_version}-dev.${GITHUB_RUN_NUMBER}+${short_sha}"
-        else
-          should_publish=false
-          artifact_version="$workspace_version"
-        fi
-
+        test -n "$NATIVE_VERSION"
         {
-          echo "version=$artifact_version"
-          echo "should-publish=$should_publish"
+          echo "version=$NATIVE_VERSION"
+          echo "should-publish=$SHOULD_PUBLISH"
         } >> "$GITHUB_OUTPUT"
     - name: Resolve the independent Python publication context
       id: python-version
@@ -956,10 +984,11 @@ jobs:
   build-completions:
     name: build shared completions
     runs-on: ubuntu-latest
-    needs: artifact-context
-    if: needs.artifact-context.outputs.should-publish == 'true'
+    needs: cli-context
     steps:
     - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
     - uses: actions/cache@v5
       with:
         path: ~/.rustup/toolchains
@@ -968,40 +997,24 @@ jobs:
       with:
         cache: true
     - name: Prepare dev artifact version
-      if: github.ref_type != 'tag'
+      if: needs.cli-context.outputs.stamp-native-version == 'true'
       shell: bash
+      env:
+        NATIVE_VERSION: ${{ needs.cli-context.outputs.version }}
       run: |
         set -euo pipefail
-        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
-          set -x
-        fi
-
-        edit_toml() {
-          local query="$1"
-          dasel -i toml --root "$query" < Cargo.toml > Cargo.toml.tmp
-          mv Cargo.toml.tmp Cargo.toml
-        }
-
-        edit_toml "workspace.package.version = \"${{ needs.artifact-context.outputs.version }}\""
-        dasel -i toml -o json 'workspace.dependencies' < Cargo.toml |
-          jq -r 'keys[]' |
-          while read -r crate
-        do
-          crate="${crate%$'\r'}"
-          edit_toml "workspace.dependencies.get(\"$crate\").version = \"${{ needs.artifact-context.outputs.version }}\""
-        done
-
-        cargo update --workspace
+        mise exec --no-deps -- python -I scripts/python/cli_context.py stamp --version "$NATIVE_VERSION"
     - name: Generate with the host CLI from this exact source revision
       env:
-        ARTIFACT_VERSION: ${{ needs.artifact-context.outputs.version }}
+        ARTIFACT_VERSION: ${{ needs.cli-context.outputs.version }}
       run: mise run completions -- --revision "$GITHUB_SHA" --version "$ARTIFACT_VERSION"
     - name: Verify completion provenance and hashes
       env:
-        ARTIFACT_VERSION: ${{ needs.artifact-context.outputs.version }}
+        ARTIFACT_VERSION: ${{ needs.cli-context.outputs.version }}
+        STAMP_NATIVE: ${{ needs.cli-context.outputs.stamp-native-version }}
       run: |
         args=(--revision "$GITHUB_SHA" --version "$ARTIFACT_VERSION")
-        if [[ "$GITHUB_REF_TYPE" == tag ]]; then args+=(--require-clean); fi
+        if [[ "$STAMP_NATIVE" != true ]]; then args+=(--require-clean); fi
         python -B scripts/completions/generate.py verify "${args[@]}"
     - uses: actions/upload-artifact@v7
       with:
@@ -1012,34 +1025,39 @@ jobs:
   build-release-binaries:
     name: build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    needs: [artifact-context, build-completions]
-    if: needs.artifact-context.outputs.should-publish == 'true'
+    needs: [cli-context, build-completions]
     strategy:
       fail-fast: false
       matrix:
         include:
         - os: macos-latest
           target: aarch64-apple-darwin
+          cli-target: macos-arm64
           archive: tar.bz2
           exe: ""
         - os: macos-latest
           target: x86_64-apple-darwin
+          cli-target: macos-x86_64
           archive: tar.bz2
           exe: ""
         - os: windows-latest
           target: aarch64-pc-windows-msvc
+          cli-target: windows-arm64
           archive: zip
           exe: ".exe"
         - os: windows-latest
           target: x86_64-pc-windows-msvc
+          cli-target: windows-amd64
           archive: zip
           exe: ".exe"
         - os: ubuntu-latest
           target: aarch64-unknown-linux-musl
+          cli-target: linux-aarch64
           archive: tar.bz2
           exe: ""
         - os: ubuntu-latest
           target: x86_64-unknown-linux-musl
+          cli-target: linux-x86_64
           archive: tar.bz2
           exe: ""
     steps:
@@ -1050,6 +1068,8 @@ jobs:
         git config --global core.autocrlf false
         git config --global core.eol lf
     - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
     - uses: actions/cache@v5
       with:
         path: ~/.rustup/toolchains
@@ -1086,30 +1106,13 @@ jobs:
         rustup target list --installed
         rustc -Vv --target ${{ matrix.target }} || true
     - name: Prepare dev artifact version
-      if: github.ref_type != 'tag'
+      if: needs.cli-context.outputs.stamp-native-version == 'true'
       shell: bash
+      env:
+        NATIVE_VERSION: ${{ needs.cli-context.outputs.version }}
       run: |
         set -euo pipefail
-        if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
-          set -x
-        fi
-
-        edit_toml() {
-          local query="$1"
-          dasel -i toml --root "$query" < Cargo.toml > Cargo.toml.tmp
-          mv Cargo.toml.tmp Cargo.toml
-        }
-
-        edit_toml "workspace.package.version = \"${{ needs.artifact-context.outputs.version }}\""
-        dasel -i toml -o json 'workspace.dependencies' < Cargo.toml |
-          jq -r 'keys[]' |
-          while read -r crate
-        do
-          crate="${crate%$'\r'}"
-          edit_toml "workspace.dependencies.get(\"$crate\").version = \"${{ needs.artifact-context.outputs.version }}\""
-        done
-
-        cargo update --workspace
+        mise exec --no-deps -- python -I scripts/python/cli_context.py stamp --version "$NATIVE_VERSION"
     - name: Verify release binary package versions
       shell: bash
       run: |
@@ -1124,8 +1127,8 @@ jobs:
         )"
 
         for package in gukhanmun-cli gukhanmun-mkdict; do
-          if ! grep -Fxq "$package=${{ needs.artifact-context.outputs.version }}" <<< "$actual_versions"; then
-            echo "::error::$package version does not match artifact version ${{ needs.artifact-context.outputs.version }}"
+          if ! grep -Fxq "$package=${{ needs.cli-context.outputs.version }}" <<< "$actual_versions"; then
+            echo "::error::$package version does not match artifact version ${{ needs.cli-context.outputs.version }}"
             echo "$actual_versions"
             exit 1
           fi
@@ -1206,10 +1209,11 @@ jobs:
     - name: Verify shared completion bundle before archiving
       shell: bash
       env:
-        ARTIFACT_VERSION: ${{ needs.artifact-context.outputs.version }}
+        ARTIFACT_VERSION: ${{ needs.cli-context.outputs.version }}
+        STAMP_NATIVE: ${{ needs.cli-context.outputs.stamp-native-version }}
       run: |
         args=(--revision "$GITHUB_SHA" --version "$ARTIFACT_VERSION")
-        if [[ "$GITHUB_REF_TYPE" == tag ]]; then args+=(--require-clean); fi
+        if [[ "$STAMP_NATIVE" != true ]]; then args+=(--require-clean); fi
         python -B scripts/completions/generate.py verify "${args[@]}"
     - name: Archive release binaries
       shell: bash
@@ -1219,7 +1223,7 @@ jobs:
           set -x
         fi
 
-        asset="gukhanmun-${{ needs.artifact-context.outputs.version }}-${{ matrix.target }}"
+        asset="gukhanmun-${{ needs.cli-context.outputs.version }}-${{ matrix.target }}"
         mkdir -p "dist/$asset"
         cp "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}" "dist/$asset/"
         cp "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}" "dist/$asset/"
@@ -1241,11 +1245,313 @@ jobs:
         if [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
           find dist -maxdepth 2 -type f -print -exec ls -lh {} \;
         fi
+    # Assembly is isolated from native publication: missing CLI outputs fail
+    # cli-wheel-test, but do not suppress the existing binary upload/job.
+    - name: Assemble the CLI wheel from the just-built executables
+      id: cli-wheel
+      continue-on-error: true
+      shell: bash
+      env:
+        CLI_TARGET: ${{ matrix.cli-target }}
+        NATIVE_VERSION: ${{ needs.cli-context.outputs.version }}
+        PYTHON_VERSION: ${{ needs.cli-context.outputs.python-version }}
+        PYTHON_OUTCOME: ${{ needs.cli-context.outputs.python-outcome }}
+        SOURCE_COMMIT: ${{ needs.cli-context.outputs.commit }}
+      run: |
+        set -euo pipefail
+        test "$PYTHON_OUTCOME" = success
+        test -n "$PYTHON_VERSION"
+        rustc -vV > target/rustc-version.txt
+        mise exec --no-deps -- python -I scripts/python/cli_wheel.py \
+          --target "$CLI_TARGET" \
+          --binary "target/${{ matrix.target }}/release/gukhanmun${{ matrix.exe }}" \
+          --mkdict-binary "target/${{ matrix.target }}/release/gukhanmun-mkdict${{ matrix.exe }}" \
+          --completions target/completions --native-version "$NATIVE_VERSION" \
+          --version "$PYTHON_VERSION" --commit "$SOURCE_COMMIT" \
+          --compiler-file target/rustc-version.txt --output cli-wheel
+    - uses: actions/upload-artifact@v7
+      if: steps.cli-wheel.outcome == 'success'
+      continue-on-error: true
+      with:
+        name: cli-wheel-${{ matrix.cli-target }}
+        path: cli-wheel/
+        if-no-files-found: error
     - uses: actions/upload-artifact@v7
       with:
         name: binary-${{ matrix.target }}
-        path: dist/gukhanmun-${{ needs.artifact-context.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+        path: dist/gukhanmun-${{ needs.cli-context.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
         if-no-files-found: error
+
+  cli-wheel-test:
+    name: CLI wheel tests (${{ matrix.id }})
+    runs-on: ${{ matrix.runner }}
+    needs: [cli-context, build-release-binaries]
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.cli-context.outputs.matrix) }}
+    env:
+      PYTHON_VERSION: ${{ needs.cli-context.outputs.python-version }}
+      MISE_EXEC_AUTO_INSTALL: "false"
+    steps:
+    - name: Disable Git CRLF conversion
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        git config --global core.autocrlf false
+        git config --global core.eol lf
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: jdx/mise-action@v4
+      with:
+        install: false
+        cache: false
+        env: false
+    - name: Require successful CLI Python resolution
+      shell: bash
+      env:
+        PYTHON_OUTCOME: ${{ needs.cli-context.outputs.python-outcome }}
+      run: |
+        set -euo pipefail
+        test "$PYTHON_OUTCOME" = success
+        test -n "$PYTHON_VERSION"
+    - name: Install pinned host interpreters and installer tools, without Rust
+      shell: bash
+      env:
+        CLI_TARGET: ${{ matrix.id }}
+      run: |
+        set -euo pipefail
+        mise install uv python@3.15.2
+        pins="$(mise exec --no-deps python@3.15.2 -- python -I scripts/python/cli_ci.py pins --target "$CLI_TARGET")"
+        read -ra pythons <<< "$pins"
+        mise install "${pythons[@]}"
+        tools="$(mise exec --no-deps uv python@3.15.2 -- python -I scripts/python/artifacts.py tools | tail -n 1)"
+        echo "GUKHANMUN_TOOLS_PYTHON=$tools" >> "$GITHUB_ENV"
+    - name: Install Linux completion probe shells
+      if: matrix.id == 'linux-x86_64'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zsh fish
+        mise install aqua:nushell/nushell
+    - uses: actions/download-artifact@v8
+      with:
+        name: cli-wheel-${{ matrix.id }}
+        path: cli-test
+    - name: Prepare locked wheels for isolated installation
+      shell: bash
+      env:
+        CLI_TARGET: ${{ matrix.id }}
+      run: |
+        set -euo pipefail
+        mise exec --no-deps uv python@3.15.2 -- "$GUKHANMUN_TOOLS_PYTHON" -I scripts/python/cli_ci.py prepare \
+          --target "$CLI_TARGET" --dir cli-test
+    - name: Audit and execute on the actual native host
+      shell: bash
+      env:
+        CLI_TARGET: ${{ matrix.id }}
+      run: |
+        set -euo pipefail
+        shells=()
+        if [[ "$CLI_TARGET" == linux-x86_64 ]]; then
+          shells=(--shell bash --shell zsh --shell fish --shell nushell)
+          # Resolve the pinned Nushell without enabling other project tools.
+          nu="$(mise exec --no-deps aqua:nushell/nushell -- which nu)"
+          PATH="$(dirname "$nu"):$PATH"
+          export PATH
+        elif [[ "$CLI_TARGET" == windows-amd64 ]]; then
+          shells=(--shell powershell)
+        fi
+        mise exec --no-deps uv python@3.15.2 -- "$GUKHANMUN_TOOLS_PYTHON" -I scripts/python/cli_ci.py host \
+          --target "$CLI_TARGET" --dir cli-test --version "$PYTHON_VERSION" "${shells[@]}"
+    - name: Execute the same wheel in both pinned Linux libc floor images
+      if: matrix.family == 'linux'
+      shell: bash
+      env:
+        CLI_TARGET: ${{ matrix.id }}
+      run: |
+        set -euo pipefail
+        mise exec --no-deps uv python@3.15.2 -- "$GUKHANMUN_TOOLS_PYTHON" -I scripts/python/cli_ci.py containers \
+          --target "$CLI_TARGET" --dir cli-test --version "$PYTHON_VERSION"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: cli-evidence-${{ matrix.id }}
+        path: |
+          cli-test/cli-audit-*.json
+          cli-test/cli-execution-*.json
+          cli-test/cli-shell-*.json
+        if-no-files-found: error
+
+  cli-dists:
+    name: CLI artifact set
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [cli-context, build-release-binaries, cli-wheel-test]
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      manifest-sha256: ${{ steps.manifest.outputs.manifest-sha256 }}
+    env:
+      PYTHON_VERSION: ${{ needs.cli-context.outputs.python-version }}
+      NATIVE_VERSION: ${{ needs.cli-context.outputs.version }}
+      SOURCE_COMMIT: ${{ needs.cli-context.outputs.commit }}
+      MISE_EXEC_AUTO_INSTALL: "false"
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: jdx/mise-action@v4
+      with:
+        install: false
+        cache: false
+        env: false
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: "{cli-wheel-*,cli-evidence-*}"
+        merge-multiple: true
+        path: cli-dists
+    - name: Write and verify the exact six-wheel CLI bundle
+      id: manifest
+      shell: bash
+      run: |
+        set -euo pipefail
+        mise install python@3.15.2
+        mise exec --no-deps python@3.15.2 -- python -I scripts/python/cli_artifacts.py manifest \
+          --dir cli-dists --version "$PYTHON_VERSION" --native-version "$NATIVE_VERSION" \
+          --commit "$SOURCE_COMMIT" --ref "$GITHUB_REF" \
+          --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
+        mise exec --no-deps python@3.15.2 -- python -I scripts/python/cli_artifacts.py verify \
+          --dir cli-dists --version "$PYTHON_VERSION" --complete
+        echo "manifest-sha256=$(sha256sum cli-dists/manifest.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+    - uses: actions/upload-artifact@v7
+      id: upload
+      with:
+        name: cli-dists
+        path: cli-dists/
+        retention-days: 90
+        if-no-files-found: error
+
+  cli-publish-check:
+    name: CLI publication validation
+    runs-on: ubuntu-latest
+    needs: [cli-context, cli-dists]
+    timeout-minutes: 15
+    env:
+      PYTHON_VERSION: ${{ needs.cli-context.outputs.python-version }}
+      MISE_EXEC_AUTO_INSTALL: "false"
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: jdx/mise-action@v4
+      with:
+        install: false
+        cache: false
+        env: false
+    - name: Require the original CLI artifact identity
+      shell: bash
+      env:
+        ARTIFACT_ID: ${{ needs.cli-dists.outputs.artifact-id }}
+        MANIFEST_SHA256: ${{ needs.cli-dists.outputs.manifest-sha256 }}
+      run: |
+        set -euo pipefail
+        [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ && "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]]
+    - uses: actions/download-artifact@v8
+      with:
+        artifact-ids: ${{ needs.cli-dists.outputs.artifact-id }}
+        path: cli-dists
+    - name: Validate the original CLI bundle without credentials or registry access
+      shell: bash
+      env:
+        ARTIFACT_ID: ${{ needs.cli-dists.outputs.artifact-id }}
+        MANIFEST_SHA256: ${{ needs.cli-dists.outputs.manifest-sha256 }}
+      run: |
+        set -euo pipefail
+        mise install uv python@3.15.2
+        tools="$(mise exec --no-deps uv python@3.15.2 -- python -I scripts/python/artifacts.py tools | tail -n 1)"
+        mise exec --no-deps uv python@3.15.2 -- "$tools" -I scripts/python/cli_publish.py validate \
+          --dir cli-dists --version "$PYTHON_VERSION" --artifact-id "$ARTIFACT_ID" \
+          --manifest-sha256 "$MANIFEST_SHA256" --receipt cli-validation-receipt.json
+    - uses: actions/upload-artifact@v7
+      with:
+        name: cli-validation-receipt-${{ github.run_attempt }}
+        path: cli-validation-receipt.json
+        if-no-files-found: error
+
+  publish-python-cli:
+    name: publish Python CLI
+    runs-on: ubuntu-latest
+    needs: [ci, python-semantic, artifact-context, cli-context, cli-dists, cli-publish-check]
+    if: >-
+      github.event_name == 'push' &&
+      github.repository == 'dahlia/gukhanmun' &&
+      (
+        github.ref_type == 'tag' ||
+        github.ref == 'refs/heads/main' ||
+        (github.ref_type == 'branch' && startsWith(github.ref, 'refs/heads/') && endsWith(github.ref, '-maintenance'))
+      ) &&
+      needs.artifact-context.outputs.should-publish == 'true'
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PYPI_VERSION: ${{ needs.cli-context.outputs.python-version }}
+      MISE_EXEC_AUTO_INSTALL: "false"
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      with:
+        install: false
+        cache: false
+        env: false
+    - name: Require the original CLI artifact identity
+      shell: bash
+      env:
+        ARTIFACT_ID: ${{ needs.cli-dists.outputs.artifact-id }}
+        MANIFEST_SHA256: ${{ needs.cli-dists.outputs.manifest-sha256 }}
+      run: |
+        set -euo pipefail
+        [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ && "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]]
+    - name: Require matching independent CLI publication contexts
+      shell: bash
+      env:
+        CONTEXT_VERSION: ${{ needs.artifact-context.outputs.python-version }}
+        PYTHON_ELIGIBLE: ${{ needs.artifact-context.outputs.python-eligible }}
+        PYTHON_REASON: ${{ needs.artifact-context.outputs.python-reason }}
+        CLI_ELIGIBLE: ${{ needs.cli-context.outputs.python-eligible }}
+        CLI_REASON: ${{ needs.cli-context.outputs.python-reason }}
+        PYTHON_OUTCOME: ${{ needs.cli-context.outputs.python-outcome }}
+      run: |
+        set -euo pipefail
+        if [[ "$PYTHON_OUTCOME" != success || -z "$PYPI_VERSION" || "$PYPI_VERSION" != "$CONTEXT_VERSION" || "$PYTHON_ELIGIBLE" != true || "$CLI_ELIGIBLE" != true ]]; then
+          printf '::error::Invalid CLI publication context: %s; %s\n' "$PYTHON_REASON" "$CLI_REASON"
+          exit 1
+        fi
+    - uses: actions/download-artifact@v8
+      with:
+        artifact-ids: ${{ needs.cli-dists.outputs.artifact-id }}
+        path: cli-dists
+    - name: Publish only the validated original CLI files through OIDC
+      shell: bash
+      env:
+        ARTIFACT_ID: ${{ needs.cli-dists.outputs.artifact-id }}
+        MANIFEST_SHA256: ${{ needs.cli-dists.outputs.manifest-sha256 }}
+      run: |
+        set -euo pipefail
+        mise install uv python@3.15.2
+        tools="$(mise exec --no-deps uv python@3.15.2 -- python -I scripts/python/artifacts.py tools | tail -n 1)"
+        mise exec --no-deps uv python@3.15.2 -- "$tools" -I scripts/python/cli_publish.py publish \
+          --dir cli-dists --version "$PYPI_VERSION" --artifact-id "$ARTIFACT_ID" \
+          --manifest-sha256 "$MANIFEST_SHA256" --receipt cli-publish-receipt.json
+    - uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: cli-publish-receipt-${{ github.run_attempt }}
+        path: cli-publish-receipt.json
+        if-no-files-found: warn
 
   publish-js:
     name: publish JS packages
@@ -1494,6 +1800,8 @@ jobs:
     - publish-js
     - publish-python
     - python-dists
+    - publish-python-cli
+    - cli-dists
     - package-crates
     - build-release-binaries
     if: github.event_name == 'push' && github.ref_type == 'tag'
@@ -1552,6 +1860,32 @@ jobs:
         cp "${files[@]}" release-assets/
         cp python-dists/manifest.json release-assets/python-manifest.json
         cp python-dists/SHA256SUMS release-assets/python-SHA256SUMS
+    - name: Require the original CLI artifact identity
+      shell: bash
+      env:
+        ARTIFACT_ID: ${{ needs.cli-dists.outputs.artifact-id }}
+        MANIFEST_SHA256: ${{ needs.cli-dists.outputs.manifest-sha256 }}
+      run: |
+        set -euo pipefail
+        [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ && "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]]
+    - uses: actions/download-artifact@v8
+      with:
+        artifact-ids: ${{ needs.cli-dists.outputs.artifact-id }}
+        path: cli-dists
+    - name: Verify and collect the separate six CLI release wheels
+      shell: bash
+      env:
+        MANIFEST_SHA256: ${{ needs.cli-dists.outputs.manifest-sha256 }}
+        PYTHON_VERSION: ${{ needs.artifact-context.outputs.python-version }}
+      run: |
+        set -euo pipefail
+        printf '%s  %s\n' "$MANIFEST_SHA256" cli-dists/manifest.json | sha256sum --check --strict -
+        python3 -I scripts/python/cli_artifacts.py verify --dir cli-dists --version "$PYTHON_VERSION" --complete
+        files=(cli-dists/*.whl)
+        test "${#files[@]}" -eq 6
+        cp "${files[@]}" release-assets/
+        cp cli-dists/manifest.json release-assets/cli-manifest.json
+        cp cli-dists/SHA256SUMS release-assets/cli-SHA256SUMS
     - name: Dump release assets
       if: runner.debug == '1'
       shell: bash

@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "gukhanmun",
+    "gukhanmun-cli",
     "gukhanmun-loanwords-cdb",
     "gukhanmun-loanwords-fst",
     "gukhanmun-opendict-cdb",
@@ -16,6 +17,15 @@ members = [
     "gukhanmun-stdict-cdb",
     "gukhanmun-stdict-fst",
     "gukhanmun-workspace",
+]
+
+[[package]]
+name = "argcomplete"
+version = "3.7.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/6f/5a73f04007ca950701765949209f068da628bd11f9c2da287278ce91e0ee/argcomplete-3.7.2.tar.gz", hash = "sha256:aad8b69a0b9969edb62db0d1752354c0d50717b10e0cbb00e2a958381b9fc6b9", size = 74473, upload-time = "2026-08-06T04:53:21.662Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/bd/551ee6af426af84ca33e02622be722925c196608e9127d731ef17c47f06e/argcomplete-3.7.2-py3-none-any.whl", hash = "sha256:6029205678bdd9c1c728a155f5f9ecf5812393f969eef58807641a2bc2aa5b19", size = 43294, upload-time = "2026-08-06T04:53:20.246Z" },
 ]
 
 [[package]]
@@ -104,6 +114,15 @@ wheels = [
 ]
 
 [[package]]
+name = "click"
+version = "8.5.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/45/37/edbf1b0707709013c0cf2e8317e03d97ed29bf4cac709fe328904ae92a38/click-8.5.1.tar.gz", hash = "sha256:9bbfada76703fd1d784b83eea012e3e8c6a001a876543ef104fa56aaaeb072b4", size = 399151, upload-time = "2026-11-06T17:37:01.021Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/31/7d/164b7ffc8624fe9efb4221bf9af485d5c1e41b9ae118045d2b6dc5457d8b/click-8.5.1-py3-none-any.whl", hash = "sha256:8bb5376d2006950386f8c6427613334a2acadc5f559cb80e638d00b4df957e37", size = 126163, upload-time = "2026-11-06T17:36:59.287Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -179,6 +198,11 @@ requires-dist = [
 provides-extras = ["stdict", "stdict-fst", "stdict-cdb", "opendict", "opendict-fst", "opendict-cdb", "loanwords", "loanwords-fst", "loanwords-cdb"]
 
 [[package]]
+name = "gukhanmun-cli"
+version = "0.4.0"
+source = { editable = "python/gukhanmun-cli" }
+
+[[package]]
 name = "gukhanmun-loanwords-cdb"
 version = "0.4.0"
 source = { editable = "python/gukhanmun-loanwords-cdb" }
@@ -226,6 +250,7 @@ dev = [
     { name = "packaging" },
     { name = "pefile", marker = "sys_platform == 'win32'" },
     { name = "pip" },
+    { name = "pipx" },
     { name = "pyrefly" },
     { name = "pyright" },
     { name = "pytest" },
@@ -235,6 +260,7 @@ dev = [
 ]
 installer = [
     { name = "pip" },
+    { name = "pipx" },
 ]
 mypy = [
     { name = "mypy" },
@@ -262,6 +288,7 @@ dev = [
     { name = "packaging", specifier = "==26.3" },
     { name = "pefile", marker = "sys_platform == 'win32'", specifier = "==2024.8.26" },
     { name = "pip", specifier = "==26.0" },
+    { name = "pipx", specifier = "==1.18.16" },
     { name = "pyrefly", specifier = "==1.4.1" },
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = "==9.2.0" },
@@ -269,7 +296,10 @@ dev = [
     { name = "tox-uv-bare", specifier = "==1.37.7" },
     { name = "ty", specifier = "==0.0.99" },
 ]
-installer = [{ name = "pip", specifier = "==26.0" }]
+installer = [
+    { name = "pip", specifier = "==26.0" },
+    { name = "pipx", specifier = "==1.18.16" },
+]
 mypy = [{ name = "mypy", specifier = "==2.4.1" }]
 release = [
     { name = "packaging", specifier = "==26.3" },
@@ -570,6 +600,23 @@ wheels = [
 ]
 
 [[package]]
+name = "pipx"
+version = "1.18.16"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "argcomplete" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "filelock" },
+    { name = "packaging" },
+    { name = "platformdirs" },
+    { name = "userpath" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b4/a6/3bfb09e7b4ce1f0602474ce7a4158d2c649e8f9151d8b93138ad27134579/pipx-1.18.16.tar.gz", hash = "sha256:06795f5cd689f3ea36b574a7d1ddfc7b4c1ebee66116db7b70ded868f95d5057", size = 395766, upload-time = "2026-11-07T08:16:48.228Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/d8/226eb16ca2fc1ababb20a6aca30349702e573ba62b6521fde31a53f906a6/pipx-1.18.16-py3-none-any.whl", hash = "sha256:348061797d001fd487868eaade8fb4949979c91b2da1c35c4ae0161f7019cc0f", size = 199620, upload-time = "2026-11-07T08:16:46.473Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.14.5"
 source = { registry = "https://pypi.org/simple" }
@@ -762,6 +809,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz", hash = "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5", size = 113555, upload-time = "2026-07-02T08:40:05.92Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8", size = 45571, upload-time = "2026-07-02T08:40:04.659Z" },
+]
+
+[[package]]
+name = "userpath"
+version = "1.9.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d5/b7/30753098208505d7ff9be5b3a32112fb8a4cb3ddfccbbb7ba9973f2e29ff/userpath-1.9.2.tar.gz", hash = "sha256:6c52288dab069257cc831846d15d48133522455d4677ee69a9781f11dbefd815", size = 11140, upload-time = "2024-02-29T21:39:08.742Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/43/99/3ec6335ded5b88c2f7ed25c56ffd952546f7ed007ffb1e1539dc3b57015a/userpath-1.9.2-py3-none-any.whl", hash = "sha256:2cbf01a23d655a1ff8fc166dfb78da1b641d1ceabf0fe5f970767d380b14e89d", size = 9065, upload-time = "2024-02-29T21:39:07.551Z" },
 ]
 
 [[package]]

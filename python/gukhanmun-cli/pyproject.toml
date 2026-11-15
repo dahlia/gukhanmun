@@ -1,0 +1,23 @@
+[build-system]
+requires = []
+build-backend = "build_backend"
+backend-path = ["."]
+
+[project]
+name = "gukhanmun-cli"
+version = "0.4.0"
+description = "The standalone Gukhanmun commands with bundled dictionaries"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "GPL-3.0-only AND LicenseRef-CC-BY-SA-2.0-KR AND LicenseRef-NIKL-Free-Use"
+authors = [{ name = "Hong Minhee", email = "hong@minhee.org" }]
+dependencies = []
+
+[project.scripts]
+gukhanmun = "gukhanmun_cli:main"
+gukhanmun-mkdict = "gukhanmun_cli:mkdict_main"
+
+[project.urls]
+Homepage = "https://gukhanmun.org/"
+Repository = "https://github.com/dahlia/gukhanmun"
+Issues = "https://github.com/dahlia/gukhanmun/issues"

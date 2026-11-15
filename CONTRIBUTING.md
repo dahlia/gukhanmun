@@ -706,3 +706,93 @@ The credential-free `python-publish-check` job can be rerun independently by
 its job ID to check recovery downloads. Its next receipt must retain the same
 artifact ID and manifest hash while recording a newer current attempt. Its
 offline validation does not request PyPI credentials or contact the registry.
+
+### Standalone Python CLI distribution
+
+The independent `gukhanmun-cli` PyPI project contains both existing release
+executables, `gukhanmun` and `gukhanmun-mkdict`, a shared standard-library
+launcher and the five shared completion scripts for `gukhanmun`.
+It has no dependency on the `gukhanmun` Python library or its data
+distributions. It ships six `py3-none` wheels, not extension wheels or an
+sdist. The existing binding/data release remains a separate set of 31 files.
+
+*scripts/python/cli\_artifacts.py* defines the CLI matrix. The two Linux wheels
+use compressed manylinux 2.28/musllinux 1.2 platform tags for statically linked
+musl executables; macOS wheels use macOS 11 tags, and Windows wheels use
+`win_amd64`/`win_arm64`. Native release checks inspect linkage and architecture,
+install outside the checkout without Rust or other Gukhanmun distributions,
+and execute the same wheel on the minimum/current CPython and available
+PyPy interpreters. Each interpreter and installer also builds FST and CDB
+dictionaries with the installed `gukhanmun-mkdict` and loads them with the
+installed converter. Both executables have their own hashes and platform audits.
+Linux checks also execute inside both digest-pinned container
+images, glibc and musl. Those containers show userland compatibility only;
+they do not show that the executable runs on an old Linux kernel.
+Windows checks include native console control events through
+the installed launchers.
+
+To build and test a native CLI wheel locally, install the interpreters from
+*mise.python.toml*, then run:
+
+~~~~ sh
+mise run py-cli-local -- --target linux-x86_64
+mise run py-cli-libc-test -- --target linux-x86_64 --dir target/python/cli-local
+~~~~
+
+Choose the matching target from `scripts/python/cli_artifacts.py matrix`.
+Linux builds need a musl C compiler as well as the Rust target because the
+CLI includes native C dependencies. `mise run py-cli-native -- <rust-target>`
+installs the Rust target and builds both existing executables, but does not
+provision that C compiler. The libc tests use Docker or Podman with the same
+engine and SELinux volume settings as `py-dist`. The local command never
+stamps source versions or publishes. Add
+`--shell bash --shell zsh --shell fish --shell nushell` when those shells are
+installed; Windows uses `--shell powershell`. `py-cli-prepare` and
+`py-cli-test` repeat the installer and host checks without rebuilding.
+
+The `cli-dists` bundle contains only the six CLI wheels and their own build,
+audit and execution evidence, with a separate manifest and checksums. The
+credential-free `cli-publish-check` job checks the bundle against its original
+immutable artifact ID and manifest digest. The `publish-python-cli` upload job
+uses that same bundle, obtains an OIDC token only in that job, and never
+rebuilds. Eligible events, signed-tag verification and Python version spelling
+follow the existing Python release policy. The CLI's native `--version` retains
+the Rust development spelling; wheel metadata uses PEP 440 version strings, and
+provenance binds both versions to the source commit. Version bumps synchronize
+all eight Python manifests without adding CLI extras to the core package.
+
+#### Bootstrap the CLI project
+
+Before the first eligible CI upload, register a [pending Trusted Publisher] for
+project `gukhanmun-cli`, owner `dahlia`, repository `gukhanmun`, workflow
+*main.yaml*, and no environment. The first authorized OIDC publication creates
+the project and converts the pending publisher into a normal publisher.
+No manual seed upload or API token is needed. A pending publisher does not
+reserve the project name.
+
+Only the CLI uploader permits an absent project and treats missing registry
+inventories as empty. Artifact validation, event authorization, conflict checks
+and confirmation through both registry inventories still apply. The existing
+seven library/data projects retain their separate bootstrap procedure.
+Until a suitable stable release exists, ordinary tool installation can select
+a development release.
+
+#### CLI publication recovery and retention
+
+Rerun only the failed `publish-python-cli` job with the original `cli-dists`
+artifact ID and manifest digest. Do not rerun successful build jobs or select
+**Re-run all jobs** after any wheel was uploaded. Attempt-specific
+*cli-publish-receipt.json* records submitted, completed, missing and conflicting
+files. Both PyPI's release JSON and Simple index must confirm matching content;
+a lost upload response alone is not proof of success. A hash or size conflict
+stops publication before further uploads.
+
+CI retains the immutable bundle for 90 days. If it expires, publish a new
+version rather than rebuilding files under old names. Deleted PyPI filenames
+cannot be reused; a conflicting or deleted stable filename requires a new
+patch release. Monthly, review obsolete CLI development releases and retain
+the newest ten plus every version involved in active recovery. Remove older
+development releases manually when safe, or request more PyPI storage. No
+automated deletion runs in the workflow.
+
+[pending Trusted Publisher]: https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/

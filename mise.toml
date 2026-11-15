@@ -763,7 +763,55 @@ run = "uv sync --locked --no-install-workspace"
 description = "Check Python tooling without building the native extension"
 depends = ["py-deps"]
 env = { GUKHANMUN_REPO_ROOT = "{{ config_root }}" }
-run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py tests/python/test_release_context.py tests/python/test_bump.py tests/python/test_publish.py tests/python/test_installer.py tests/python/test_verify_tag.py tests/python/test_workflow.py tests/python/test_dictionary_packages.py tests/python/test_wheel_smoke.py tests/python/test_dists.py tests/python/test_artifacts.py scripts/python/matrix_test.py"
+run = "uv run --no-sync python -I -m pytest -q tests/python/test_checks.py tests/python/test_version.py tests/python/test_release_context.py tests/python/test_bump.py tests/python/test_publish.py tests/python/test_installer.py tests/python/test_verify_tag.py tests/python/test_workflow.py tests/python/test_dictionary_packages.py tests/python/test_wheel_smoke.py tests/python/test_dists.py tests/python/test_artifacts.py tests/python/test_cli_wheel.py tests/python/test_cli_artifacts.py tests/python/test_cli_publish.py tests/python/test_cli_context.py tests/python/test_cli_workflow.py scripts/python/matrix_test.py"
+
+[tasks.py-cli-native]
+description = "Build both existing CLI executables for standalone wheel packaging"
+usage = 'arg "<target>" help="Rust target triple, e.g. x86_64-unknown-linux-musl"'
+depends = ["rust-init"]
+run = [
+  "rustup target add {{usage.target}}",
+  "cargo build --locked --release --target {{usage.target}} -p gukhanmun-cli -p gukhanmun-mkdict",
+]
+
+[tasks.py-cli-assemble]
+description = "Assemble a standalone CLI wheel from local validated executables"
+run = "python -I scripts/python/cli_wheel.py"
+
+[tasks.py-cli-audit]
+description = "Audit a standalone CLI wheel on its native platform"
+depends = ["py-deps"]
+run = "uv run --no-sync python -I scripts/python/cli_artifacts.py audit"
+
+[tasks.py-cli-smoke]
+description = "Test an installed standalone CLI wheel outside the checkout"
+depends = ["py-deps"]
+run = "uv run --no-sync python -I scripts/python/cli_smoke.py"
+
+[tasks.py-cli-verify]
+description = "Verify the independent CLI artifact set and native execution evidence"
+depends = ["py-deps"]
+run = "uv run --no-sync python -I scripts/python/cli_artifacts.py verify --complete"
+
+[tasks.py-cli-local]
+description = "Build, assemble, audit and execute a CLI wheel using pinned host interpreters"
+depends = ["rust-init", "py-deps"]
+run = "uv run --no-sync python -I scripts/python/cli_ci.py local"
+
+[tasks.py-cli-prepare]
+description = "Prepare the hash-locked installer wheelhouse for CLI tests"
+depends = ["py-deps"]
+run = "uv run --no-sync python -I scripts/python/cli_ci.py prepare"
+
+[tasks.py-cli-test]
+description = "Audit and test a CLI wheel on its native host without rebuilding"
+depends = ["py-deps"]
+run = "uv run --no-sync python -I scripts/python/cli_ci.py host"
+
+[tasks.py-cli-libc-test]
+description = "Execute the same CLI wheel in both pinned Linux libc images"
+depends = ["py-deps"]
+run = "uv run --no-sync python -I scripts/python/cli_ci.py containers"
 
 [tasks.py-test-all]
 description = "Test installed wheels on every pinned CPython/PyPy interpreter"

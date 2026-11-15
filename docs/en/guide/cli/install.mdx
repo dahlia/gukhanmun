@@ -1,0 +1,238 @@
+---
+title: "Installation"
+description: |-
+  How to install the Gukhanmun command-line tool.
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+Installation
+============
+
+Gukhanmun is distributed as native binaries. You can also install them through
+Python tooling, using a small Python launcher.
+
+
+Via mise
+--------
+
+If you use [mise], install a prebuilt binary with a single command:
+
+~~~~ sh
+mise use -g aqua:dahlia/gukhanmun
+~~~~
+
+The `-g` flag installs it globally.  Omit it to activate the tool only in the
+current project directory.
+
+[mise]: https://mise.jdx.dev/
+
+
+Via Windows Package Manager (`winget`)
+--------------------------------------
+
+On Windows, install via `winget`:
+
+~~~~ powershell
+winget install HongMinhee.Gukhanmun
+~~~~
+
+
+From crates.io
+--------------
+
+If you have a Rust toolchain installed, install from crates.io:
+
+~~~~ sh
+cargo install gukhanmun-cli gukhanmun-mkdict
+~~~~
+
+This compiles the binaries and places them in *~/.cargo/bin/*.  Make sure that
+directory is on your `PATH`.
+
+
+From PyPI (`pipx` or `uv`)
+--------------------------
+
+With Python 3.11 or later, install the standalone CLI using either tool:
+
+<Tabs groupId="python-cli-tool-manager">
+<Tab label="uv">
+
+~~~~ sh
+uv tool install gukhanmun-cli
+~~~~
+
+</Tab>
+<Tab label="pipx">
+
+~~~~ sh
+pipx install gukhanmun-cli
+~~~~
+
+</Tab>
+</Tabs>
+
+Choose one tool, not both. The wheel includes both native executables and the
+converter's compiled-in dictionaries; installation and first use do not
+download executable payloads or require Rust. The `gukhanmun-cli` package is
+separate from the `gukhanmun` Python library and its dictionary extras. It
+installs two commands: `gukhanmun` and `gukhanmun-mkdict`, the custom
+dictionary builder.
+
+The six wheels support Linux x86\_64/aarch64 on glibc 2.28+ or musl 1.2+,
+macOS 11+ on x86\_64/arm64, and Windows on AMD64/ARM64. Linux wheels carry both
+manylinux and musllinux tags for the same statically linked musl executable.
+Their release checks execute that same wheel on both libc families. These are
+userland checks on current kernels, not execution evidence for an old Linux
+kernel. The Rust toolchain's Windows baseline is Windows 10/Server 2016;
+the installed Python interpreter may require a newer OS. Release tests use
+current native hosted runners, not every OS version at the support floor.
+
+The launcher is tested on CPython 3.11 and 3.15, the minimum and current pins,
+and PyPy 3.11/3.12 where those interpreters are available. Intermediate and
+later CPython versions are untested. PyPy on musl
+and Windows ARM64 is outside the tested matrix. There is no source
+distribution: unsupported platforms fail rather than falling back to an
+unchecked download or a Rust build.
+
+Ordinary installation prefers a compatible stable release. To opt into
+development builds:
+
+<Tabs groupId="python-cli-tool-manager">
+<Tab label="uv">
+
+~~~~ sh
+uv tool install --prerelease allow gukhanmun-cli
+~~~~
+
+</Tab>
+<Tab label="pipx">
+
+~~~~ sh
+pipx install --pip-args='--pre' gukhanmun-cli
+~~~~
+
+</Tab>
+</Tabs>
+
+The release checks use uv 0.13.7 and pipx 1.18.16 with its pip backend. If the
+tool is already installed, use that installer's upgrade command or uninstall it
+first. A development version uses the workspace's next planned version and a
+workflow run number, such as `0.4.0.dev123`. Before the first suitable stable
+release exists, an installer can select a development release even without an
+explicit prerelease option. Pinning the exact version of a development release
+also installs it.
+
+Remove the installation with the tool that installed it:
+
+<Tabs groupId="python-cli-tool-manager">
+<Tab label="uv">
+
+~~~~ sh
+uv tool uninstall gukhanmun-cli
+~~~~
+
+</Tab>
+<Tab label="pipx">
+
+~~~~ sh
+pipx uninstall gukhanmun-cli
+~~~~
+
+</Tab>
+</Tabs>
+
+The wheel already contains the version-matched Bash, zsh, fish, PowerShell and
+Nushell scripts as `gukhanmun_cli` package resources under *completions/*. The
+installed command also emits them with `--generate-completion`.
+
+Bundling completion files does not activate them in your shell. Files installed
+under a pipx or uv tool environment are not automatically added to your shell's
+completion search paths. Neither installation method changes shell startup
+files or system completion directories.
+
+
+Prebuilt binaries
+-----------------
+
+Prebuilt binaries for Linux (x86\_64, aarch64), macOS (x86\_64, aarch64), and
+Windows (x86\_64) are attached to each release on GitHub:
+
+[GitHub Releases]
+
+Download the archive for your platform, extract it, and place the `gukhanmun`
+binary somewhere on your `PATH`.
+
+[GitHub Releases]: https://github.com/dahlia/gukhanmun/releases
+
+
+Shell completions
+-----------------
+
+Activate completions explicitly, using the command on your `PATH`:
+
+<Tabs groupId="cli-shell">
+<Tab label="Bash">
+
+~~~~ bash
+source <(gukhanmun --generate-completion bash)
+~~~~
+
+</Tab>
+<Tab label="zsh">
+
+~~~~ zsh
+autoload -Uz compinit
+compinit
+source <(gukhanmun --generate-completion zsh)
+~~~~
+
+</Tab>
+<Tab label="fish">
+
+~~~~ fish
+gukhanmun --generate-completion fish | source
+~~~~
+
+</Tab>
+<Tab label="PowerShell">
+
+~~~~ powershell
+gukhanmun --generate-completion powershell | Out-String | Invoke-Expression
+~~~~
+
+</Tab>
+<Tab label="Nushell">
+
+For Nushell, write a file and import it in a later command:
+
+~~~~ nu
+gukhanmun --generate-completion nushell | save --force gukhanmun-completions.nu
+use ./gukhanmun-completions.nu *
+~~~~
+
+</Tab>
+</Tabs>
+
+To persist activation, save the emitted script to your own shell configuration
+directory and explicitly source or import it. See
+[Getting started](./start.md) for the shared completion behavior and checks.
+
+
+The `gukhanmun-mkdict` companion
+--------------------------------
+
+The pipx, uv and mise installs, the crates.io install and the prebuilt
+archives include `gukhanmun-mkdict`, the tool for compiling
+[custom dictionaries](./dictionary.md). Installing `gukhanmun-cli` with pipx or
+uv exposes both commands; uninstalling the package removes both.
+
+
+Verify the installation
+-----------------------
+
+~~~~ sh
+gukhanmun --help
+gukhanmun-mkdict --help
+~~~~

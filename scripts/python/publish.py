@@ -353,8 +353,10 @@ class Budget:
 class Registry:
     """Production JSON and PEP 691 clients; no credentials are sent here."""
 
-    def __init__(self, budget):
+    def __init__(self, budget, *, absent_project_message=None, allow_missing_projects=()):
         self.budget = budget
+        self.absent_project_message = absent_project_message
+        self.allow_missing_projects = frozenset(allow_missing_projects)
 
     def get(self, url, *, missing=False):
         """Read bounded chunks and check the overall deadline between reads.
@@ -390,7 +392,11 @@ class Registry:
 
     def project(self, name):
         data = self.get(f"{JSON_URL}/{name}/json", missing=True)
-        require(data is not None, f"PyPI project {name} is absent; seed all seven projects and register their publishers first")
+        if data is None and name in self.allow_missing_projects:
+            return
+        message = (self.absent_project_message or
+                   "seed all seven projects and register their publishers first")
+        require(data is not None, f"PyPI project {name} is absent; {message}")
         require(isinstance(data, dict) and isinstance(data.get("info"), dict)
                 and canonicalize_name(data["info"].get("name", "")) == canonicalize_name(name),
                 f"wrong registry project identity for {name}")
@@ -406,7 +412,9 @@ class Registry:
         return data["urls"]
 
     def simple(self, name):
-        data = self.get(f"{SIMPLE_URL}/{name}/")
+        data = self.get(f"{SIMPLE_URL}/{name}/", missing=name in self.allow_missing_projects)
+        if data is None and name in self.allow_missing_projects:
+            return []
         require(isinstance(data, dict) and data.get("name") == canonicalize_name(name)
                 and isinstance(data.get("files"), list), f"wrong Simple identity for {name}")
         return data["files"]
@@ -481,11 +489,16 @@ def receipt_location(directory, path):
 
 
 def publish(directory, version, artifact_id, manifest_sha256, receipt_path, *, env=None,
-            context=None, head=None, registry=None, uploader=None, budget=None, root=ROOT):
+             context=None, head=None, registry=None, uploader=None, budget=None, root=ROOT,
+              validator=None, upload_groups=None, absent_project_message=None, allow_missing_projects=()):
     """Reconcile then upload data, core wheels, core sdist, retaining a receipt.
 
-    Tests inject all external boundaries. Production resolves eligibility again
-    here; the CLI/job gate and a previous offline validation confer no authority.
+    Tests inject all external boundaries. An independent distribution may supply
+    its own offline validator and upload grouping without changing this module's
+    extension/data artifact contract. Production resolves eligibility again here;
+    the CLI/job gate and a previous offline validation confer no authority.
+    Only explicitly named pending-publisher projects may have empty inventories
+    before their first upload; missing responses never confirm an upload.
     """
     env = os.environ if env is None else env
     budget = budget or Budget(time.monotonic() + TOTAL_BUDGET)
@@ -497,7 +510,8 @@ def publish(directory, version, artifact_id, manifest_sha256, receipt_path, *, e
                "conflicting": [], "last_error": None, "status": "validating"}
     write_receipt(receipt_path, receipt)
     try:
-        data = validate(directory, version, env=env, manifest_sha256=manifest_sha256, root=root)
+        data = (validator or validate)(directory, version, env=env,
+                                       manifest_sha256=manifest_sha256, root=root)
         receipt["manifest_attempt"] = data["source"]["run_attempt"]
         if context is None:
             context = load("release_context").resolve(env, root=root)
@@ -505,9 +519,23 @@ def publish(directory, version, artifact_id, manifest_sha256, receipt_path, *, e
             head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True,
                                   text=True, timeout=HTTP_TIMEOUT).stdout.strip()
         verify_upload_identity(data, version, artifact_id, manifest_sha256, env, context, head)
-        registry = registry or Registry(budget)
+        registry = registry or Registry(budget, absent_project_message=absent_project_message,
+                                        allow_missing_projects=allow_missing_projects)
         uploader = uploader or Upload(env)
         entries = {entry["filename"]: entry for entry in data["artifacts"]}
+        if upload_groups is None:
+            groups = (
+                {name for name, entry in entries.items() if entry["distribution"] != "gukhanmun"},
+                {name for name, entry in entries.items()
+                 if entry["distribution"] == "gukhanmun" and entry["kind"] == "wheel"},
+                {name for name, entry in entries.items()
+                 if entry["distribution"] == "gukhanmun" and entry["kind"] == "sdist"},
+            )
+        else:
+            groups = tuple(set(group) for group in upload_groups(entries))
+            flattened = [name for group in groups for name in group]
+            require(len(flattened) == len(set(flattened)) and set(flattened) == set(entries),
+                    "upload groups must partition the validated artifact filenames")
         receipt["missing"] = sorted(entries)
         write_receipt(receipt_path, receipt)
         projects = sorted({entry["distribution"] for entry in entries.values()})
@@ -524,7 +552,7 @@ def publish(directory, version, artifact_id, manifest_sha256, receipt_path, *, e
                     receipt["conflicting"] = [name] if name else []
                     raise
             return visible
-        # Distinguish missing projects from absent versions before any upload.
+        # Require existing projects unless explicitly allowed for pending publishers.
         for project in projects:
             registry.project(project)
         present = snapshot()
@@ -557,10 +585,7 @@ def publish(directory, version, artifact_id, manifest_sha256, receipt_path, *, e
                     pause = min(pause * 2, 10)
             finally:
                 budget.end = original_end
-        data_files = {name for name, entry in entries.items() if entry["distribution"] != "gukhanmun"}
-        wheels = {name for name, entry in entries.items() if entry["distribution"] == "gukhanmun" and entry["kind"] == "wheel"}
-        source = {name for name, entry in entries.items() if entry["distribution"] == "gukhanmun" and entry["kind"] == "sdist"}
-        for group in (data_files, wheels, source):
+        for group in groups:
             for name in sorted(group):
                 # Existing JSON content may only be stale in Simple. Wait for
                 # both views; never submit an identical known file again.
