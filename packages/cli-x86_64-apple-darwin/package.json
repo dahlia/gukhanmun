@@ -1,0 +1,21 @@
+{
+  "name": "@gukhanmun/cli-x86_64-apple-darwin",
+  "version": "0.4.0",
+  "description": "Gukhanmun CLI executable for x86_64-apple-darwin.",
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "files": [
+    "gukhanmun",
+    "LICENSE",
+    "NOTICE.md",
+    "ATTRIBUTION.loanwords.md",
+    "ATTRIBUTION.opendict.md",
+    "provenance.json"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/gukhanmun.git",
+    "directory": "packages/cli-x86_64-apple-darwin"
+  }
+}

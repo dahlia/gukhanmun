@@ -1553,6 +1553,224 @@ jobs:
         path: cli-publish-receipt.json
         if-no-files-found: warn
 
+  npm-cli-pack:
+    name: pack immutable npm CLI candidate
+    runs-on: ubuntu-24.04
+    needs: [cli-context, build-completions, build-release-binaries]
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      manifest-sha256: ${{ steps.manifest.outputs.sha256 }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 26.13.1
+    - uses: actions/setup-python@v6
+      with:
+        python-version: 3.15.2
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: binary-*
+        merge-multiple: true
+        path: target/npm-cli/archives
+    - uses: actions/download-artifact@v8
+      with:
+        name: cli-completions
+        path: target/npm-cli/completions
+    - name: Pack exactly once, without credentials or lifecycle scripts
+      env:
+        ARTIFACT_VERSION: ${{ needs.cli-context.outputs.version }}
+      run: >-
+        python -B scripts/npm-cli/artifacts.py pack
+        --archives target/npm-cli/archives --completions target/npm-cli/completions
+        --out target/npm-cli/candidate --version "$ARTIFACT_VERSION"
+        --revision "$GITHUB_SHA"
+    - id: manifest
+      run: echo "sha256=$(sha256sum target/npm-cli/candidate/manifest.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+    - uses: actions/upload-artifact@v7
+      id: upload
+      with:
+        name: npm-cli-candidate
+        path: target/npm-cli/candidate/
+        if-no-files-found: error
+        retention-days: 90
+
+  npm-cli-native:
+    name: npm CLI native ${{ matrix.target }}
+    needs: npm-cli-pack
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-15-intel
+          target: x86_64-apple-darwin
+        - os: macos-15
+          target: aarch64-apple-darwin
+        - os: windows-2025
+          target: x86_64-pc-windows-msvc
+        - os: windows-11-arm
+          target: aarch64-pc-windows-msvc
+        - os: ubuntu-24.04
+          target: x86_64-unknown-linux-musl
+        - os: ubuntu-24.04-arm
+          target: aarch64-unknown-linux-musl
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: jdx/mise-action@v4
+      if: matrix.target == 'x86_64-unknown-linux-musl'
+      with:
+        install_args: aqua:nushell/nushell
+    - name: Install installed-package completion probe shells
+      if: matrix.target == 'x86_64-unknown-linux-musl'
+      run: sudo apt-get update && sudo apt-get install -y zsh fish
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 26.13.1
+    - uses: actions/setup-python@v6
+      with:
+        python-version: 3.15.2
+    - uses: actions/download-artifact@v8
+      with:
+        artifact-ids: ${{ needs.npm-cli-pack.outputs.artifact-id }}
+        path: target/npm-cli/candidate
+    - name: Execute the original packed packages on their native architecture
+      shell: bash
+      env:
+        ARTIFACT_ID: ${{ needs.npm-cli-pack.outputs.artifact-id }}
+        MANIFEST_SHA256: ${{ needs.npm-cli-pack.outputs.manifest-sha256 }}
+      run: |
+        shells=()
+        if [[ "${{ matrix.target }}" == x86_64-unknown-linux-musl ]]; then
+          shells=(--shell bash --shell zsh --shell fish --shell nushell)
+        elif [[ "${{ matrix.target }}" == x86_64-pc-windows-msvc ]]; then
+          shells=(--shell powershell)
+        fi
+        python -B scripts/npm-cli/smoke.py --dir target/npm-cli/candidate \
+          --artifact-id "$ARTIFACT_ID" --manifest-sha256 "$MANIFEST_SHA256" \
+          --target "${{ matrix.target }}" --receipt target/npm-cli/native.json \
+          "${shells[@]}"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: npm-cli-native-${{ matrix.target }}-${{ github.run_attempt }}
+        path: target/npm-cli/native.json
+        if-no-files-found: error
+
+  npm-cli-floor:
+    name: npm CLI Node 22 bundled npm floor
+    runs-on: ubuntu-24.04
+    needs: npm-cli-pack
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 22.23.5
+    - uses: actions/setup-python@v6
+      with:
+        python-version: 3.15.2
+    - uses: actions/download-artifact@v8
+      with:
+        artifact-ids: ${{ needs.npm-cli-pack.outputs.artifact-id }}
+        path: target/npm-cli/candidate
+    - name: Verify npm 10 exact full-version pin resolution
+      env:
+        ARTIFACT_ID: ${{ needs.npm-cli-pack.outputs.artifact-id }}
+        MANIFEST_SHA256: ${{ needs.npm-cli-pack.outputs.manifest-sha256 }}
+      run: |
+        test "$(npm --version)" = 10.9.9
+        python -B scripts/npm-cli/smoke.py --dir target/npm-cli/candidate \
+          --artifact-id "$ARTIFACT_ID" --manifest-sha256 "$MANIFEST_SHA256" \
+          --target x86_64-unknown-linux-musl --receipt target/npm-cli/floor.json
+
+  npm-cli-alpine:
+    name: npm CLI native Alpine ${{ matrix.target }}
+    needs: npm-cli-pack
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: ubuntu-24.04
+          target: x86_64-unknown-linux-musl
+        - os: ubuntu-24.04-arm
+          target: aarch64-unknown-linux-musl
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/download-artifact@v8
+      with:
+        artifact-ids: ${{ needs.npm-cli-pack.outputs.artifact-id }}
+        path: target/npm-cli/candidate
+    - name: Execute without emulation using musl Node on the same architecture
+      env:
+        ARTIFACT_ID: ${{ needs.npm-cli-pack.outputs.artifact-id }}
+        MANIFEST_SHA256: ${{ needs.npm-cli-pack.outputs.manifest-sha256 }}
+      run: |
+        docker run --rm -v "$PWD:/work" -w /work \
+          -e GITHUB_SHA -e GITHUB_REF -e GITHUB_RUN_ID -e GITHUB_RUN_ATTEMPT \
+          -e ARTIFACT_ID -e MANIFEST_SHA256 \
+          node:26.13.1-alpine3.24@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 \
+          sh -ec 'apk add --no-cache python3 git
+          git config --global --add safe.directory /work
+          python3 -B scripts/npm-cli/smoke.py --dir target/npm-cli/candidate \
+            --artifact-id "$ARTIFACT_ID" --manifest-sha256 "$MANIFEST_SHA256" \
+            --target "${{ matrix.target }}" --receipt target/npm-cli/alpine.json'
+    - uses: actions/upload-artifact@v7
+      with:
+        name: npm-cli-alpine-${{ matrix.target }}-${{ github.run_attempt }}
+        path: target/npm-cli/alpine.json
+        if-no-files-found: error
+
+  publish-npm-cli:
+    name: publish original npm CLI candidate through OIDC
+    runs-on: ubuntu-24.04
+    needs: [artifact-context, npm-cli-pack, npm-cli-native, npm-cli-alpine, npm-cli-floor]
+    if: >-
+      github.event_name == 'push' && github.repository == 'dahlia/gukhanmun' &&
+      needs.artifact-context.outputs.should-publish == 'true'
+    concurrency:
+      group: npm-cli-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 26.13.1
+    - uses: actions/setup-python@v6
+      with:
+        python-version: 3.15.2
+    - uses: actions/download-artifact@v8
+      with:
+        artifact-ids: ${{ needs.npm-cli-pack.outputs.artifact-id }}
+        path: target/npm-cli/candidate
+    - name: Preflight, publish payloads before parent, verify registry and clean installs
+      env:
+        ARTIFACT_ID: ${{ needs.npm-cli-pack.outputs.artifact-id }}
+        MANIFEST_SHA256: ${{ needs.npm-cli-pack.outputs.manifest-sha256 }}
+      run: >-
+        python -B scripts/npm-cli/publish.py --dir target/npm-cli/candidate
+        --artifact-id "$ARTIFACT_ID" --manifest-sha256 "$MANIFEST_SHA256"
+        --receipt target/npm-cli/publish-receipt.json
+    - uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: npm-cli-publish-receipt-${{ github.run_attempt }}
+        path: target/npm-cli/publish-receipt.json
+        if-no-files-found: warn
+        retention-days: 90
+
   publish-js:
     name: publish JS packages
     runs-on: ubuntu-latest
@@ -1798,6 +2016,7 @@ jobs:
     - artifact-context
     - publish
     - publish-js
+    - publish-npm-cli
     - publish-python
     - python-dists
     - publish-python-cli

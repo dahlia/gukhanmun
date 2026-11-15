@@ -593,6 +593,96 @@ mise run bump-execute -- 1.2.5
 git push
 ~~~~
 
+### npm CLI artifacts and publication
+
+The seven _packages/cli\*_ templates are intentionally excluded from the pnpm
+library workspace. The npm CLI pack job stages copies under *target/npm-cli/*,
+reuses the six existing CLI archives and shared completion bundle, and runs
+`npm pack --ignore-scripts` once. It includes only `gukhanmun`, not
+`gukhanmun-mkdict`. Each executable package includes the software and data
+notices. The parent package (`@gukhanmun/cli`) contains all five completion
+files.
+
+`mise run npm-cli-unit` checks the launcher, packaging and publication helpers,
+including version stamping in an isolated directory. `mise run check` includes
+these checks. The native installation tests run as separate workflow jobs:
+all six OS/architecture pairs, Linux on glibc and native-architecture Alpine,
+and the Node.js 22 user floor. They install the original packed tarballs
+through a temporary local registry with normalized npm metadata, without
+install scripts, dependency rewrites or public-registry fallback.
+
+The candidate is one immutable artifact retained for 90 days. Its ID and
+manifest digest bind the native tests and publisher to the same seven
+tarballs, hashes, source commit and workflow run. The dedicated
+`publish-npm-cli` job waits for those tests and publishes only those bytes.
+The existing JavaScript library publisher does not pack or publish CLI
+templates.
+
+Eligible upstream `main` and `X.Y-maintenance` pushes publish under `dev`;
+matching signed stable tags publish under `latest`. PRs, forks and other
+branches build and test without npm publication credentials. Full
+`X.Y.Z-dev.N+sha` versions remain in tarballs, exact optional pins, completion
+metadata and native version output; npm registry identity and dist-tags drop
+the `+sha` suffix. The manifest records the full commit independently.
+
+The publisher uses a GitHub-hosted runner, pinned Node.js/npm tooling,
+`id-token: write` and explicit provenance. It accepts no registry-token
+fallback. Before uploading the parent, it requires all six platform packages
+to be visible with matching integrity and provenance. It checks selected and
+nonselected tags, installs through the real registry, and audits signatures in
+a temporary local project. These checks cannot be replaced by local tarball
+tests.
+
+#### One-time registry bootstrap
+
+All seven npm packages need an initial functioning package and their own
+trusted publisher configuration. This is a separate maintainer operation, not
+part of normal CI:
+
+1.  Before seeding anything, verify with official npm behavior or a disposable
+    package that first publication under `dev` keeps `latest` absent and that
+    an unqualified installation cannot select a prerelease. Do not briefly
+    expose development builds as the default and remove the tag afterward.
+    If npm cannot maintain that invariant, stop and resolve the bootstrap policy
+    before publishing any real CLI package.
+2.  Download one successfully tested, upstream development candidate. Verify its
+    manifest and original artifact identity. With short-lived operator
+    authentication, publish those exact functioning tarballs under `dev`,
+    platform packages first and parent last. Do not seed dummy launchers or
+    independently rebuilt binaries. Check the default-install invariant after
+    each publication, then revoke the temporary credential.
+3.  Configure each package for owner `dahlia`, repository `gukhanmun`, workflow
+    filename `main.yaml`, with no environment. Explicitly allow direct
+    `npm publish`: new configurations otherwise allow staging only. This
+    workflow does not use `npm dist-tag` or need its separate permission.
+4.  Push a new upstream source revision for the first normal OIDC publication
+    within two days of creating the configurations, before they expire.
+    Do not rerun the manually seeded version: its provenance may not meet the
+    normal publisher's checks. Missing packages or incorrect OIDC settings fail
+    with setup instructions, never a token fallback.
+
+See [npm's Trusted Publishing documentation] for current tooling requirements
+and settings. No npm account or registry setting is changed by local tests.
+
+#### Partial publication and recovery
+
+Publication is parent-last, not atomic. Rerun only the failed publisher against
+its original artifact ID and manifest digest. Never rebuild or rerun all jobs
+after an upload. An existing version is skipped only when its original
+integrity and provenance match; conflicts or expired artifacts require a new
+version. Receipts record the attempt and partial result. Anomalous dist-tags on
+already-published versions require operator investigation; CI does not repair
+them automatically.
+
+One noncancelling concurrency group serializes both channels. GitHub can replace
+a pending job with a newer pending job; rerun a cancelled release explicitly
+when needed. Stale development runs and lower stable patches in the same
+release line are rejected before writes. As in the existing JavaScript
+publisher, a signed maintenance release can move `latest` to a lower release
+line. Development publication must leave `latest` unchanged.
+
+[npm's Trusted Publishing documentation]: https://docs.npmjs.com/trusted-publishers/
+
 ### Python publication and bootstrap
 
 Python publication follows the existing eligible pushes: `main` and
