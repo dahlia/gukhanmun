@@ -231,6 +231,14 @@ def fish(binary, source, directory, env):
         require([value.split("\t")[0] for value in output.splitlines()], expected, f"fish {line}")
 
 
+def powershell_filename(value):
+    """Compare native filename candidates without platform-specific prefixes."""
+    value = value.strip("'\"")
+    if value.startswith(("./", ".\\")):
+        return value[2:]
+    return value
+
+
 def powershell(binary, source, directory, env):
     quote = lambda text: "'" + str(text).replace("'", "''") + "'"
     setup = (
@@ -279,11 +287,11 @@ def powershell(binary, source, directory, env):
         )
         result = json.loads(run([binary, "-NoProfile", "-NonInteractive", "-Command", script], directory, env))
         candidates = result["candidates"]
-        # Native filename completions preserve their quoting and optional ./ prefix.
-        normalized = [value.strip("'\"").removeprefix("./") for value in candidates]
+        # Native filename completions preserve quoting and the host's ./ or .\ prefix.
+        normalized = [powershell_filename(value) for value in candidates]
         for value in candidates:
             if "=" in value:
-                normalized.append(value.split("=", 1)[1].strip("'\"").removeprefix("./"))
+                normalized.append(powershell_filename(value.split("=", 1)[1]))
         require(normalized, expected, f"PowerShell {line} at {cursor}")
         if not expected:
             unchanged = result["replacement"] or " "

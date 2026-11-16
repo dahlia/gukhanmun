@@ -360,6 +360,43 @@ def test_data_precedes_core_and_core_sdist_is_last(harness):
     assert first_upload in result["submitted"]
 
 
+def test_independent_validator_can_reuse_reconciliation_without_core_inventory(harness):
+    called = []
+    def independent(directory, version, **options):
+        called.append((directory, version, options))
+        return publish.validate(directory, version, **options)
+    groups = lambda entries: (
+        {name for name, entry in entries.items() if entry["distribution"] != "gukhanmun"},
+        {name for name, entry in entries.items() if entry["distribution"] == "gukhanmun"},
+    )
+    result = harness.run(validator=independent, upload_groups=groups)
+    assert result["status"] == "complete" and len(called) == 1
+    assert called[0][1] == VERSION
+    assert called[0][2]["manifest_sha256"] == publish.digest(harness.release / "manifest.json")
+
+
+@pytest.mark.parametrize("groups", [
+    lambda entries: (),
+    lambda entries: (set(entries), set(entries)),
+    lambda entries: (set(entries) | {"unexpected.whl"},),
+])
+def test_independent_upload_groups_must_partition_validated_files(harness, groups):
+    with pytest.raises(publish.PublicationError, match="partition"):
+        harness.run(upload_groups=groups)
+    assert harness.registry.uploads == [] and harness.registry.calls == []
+
+
+def test_independent_absent_project_message_does_not_change_default(monkeypatch):
+    registry = publish.Registry(publish.Budget(1500), absent_project_message="seed gukhanmun-cli first")
+    monkeypatch.setattr(registry, "get", lambda *args, **kwargs: None)
+    with pytest.raises(publish.PublicationError, match="seed gukhanmun-cli first"):
+        registry.project("gukhanmun-cli")
+    original = publish.Registry(publish.Budget(1500))
+    monkeypatch.setattr(original, "get", lambda *args, **kwargs: None)
+    with pytest.raises(publish.PublicationError, match="all seven projects"):
+        original.project("gukhanmun")
+
+
 @pytest.mark.parametrize("options,message", [
     ({"context": {"version": VERSION, "eligible": False, "reason": "feature"}}, "not eligible"),
     ({"context": {"version": "0.4.0.dev8", "eligible": True}}, "version differs"),

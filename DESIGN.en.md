@@ -1169,6 +1169,7 @@ The Rust source is organized as a Cargo workspace with the following layout:
      -  *gukhanmun-napi/*: Node-API bindings via `napi-rs`.
      -  *gukhanmun-python/*: private Python extension via PyO3.
  -  *python/gukhanmun/*: Python façade and distribution metadata.
+ -  *python/gukhanmun-cli/*: independent Python launcher for the bundled CLI.
 
 The umbrella crate's feature flags compose the others. Default features enable
 HTML, Markdown, the CDB and FST backends, and the bundled loanwords, stdict,
@@ -1456,12 +1457,21 @@ sequence. The corresponding `*_bytes()` helpers return dictionary bytes.
 | `gukhanmun-loanwords-cdb`  | no        | no                      | no                 | yes  |
 
 CLI binaries ship as platform releases (Linux x86\_64 and aarch64, macOS arm64
-and x86\_64, Windows x86\_64) attached to the GitHub Releases for each version.
+and x86\_64, Windows AMD64 and ARM64) attached to the GitHub Releases for each
+version. The independent `gukhanmun-cli` PyPI distribution wraps the same
+dictionary-bearing converter and `gukhanmun-mkdict` builder in six `py3-none`
+platform wheels, with entry points and native audits for both commands. Its
+Linux wheels have compressed manylinux/musllinux tags and require
+static-linkage and execution checks on both libc families. The launcher has no
+runtime package dependencies, extension module or source distribution. It
+includes the shared completion resources, software and data notices. Its
+artifact manifest, native execution evidence and immutable upload bundle remain
+separate from the Python binding's 31-file release set.
 
 Versioning is lockstep across all public packages. The
 `workspace.package.version` in *Cargo.toml* is the only manually chosen
 version; it names the next planned release. `mise run bump-execute` updates
-the workspace and synchronizes JavaScript manifests, all seven Python
+the workspace and synchronizes JavaScript manifests, all eight Python
 manifests, exact extra pins and *uv.lock* in one signed bump commit. A release
 tag publishes that version without changing it. Packages with no functional
 change still advance together to keep cross-language dependencies aligned.

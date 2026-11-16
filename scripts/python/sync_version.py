@@ -16,9 +16,9 @@
 
 """Synchronize every Python manifest from the Rust workspace version.
 
-The core distribution and the six dictionary data distributions always share
-one version, and each core extra pins its data distribution to exactly that
-version.  All new manifest texts are computed and validated before any
+The core, six dictionary data distributions and independent CLI distribution
+share one version. Each core extra pins only its dictionary data distribution
+to exactly that version. All new manifest texts are computed and validated before any
 file is written, so an invalid manifest leaves every manifest unchanged.
 
 `PYPI_VERSION` (or `--version`) overrides the derived version for artifact
@@ -54,7 +54,8 @@ def table():
 
 def manifests(root: Path) -> list[Path]:
     names = [distribution.name for distribution in table().DISTRIBUTIONS]
-    return [root / "python" / name / "pyproject.toml" for name in ["gukhanmun", *names]]
+    return [root / "python" / name / "pyproject.toml"
+            for name in ["gukhanmun", *names, "gukhanmun-cli"]]
 
 
 def section(source: str, name: str) -> tuple[int, int]:
@@ -153,8 +154,8 @@ def sync_version(root: Path, requested: str | None = None) -> str:
     if requested is not None:
         version = requested_version(version, requested)
     pending = []
-    core, *data = manifests(root)
-    for manifest in [core, *data]:
+    core, *others = manifests(root)
+    for manifest in [core, *others]:
         # Universal newlines keep the anchored patterns working on CRLF files.
         source = manifest.read_text(encoding="utf-8")
         try:

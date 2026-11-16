@@ -87,9 +87,10 @@ The *.gukfst* and *.gukcdb* files are compiled artifacts, not something you
 edit by hand.  You author your entries as a plain text table and compile them
 with `gukhanmun-mkdict`.
 
-The `gukhanmun-mkdict` builder is installed together with `gukhanmun`, whether
-you [install via mise](./install.md#via-mise) or
-[download a prebuilt archive](./install.md#prebuilt-binaries). If you instead
+The `gukhanmun-mkdict` builder is installed together with `gukhanmun` when you
+[install from PyPI](./install.mdx#from-pypi-pipx-or-uv),
+[install via mise](./install.mdx#via-mise) or
+[download a prebuilt archive](./install.mdx#prebuilt-binaries). If you instead
 built from crates.io, install the builder the same way:
 
 ~~~~ sh
