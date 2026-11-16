@@ -18,6 +18,8 @@ import importlib.util
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -102,6 +104,42 @@ def test_cli_testing_is_six_native_hosts_not_extension_matrix():
     assert '"--require-hashes"' in source and '"--only-binary=:all:"' in source
     assert '("manylinux_2_28", "musllinux_1_2")' in source and "artifacts.IMAGES" in source
     assert "/opt/python/cp311-cp311/bin/python" in source and "/opt/python/cp315-cp315/bin/python" in source
+
+
+@pytest.mark.parametrize("ending", ["\n", "\r\n"])
+def test_host_pins_split_without_carriage_returns(ending):
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("Bash is required for workflow shell probes")
+    split = next(line.strip() for line in job("cli-wheel-test").splitlines() if "read -ra pythons" in line)
+    result = subprocess.run([bash, "-euc", split + '\nprintf "%s\\n" "${pythons[@]}"'],
+                            env={**os.environ, "pins": "python@3.11.14 python@3.15.2" + ending.rstrip("\n")},
+                            capture_output=True, check=True)
+    assert result.stdout.splitlines() == [b"python@3.11.14", b"python@3.15.2"]
+    assert b"\r" not in result.stdout
+
+
+@pytest.mark.parametrize("target,count", [("macos-x86_64", 0), ("macos-arm64", 0),
+                                        ("windows-arm64", 0), ("windows-amd64", 2), ("linux-x86_64", 8)])
+def test_host_shell_arguments_with_nounset(target, count):
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("Bash is required for workflow shell probes")
+    text = job("cli-wheel-test").split("- name: Audit and execute on the actual native host", 1)[1]
+    script = text.split("      run: |\n", 1)[1].split("    - name:", 1)[0]
+    script = "\n".join(line[8:] for line in script.splitlines())
+    # Stub only external tools; execute the workflow's actual argument logic.
+    prelude = 'mise() { if [[ "$*" == *"which nu"* ]]; then echo /bin/nu; else printf "%s\\n" "$@"; fi; }\n'
+    env = {**os.environ, "CLI_TARGET": target, "GUKHANMUN_TOOLS_PYTHON": "/tools/python", "PYTHON_VERSION": "0.4.0"}
+    result = subprocess.run([bash, "-c", prelude + script], env=env, capture_output=True, text=True, check=True)
+    args = result.stdout.splitlines()
+    expected = (["--shell", "powershell"] if count == 2 else
+                ["--shell", "bash", "--shell", "zsh", "--shell", "fish", "--shell", "nushell"])
+    if count:
+        assert args[-count:] == expected
+    else:
+        assert args[-1] == "0.4.0"
+    assert "shells[@]" not in script  # Bash 3.2 treats an empty array as unset.
 
 
 def test_only_cli_uploader_has_cli_oidc_and_eligible_unsupported_uploads_fail_loudly():

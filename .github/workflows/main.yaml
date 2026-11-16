@@ -1324,10 +1324,10 @@ jobs:
         set -euo pipefail
         mise install uv python@3.15.2
         pins="$(mise exec --no-deps python@3.15.2 -- python -I scripts/python/cli_ci.py pins --target "$CLI_TARGET")"
-        read -ra pythons <<< "$pins"
+        read -ra pythons <<< "${pins//$'\r'/}"
         mise install "${pythons[@]}"
         tools="$(mise exec --no-deps uv python@3.15.2 -- python -I scripts/python/artifacts.py tools | tail -n 1)"
-        echo "GUKHANMUN_TOOLS_PYTHON=$tools" >> "$GITHUB_ENV"
+        echo "GUKHANMUN_TOOLS_PYTHON=${tools//$'\r'/}" >> "$GITHUB_ENV"
     - name: Install Linux completion probe shells
       if: matrix.id == 'linux-x86_64'
       shell: bash
@@ -1353,18 +1353,18 @@ jobs:
         CLI_TARGET: ${{ matrix.id }}
       run: |
         set -euo pipefail
-        shells=()
+        set --
         if [[ "$CLI_TARGET" == linux-x86_64 ]]; then
-          shells=(--shell bash --shell zsh --shell fish --shell nushell)
+          set -- --shell bash --shell zsh --shell fish --shell nushell
           # Resolve the pinned Nushell without enabling other project tools.
           nu="$(mise exec --no-deps aqua:nushell/nushell -- which nu)"
           PATH="$(dirname "$nu"):$PATH"
           export PATH
         elif [[ "$CLI_TARGET" == windows-amd64 ]]; then
-          shells=(--shell powershell)
+          set -- --shell powershell
         fi
         mise exec --no-deps uv python@3.15.2 -- "$GUKHANMUN_TOOLS_PYTHON" -I scripts/python/cli_ci.py host \
-          --target "$CLI_TARGET" --dir cli-test --version "$PYTHON_VERSION" "${shells[@]}"
+          --target "$CLI_TARGET" --dir cli-test --version "$PYTHON_VERSION" "$@"
     - name: Execute the same wheel in both pinned Linux libc floor images
       if: matrix.family == 'linux'
       shell: bash
