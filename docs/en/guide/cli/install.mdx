@@ -4,64 +4,15 @@ description: |-
   How to install the Gukhanmun command-line tool.
 ---
 
-import { Tab, Tabs } from '@rspress/core/theme';
+import { PackageManagerTabs, Tab, Tabs } from '@rspress/core/theme';
 
 Installation
 ============
 
-Gukhanmun is distributed as native binaries. You can also install them through
-Python tooling, using a small Python launcher.
-
-
-Via npm
--------
-
-With Node.js 22 or later, install the dictionary-bundled converter:
-
-~~~~ sh
-npm install -g @gukhanmun/cli
-gukhanmun --help
-~~~~
-
-Or run `npx --package @gukhanmun/cli gukhanmun --help` without a global
-installation. The package contains the existing CLI executable, not the
-Node-API binding. It supports macOS, Windows and Linux on x64/arm64. Linux uses
-static musl binaries on both musl and compatible glibc hosts. No Rust compiler
-or installation scripts are needed; `--ignore-scripts` is supported.
-
-Update with `npm install -g @gukhanmun/cli@latest`. To opt into development
-builds, use:
-
-~~~~ sh
-npm install -g @gukhanmun/cli@dev
-npx --package @gukhanmun/cli@dev gukhanmun --help
-~~~~
-
-Do not omit optional dependencies: they contain the executable for your
-platform. If the launcher reports one missing, reinstall with
-`npm install -g @gukhanmun/cli --include=optional`. Unsupported platforms fail
-with a diagnostic rather than downloading or compiling an executable.
-
-The npm package installs both `gukhanmun` and `gukhanmun-mkdict`. For example,
-build a dictionary with `gukhanmun-mkdict words.tsv -o words.gukfst`, or run
-`npx --package @gukhanmun/cli gukhanmun-mkdict --help` without a global
-installation. Specify the command explicitly with `npx --package` because
-the package exposes two commands.
-
-The package's five version-matched completion scripts can be located with
-`gukhanmun --print-completion-path SHELL`, a launcher-only option separate
-from native help. For explicit activation commands, see the
-[package README]. Neither npm nor the launcher edits shell startup files.
-The native [completion generator](start.md#generating-shell-completions) also
-works through the launcher.
-
-Development artifacts retain `X.Y.Z-dev.N+sha` in installed manifests and the
-native version output; npm registry keys and dist-tags omit the build
-metadata. The `dev` tag never replaces `latest`. Before the first stable
-release, an unqualified installation is not a supported development route;
-use `@dev` explicitly.
-
-[package README]: https://github.com/dahlia/gukhanmun/blob/main/packages/cli/README.md
+The native Gukhanmun executable has no runtime dependencies. Installation via
+mise is recommended. Python tooling can also install the native binaries
+through a small Python launcher. The npm package's launchers require Node.js
+22 or later, including when installed with pnpm or Bun.
 
 
 Via mise
@@ -100,6 +51,75 @@ cargo install gukhanmun-cli gukhanmun-mkdict
 
 This compiles the binaries and places them in *~/.cargo/bin/*.  Make sure that
 directory is on your `PATH`.
+
+
+From npm
+--------
+
+With Node.js 22 or later, install both the converter and dictionary builder
+globally using your package manager:
+
+<PackageManagerTabs
+  command={{
+    npm: "npm install -g @gukhanmun/cli@latest",
+    pnpm: "pnpm add -g @gukhanmun/cli@latest",
+    bun: "bun add -g @gukhanmun/cli@latest",
+  }}
+/>
+
+~~~~ sh
+gukhanmun --help
+gukhanmun-mkdict --help
+~~~~
+
+Or run either command without a global installation. Specify both the package
+and command because the package exposes two executables:
+
+<PackageManagerTabs
+  command={{
+    npm: "npx --package @gukhanmun/cli@latest gukhanmun --help\nnpx --package @gukhanmun/cli@latest gukhanmun-mkdict --help",
+    pnpm: "pnpm --package @gukhanmun/cli@latest dlx gukhanmun --help\npnpm --package @gukhanmun/cli@latest dlx gukhanmun-mkdict --help",
+    bun: "bunx --package @gukhanmun/cli@latest gukhanmun --help\nbunx --package @gukhanmun/cli@latest gukhanmun-mkdict --help",
+  }}
+/>
+
+Repeat the global installation command to update. For development builds, use
+`@dev` instead of `@latest`:
+
+<PackageManagerTabs
+  command={{
+    npm: "npm install -g @gukhanmun/cli@dev",
+    pnpm: "pnpm add -g @gukhanmun/cli@dev",
+    bun: "bun add -g @gukhanmun/cli@dev",
+  }}
+/>
+
+The package contains native CLI executables, not the Node-API binding. It
+supports macOS, Windows and Linux on x64/arm64. Linux uses static musl binaries
+on both musl and compatible glibc hosts. No Rust compiler or installation
+scripts are needed; installation works with `--ignore-scripts`.
+
+Keep optional dependencies enabled: they contain the executables for your
+platform. If a launcher reports one missing, reinstall with optional
+dependencies enabled. For npm, use
+`npm install -g @gukhanmun/cli@latest --include=optional`. Unsupported platforms
+fail with a diagnostic rather than downloading or compiling an executable.
+
+Build a dictionary with `gukhanmun-mkdict words.tsv -o words.gukfst`. The
+package's five version-matched completion scripts are for `gukhanmun`; locate
+them with `gukhanmun --print-completion-path SHELL`. This launcher-only option
+is separate from native help. For activation commands, see the [package README].
+Neither the package manager nor Gukhanmun edits shell startup files. The native
+[completion generator](start.md#generating-shell-completions) also works through
+the launcher.
+
+Development artifacts retain `X.Y.Z-dev.N+sha` in installed manifests and the
+native version output; npm registry keys and dist-tags omit the build
+metadata. Later development publications leave `latest` unchanged. On first
+publication, npm may also assign `latest` to the initial development version.
+Use `@dev` explicitly to follow development builds.
+
+[package README]: https://github.com/dahlia/gukhanmun/blob/main/packages/cli/README.md
 
 
 From PyPI (`pipx` or `uv`)

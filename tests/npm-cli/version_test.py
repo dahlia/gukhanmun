@@ -17,6 +17,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import tomllib
@@ -60,6 +61,14 @@ class Versions(unittest.TestCase):
         text = (ROOT / "pnpm-workspace.yaml").read_text()
         self.assertIn('"!packages/cli"', text)
         self.assertIn('"!packages/cli-*"', text)
+
+    def test_pack_uses_the_shared_native_context_without_a_publication_gate(self):
+        workflow = (ROOT / ".github/workflows/main.yaml").read_text()
+        job = re.search(r"(?ms)^  npm-cli-pack:\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow)[1]
+        self.assertIn("needs: [cli-context, build-completions, build-release-binaries]", job)
+        self.assertIn("ARTIFACT_VERSION: ${{ needs.cli-context.outputs.version }}", job)
+        self.assertNotIn("needs.artifact-context", job)
+        self.assertNotRegex(job, r"(?m)^    if:")
 
 
 if __name__ == "__main__":

@@ -89,6 +89,7 @@ with `gukhanmun-mkdict`.
 
 The `gukhanmun-mkdict` builder is installed together with `gukhanmun` when you
 [install from PyPI](./install.mdx#from-pypi-pipx-or-uv),
+[install from npm](./install.mdx#from-npm),
 [install via mise](./install.mdx#via-mise) or
 [download a prebuilt archive](./install.mdx#prebuilt-binaries). If you instead
 built from crates.io, install the builder the same way:
