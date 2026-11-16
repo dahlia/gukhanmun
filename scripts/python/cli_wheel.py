@@ -186,7 +186,9 @@ def archive_files(path):
         require(sum(i.file_size for i in archive.infolist()) <= 1024 * 1024 * 1024,
                 "wheel decompressed size exceeds safety limit")
         for info in archive.infolist():
-            name = info.filename
+            # ZipInfo normalizes backslashes on Windows and truncates at NUL.
+            # Validate the original archive spelling before either conversion.
+            name = info.orig_filename
             require(name and "\\" not in name and "\0" not in name and ":" not in name
                     and not name.startswith("/") and str(PurePosixPath(name)) == name
                     and all(p not in {"", ".", ".."} for p in name.split("/")),

@@ -86,11 +86,12 @@ def test_deterministic_dual_tag_archive_and_exact_resources(assembled):
 
 
 @pytest.mark.parametrize("path", ["../escape", "/absolute", "double//slash", "dot/./file",
-                                 "back\\slash", "C:drive", "end/"])
+                                 "back\\slash", "C:drive", "end/", "nul\0byte"])
 def test_unsafe_archive_names_rejected(assembled, path):
     args, archive = assembled
     def add(entries):
         info = zipfile.ZipInfo(path)
+        info.filename = path  # Preserve hostile spelling even on Windows.
         info.create_system = 3
         info.external_attr = (stat.S_IFREG | 0o644) << 16
         return [*entries, (info, b"bad")]
