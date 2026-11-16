@@ -193,6 +193,7 @@ def archive_files(path):
                     and not name.startswith("/") and str(PurePosixPath(name)) == name
                     and all(p not in {"", ".", ".."} for p in name.split("/")),
                     f"unsafe wheel path {name!r}")
+            require(info.filename == name, f"ambiguous wheel path {name!r}: {info.filename!r}")
             require(name not in result, f"duplicate wheel member {name}")
             mode = info.external_attr >> 16
             require(info.create_system == 3 and stat.S_ISREG(mode), f"nonregular wheel member {name}")

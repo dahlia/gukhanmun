@@ -19,10 +19,12 @@ import json
 import os
 from pathlib import Path
 import stat
+import struct
 import subprocess
 import sys
 from types import SimpleNamespace
 import zipfile
+import zlib
 
 import pytest
 
@@ -105,6 +107,29 @@ def test_duplicate_archive_member_rejected(assembled):
     with pytest.warns(UserWarning):
         rewrite(archive, lambda entries: [*entries, entries[0]])
     with pytest.raises(RuntimeError, match="duplicate"):
+        wheel.check_wheel(archive, artifacts.target(args.target), args.version)
+
+
+@pytest.mark.parametrize("effective", ["gukhanmun_cli/renamed.py", "../escape.py"])
+def test_unicode_path_extra_cannot_replace_launcher(assembled, effective):
+    args, archive = assembled
+    original = "gukhanmun_cli/__init__.py"
+
+    def mutate(entries):
+        for info, _ in entries:
+            if info.filename == original:
+                encoded = effective.encode("utf-8")
+                info.extra = struct.pack("<HHBI", 0x7075, 5 + len(encoded), 1,
+                                         zlib.crc32(original.encode("utf-8"))) + encoded
+        return entries
+
+    rewrite(archive, mutate)
+    with zipfile.ZipFile(archive) as source:
+        info = next(info for info in source.infolist() if info.orig_filename == original)
+        if info.filename == original:
+            pytest.skip("this interpreter does not decode Unicode Path extra fields")
+        assert info.filename == effective
+    with pytest.raises(RuntimeError, match="ambiguous wheel path"):
         wheel.check_wheel(archive, artifacts.target(args.target), args.version)
 
 
