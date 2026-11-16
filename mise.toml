@@ -771,7 +771,7 @@ usage = 'arg "<target>" help="Rust target triple, e.g. x86_64-unknown-linux-musl
 depends = ["rust-init"]
 run = [
   "rustup target add {{usage.target}}",
-  "cargo build --locked --release --target {{usage.target}} -p gukhanmun-cli -p gukhanmun-mkdict",
+  "python -I scripts/python/cli_ci.py native --target {{usage.target}}",
 ]
 
 [tasks.py-cli-assemble]

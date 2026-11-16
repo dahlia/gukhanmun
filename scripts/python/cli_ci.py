@@ -142,15 +142,20 @@ def containers(item, directory, version):
             "--version", version, "--environment", environment, "--image", image)
 
 
+def build_native(rust_target):
+    """Use the same static-CRT policy for task-driven and local wheel builds."""
+    environment = os.environ.copy()
+    if rust_target.endswith("-windows-msvc"):
+        environment["RUSTFLAGS"] = (environment.get("RUSTFLAGS", "") + " -C target-feature=+crt-static").strip()
+    run("cargo", "build", "--locked", "--release", "--target", rust_target,
+        "-p", "gukhanmun-cli", "-p", "gukhanmun-mkdict", env=environment)
+
+
 def local(item, directory, version, shells=()):
     """Build without stamping, preserving accurate local completion dirty state."""
     native = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
     commit = run("git", "rev-parse", "HEAD", capture_output=True, text=True).stdout.strip()
-    environment = os.environ.copy()
-    if item["family"] == "windows":
-        environment["RUSTFLAGS"] = (environment.get("RUSTFLAGS", "") + " -C target-feature=+crt-static").strip()
-    run("cargo", "build", "--locked", "--release", "--target", item["rust"], "-p", "gukhanmun-cli", "-p", "gukhanmun-mkdict",
-        env=environment)
+    build_native(item["rust"])
     binary = ROOT / "target" / item["rust"] / "release" / (
         "gukhanmun.exe" if item["family"] == "windows" else "gukhanmun")
     mkdict_binary = binary.with_name("gukhanmun-mkdict" + (".exe" if item["family"] == "windows" else ""))
@@ -168,7 +173,7 @@ def local(item, directory, version, shells=()):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("pins", "prepare", "host", "containers", "container-run", "local"))
+    parser.add_argument("command", choices=("native", "pins", "prepare", "host", "containers", "container-run", "local"))
     parser.add_argument("--target", required=True)
     parser.add_argument("--dir", type=Path, default=ROOT / "target/python/cli-local")
     parser.add_argument("--version")
@@ -176,6 +181,9 @@ def main():
     parser.add_argument("--environment", choices=("manylinux_2_28", "musllinux_1_2"))
     parser.add_argument("--image")
     args = parser.parse_args()
+    if args.command == "native":
+        build_native(args.target)
+        return 0
     item = target(args.target)
     directory = args.dir.resolve()
     if args.command == "pins":

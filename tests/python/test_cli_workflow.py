@@ -243,3 +243,23 @@ def test_local_reuses_just_built_binary_without_stamping_source(tmp_path, monkey
     assert assembly[0][assembly[0].index("--mkdict-binary") + 1].name == "gukhanmun-mkdict.exe"
     assert all("stamp" not in command and "sync_version.py" not in command for command, _ in commands)
     assert [call[0] for call in calls] == ["prepare", "host"]
+
+
+@pytest.mark.parametrize("target", ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc",
+                                  "x86_64-unknown-linux-musl", "aarch64-apple-darwin"])
+def test_native_task_and_local_build_share_crt_policy(monkeypatch, target):
+    ci = helper()
+    calls = []
+    monkeypatch.setenv("RUSTFLAGS", "-C debuginfo=1")
+    monkeypatch.setattr(ci, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
+    ci.build_native(target)
+    command, kwargs = calls[0]
+    assert command == ("cargo", "build", "--locked", "--release", "--target", target,
+                       "-p", "gukhanmun-cli", "-p", "gukhanmun-mkdict")
+    expected = "-C debuginfo=1" + (" -C target-feature=+crt-static" if target.endswith("-windows-msvc") else "")
+    assert kwargs["env"]["RUSTFLAGS"] == expected
+    assert os.environ["RUSTFLAGS"] == "-C debuginfo=1"
+    import tomllib
+    task = tomllib.loads((ROOT / "mise.toml").read_text())["tasks"]["py-cli-native"]
+    assert task["run"] == ["rustup target add {{usage.target}}",
+                           "python -I scripts/python/cli_ci.py native --target {{usage.target}}"]
