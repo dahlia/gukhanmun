@@ -19,7 +19,6 @@ import process from "node:process";
 import katex from "rspress-plugin-katex";
 import mermaid from "rspress-plugin-mermaid";
 import { defineConfig } from "@rspress/core";
-import { pluginSitemap } from "@rspress/plugin-sitemap";
 import { pluginTwoslash } from "@rspress/plugin-twoslash";
 import { pluginTypeDoc } from "@rspress/plugin-typedoc";
 
@@ -29,6 +28,8 @@ const plausibleDomain = process.env.PLAUSIBLE_DOMAIN;
 export default defineConfig({
   root: __dirname,
   title: "Gukhanmun",
+  siteOrigin: siteUrl,
+  sitemap: Boolean(process.env.SITE_URL),
   head: [
     ["meta", { property: "og:image", content: `${siteUrl}/og.png` }],
     ["meta", { property: "og:image:type", content: "image/png" }],
@@ -77,7 +78,6 @@ export default defineConfig({
     : [],
   llms: true,
   plugins: [
-    ...(process.env.SITE_URL ? [pluginSitemap({ siteUrl })] : []),
     mermaid(),
     katex(),
     pluginTwoslash({
