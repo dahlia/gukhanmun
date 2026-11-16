@@ -207,9 +207,17 @@ records that only lead to longer entries carry no reading.
 The metadata CBOR map is stored under the reserved key
 `__gukhanmun_meta__`.
 
-The runtime CDB backend uses the `cdb` crate's file-backed reader and keeps the
-backend opaque behind `HanjaDictionary`.  This already avoids loading the whole
-CDB file through a Gukhanmun-owned buffer without adding an unsafe mmap surface.
+The runtime CDB backend reads files into owned bytes; `from_bytes()` copies
+its input, while `from_static_bytes()` borrows a static slice without copying
+the file data. Loading validates record framing and hash tables, then builds
+an in-memory range index sorted by hash, key and probe order. Each key lookup
+uses $O(\log N)$ key comparisons for $N$ records, even with hash collisions.
+Candidate payloads are decoded when accessed.
+
+The record and lookup indexes together are limited to 64 MiB of requested
+storage, checked before allocation. This limit excludes the file bytes,
+decoded metadata and allocator overhead. Static backing avoids a file-data
+copy, not the index allocation.
 
 
 Version 2 candidate payloads

@@ -23,7 +23,7 @@ Installation
 
 ~~~~ toml
 [dependencies]
-gukhanmun-dict-extract = "0.2"
+gukhanmun-dict-extract = "0.4"
 ~~~~
 
 

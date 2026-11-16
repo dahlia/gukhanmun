@@ -1,14 +1,17 @@
 ---
 title: 스트리밍 API
 description: |-
-  Gukhanmun의 TransformStream API로 큰 文書를 청크 單位로 處理하기.
+  Gukhanmun의 버퍼링된 TransformStream API에 文字列 청크를 傳達하기.
 ---
 
 스트리밍 API
 ============
 
-`g.stream(format?)`은 [`TransformStream<string, string>`]을 返還하며, 이를 通해
-파이프하면 任意의 큰 文書를 한꺼번에 버퍼링하지 않고 變換할 수 있습니다.
+`g.stream(format?)`은 文字列 청크를 받는
+[`TransformStream<string, string>`]을 返還합니다. 現在 WebAssembly와 Node-API
+具顯은 모두 入力 全體를 버퍼링하고 쓰기 側이 닫힐 때 變換합니다. 이는 청크
+인터페이스이며, 메모리 使用量을 制限하거나 出力을 미리 내보내는 스트리밍이
+아닙니다.
 
 [`TransformStream<string, string>`]: https://developer.mozilla.org/en-US/docs/Web/API/TransformStream
 
@@ -26,19 +29,20 @@ const stream = g.stream("html");
 const writer = stream.writable.getWriter();
 const reader = stream.readable.getReader();
 
-// 청크 쓰기
+// 쓰기가 막히지 않도록 쓰기 前에 읽기를 始作합니다.
+const output = (async () => {
+  const parts: string[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return parts.join("");
+    parts.push(value);
+  }
+})();
+
 await writer.write("<p>漢");
 await writer.write("字</p>");
 await writer.close();
-
-// 變換된 出力 읽기
-const parts: string[] = [];
-for (;;) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  if (value) parts.push(value);
-}
-console.log(parts.join(""));  // <p>한자</p>
+console.log(await output);  // <p>한자</p>
 ~~~~
 
 
@@ -84,29 +88,30 @@ const converted = response.body!
 ~~~~ ts twoslash
 import type { Gukhanmun } from "@gukhanmun/types";
 const g: Gukhanmun = {} as unknown as Gukhanmun;
-const chunkA: string = "";
-const chunkB: string = "";
-const chunkC: string = "";
+const chunkA: string = "<p>漢";
+const chunkB: string = "字";
+const chunkC: string = "</p>";
 // ---cut-before---
 // 다음은 恒常 同等하다:
 const result1 = g.convert(chunkA + chunkB + chunkC, "html");
 
 // 그리고
 const stream = g.stream("html");
+const output = new Response(
+  stream.readable.pipeThrough(new TextEncoderStream()),
+).text();
 const writer = stream.writable.getWriter();
 await writer.write(chunkA);
 await writer.write(chunkB);
 await writer.write(chunkC);
 await writer.close();
-const result2 = stream.readable
-  .getReader()
-  .read()
-  .then(({ value }) => value || "");
+const result2 = await output;
 
 import assert from "node:assert/strict";
 assert.strictEqual(result1, result2);
 ~~~~
 
-스트림은 文脈 境界에서 內部的으로 버퍼링할 수 있습니다(例를 들어
-`"per-document"` 同音異義 追跡은 플러시(flush) 前에 全體 文書를 읽습니다).
-基本 `"per-block"` 設定에서는 各 블록 要素 다음에 出力이 플러시됩니다.
+`"per-block"`을 使用하거나 同音異義 追跡을 꺼도 最終化 前에는 出力이
+없습니다. 이 옵션들은 註解(annotation) 文脈을 制御하며, JavaScript 바인딩이
+청크를 내보내는 時點을 바꾸지는 않습니다. 스트림 基盤 入出力과 統合해도
+文書 全體를 담는 버퍼는 必要합니다.

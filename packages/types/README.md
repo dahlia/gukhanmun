@@ -38,17 +38,20 @@ What is declared here
 `Preset` (`"ko-kr"` | `"ko-kp"`) and `RenderMode` control orthographic
 conventions and output format. `GukhanmunOptions` is the options bag passed to
 `load()`; it covers preset, rendering, segmentation, numerals, initial sound
-law, homophone window, first-occurrence window, recovery, directives, and HTML
-options. `Gukhanmun` is the converter interface returned by `load()`, with
-`convert()` and `stream()` methods. `GukhanmunError` is the structured error
-class with a typed `code` property and a `chain` array of causes.
+law, homophone window, first-occurrence window, recovery, directives, HTML
+options, source policy, and punctuation profiles. `Gukhanmun` is the converter
+interface returned by `load()`, with `convert()` and `stream()` methods.
+`GukhanmunError` is the structured error class with a typed `code` property and
+a `chain` array of causes.
 
 `DictionarySource` describes how to supply a dictionary, either as a
 `FileDictionarySource` (`{ format, data }` pointing at FST or CDB bytes, a URL,
 or a path) or as a `MapDictionarySource` (`{ entries }` with hanja, reading,
 positional reading, preference, and mark fields) for readings computed at
-runtime. `Format` is the input format selector: `"text"`, `"html"`,
-`"markdown"`, or a `{ format: "markdown", gfm: boolean }` object.
+runtime. A source's `role` distinguishes user overrides from cooperating
+reference and loanword dictionaries. `Format` is the input format selector:
+`"text"`, `"html"`, `"markdown"`, or a `{ format: "markdown", gfm: boolean }`
+object.
 
 All TSDoc comments live in this package as the single source of truth for the
 JavaScript API. Refer to the declarations in `index.ts` for the full details.

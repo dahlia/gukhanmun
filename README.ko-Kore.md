@@ -60,8 +60,8 @@ Rust 라이브러리입니다. [Seonbi]의 後繼 프로젝트로서, 漢字 變
  -  여섯 가지 렌더링 모드: 한글 專用·한글(漢字) 括弧·漢字(한글) 括弧·한글 위
     루비(ruby)·漢字 위 루비·選擇的 倂記를 곁들인 國漢文 原文.
  -  엔진은 漸進的 變換을 支援합니다. 文脈에 依存하는 註解(annotation)는 더 많은
-    入力을 모을 수 있으며, Python 청크 API는 最終化할 때까지 文書 全體를
-    버퍼링합니다.
+    入力을 모을 수 있으며, JavaScript·Python 청크 API는 最終化할 때까지 文書
+    全體를 버퍼링합니다.
  -  韓國 正書法을 爲한 頭音法則을 폴백 讀音에 適用합니다. 辭典 項目은 이미
     正確한 讀音을 들고 있다고 假定합니다.
  -  核心 크레이트(`gukhanmun-core`)는 `no_std` + `alloc`으로, 임베디드
@@ -111,15 +111,37 @@ cargo install gukhanmun-cli gukhanmun-mkdict
 
 #### 미리 빌드된 바이너리
 
-Linux(x86\_64, aarch64), macOS(x86\_64, aarch64), Windows(x86\_64)用으로 미리
-빌드된 바이너리가 GitHub의 各 릴리스에 添附되어 있습니다:
+Linux(x86\_64, aarch64), macOS(x86\_64, aarch64), Windows(x86\_64, ARM64)用으로
+미리 빌드된 바이너리가 GitHub의 各 릴리스에 添附되어 있습니다:
 
 <https://github.com/dahlia/gukhanmun/releases>
 
 自身의 플랫폼에 맞는 아카이브를 내려받아 풀고, `gukhanmun` 및 `gukhanmun-mkdict`
 實行 파일을 `PATH` 上의 어딘가에 둡니다.
 
+#### npm이나 Python 道具를 通해서
+
+Node.js 22 以上에서는 npm으로 두 命令을 함께 設置합니다:
+
+~~~~ sh
+npm install -g @gukhanmun/cli@latest
+~~~~
+
+Python 3.11 以上에서는 隔離된 道具 設置 方法 中 하나를 使用합니다:
+
+~~~~ sh
+pipx install gukhanmun-cli
+# 또는:
+uv tool install gukhanmun-cli
+~~~~
+
+이 패키지들은 辭典이 內藏된 `gukhanmun`과 `gukhanmun-mkdict`를 함께
+提供합니다. JavaScript·Python 라이브러리와는 別個이며, Rust가 必要하지
+않습니다. 支援 플랫폼, 開發 빌드와 셸 自動 完成(shell completion)은
+[CLI 設置 案內]를 參照하십시오.
+
 [mise]: https://mise.jdx.dev/
+[CLI 設置 案內]: https://gukhanmun.org/ko-Kore/guide/cli/install
 
 ### Rust 라이브러리
 
@@ -261,8 +283,9 @@ HTML·Markdown 어댑터·렌더링 모드·프리셋·JavaScript 및 Python API
 npm/JSR 패키지 構成
 -------------------
 
-아홉 個의 JavaScript 패키지도 配布하며, 모두 Rust 크레이트와 同一한 버전을
-共有합니다.
+아홉 個의 JavaScript 라이브러리·데이터 패키지를 配布하며, 모두 Rust
+크레이트와 同一한 버전을 共有합니다. 別途의 npm 專用 `@gukhanmun/cli`
+패키지는 JavaScript 變換 API가 아니라 命令줄 道具를 設置합니다.
 
 | 패키지                     | JSR                                 | npm                                 | 說明                                                                 |
 | -------------------------- | ----------------------------------- | ----------------------------------- | -------------------------------------------------------------------- |
@@ -298,14 +321,15 @@ npm/JSR 패키지 構成
 PyPI 패키지 構成
 ----------------
 
-일곱 Python 配布版은 워크스페이스에서 導出한 한 버전을 PEP 440 表記로
-共有합니다.
+여덟 Python 配布版은 워크스페이스에서 導出한 한 버전을 PEP 440 表記로
+共有합니다. 獨立 CLI 配布版인 `gukhanmun-cli`는 Python 라이브러리와 別個입니다.
 여섯 選擇的 데이터 配布版은 플랫폼 中立 휠을 提供하며 네이티브 패키지에
 依存하지 않습니다.
 
 | 配布版                      | 說明                                                                  |
 | --------------------------- | --------------------------------------------------------------------- |
 | [`gukhanmun`][PyPI]         | 네이티브 變換器, 타입이 指定된 Python API와 選擇的 辭典 로더(loader). |
+| [`gukhanmun-cli`]           | 辭典이 內藏된 獨立 變換 道具와 辭典 빌더.                             |
 | [`gukhanmun-stdict-fst`]    | FST 形式의 《標準國語大辭典》 데이터.                                 |
 | [`gukhanmun-stdict-cdb`]    | CDB 形式의 《標準國語大辭典》 데이터.                                 |
 | [`gukhanmun-opendict-fst`]  | FST 形式의 《우리말샘》 네 分類.                                      |
@@ -317,6 +341,7 @@ PyPI 패키지 構成
 表示 要件을 維持합니다. 〈[公式 辭典]〉과 各 데이터 配布版의 *LICENSE* 및
 *ATTRIBUTION.md*를 參照하십시오.
 
+[`gukhanmun-cli`]: https://pypi.org/project/gukhanmun-cli/
 [`gukhanmun-stdict-fst`]: https://pypi.org/project/gukhanmun-stdict-fst/
 [`gukhanmun-stdict-cdb`]: https://pypi.org/project/gukhanmun-stdict-cdb/
 [`gukhanmun-opendict-fst`]: https://pypi.org/project/gukhanmun-opendict-fst/

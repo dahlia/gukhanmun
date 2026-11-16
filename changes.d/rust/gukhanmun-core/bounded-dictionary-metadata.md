@@ -4,9 +4,11 @@ links:
   '#48': https://github.com/dahlia/gukhanmun/issues/48
   '#55': https://github.com/dahlia/gukhanmun/pull/55
 ---
- -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
-    decoded-allocation admission budgets before expanding aliases or typed
-    evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. Dictionaries with 32,768 distinct short
-    aliases remain loadable within the same admission budgets.
+ -  Added `check_metadata_resources()` and `check_phrase_index_resources()`
+    for checking decoded-allocation admission budgets before expanding
+    dictionary aliases, typed evidence or phrase indexes. CDB and FST loaders
+    use these checks to reject excessive metadata before allocation, including
+    small files with many alias rows. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the budgets. Admission charges are
+    conservative estimates, not limits on total process memory.
     [[#48], [#15], [#55]]

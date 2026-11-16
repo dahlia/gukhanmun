@@ -1212,9 +1212,9 @@ runtime implementation:
     source directly. This is the canonical API contract; both implementations
     satisfy it structurally.
  -  *@gukhanmun/wasm* (npm and JSR): WebAssembly implementation. Re-exports the
-    types. Loads its *.wasm* artifact via `import.meta.url` so that Deno and
-    browsers can resolve it natively and Node 22+ can resolve it via the
-    standard ESM loader.
+    types. Resolves its *.wasm* artifact relative to `import.meta.url`. On
+    Node.js, local files are read through `node:fs/promises`; other URLs use
+    `fetch()`. The package supports Node.js 20+.
  -  *@gukhanmun/napi* (npm only): Node-API implementation. Re-exports the
     types. Ships per-platform prebuilt binaries through napi-rs's
     optional-dependency packaging.
@@ -1255,26 +1255,31 @@ trade-off is that the option strings are stringly typed at runtime; both
 implementations validate them at the boundary and throw a `GukhanmunError` with
 code `invalid-input` on unrecognized values.
 
-Streaming on the JavaScript side uses the platform
-`TransformStream<string, string>` interface, which is available across
-browsers, Deno, Node 18+, and Bun. Chunks are JavaScript strings; encoding
-concerns (`TextDecoderStream`, `TextEncoderStream`) live outside the gukhanmun
-stream. Within the engine, a chunk that ends in the middle of a conversion
-span, or close enough to a hanja character that a mixed-script dictionary key
-could still cross the boundary, causes that trailing span to be held until the
-next chunk arrives. Already settled prefixes can be emitted. Dictionary
-lookahead uses `max_word_chars` plus particle lookahead; source phrase rules
-add a finite tail and committed left context. Unresolved lattice frontiers can
-retain more input than those allowances. Fallback-only hanja runs are
-deliberately not split at chunk boundaries, because render modes that show
-source hanja expose annotation grouping; those runs flush at a later
-non-convertible boundary or EOF.
+The JavaScript `stream()` method uses the platform
+`TransformStream<string, string>` interface. Both bindings currently buffer
+all input and convert it when the writable side closes. They do not emit
+partial output, even with homophone marking disabled, and do not provide a
+bounded-memory conversion interface. Chunks are JavaScript strings; encoding
+concerns (`TextDecoderStream`, `TextEncoderStream`) live outside the Gukhanmun
+stream.
+
+The Rust engine's incremental API has a different contract. A chunk that ends
+in the middle of a conversion span, or close enough to a hanja character that a
+mixed-script dictionary key could still cross the boundary, causes that
+trailing span to be held until the next chunk arrives. Already settled prefixes
+can be emitted. Dictionary lookahead uses `max_word_chars` plus particle
+lookahead; source phrase rules add a finite tail and committed left context.
+Unresolved lattice frontiers can retain more input than those allowances.
+Fallback-only hanja runs are deliberately not split at chunk boundaries,
+because render modes that show source hanja expose annotation grouping; those
+runs flush at a later non-convertible boundary or EOF.
 
 Stateful middlewares can add their own lookahead requirement. A homophone
 marker with a document-wide context, including plain-text `per-block` where no
 block scopes exist, must buffer until EOF to preserve exact rendering.
-Disabling that middleware restores early streaming but also disables cross-line
-homophone disambiguation.
+Disabling that middleware permits early output through the Rust incremental
+API but also disables cross-line homophone disambiguation. It does not change
+the JavaScript bindings' buffering behavior.
 
 We chose strings rather than `Uint8Array` for the streaming type because the
 engine fundamentally works on Unicode scalar values: byte-level chunking would
@@ -1449,6 +1454,7 @@ sequence. The corresponding `*_bytes()` helpers return dictionary bytes.
 | `@gukhanmun/types`         | no        | yes (declarations only) | yes (`.ts` source) | no   |
 | `@gukhanmun/wasm`          | no        | yes                     | yes                | no   |
 | `@gukhanmun/napi`          | no        | yes                     | no                 | no   |
+| `@gukhanmun/cli`           | no        | yes                     | no                 | no   |
 | `@gukhanmun/stdict-fst`    | no        | yes                     | yes                | no   |
 | `@gukhanmun/stdict-cdb`    | no        | yes                     | yes                | no   |
 | `@gukhanmun/opendict-fst`  | no        | yes                     | yes                | no   |
@@ -1504,9 +1510,11 @@ Publication to PyPI is not atomic. The upload job uses the original tested
 bundle, reconciles already-published files by hash and size, and records each
 attempt's completed, missing and conflicting files. Rerunning the upload job
 can complete a partial release with identical files; rebuilding after an upload
-cannot substitute new bytes under the same filenames. Bootstrap creates all
-seven PyPI projects with one seed upload, then configures normal Trusted
-Publishers for the repository workflow. Normal development and stable
+cannot substitute new bytes under the same filenames. Bootstrap creates the
+seven binding and dictionary PyPI projects with one seed upload, then configures
+normal Trusted Publishers for the repository workflow. The independent
+`gukhanmun-cli` project instead uses a pending Trusted Publisher for its first
+upload. Normal development and stable
 publication use Trusted Publishing without a long-lived token fallback.
 
 

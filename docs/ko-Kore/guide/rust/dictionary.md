@@ -89,8 +89,8 @@ let converter = Builder::with_preset(Preset::KoKr)
     .build()?;
 ~~~~
 
-`push_dictionary`로 追加한 辭典은 內藏 辭典보다 먼저 參照됩니다.  連鎖 全體에서
-처음 一致한 것이 採擇됩니다.
+`push_dictionary`로 追加한 辭典은 內藏 辭典보다 먼저 參照됩니다. 같은 表記와
+消費 길이에서는 먼저 追加한 使用者 辭典의 候補 集合이 優先합니다.
 
 
 제로카피 靜的 辭典
@@ -113,23 +113,23 @@ let dict = FstDictionary::from_static_bytes(MY_DICT)?;
 所有된 바이트에서 불러오기
 --------------------------
 
-바이트가 런타임 出處(네트워크, 데이터베이스 等)에서 올 때는 `Arc<[u8]>`로
-감쌉니다:
+FST와 CDB는 모두 `from_bytes()`로 바이트 슬라이스를 받아
+自身의 貯藏 空間으로 複寫합니다:
 
 ~~~~ rust
-use std::sync::Arc;
 use gukhanmun::CdbDictionary;
 
 let bytes: Vec<u8> = std::fs::read("custom.gukcdb")?;
-let dict = CdbDictionary::from_bytes(Arc::from(bytes.as_slice()))?;
+let dict = CdbDictionary::from_bytes(&bytes)?;
 ~~~~
 
 
 여러 辭典 連結
 --------------
 
-`ChainDictionary`는 여러 辭典을 明示的 優先順位로 結合하게 해 줍니다.  連鎖에서
-一致를 가진 첫 辭典이 採擇됩니다:
+`ChainDictionary`는 여러 辭典을 明示的 優先順位로 結合하게 해 줍니다. 같은
+表記와 消費 길이에서는 첫 辭典의 候補 集合이 優先합니다. 길이가 다른 一致는
+分割機가 比較할 수 있도록 維持합니다:
 
 ~~~~ rust
 use gukhanmun::{ChainDictionary, FstDictionary, CdbDictionary, HanjaDictionary};

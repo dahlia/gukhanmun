@@ -41,10 +41,11 @@ console.log(g.convert("漢字를 한글로")); // "한자를 한글로"
 ~~~~
 
 `stdictCdb()` returns a `DictionarySource` record (a
-`{ format: "cdb", bytes: Uint8Array }` object). `stdictCdbBytes()` returns only
-the `Uint8Array` when you need the raw bytes; pass an explicit `URL` to load a
-relocated copy instead of the bundled one. `stdictCdbUrl` is the URL of the
-binary inside the package, useful for preloading or caching.
+`{ format: "cdb", data: Uint8Array, role: "reference" }` object).
+`stdictCdbBytes()` returns only the `Uint8Array` when you need the raw bytes;
+pass an explicit `URL` to load a relocated copy instead of the bundled one.
+`stdictCdbUrl` is the URL of the binary inside the package, useful for
+preloading or caching.
 
 `stdictCdbBytes()` picks how to load from the URL scheme, not the runtime: a
 `file:` URL (the usual case for an npm install) is read from disk with
@@ -56,10 +57,10 @@ Relation to `@gukhanmun/stdict-fst`
 -----------------------------------
 
 Both packages contain the same dictionary data in different binary formats. The
-CDB format has O(1) lookup and a layout that is straightforward to inspect
-manually. The FST format supports prefix streaming and is generally preferred
-for the lattice segmenter. Either works; choose based on your performance
-profile or integration constraints.
+CDB backend uses a validated index with O(log N) key comparisons per lookup
+and a layout that is straightforward to inspect manually. The FST format
+compresses shared key prefixes and is generally smaller. Either works; choose
+based on your performance profile or integration constraints.
 
 
 License

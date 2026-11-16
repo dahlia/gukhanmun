@@ -80,11 +80,11 @@ whole workspace lockfile but lists only the crates the binding needs; the
 check accepts a lockfile that only drops unused entries. `mise run ci`
 includes it.
 
-The release consists of 31 files: a CPython wheel for eight targets, PyPy 3.11
-and 3.12 wheels for five of them, the six data wheels and seven sdists.
-*scripts/python/artifacts.py* defines the targets in one table, and CI
-generates its matrix from it. `mise run py-dist -- <target>` builds, audits
-and executes one target's wheels on a matching host:
+The Python binding and dictionary release consists of 31 files: a CPython wheel
+for eight targets, PyPy 3.11 and 3.12 wheels for five of them, the six data
+wheels and seven sdists. *scripts/python/artifacts.py* defines the targets in
+one table, and CI generates its matrix from it. `mise run py-dist -- <target>`
+builds, audits and executes one target's wheels on a matching host:
 
 ~~~~ sh
 mise run py-dist -- linux-x86_64
@@ -311,11 +311,12 @@ complete ID when passing `--section`. The patterns in *sacho.toml* render Rust
 first, then JavaScript/TypeScript, then Python, with IDs sorted within each
 family.
 
-The seven initial Python sections are `gukhanmun (Python)` and
+The Python binding and dictionary sections are `gukhanmun (Python)` and
 `gukhanmun-{stdict,opendict,loanwords}-{fst,cdb} (Python)`. The latter is
-shorthand for six section IDs, such as `gukhanmun-stdict-fst (Python)`. Sacho
-can create fragments in these sections before their source directories exist;
-no placeholder package is needed. Changes in the private
+shorthand for six section IDs, such as `gukhanmun-stdict-fst (Python)`.
+The independent CLI distribution uses `gukhanmun-cli (Python)`. Its npm
+counterpart uses `@gukhanmun/cli (JavaScript/TypeScript)`, with separate
+sections for the platform executable packages. Changes in the private
 *crates/gukhanmun-python/* binding belong to `gukhanmun (Python)`, without a
 separate Rust fragment.
 
@@ -538,8 +539,8 @@ mise run bump -- 1.2.5
 
 Inspect the planned workspace and intra-workspace dependency updates.  When the
 preview is correct, create the signed bump commit, which covers the Rust crates
-and every published JavaScript package under *packages/* and the core Python
-distribution together:
+and every published JavaScript package under *packages/* and all Python
+distributions together:
 
 ~~~~ sh
 mise run bump-execute -- 1.2.5
@@ -578,9 +579,10 @@ The *main.yaml* workflow verifies that the tag is signed and matches
 `workspace.package.version`, runs the full CI gate, verifies locked crate
 packages, publishes all crates to crates.io and all packages to npm, JSR and
 PyPI, builds release binaries, and creates the GitHub release. The Python
-upload uses the tested artifact ID and pinned manifest digest; the Release
-attaches those same 31 files plus *python-manifest.json* and
-*python-SHA256SUMS*.
+binding/data and standalone CLI uploads use their own tested artifact IDs and
+pinned manifest digests. The Release attaches the 31 binding/data files plus
+*python-manifest.json* and *python-SHA256SUMS*, and the separate six CLI wheels
+with *cli-manifest.json* and *cli-SHA256SUMS*.
 
 If a new workspace crate or JavaScript package is added, seed its name on the
 relevant registry (crates.io, npm, or JSR) once before relying on trusted
@@ -710,11 +712,11 @@ confirm file hashes before publication is complete. Data files become visible
 before the native package is uploaded. Development publication creates no
 GitHub Release.
 
-All seven PyPI projects must exist and carry normal Trusted Publishers before
-the first CI upload. Pending publishers cannot bootstrap seven projects at
-once: their identity is unique per owner/repository/workflow/environment, and
-one account can hold at most three pending registrations. Use this one-time
-seed procedure instead:
+All seven binding and dictionary PyPI projects must exist and carry normal
+Trusted Publishers before the first CI upload. Pending publishers cannot
+bootstrap seven projects at once: their identity is unique per
+owner/repository/workflow/environment, and one account can hold at most three
+pending registrations. Use this one-time seed procedure instead:
 
 1.  Merge the Python version-stamping change into `main` first. Start from a
     clean, disposable checkout of `main` at the source commit to release. Seed

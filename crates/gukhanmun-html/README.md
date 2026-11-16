@@ -4,11 +4,11 @@ gukhanmun-html
 [![crates.io][crates.io badge]][crates.io]
 [![License: GPL-3.0-only][GPL badge]][GPL]
 
-HTML fragment adapter for the Gukhanmun pipeline. Parses HTML with
-`html5ever`, classifies each element into a policy (preserve, inline, block),
-and produces a token stream that the core engine can process. The writer
-serializes the engine's output back into HTML, keeping all original attributes
-and tag structure intact.
+HTML fragment adapter for the Gukhanmun pipeline. A fragment-oriented scanner,
+not a fully HTML5-conformant parser, classifies elements by preservation,
+inline-markup and block-boundary policy. It produces a token stream for the
+core engine. The writer serializes the engine's output back into HTML,
+keeping all original attributes and tag structure intact.
 
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun-html?logo=rust
 [crates.io]: https://crates.io/crates/gukhanmun-html
@@ -21,7 +21,7 @@ Installation
 
 ~~~~ toml
 [dependencies]
-gukhanmun-html = "0.1"
+gukhanmun-html = "0.4"
 ~~~~
 
 
@@ -34,7 +34,8 @@ for serialization, and three policy flags:
 
  -  `preserve`: text inside this element passes through unchanged (applies to
     `<code>`, `<kbd>`, `<pre>`, `<script>`, `<style>`, `<textarea>`, and
-    elements with a `translate="no"` attribute).
+    elements whose effective inherited language is not Korean). Custom
+    preservation predicates can add class or attribute rules.
  -  `allows_inline_markup`: whether the renderer may emit `<ruby>` or
     parenthetical spans inside this element.
  -  `block_boundary`: whether this element resets block-oriented middleware
@@ -48,7 +49,7 @@ Usage
 -----
 
 The adapter is typically invoked through the `gukhanmun` umbrella crate's
-`Converter::convert_html_fragment_to_string` method. Direct use:
+`Converter::convert_html_fragment_to_string()` method. Direct use:
 
 ~~~~ rust
 use gukhanmun_core::{MapDictionary, RenderMode};

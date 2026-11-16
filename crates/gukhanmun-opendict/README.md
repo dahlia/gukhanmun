@@ -19,7 +19,7 @@ Installation
 
 ~~~~ toml
 [dependencies]
-gukhanmun-opendict = "0.2"
+gukhanmun-opendict = "0.4"
 ~~~~
 
 

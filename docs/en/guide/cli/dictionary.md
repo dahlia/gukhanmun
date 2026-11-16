@@ -68,10 +68,13 @@ gukhanmun -d legal.gukfst -d names.gukcdb input.txt
 
 Gukhanmun supports two binary dictionary formats:
 
-| Format | Extension | Lookup                 | Notes                                               |
-| ------ | --------- | ---------------------- | --------------------------------------------------- |
-| FST    | *.gukfst* | $O(\text{key length})$ | Preferred for lattice segmentation; smaller on disk |
-| CDB    | *.gukcdb* | $O(1)$                 | Simpler layout; easier to audit by hand             |
+| Format | Extension | Lookup                      | Notes                                               |
+| ------ | --------- | --------------------------- | --------------------------------------------------- |
+| FST    | *.gukfst* | $O(\text{key length})$      | Preferred for lattice segmentation; smaller on disk |
+| CDB    | *.gukcdb* | $O(\log N)$ key comparisons | Validated in-memory index; simpler on-disk layout   |
+
+Here $N$ is the number of CDB records. Prefix matching performs a key lookup
+for each prefix; CDB loading builds and validates the index before conversion.
 
 Later `-d` arguments take priority over earlier ones and over every bundled
 dictionary for matches of the same text and length. With

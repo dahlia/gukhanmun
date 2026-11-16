@@ -18,7 +18,8 @@ Installation
 ------------
 
 The `gukhanmun-mkdict` binary is bundled alongside `gukhanmun`, so installing
-the CLI via mise or from a prebuilt release archive installs the builder too,
+the CLI via mise, WinGet, npm (`@gukhanmun/cli`), pipx or uv
+(`gukhanmun-cli`), or from a prebuilt release archive installs the builder too,
 with no Rust toolchain required:
 
 <https://github.com/dahlia/gukhanmun/releases>
@@ -46,8 +47,8 @@ The optional third column is a comma-separated list of marks:
 `require_hangul` (the entry requires a hangul gloss in the original-script
 rendering mode).
 
-CSV and JSON Lines input are also accepted; the tool infers the format from
-the file extension or from `--format`.
+CSV and JSON Lines input are also accepted; the tool infers the input format
+from the file extension. `--format` selects the output format, `fst` or `cdb`.
 
 
 Usage

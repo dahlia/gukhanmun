@@ -123,15 +123,14 @@ by the static slice.
 Loading from owned bytes
 ------------------------
 
-When the bytes come from a runtime source (network, database, etc.) wrap them
-in an `Arc<[u8]>`:
+Both FST and CDB accept a byte slice through `from_bytes()` and copy it
+into their own backing store:
 
 ~~~~ rust
-use std::sync::Arc;
 use gukhanmun::CdbDictionary;
 
 let bytes: Vec<u8> = std::fs::read("custom.gukcdb")?;
-let dict = CdbDictionary::from_bytes(Arc::from(bytes.as_slice()))?;
+let dict = CdbDictionary::from_bytes(&bytes)?;
 ~~~~
 
 
@@ -139,7 +138,9 @@ Chaining multiple dictionaries
 ------------------------------
 
 `ChainDictionary` lets you compose several dictionaries with explicit priority
-ordering.  The first dictionary in the chain that has a match wins:
+ordering. For the same spelling and consumed length, the first dictionary's
+candidate set wins. Matches of different lengths remain available to the
+segmenter:
 
 ~~~~ rust
 use gukhanmun::{ChainDictionary, FstDictionary, CdbDictionary, HanjaDictionary};
@@ -204,11 +205,11 @@ use gukhanmun::{MapDictionary, MatchMark, ReadingCandidate, ReadingCandidates};
 let candidates = ReadingCandidates::new(vec![
     ReadingCandidate {
         reading: "동경".into(), suffix_reading: None,
-        mark: MatchMark::default(), preference: 0,
+        mark: MatchMark::default(), preference: 0, alias: None,
     },
     ReadingCandidate {
         reading: "도쿄".into(), suffix_reading: None,
-        mark: MatchMark::default(), preference: 10,
+        mark: MatchMark::default(), preference: 10, alias: None,
     },
 ])?;
 let mut dictionary = MapDictionary::new();
@@ -232,11 +233,11 @@ use gukhanmun::{MapDictionary, MatchMark, ReadingCandidate};
 let dictionary = MapDictionary::from_candidates([
     ("東京", ReadingCandidate {
         reading: "동경".into(), suffix_reading: None,
-        mark: MatchMark::default(), preference: 0,
+        mark: MatchMark::default(), preference: 0, alias: None,
     }),
     ("東京", ReadingCandidate {
         reading: "도쿄".into(), suffix_reading: None,
-        mark: MatchMark::default(), preference: 10,
+        mark: MatchMark::default(), preference: 10, alias: None,
     }),
 ])?;
 ~~~~

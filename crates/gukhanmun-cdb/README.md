@@ -19,9 +19,14 @@ File format
 -----------
 
 A `__gukhanmun_meta__` key in the CDB holds a CBOR-encoded metadata map (source
-name, build date, etc.). All other keys are hanja strings in UTF-8; the
+name, build date, etc.). Other keys are dictionary-key prefixes in UTF-8,
+which may include hangul in mixed-script words; the
 corresponding value encodes the hangul reading, a 2-bit mark byte (requiring
 hanja or hangul annotation), and a length prefix in a compact binary layout.
+Prefix records also represent incomplete dictionary keys. Multiple readings
+and positional forms use candidate payloads. Containers with source evidence
+use version 4; older readers reject them, while current readers also accept
+evidence-free versions 1–3.
 
 
 Installation
@@ -29,7 +34,7 @@ Installation
 
 ~~~~ toml
 [dependencies]
-gukhanmun-cdb = "0.1"
+gukhanmun-cdb = "0.4"
 ~~~~
 
 
@@ -42,26 +47,30 @@ use gukhanmun_cdb::CdbDictionary;
 // From a file on disk:
 let dict = CdbDictionary::open("stdict.gukcdb")?;
 
-// From an owned Arc<[u8]>:
-let bytes: Arc<[u8]> = std::fs::read("stdict.gukcdb")?.into();
-let dict = CdbDictionary::from_bytes(bytes)?;
+// From runtime bytes (copies them into its own backing store):
+let bytes: Vec<u8> = std::fs::read("stdict.gukcdb")?;
+let dict = CdbDictionary::from_bytes(&bytes)?;
 
 // Zero-copy from a static byte slice:
 static BYTES: &[u8] = include_bytes!("stdict.gukcdb");
 let dict = CdbDictionary::from_static_bytes(BYTES)?;
 ~~~~
 
-`from_static_bytes` holds the slice directly without copying, so there is no
-heap allocation beyond the `CdbDictionary` struct itself.
+`from_static_bytes()` borrows the binary bytes without copying them. Loading
+still validates the records, allocates a lookup index and decodes metadata.
 
 
 Trade-offs vs FST
 -----------------
 
-CDB lookup is O(1) (two hash table probes), while FST lookup is O(key length)
-over a compressed automaton. For short hanja keys the difference is small. The
-FST format supports prefix streaming and has better locality for the lattice
-segmenter's inner loop; CDB is simpler to inspect and patch by hand.
+The CDB backend uses a validated index with O(log N) key comparisons per
+lookup, where N is the record count, rather than trusting on-disk hash-table
+probe chains. FST lookup follows the key through a compressed automaton.
+CDB stores dictionary-key prefixes as trie records; FST compresses shared
+structure and is generally smaller. Both loaders impose admission limits on
+untrusted files; see the [dictionary format reference].
+
+[dictionary format reference]: https://gukhanmun.org/internals/dictionary-format
 
 
 License

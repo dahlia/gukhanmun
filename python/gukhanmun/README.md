@@ -9,6 +9,11 @@ converter once and reuse it for multiple documents.
 Installation
 ------------
 
+This is the Python library. For the standalone `gukhanmun` and
+`gukhanmun-mkdict` commands with bundled dictionaries, install the separate
+`gukhanmun-cli` package with `pipx install gukhanmun-cli` or
+`uv tool install gukhanmun-cli`.
+
 Requires Python 3.11 or later:
 
 ~~~~ sh

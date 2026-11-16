@@ -13,10 +13,12 @@ input containing hanja (漢字) alongside hangul, it produces hangul-only output
 or annotated output in several formats: plain text, Markdown, and HTML
 (including `<ruby>` markup).
 
-The converter is backed by the *Standard Korean Dictionary* (標準國語大辭典) and
-supports South Korean (`ko-KR`) and North Korean (`ko-KP`) orthography presets,
-configurable segmentation, numeral handling, homophone disambiguation, and
-per-character annotation directives.
+The converter supports the *Standard Korean Dictionary* (標準國語大辭典),
+*Open Korean Dictionary* and NIKL loanword spelling examples. Rust and the CLI
+bundle dictionaries; JavaScript and Python load them explicitly.
+It supports South Korean (`ko-kr`) and North Korean (`ko-kp`) orthography
+presets, configurable segmentation, numeral handling, homophone disambiguation,
+and per-character annotation directives.
 
 
 Choosing an interface
@@ -35,7 +37,10 @@ The `gukhanmun` command-line tool reads from files or standard input and
 writes to standard output or a file.  It auto-detects the format from the
 file extension (*.html*, *.md*) and supports all conversion options via flags.
 
-Start here: [*Installation*](./cli/install).
+Start here: [*Installation*](./cli/install.mdx).
+
+The standalone packages are `@gukhanmun/cli` on npm and `gukhanmun-cli` on
+PyPI. They install both `gukhanmun` and `gukhanmun-mkdict`, not a library API.
 
 ### Rust
 
@@ -44,7 +49,7 @@ once, reuse it across calls, and stream output token by token if needed.
 Feature flags let you trim the binary size by disabling HTML, Markdown, or the
 bundled dictionary.
 
-Start here: [*Installation*](./rust/install).
+Start here: [*Installation*](./rust/install.md).
 
 ### JavaScript
 
@@ -58,7 +63,7 @@ Two packages cover different environments:
 
 Both share the same `load()` API and accept identical options.
 
-Start here: [*Installation*](./javascript/install).
+Start here: [*Installation*](./javascript/install.mdx).
 
 ### Python
 

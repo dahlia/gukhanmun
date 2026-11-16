@@ -1,7 +1,7 @@
 ---
 title: "Streaming API"
 description: |-
-  Processing large documents chunk by chunk with Gukhanmun's TransformStream API.
+  Feed string chunks through Gukhanmun's buffered TransformStream API.
 ---
 
 Streaming API
@@ -9,8 +9,10 @@ Streaming API
 
 `g.stream(format?)` returns a
 [`TransformStream<string, string>`]
-that you can pipe through to convert an arbitrarily large document without
-buffering it all at once.
+that accepts string chunks. Both the WebAssembly and Node-API implementations
+currently buffer the complete input and convert it when the writable side
+closes. This is a chunked interface, not bounded-memory or early-output
+streaming.
 
 [`TransformStream<string, string>`]: https://developer.mozilla.org/en-US/docs/Web/API/TransformStream
 
@@ -28,19 +30,20 @@ const stream = g.stream("html");
 const writer = stream.writable.getWriter();
 const reader = stream.readable.getReader();
 
-// Write chunks
+// Start reading before writing so backpressure cannot block the writer.
+const output = (async () => {
+  const parts: string[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return parts.join("");
+    parts.push(value);
+  }
+})();
+
 await writer.write("<p>漢");
 await writer.write("字</p>");
 await writer.close();
-
-// Read converted output
-const parts: string[] = [];
-for (;;) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  if (value) parts.push(value);
-}
-console.log(parts.join(""));  // <p>한자</p>
+console.log(await output);  // <p>한자</p>
 ~~~~
 
 
@@ -87,30 +90,30 @@ concatenated input:
 ~~~~ ts twoslash
 import type { Gukhanmun } from "@gukhanmun/types";
 const g: Gukhanmun = {} as unknown as Gukhanmun;
-const chunkA: string = "";
-const chunkB: string = "";
-const chunkC: string = "";
+const chunkA: string = "<p>漢";
+const chunkB: string = "字";
+const chunkC: string = "</p>";
 // ---cut-before---
 // These are always equivalent:
 const result1 = g.convert(chunkA + chunkB + chunkC, "html");
 
 // and
 const stream = g.stream("html");
+const output = new Response(
+  stream.readable.pipeThrough(new TextEncoderStream()),
+).text();
 const writer = stream.writable.getWriter();
 await writer.write(chunkA);
 await writer.write(chunkB);
 await writer.write(chunkC);
 await writer.close();
-const result2 = stream.readable
-  .getReader()
-  .read()
-  .then(({ value }) => value || "");
+const result2 = await output;
 
 import assert from "node:assert/strict";
 assert.strictEqual(result1, result2);
 ~~~~
 
-The stream may buffer internally at context boundaries (for example,
-`"per-document"` homophone tracking reads the entire document before flushing).
-With the default `"per-block"` setting, output is flushed after each block
-element.
+No output is emitted before finalization, even with `"per-block"` or
+homophone tracking disabled. These options control annotation context, not
+when the JavaScript bindings emit chunks. Piping integrates with stream-based
+I/O but does not remove the full-document buffer.

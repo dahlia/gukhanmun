@@ -110,8 +110,8 @@ converter = Converter(dictionaries=[stdict(format=DictionaryFormat.CDB)])
 ~~~~
 
 Both formats contain the same data and produce the same conversions. FST data
-is smaller; CDB has constant-time lookups. Install the extra of the format you
-use.
+is smaller; CDB uses a validated index for logarithmic key lookup. Install the
+extra of the format you use.
 
 The CDB distributions of the *Standard Korean Language Dictionary* and the
 *Open Korean Dictionary* store their files gzip-compressed. The functions

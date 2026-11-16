@@ -18,9 +18,9 @@ What this crate provides
 ------------------------
 
 `HanjaDictionary` is the trait that all dictionary backends implement. The
-engine works over any value that satisfies it. `ChainDictionary` composes two
-backends so that a user-supplied dictionary is consulted before a larger
-pre-built one.
+engine works over any value that satisfies it. `ChainDictionary` composes a
+sequence of dictionaries. Direct construction defaults to ordered precedence;
+source-aware policies can instead combine reference and loanword candidates.
 
 The lattice segmenter covers all possible dictionary matches for a hanja span
 and picks the best split using dynamic programming. `行事場所` segments as
@@ -40,7 +40,7 @@ Installation
 
 ~~~~ toml
 [dependencies]
-gukhanmun-core = "0.1"
+gukhanmun-core = "0.4"
 ~~~~
 
 
@@ -64,7 +64,8 @@ assert_eq!(output, "한자 베이징");
 
 The crate declares `#![no_std]` and uses `extern crate alloc`. Callers on
 `std` targets get `alloc` for free; embedded targets need a global allocator.
-The dictionary trait itself is synchronous and allocation-free on the hot path.
+The dictionary trait is synchronous. Lookup may allocate, including the boxed
+iterator returned by `matches_at()`.
 
 
 License

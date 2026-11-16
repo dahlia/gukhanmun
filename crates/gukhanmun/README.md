@@ -8,6 +8,11 @@ Umbrella library for hanja-to-hangul conversion. This crate wires together the
 engine, format adapters, and dictionary backends from the workspace into a
 single `Builder`/`Converter` façade.
 
+For concurrent one-shot conversions, `SharedBuilder` produces an owned
+`SharedConverter` that is `Send + Sync + 'static`. The borrowed
+`Builder`/`Converter` API remains available for local dictionaries and
+callbacks, including iterator conversion.
+
 [crates.io badge]: https://img.shields.io/crates/v/gukhanmun?logo=rust
 [crates.io]: https://crates.io/crates/gukhanmun
 [GPL badge]: https://img.shields.io/crates/l/gukhanmun
@@ -19,7 +24,7 @@ Installation
 
 ~~~~ toml
 [dependencies]
-gukhanmun = "0.1"
+gukhanmun = "0.4"
 ~~~~
 
 The `html`, `markdown`, `fst`, `cdb`, `stdict`, `opendict`, and `loanwords`
@@ -28,7 +33,7 @@ defaults and select only the features you need:
 
 ~~~~ toml
 [dependencies]
-gukhanmun = { version = "0.1", default-features = false, features = ["html"] }
+gukhanmun = { version = "0.4", default-features = false, features = ["html"] }
 ~~~~
 
 Available features: `html`, `markdown`, `fst`, `cdb`, `stdict` (implies
@@ -120,8 +125,10 @@ Bundled loanword examples
 
 The bundled NIKL loanword spelling examples are enabled by default for
 `Preset::KoKr`, but remain opt-in for `Preset::KoKp` through
-`Builder::bundled_loanwords()`. This dictionary takes priority over the other
-preset dictionaries, while user dictionaries remain first.
+`Builder::bundled_loanwords()`. The default `ReferenceAuthorized` source policy
+combines reference readings with loanword forms authorized by source evidence,
+rather than giving every loanword unconditional priority. User dictionaries
+override cooperating sources for the same spelling and consumed length.
 `no_bundled_dictionaries()` disables every family and
 `no_bundled_loanwords()` disables this one. The source snapshot and explicit
 choices for competing readings are maintained in `gukhanmun-loanwords`.

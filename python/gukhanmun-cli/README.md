@@ -11,6 +11,11 @@ tool environment with `pipx install gukhanmun-cli` or
 `uv tool install gukhanmun-cli`. Installation and execution do not download
 native payloads. Source and editable builds are deliberately unavailable.
 
+Prebuilt wheels cover Linux x86\_64/aarch64 (glibc 2.28+ or musl 1.2+),
+macOS 11+ x86\_64/arm64, and Windows AMD64/ARM64, subject to your Python
+interpreter's OS requirements. See the [CLI installation guide] for tested
+interpreters, development versions and shell activation.
+
 Run `gukhanmun --help` for conversion options. The command accepts files or
 standard input. `gukhanmun --generate-completion bash` emits a completion
 script; `zsh`, `fish`, `powershell`, and `nushell` are also supported.
@@ -27,3 +32,5 @@ together. The bundled completion scripts are for `gukhanmun` only.
 The package contains GPL-licensed software and separately licensed dictionary
 data. The installed *licenses* directory retains the software license,
 dictionary licenses, attribution, and *NOTICE.md*.
+
+[CLI installation guide]: https://gukhanmun.org/guide/cli/install

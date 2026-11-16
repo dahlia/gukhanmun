@@ -11,6 +11,14 @@ All `convert_*_to_string` methods buffer the full output before returning.
 The iterator variants let you process the output token by token, which is
 useful for large documents or when you need to write to a sink incrementally.
 
+The text, HTML and Markdown iterator methods still accept a complete input
+string. Markdown parsing scans that input eagerly; strict HTML recovery
+validates it before returning an iterator. For chunked input, feed reader
+tokens to `convert_tokens()` instead. Iterator output is not universally
+bounded-memory: the default plain-text homophone window covers the whole
+document and can delay output until EOF. Dictionary lookahead and other
+middleware can also retain input.
+
 
 Text iterator
 -------------

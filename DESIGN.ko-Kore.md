@@ -964,6 +964,7 @@ Rust 코드는 Cargo 워크스페이스로 다음과 같이 構成된다:
      -  *gukhanmun-napi/*: `napi-rs`를 通한 Node-API 바인딩.
      -  *gukhanmun-python/*: PyO3를 通한 非公開 Python 擴張 모듈.
  -  *python/gukhanmun/*: Python 파사드와 配布 메타데이터.
+ -  *python/gukhanmun-cli/*: 內藏 CLI를 實行하는 獨立 Python 런처.
 
 우산 크레이트의 機能 플래그가 나머지를 組合한다. 基本 機能은 HTML·Markdown,
 CDB·FST 백엔드, 內藏 loanwords·stdict·opendict 辭典을 活性化한다. 各 機能은
@@ -1000,10 +1001,15 @@ JavaScript 側은 타입 專用 패키지 하나와, 런타임 具顯體別 패�
     JSR에는 *.ts* 原本을 그대로 配布. API 契約의 正本이며, 두 具顯體 모두
     構造的으로 이를 滿足한다.
  -  *@gukhanmun/wasm* (npm·JSR): WebAssembly 具顯體. 타입을 再露出. *.wasm*
-    아티팩트를 `import.meta.url`로 解決해서, Deno·브라우저가 네이티브로, Node 22
-    以上이 標準 ESM 로더로 解決할 수 있게 한다.
+    產出物의 位置를 `import.meta.url`을 基準으로 解決한다. Node.js에서는 로컬
+    파일을 `node:fs/promises`로 읽고, 다른 URL에는 `fetch()`를 使用한다.
+    Node.js 20 以上을 支援한다.
  -  *@gukhanmun/napi* (npm 專用): Node-API 具顯體. 타입을 再露出. napi-rs의
     選擇的 依存性 패키징으로 플랫폼別 事前 빌드된 바이너리를 配布.
+ -  *@gukhanmun/cli* (npm 專用): 辭典 內藏 CLI를 實行하는 Node.js 런처.
+    macOS·Windows·Linux의 x64/arm64 實行 파일을 여섯 選擇的 依存性 패키지로
+    配布한다. Linux에서는 靜的 musl 實行 파일을 使用한다. 自動 完成 資源을
+    包含하며, 設置 스크립트나 Node-API 바인딩에는 依存하지 않는다.
 
 辭典 데이터는 別途 패키지로 配布해 런타임 번들이 작게 維持되도록 한다:
 
@@ -1032,23 +1038,26 @@ JavaScript 側 옵션 列擧型은 const-as 客體가 아니라 文字列 共用
 檢證하고, 認識할 수 없는 값에 對하여는 `invalid-input` 코드의
 `GukhanmunError`를 던진다.
 
-JavaScript 側 스트리밍은 플랫폼의 `TransformStream<string, string>`
-인터페이스를 利用한다. 이 인터페이스는 브라우저·Deno·Node 18 以上·Bun에서 두루
-使用 可能하다. 청크는 JavaScript 文字列이고, 인코딩
+JavaScript의 `stream()` 메서드는 플랫폼의 `TransformStream<string, string>`
+인터페이스를 利用한다. 두 바인딩 모두 現在는 모든 入力을 모은 뒤 쓰기 側이
+닫힐 때 變換한다. 同音異義 標識를 꺼도 部分 出力은 내보내지 않으며, 메모리
+使用量이 制限된 變換 인터페이스가 아니다. 청크는 JavaScript 文字列이고, 인코딩
 處理(`TextDecoderStream`·`TextEncoderStream`)는 Gukhanmun 스트림 바깥에 있다.
-엔진 內部에서는 청크가 變換 候補 範圍 中間에서 끝나거나, 漢字 글字에 너무 가까워
-混用 表記 辭典 키가 境界를 넘어 이어질 可能性이 있으면, 그 꼬리 範圍를 다음
-청크까지 保留한다. 이미 確定된 接頭部는 먼저 내보낼 수 있다. 辭典 先讀은
-`max_word_chars`와 助詞 先讀을 使用하고, 原本 句 制約은 有限한 追加 꼬리와
-이미 出力한 왼쪽 文脈을 더한다. 未確定 格子 經路는 그 許容量보다 더 많은
-入力을 保留할 수 있다. 그러나 폴백 漢字만 이어지는 連續 範圍는
-청크 境界에서 나누지 않는다. 原 漢字를 보여 주는 렌더링 모드에서는 註解 묶음이
-出力에 드러나므로, 그런 範圍는 後續 非變換 境界나 EOF에서 내보낸다.
+
+Rust 엔진의 增分 API는 이와 다르다. 청크가 變換 候補 範圍 中間에서 끝나거나,
+漢字 글字에 너무 가까워 混用 表記 辭典 키가 境界를 넘어 이어질 可能性이 있으면,
+그 꼬리 範圍를 다음 청크까지 保留한다. 이미 確定된 接頭部는 먼저 내보낼 수
+있다. 辭典 先讀은 `max_word_chars`와 助詞 先讀을 使用하고, 原本 句 制約은
+有限한 追加 꼬리와 이미 出力한 왼쪽 文脈을 더한다. 未確定 格子 經路는 그
+許容量보다 더 많은 入力을 保留할 수 있다. 그러나 폴백 漢字만 이어지는 連續
+範圍는 청크 境界에서 나누지 않는다. 原 漢字를 보여 주는 렌더링 모드에서는 註解
+묶음이 出力에 드러나므로, 그런 範圍는 後續 非變換 境界나 EOF에서 내보낸다.
 
 狀態 있는 미들웨어는 自身만의 先讀 要件을 追加할 수 있다. 文書 全體 文脈의
 同音異義 標識, 그리고 블록 스코프가 없어 文書 全體처럼 動作하는 平文 텍스트
 `per-block`은 正確한 렌더링을 保證하려면 EOF까지 버퍼링해야 한다. 이 미들웨어를
-끄면 早期 스트리밍은 回復되지만 줄 사이 同音異義 區別은 함께 사라진다.
+끄면 Rust 增分 API에서 早期 出力이 可能해지지만 줄 사이 同音異義 區別은 함께
+사라진다. JavaScript 바인딩의 버퍼링 動作은 달라지지 않는다.
 
 스트림 타입으로 `Uint8Array`가 아니라 文字列을 擇한 理由는 엔진이 根本的으로
 Unicode 스칼라 單位로 動作하기 때문이다. 바이트 單位 청크화는 어댑터가 모든
@@ -1212,6 +1221,7 @@ Python은 構造的 記述子 代身 變更할 수 없는 `MapDictionarySource`,
 | `@gukhanmun/types`         | 아니오    | 예 (宣言만) | 예 (`.ts` 原本) | 아니오 |
 | `@gukhanmun/wasm`          | 아니오    | 예          | 예              | 아니오 |
 | `@gukhanmun/napi`          | 아니오    | 예          | 아니오          | 아니오 |
+| `@gukhanmun/cli`           | 아니오    | 예          | 아니오          | 아니오 |
 | `@gukhanmun/stdict-fst`    | 아니오    | 예          | 예              | 아니오 |
 | `@gukhanmun/stdict-cdb`    | 아니오    | 예          | 예              | 아니오 |
 | `@gukhanmun/opendict-fst`  | 아니오    | 예          | 예              | 아니오 |
@@ -1260,9 +1270,11 @@ PyPI 配布는 原子的이지 않다. 上傳 作業은 檢證된 原來 묶음�
 配布된 파일을 해시·크기로 對照하고, 試圖마다 完了·누락·衝突 파일을 記錄한다.
 上傳 作業을 다시 實行해 같은 內容의 部分 配布를 마칠 수 있지만, 上傳 後
 다시 빌드한 다른 바이트를 같은 파일名에 代入할 수는 없다. 初期 登錄은 한 番의
-시드(seed) 上傳으로 일곱 PyPI 프로젝트를 만든 뒤, 貯藏所 워크플로의 一般
-Trusted Publisher를 設定한다. 通常 開發·安定 配布는 長期 토큰을 代替 手段으로
-두지 않고 Trusted Publishing을 使用한다.
+시드(seed) 上傳으로 바인딩·辭典用 일곱 PyPI 프로젝트를 만든 뒤, 貯藏所
+워크플로의 一般 Trusted Publisher를 設定한다. 獨立된 `gukhanmun-cli`
+프로젝트는 첫 上傳에 待機 中인 Trusted Publisher(pending Trusted Publisher)를
+使用한다. 通常 開發·安定 配布는 長期 토큰을 代替 手段으로 두지 않고 Trusted
+Publishing을 使用한다.
 
 
 엔지니어링 政策

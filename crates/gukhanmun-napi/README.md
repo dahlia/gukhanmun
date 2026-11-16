@@ -23,13 +23,21 @@ Exposed types
 
 `NapiGukhanmun` wraps a `gukhanmun::Converter` and exposes:
 
- -  `NapiGukhanmun.load(options_json, dicts)`: static async factory; options are
-    JSON-serialized and dicts are `{ format, bytes: Buffer }` records.
+ -  `NapiGukhanmun.load(options_json, dicts)`: synchronous static factory;
+    options are JSON-serialized. Compiled dictionaries use
+    `{ format, bytes: Buffer }`; runtime dictionaries use `{ entriesJson }`.
+    Either can carry a source `role`. These internal records differ from the
+    public TypeScript descriptors, whose compiled bytes are in `data`.
  -  `convert(input, format)`: one-shot synchronous conversion.
  -  `openStream(format)`: returns an opaque `External<StreamState>` handle.
- -  `streamPush(handle, chunk)`: feeds a `Buffer` chunk to the stream; returns
-    whatever output is ready.
- -  `streamFinish(handle)`: flushes and finalizes the stream.
+ -  `streamPush(handle, chunk)`: buffers a string chunk and returns an empty
+    string.
+ -  `streamFinish(handle)`: converts the entire buffered input.
+
+Format arguments at this boundary are JSON-encoded selectors such as
+`"text"`, `"html"`, `"markdown"`, or `{ format: "markdown", gfm: true }`.
+The TypeScript wrapper's public `load()` is asynchronous and its `stream()`
+adapts the buffered handle to a `TransformStream`, not incremental output.
 
 
 Error encoding

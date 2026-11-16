@@ -20,7 +20,7 @@ Installation
 
 ~~~~ toml
 [dependencies]
-gukhanmun-markdown = "0.1"
+gukhanmun-markdown = "0.4"
 ~~~~
 
 

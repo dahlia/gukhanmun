@@ -51,7 +51,7 @@ and 옛말 categories, so you can select and load only the categories you need:
  -  `opendictArchaicFst()`
 
 Each function returns a `DictionarySource` record (a
-`{ format: "fst", bytes: Uint8Array }` object).
+`{ format: "fst", data: Uint8Array, role: "reference" }` object).
 
 ### Raw bytes and URLs
 
@@ -78,9 +78,9 @@ Relation to `@gukhanmun/opendict-cdb`
 -------------------------------------
 
 Both packages contain the same dictionary data in different binary formats. The
-FST format supports prefix streaming and is the better choice for
-`@gukhanmun/wasm` workloads with the lattice segmenter. The CDB format has O(1)
-lookup and a simpler layout. Either works; choose based on your performance
+FST format compresses shared key prefixes and is generally smaller. The CDB
+backend uses a validated index with O(log N) key comparisons per lookup and a
+simpler on-disk layout. Either works; choose based on your performance
 profile or integration constraints.
 
 

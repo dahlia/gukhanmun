@@ -63,8 +63,8 @@ Features
     hanja(hangul) parentheses, ruby on hangul, ruby on hanja, and original
     mixed script with selective glossing.
  -  The engine supports incremental conversion. Context-dependent annotation
-    may buffer more input; the Python chunked API buffers the whole document
-    until finalization.
+    may buffer more input; the JavaScript and Python chunked APIs buffer the
+    whole document until finalization.
  -  Initial sound law (頭音法則) for South Korean orthography, applied to
     fallback readings. Dictionary entries encode the correct reading already.
  -  The core crate (`gukhanmun-core`) is `no_std` + `alloc`, suitable for
@@ -112,10 +112,31 @@ cargo install gukhanmun-cli gukhanmun-mkdict
 This compiles the binaries and places them in *~/.cargo/bin/*.  Make sure that
 directory is on your `PATH`.
 
+#### Via npm or Python tooling
+
+With Node.js 22 or later, install both commands from npm:
+
+~~~~ sh
+npm install -g @gukhanmun/cli@latest
+~~~~
+
+With Python 3.11 or later, use one isolated tool installer:
+
+~~~~ sh
+pipx install gukhanmun-cli
+# Or:
+uv tool install gukhanmun-cli
+~~~~
+
+These packages include both `gukhanmun` and `gukhanmun-mkdict`, with the
+converter's dictionaries built in. They are separate from the JavaScript and
+Python libraries; neither requires Rust. See the [CLI installation guide] for
+platform support, development builds and shell completions.
+
 #### Prebuilt binaries
 
 Prebuilt binaries for Linux (x86\_64, aarch64), macOS (x86\_64, aarch64), and
-Windows (x86\_64) are attached to each release on GitHub:
+Windows (x86\_64, ARM64) are attached to each release on GitHub:
 
 <https://github.com/dahlia/gukhanmun/releases>
 
@@ -123,6 +144,7 @@ Download the archive for your platform, extract it, and place the `gukhanmun`
 and `gukhanmun-mkdict` executables somewhere on your `PATH`.
 
 [mise]: https://mise.jdx.dev/
+[CLI installation guide]: https://gukhanmun.org/guide/cli/install
 
 ### Rust library
 
@@ -263,8 +285,9 @@ The project is a Cargo workspace. All crates share the same version.
 npm/JSR packages
 ----------------
 
-The project also publishes nine JavaScript packages, all sharing the same
-version as the Rust crates.
+The project publishes nine JavaScript library and data packages, all sharing
+the same version as the Rust crates. The separate npm-only `@gukhanmun/cli`
+package installs the command-line tools, not a JavaScript conversion API.
 
 | Package                    | JSR                                 | npm                                 | Description                                                                         |
 | -------------------------- | ----------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------- |
@@ -300,24 +323,27 @@ version as the Rust crates.
 PyPI packages
 -------------
 
-All seven Python distributions share one version derived from the workspace,
-using PEP 440 spelling. The six optional data distributions have
+All eight Python distributions share one version derived from the workspace,
+using PEP 440 spelling. The standalone `gukhanmun-cli` distribution is
+independent of the Python library. The six optional data distributions have
 platform-independent wheels and no dependency on the native package.
 
-| Distribution                | Description                                                          |
-| --------------------------- | -------------------------------------------------------------------- |
-| [`gukhanmun`][PyPI]         | Native converter, typed Python API, and optional dictionary loaders. |
-| [`gukhanmun-stdict-fst`]    | *Standard Korean Language Dictionary* data, FST format.              |
-| [`gukhanmun-stdict-cdb`]    | *Standard Korean Language Dictionary* data, CDB format.              |
-| [`gukhanmun-opendict-fst`]  | Four *Open Korean Dictionary* categories, FST format.                |
-| [`gukhanmun-opendict-cdb`]  | Four *Open Korean Dictionary* categories, CDB format.                |
-| [`gukhanmun-loanwords-fst`] | NIKL loanword spelling examples, FST format.                         |
-| [`gukhanmun-loanwords-cdb`] | NIKL loanword spelling examples, CDB format.                         |
+| Distribution                | Description                                                            |
+| --------------------------- | ---------------------------------------------------------------------- |
+| [`gukhanmun`][PyPI]         | Native converter, typed Python API, and optional dictionary loaders.   |
+| [`gukhanmun-cli`]           | Standalone converter and dictionary builder with bundled dictionaries. |
+| [`gukhanmun-stdict-fst`]    | *Standard Korean Language Dictionary* data, FST format.                |
+| [`gukhanmun-stdict-cdb`]    | *Standard Korean Language Dictionary* data, CDB format.                |
+| [`gukhanmun-opendict-fst`]  | Four *Open Korean Dictionary* categories, FST format.                  |
+| [`gukhanmun-opendict-cdb`]  | Four *Open Korean Dictionary* categories, CDB format.                  |
+| [`gukhanmun-loanwords-fst`] | NIKL loanword spelling examples, FST format.                           |
+| [`gukhanmun-loanwords-cdb`] | NIKL loanword spelling examples, CDB format.                           |
 
 Dictionary data retains its own license and attribution requirements, separate
 from the library's GPL license. See [*Official dictionaries*] and the *LICENSE*
 and *ATTRIBUTION.md* files in each data distribution.
 
+[`gukhanmun-cli`]: https://pypi.org/project/gukhanmun-cli/
 [`gukhanmun-stdict-fst`]: https://pypi.org/project/gukhanmun-stdict-fst/
 [`gukhanmun-stdict-cdb`]: https://pypi.org/project/gukhanmun-stdict-cdb/
 [`gukhanmun-opendict-fst`]: https://pypi.org/project/gukhanmun-opendict-fst/

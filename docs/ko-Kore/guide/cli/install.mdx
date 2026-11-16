@@ -10,7 +10,8 @@ import { PackageManagerTabs } from '@rspress/core/theme';
 ====
 
 네이티브 Gukhanmun 實行 파일에는 런타임 依存性이 없습니다. mise를 通한 設置를
-勸奬합니다. npm 패키지를 實行하려면 pnpm이나 Bun으로 設置한 境遇에도
+勸奬합니다. Python 道具로도 작은 Python 런처를 通해 네이티브 實行 파일을
+設置할 수 있습니다. npm 패키지를 實行하려면 pnpm이나 Bun으로 設置한 境遇에도
 Node.js 22 以上이 必要합니다.
 
 
@@ -123,16 +124,78 @@ npm이 初期 開發 버전에 `latest`를 붙일 수도 있습니다. 開發 �
 [패키지 說明 文書]: https://github.com/dahlia/gukhanmun/blob/main/packages/cli/README.md
 
 
+PyPI에서 (`pipx`나 `uv`)
+------------------------
+
+Python 3.11 以上에서는 다음 두 方法 中 하나로 獨立 CLI를 設置합니다:
+
+~~~~ sh
+pipx install gukhanmun-cli
+# 또는:
+uv tool install gukhanmun-cli
+~~~~
+
+둘 다 設置할 必要는 없습니다. 휠(wheel)에 네이티브 實行 파일 두 個와 變換器의
+內藏 辭典이 들어 있으므로, 設置나 첫 實行 때 實行 파일을 내려받거나 Rust로
+빌드하지 않습니다. `gukhanmun-cli`는 `gukhanmun` Python 라이브러리 및 辭典
+엑스트라(extra)와 別個이며, `gukhanmun`과 使用者 定義 辭典 빌더인
+`gukhanmun-mkdict`를 함께 設置합니다.
+
+여섯 휠은 glibc 2.28 以上 또는 musl 1.2 以上의 Linux x86\_64/aarch64,
+macOS 11 以上의 x86\_64/arm64, Windows AMD64/ARM64를 支援합니다. Linux
+휠은 같은 靜的 musl 實行 파일에 manylinux와 musllinux 태그를 함께 붙이며,
+릴리스 檢査는 같은 휠을 두 libc 環境에서 實行합니다. 이는 現在 커널에서의
+使用者 空間 檢査이지, 오래된 Linux 커널에서의 實行 檢證은 아닙니다. Rust
+툴체인의 Windows 下限은 Windows 10/Server 2016이며, Python 인터프리터는 더
+새 OS를 要求할 수 있습니다. 릴리스 檢査는 現在의 네이티브 호스팅 러너에서
+遂行하며 모든 OS 下限 버전에서 實行하지는 않습니다.
+
+런처는 最低·現在 固定 버전인 CPython 3.11·3.15와, 使用 可能한 곳에서
+PyPy 3.11·3.12로 檢査합니다. 中間 및 以後 CPython 버전, musl이나 Windows
+ARM64의 PyPy는 檢査 範圍 밖입니다. 原始 코드 配布版은 없으므로 支援하지
+않는 플랫폼에서는 檢證되지 않은 다운로드나 Rust 빌드로 代替하지 않고
+設置에 失敗합니다.
+
+普通 設置는 相容되는 安定 버전을 優先합니다. 開發 버전을 使用하려면:
+
+~~~~ sh
+pipx install --pip-args='--pre' gukhanmun-cli
+# 또는:
+uv tool install --prerelease allow gukhanmun-cli
+~~~~
+
+이미 設置했다면 該當 道具의 更新 命令을 使用하거나 먼저 削除하십시오.
+開發 버전은 `0.4.0.dev123`처럼 다음 計劃 버전과 워크플로 實行 番號를
+使用합니다. 適切한 安定 버전이 나오기 前에는 프리릴리스(pre-release) 옵션
+없이도 開發 버전이 選擇될 수 있습니다. 特定 開發 버전을 正確히 指定해도
+設置할 수 있습니다. 릴리스 檢査는 uv 0.13.7과 pip를 使用하는 pipx 1.18.16으로
+遂行합니다.
+
+設置에 使用한 道具로 削除하면 두 命令이 함께 除去됩니다:
+
+~~~~ sh
+pipx uninstall gukhanmun-cli
+# 또는:
+uv tool uninstall gukhanmun-cli
+~~~~
+
+버전이 맞는 Bash·zsh·fish·PowerShell·Nushell 自動 完成 스크립트는
+`gukhanmun_cli` 패키지의 *completions/* 資源에 包含되며,
+`gukhanmun --generate-completion SHELL`로도 出力할 수 있습니다.
+設置만으로 셸 自動 完成이 活性化되지는 않습니다. 셸의 始作 파일이나
+시스템 自動 完成 디렉터리를 自動으로 變更하지 않습니다.
+
+
 미리 빌드된 바이너리
 --------------------
 
-Linux(x86\_64, aarch64), macOS(x86\_64, aarch64), Windows(x86\_64)用으로 미리
-빌드된 바이너리가 GitHub의 各 릴리스에 添附되어 있습니다:
+Linux(x86\_64, aarch64), macOS(x86\_64, aarch64), Windows(x86\_64, ARM64)用으로
+미리 빌드된 바이너리가 GitHub의 各 릴리스에 添附되어 있습니다:
 
 [GitHub 릴리스]
 
-自身의 플랫폼에 맞는 아카이브를 내려받아 풀고, `gukhanmun` 바이너리를 `PATH`
-上의 어딘가에 둡니다.
+自身의 플랫폼에 맞는 아카이브를 내려받아 풀고, `gukhanmun`과
+`gukhanmun-mkdict` 實行 파일을 `PATH` 上의 어딘가에 둡니다.
 
 [GitHub 릴리스]: https://github.com/dahlia/gukhanmun/releases
 
@@ -140,9 +203,23 @@ Linux(x86\_64, aarch64), macOS(x86\_64, aarch64), Windows(x86\_64)用으로 미�
 `gukhanmun-mkdict` 同伴 道具
 ----------------------------
 
-npm 패키지, mise 設置와 미리 빌드된 아카이브에는
-[使用者 定義 辭典](/guide/cli/dictionary)을 컴파일하는 道具인
-`gukhanmun-mkdict`도 包含되어 있습니다.  別途의 設置 段階는 必要하지 않습니다.
+npm·pipx·uv·mise 設置, 위의 crates.io 設置 命令과 미리 빌드된 아카이브에는
+[使用者 定義 辭典](./dictionary.md)을 컴파일하는 道具인 `gukhanmun-mkdict`도
+包含되어 있습니다. 別途의 設置 段階는 必要하지 않습니다.
+
+
+셸 自動 完成
+------------
+
+`PATH`에 있는 命令으로 明示的으로 活性化합니다. 例를 들어 Bash에서는:
+
+~~~~ bash
+source <(gukhanmun --generate-completion bash)
+~~~~
+
+다른 셸에서도 使用할 수 있습니다.
+[自動 完成 案內](./start.md#셸-自動-完成-生成)를 參照하십시오. 繼續 使用하려면
+自身의 셸 設定 디렉터리에 스크립트를 保存한 뒤 明示的으로 불러옵니다.
 
 
 設置 確認

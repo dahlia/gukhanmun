@@ -47,7 +47,7 @@ features:
   icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>'
   link: ./guide/intro
 - title: 스트리밍 API
-  details: JavaScript의 <code>TransformStream</code> 인터페이스(interface)나 Rust의 反復子(iterator) API로 文書를 漸進的으로 處理합니다. Python의 청크 인터페이스는 終了 時까지 文書 全體를 버퍼에 모읍니다.
+  details: Rust의 反復子(iterator) API로 文書를 漸進的으로 處理합니다. JavaScript의 <code>TransformStream</code>과 Python의 청크 인터페이스(interface)는 最終化 時까지 文書 全體를 버퍼에 모읍니다.
   icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>'
   link: ./guide/javascript/streaming
 sponsorship:

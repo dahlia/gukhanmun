@@ -29,7 +29,7 @@ import { stdictCdb } from "@gukhanmun/stdict-cdb";
 // FST — preferred; smaller on disk, better for lattice segmentation
 const g = await load({ dictionaries: [await stdictFst()] });
 
-// CDB — O(1) lookup; simpler layout
+// CDB — indexed lookup; simpler on-disk layout
 const g = await load({ dictionaries: [await stdictCdb()] });
 ~~~~
 
@@ -335,7 +335,6 @@ The standard CDB loader downloads *stdict.cdb.gz* and decompresses it before
 returning a dictionary descriptor. A custom URL can serve either gzip or raw
 CDB bytes. The npm package retains the raw *stdict.cdb* export.
 
-With lattice segmentation, overlapping paths can remain unresolved beyond the
-maximum dictionary word length. Streaming retains their shared uncertainty until
-a word boundary or EOF settles the path, while already settled prefixes can
-still be emitted. Dictionary roles do not change the lattice scoring objective.
+Dictionary roles do not change the lattice scoring objective. The JavaScript
+bindings buffer the complete document before conversion; see
+[*Streaming API*](./streaming.md).

@@ -8,11 +8,10 @@ links:
     own identities, marks, and positional readings, with one particle filter
     over the ranked pool. Direct chains retain `Ordered` by default.
     Dictionaries with unknown maximum word lengths retain unbounded queries and
-    long-match support. [[#42], [#44]]
- -  Preserved selected source identity through annotations, homophone and
-    first-occurrence handling, directives, and parenthetical reading changes.
-    Source-aware dictionary matches retain separate annotation boundaries
-    beside fallback characters. [[#42], [#44]]
+    long-match support. Selection preserves source identity through
+    annotations, homophone and first-occurrence handling, directives, and
+    parenthetical reading changes. Source-aware dictionary matches retain
+    separate annotation boundaries beside fallback characters. [[#42], [#44]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.

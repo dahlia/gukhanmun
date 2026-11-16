@@ -22,7 +22,21 @@ cargo install gukhanmun-cli
 ~~~~
 
 Prebuilt binaries for macOS, Windows, and Linux (musl) are attached to each
-GitHub release.
+GitHub release. You can also install both `gukhanmun` and `gukhanmun-mkdict`
+without a Rust compiler through npm or pipx:
+
+~~~~ sh
+npm install -g @gukhanmun/cli
+# Or, in a Python tool environment:
+pipx install gukhanmun-cli
+~~~~
+
+The npm launcher requires Node.js 22+, and the PyPI launcher requires Python
+3.11+. Both ship the native executables with their dictionaries, independently
+of the JavaScript and Python library bindings. See the [installation guide]
+for mise, WinGet, platform support, and development builds.
+
+[installation guide]: https://gukhanmun.org/guide/cli/install
 
 
 Usage
@@ -92,8 +106,10 @@ GPL-3.0-only. See *LICENSE* at the repository root.
 Loanword spelling examples
 --------------------------
 
-The default `ko-kr` preset loads the bundled NIKL loanword examples before
-other preset dictionaries, for example to convert `香港` to `홍콩`. Pass
+The default `ko-kr` preset combines the bundled NIKL loanword examples with
+the standard dictionary under the `reference-authorized` source policy.
+Source evidence authorizes loanword forms such as `香港` → `홍콩`; loanwords
+do not unconditionally replace standard-dictionary readings. Pass
 `--no-loanwords` to keep only the standard dictionary. The `ko-kp` preset
 leaves loanwords disabled; pass `--loanwords` to enable them explicitly.
 `--loanwords` conflicts with `--no-loanwords` and

@@ -22,18 +22,21 @@ Exposed types
 
 `WasmGukhanmun` wraps a `gukhanmun::Converter` and exposes:
 
- -  `WasmGukhanmun.load(options_json, dicts)`: static factory; `options_json` is
-    a JSON-serialized `GukhanmunOptions` object and `dicts` is a JavaScript
-    array of `{ format, bytes }` records.
- -  `convert(input, format)`: one-shot conversion. `format` is either a MIME
-    type string (`"text/plain"`, `"text/html"`, `"text/markdown"`) or a
-    `{ format, gfm }` object for Markdown.
- -  `openStream(format)`/`streamPush(handle, chunk)`/`streamFinish(handle)`:
-    chunked streaming API; `handle` is a `WasmStream` returned by `openStream`.
+ -  `new WasmGukhanmun(options, dictionaries)`: constructor taking a JavaScript
+    options object and pre-resolved dictionary records. Compiled dictionaries
+    use `{ format, bytes }`; runtime dictionaries use `{ entriesJson }`. Either
+    can carry a source `role`. These internal records differ from the public
+    TypeScript descriptors, whose compiled bytes are in `data`.
+ -  `convert(input, format)`: one-shot conversion. `format` is `"text"`,
+    `"html"`, `"markdown"`, or a `{ format: "markdown", gfm }` object.
+ -  `open_stream(format)`: returns a `WasmStream`. Its `push(chunk)` method
+    buffers a string and returns an empty string; `finish()` converts the
+    entire buffered input.
 
-Options and errors are passed as JSON strings so that the TypeScript wrapper
-can reconstruct typed values without depending on wasm-bindgen's JS glue for
-every field.
+Errors are JavaScript objects with `code`, `message` and `chain` fields. The
+TypeScript wrapper reconstructs a typed `GukhanmunError`. Its public `stream()`
+method adapts the buffered handle to a `TransformStream`, not incremental
+output.
 
 
 Build notes

@@ -29,7 +29,7 @@ import { stdictCdb } from "@gukhanmun/stdict-cdb";
 // FST: 勸奬; 디스크에서 더 작고, 래티스(lattice) 分割에 더 適合
 const g = await load({ dictionaries: [await stdictFst()] });
 
-// CDB: O(1) 찾기; 더 單純한 配置
+// CDB: 索引을 使用한 찾기; 더 單純한 파일 配置
 const g = await load({ dictionaries: [await stdictCdb()] });
 ~~~~
 
@@ -313,7 +313,6 @@ g.convert("東京를"); // "도쿄를"
 URL에는 gzip이나 壓縮하지 않은 CDB를 提供할 수 있으며, npm의 壓縮하지 않은
 *stdict.cdb* 내보내기는 維持합니다.
 
-`lattice` 分割에서는 重疊된 經路가 最大 辭典 語長보다 긴 範圍에서 未確定으로
-남을 수 있습니다. 스트리밍은 單語 境界나 EOF가 經路를 確定할 때까지 該當
-接頭部를 버퍼링하며, 이미 確定한 接頭部는 먼저 出力할 수 있습니다.
-辭典 役割은 格子의 點數 目的 函數를 變更하지 않습니다.
+辭典 役割은 格子의 點數 目的 函數를 變更하지 않습니다. JavaScript 바인딩은
+變換 前에 文書 全體를 버퍼링합니다.
+〈[스트리밍 API](./streaming.md)〉를 參照하십시오.

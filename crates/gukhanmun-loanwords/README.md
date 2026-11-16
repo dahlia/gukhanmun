@@ -14,10 +14,12 @@ The umbrella crate and CLI enable this dictionary by default for `ko-kr`,
 while `ko-kp` leaves it disabled. Use `Builder::no_bundled_loanwords()` or
 `--no-loanwords` to disable it, and `Builder::bundled_loanwords()` or
 `--loanwords` to enable it for `ko-kp`.
-User dictionaries take priority, then loanwords, then the preset dictionaries.
-JavaScript callers load `@gukhanmun/loanwords-fst` or
-`@gukhanmun/loanwords-cdb` after user dictionaries and before the preset
-dictionaries.
+User dictionaries override cooperating sources for the same spelling and
+consumed length. The default `ReferenceAuthorized` policy combines reference
+readings with loanword forms authorized by source evidence, not unconditional
+loanword-first precedence. JavaScript callers explicitly load
+`@gukhanmun/loanwords-fst` or `@gukhanmun/loanwords-cdb` alongside reference
+dictionary sources.
 
 Python callers install `gukhanmun[loanwords]` and explicitly add
 `gukhanmun.dictionaries.loanwords()` to `Converter(dictionaries=[...])`.
@@ -28,7 +30,7 @@ and selection policies.
 See *ATTRIBUTION.md* and *LICENSE* for source permissions, which are separate
 from the GPLv3-or-later software terms. Ordinary builds need no API key.
 
-[Python dictionary guide]: https://gukhanmun.org/en/guide/python/dictionaries
+[Python dictionary guide]: https://gukhanmun.org/guide/python/dictionaries
 
 
 Regeneration and scheduled updates
@@ -52,21 +54,19 @@ receives the write token and applies only validated data and changelog paths.
 Target build caches are not shared with *main*. Failed collection preserves
 the pinned data.
 
-Data updates target the maintenance branch of the newest stable release
-series that already shipped this dictionary, comparing version numbers
-numerically. A release tag such as *0.10.1* must contain this dictionary and be
-an ancestor of *0.10-maintenance*. Both annotated and lightweight stable tags
-count; prereleases do not. Before the dictionary's first stable release,
-updates target *main*. After shipment, a missing or incompatible maintenance
-branch fails visibly instead of falling back to an older series or *main*.
-Release tags and maintenance branches must be controlled by maintainers.
+Data updates target the oldest existing `X.Y-maintenance` branch that contains
+this dictionary, comparing branch version numbers numerically. Release tags
+are not used to select the destination. If no maintenance branch contains the
+dictionary, updates target *main*. Invalid layouts fail validation rather than
+silently selecting another branch. Maintainers control the supported lines by
+retaining or removing maintenance branches.
 
-The workflow also prepares a separate *main* PR from the same source using
-*main*'s own decisions and changelog, so later releases retain the update.
-Each target has its own bot head: *automation/loanword-data* for *main* and,
-for the 0.10 series, *automation/loanword-data-0.10-maintenance*. Open bot PRs
-for older series produce a warning for manual cleanup. No update PR is merged
-automatically.
+The workflow prepares one PR for that destination, not an additional *main*
+PR. Carry the update forward through the normal maintenance-branch merges.
+Each destination has its own bot head: *automation/loanword-data* for *main*
+and, for the 0.10 series, *automation/loanword-data-0.10-maintenance*. Open bot
+PRs for other destinations produce a warning for manual cleanup. No update PR
+is merged automatically.
 
 Each target runs offline CI with serialized tasks and tests before publication.
 The artifact records its complete tested Git tree. The publisher reconstructs

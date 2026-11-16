@@ -60,7 +60,11 @@ To be released.
     cooperation, retaining reference readings unless typed dictionary relations
     authorize another form. Configure `source_policy()` and `reference_only()`,
     or select `SourcePolicy::Ordered` for legacy precedence.
-    `push_dictionary()` remains an authored override. [[#42], [#44]]
+    `push_dictionary()` remains an authored override. The pipeline preserves
+    selected source metadata through annotations and middleware, including
+    aliases, particles, authorial glosses and first-occurrence/homophone
+    identity. Source-aware dictionary matches retain their own annotation
+    boundaries. [[#42], [#44]]
  -  Changed the changelog to group component sections by language (Rust,
     JavaScript/TypeScript, and Python), preserving released history.
     [[#47], [#54]]
@@ -84,10 +88,6 @@ To be released.
     when maximum-length metadata is supplied. Files exceeding these limits
     now fail to load.
     [[#48], [#15], [#55]]
- -  The exported core pipeline preserves source-aware selection metadata through
-    annotations and middleware, including aliases, particles, authorial glosses,
-    and first-occurrence/homophone identity. Source-aware dictionary matches
-    retain their own annotation boundaries. [[#42], [#44]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -157,6 +157,11 @@ To be released.
     `pipx install gukhanmun-cli` or `uv tool install gukhanmun-cli`, without
     compiling Rust. The wheels include `gukhanmun-mkdict`, the bundled
     dictionaries and version-matched shell completions. [[#72], [#76]]
+ -  Added installation through `npm install -g @gukhanmun/cli` and
+    `npx --package @gukhanmun/cli gukhanmun` on macOS, Windows and Linux
+    x64/arm64, including `gukhanmun-mkdict`, bundled dictionaries and shell
+    completions. Node.js 22 or later and optional dependencies are required;
+    Rust and installation scripts are not. [[#71], [#77]]
  -  Added support for custom version 4 FST/CDB dictionaries carrying source
     evidence or phrase constraints; older dictionary files remain supported.
     [[#41], [#42], [#44], [#45]]
@@ -193,9 +198,11 @@ To be released.
     [[#42], [#44]]
 
 [#61]: https://github.com/dahlia/gukhanmun/issues/61
+[#71]: https://github.com/dahlia/gukhanmun/issues/71
 [#72]: https://github.com/dahlia/gukhanmun/issues/72
 [#75]: https://github.com/dahlia/gukhanmun/pull/75
 [#76]: https://github.com/dahlia/gukhanmun/pull/76
+[#77]: https://github.com/dahlia/gukhanmun/pull/77
 
 ### gukhanmun-core (Rust)
 
@@ -221,16 +228,23 @@ To be released.
  -  Added `MapDictionary::insert_alias()`,
     `MapDictionary::insert_alias_with_suffix()`, and `reverse_hanja()` for
     reviewed user aliases and canonical hangul-to-hanja lookup. [[#38], [#39]]
+ -  Added `check_metadata_resources()` and `check_phrase_index_resources()`
+    for checking decoded-allocation admission budgets before expanding
+    dictionary aliases, typed evidence or phrase indexes. CDB and FST loaders
+    use these checks to reject excessive metadata before allocation, including
+    small files with many alias rows. Dictionaries with 32,768 distinct short
+    aliases remain loadable within the budgets. Admission charges are
+    conservative estimates, not limits on total process memory.
+    [[#48], [#15], [#55]]
  -  Added opt-in `ChainDictionary` source policies and role-aware registration.
     Reference-authorized forms and independent loanword candidates keep their
     own identities, marks, and positional readings, with one particle filter
     over the ranked pool. Direct chains retain `Ordered` by default.
     Dictionaries with unknown maximum word lengths retain unbounded queries and
-    long-match support. [[#42], [#44]]
- -  Preserved selected source identity through annotations, homophone and
-    first-occurrence handling, directives, and parenthetical reading changes.
-    Source-aware dictionary matches retain separate annotation boundaries
-    beside fallback characters. [[#42], [#44]]
+    long-match support. Selection preserves source identity through
+    annotations, homophone and first-occurrence handling, directives, and
+    parenthetical reading changes. Source-aware dictionary matches retain
+    separate annotation boundaries beside fallback characters. [[#42], [#44]]
  -  Fixed lattice streaming for overlapping dictionary matches so chunk
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
@@ -259,12 +273,6 @@ To be released.
  -  Added typed source evidence, candidate-link validation, and
     `HanjaDictionary::source_evidence()` for inspecting dictionary provenance
     without changing legacy reading selection. [[#42], [#44]]
- -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
-    decoded-allocation admission budgets before expanding aliases or typed
-    evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. Dictionaries with 32,768 distinct short
-    aliases remain loadable within the same admission budgets.
-    [[#48], [#15], [#55]]
 
 ### gukhanmun-dict-extract (Rust)
 
@@ -333,6 +341,12 @@ To be released.
  -  Added `gukhanmun-mkdict` to the standalone PyPI wheels. Install it together
     with `gukhanmun` using `pipx install gukhanmun-cli` or
     `uv tool install gukhanmun-cli`, without compiling Rust. [[#72], [#76]]
+ -  Added `gukhanmun-mkdict` to `@gukhanmun/cli` on npm for macOS,
+    Windows and Linux x64/arm64. Install with
+    `npm install -g @gukhanmun/cli` or run
+    `npx --package @gukhanmun/cli gukhanmun-mkdict`, without Rust or
+    installation scripts. Node.js 22 or later and optional dependencies are
+    required. [[#71], [#77]]
 
 ### gukhanmun-napi (Rust)
 
@@ -463,83 +477,79 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fcli%20%28JavaScript%2FTypeScript%29 -->
 
- -  Added the dictionary-bundled CLI through `npm install -g @gukhanmun/cli`
-    and `npx --package @gukhanmun/cli gukhanmun`, without Rust or installation
-    scripts. The package includes five-shell completions, supports macOS,
-    Windows and Linux on x64/arm64, and offers development builds through
-    `@dev`. On first publication, npm may also assign `latest` to the initial
+ -  Added the dictionary-bundled `gukhanmun` converter and the
+    `gukhanmun-mkdict` FST/CDB dictionary builder through
+    `npm install -g @gukhanmun/cli`, without Rust or installation
+    scripts. Node.js 22 or later and optional dependencies are required.
+    The package includes five-shell completions and supports macOS,
+    Windows and Linux on x64/arm64. With two commands installed, select either
+    explicitly with `npx --package @gukhanmun/cli gukhanmun` or
+    `npx --package @gukhanmun/cli gukhanmun-mkdict`.
+    `gukhanmun --print-completion-path SHELL` locates a packaged completion
+    script.
+    Development builds are available through `@dev`.
+    On first publication, npm may also assign `latest` to the initial
     development version; later development publications leave `latest`
     unchanged. [[#71], [#77]]
- -  Added `gukhanmun-mkdict` alongside the converter to build FST and CDB
-    dictionaries. With two commands installed, select either explicitly with
-    `npx --package @gukhanmun/cli gukhanmun` or
-    `npx --package @gukhanmun/cli gukhanmun-mkdict`. [[#71], [#77]]
-
-[#71]: https://github.com/dahlia/gukhanmun/issues/71
-[#77]: https://github.com/dahlia/gukhanmun/pull/77
 
 ### @gukhanmun/cli-aarch64-apple-darwin (JavaScript/TypeScript)
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Daarch64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
 
- -  Added the bundled macOS arm64 executable, selected automatically when
-    installing `@gukhanmun/cli` with optional dependencies enabled.
-    [[#71], [#77]]
- -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
-    converter, with matching versions and independently verified hashes.
+ -  Added bundled macOS arm64 `gukhanmun` and `gukhanmun-mkdict`
+    executables, selected automatically when installing `@gukhanmun/cli`
+    with optional dependencies enabled. The converter and dictionary builder
+    have matching versions and independently verified hashes.
     [[#71], [#77]]
 
 ### @gukhanmun/cli-aarch64-pc-windows-msvc (JavaScript/TypeScript)
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Daarch64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
 
- -  Added the bundled Windows arm64 executable, selected automatically when
-    installing `@gukhanmun/cli` with optional dependencies enabled.
-    [[#71], [#77]]
- -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
-    converter, with matching versions and independently verified hashes.
+ -  Added bundled Windows arm64 `gukhanmun` and `gukhanmun-mkdict`
+    executables, selected automatically when installing `@gukhanmun/cli`
+    with optional dependencies enabled. The converter and dictionary builder
+    have matching versions and independently verified hashes.
     [[#71], [#77]]
 
 ### @gukhanmun/cli-aarch64-unknown-linux-musl (JavaScript/TypeScript)
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Daarch64%2Dunknown%2Dlinux%2Dmusl%20%28JavaScript%2FTypeScript%29 -->
 
- -  Added the bundled static Linux arm64 executable for musl and compatible
-    glibc hosts, selected automatically by `@gukhanmun/cli`. [[#71], [#77]]
- -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
-    converter, with matching versions and independently verified hashes.
+ -  Added bundled static Linux arm64 `gukhanmun` and `gukhanmun-mkdict`
+    executables for musl and compatible glibc hosts, selected automatically by
+    `@gukhanmun/cli` with optional dependencies enabled. The converter and
+    dictionary builder have matching versions and independently verified hashes.
     [[#71], [#77]]
 
 ### @gukhanmun/cli-x86\_64-apple-darwin (JavaScript/TypeScript)
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Dx86_64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
 
- -  Added the bundled macOS x64 executable, selected automatically when
-    installing `@gukhanmun/cli` with optional dependencies enabled.
-    [[#71], [#77]]
- -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
-    converter, with matching versions and independently verified hashes.
+ -  Added bundled macOS x64 `gukhanmun` and `gukhanmun-mkdict`
+    executables, selected automatically when installing `@gukhanmun/cli`
+    with optional dependencies enabled. The converter and dictionary builder
+    have matching versions and independently verified hashes.
     [[#71], [#77]]
 
 ### @gukhanmun/cli-x86\_64-pc-windows-msvc (JavaScript/TypeScript)
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Dx86_64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
 
- -  Added the bundled Windows x64 executable, selected automatically when
-    installing `@gukhanmun/cli` with optional dependencies enabled.
-    [[#71], [#77]]
- -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
-    converter, with matching versions and independently verified hashes.
+ -  Added bundled Windows x64 `gukhanmun` and `gukhanmun-mkdict`
+    executables, selected automatically when installing `@gukhanmun/cli`
+    with optional dependencies enabled. The converter and dictionary builder
+    have matching versions and independently verified hashes.
     [[#71], [#77]]
 
 ### @gukhanmun/cli-x86\_64-unknown-linux-musl (JavaScript/TypeScript)
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Dx86_64%2Dunknown%2Dlinux%2Dmusl%20%28JavaScript%2FTypeScript%29 -->
 
- -  Added the bundled static Linux x64 executable for musl and compatible
-    glibc hosts, selected automatically by `@gukhanmun/cli`. [[#71], [#77]]
- -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
-    converter, with matching versions and independently verified hashes.
+ -  Added bundled static Linux x64 `gukhanmun` and `gukhanmun-mkdict`
+    executables for musl and compatible glibc hosts, selected automatically by
+    `@gukhanmun/cli` with optional dependencies enabled. The converter and
+    dictionary builder have matching versions and independently verified hashes.
     [[#71], [#77]]
 
 ### @gukhanmun/loanwords-cdb (JavaScript/TypeScript)
@@ -859,23 +869,57 @@ To be released.
 <!-- sacho:section:v1 id=gukhanmun%20%28Python%29 -->
 
  -  Added a Python 3.11+ `Converter` API for plain text, HTML and Markdown,
-    with reusable immutable settings, standard-library enums, in-memory entries
-    and compiled FST/CDB dictionaries, punctuation profiles, structured errors
-    and type annotations. Conversion releases the GIL, and a single `Converter`
-    can be reused from multiple threads at once. [[#48], [#15], [#55]]
+    with reusable immutable settings, standard-library enums, punctuation
+    profiles, literal directives, HTML preservation rules and type annotations.
+    `MarkdownOptions(gfm=True)` enables GFM. Conversion releases the GIL, and a
+    single `Converter` can be reused from multiple threads at once. Python
+    signals are checked after native conversion returns, so long conversions
+    can delay `KeyboardInterrupt`. [[#48], [#15], [#55]]
+ -  Added `MapDictionarySource` for competing in-memory readings and
+    `FileDictionarySource` for FST/CDB bytes or filesystem paths. Dictionaries
+    load once at converter construction; conversion performs no dictionary
+    I/O. Configure `source_policy`, `reference_only` and source roles to
+    control reference-authorized cooperation; authored overrides remain
+    authoritative. Compiled dictionaries support compound aliases, source
+    evidence and phrase constraints, including version 4 data.
+    [[#48], [#15], [#55]]
+ -  Added `UrlDictionarySource` for HTTP(S) dictionaries with configurable
+    `max_bytes` (64 MiB by default), a response-reading `total_timeout`
+    (30 seconds by default) shared across redirects, and a per-operation
+    `timeout`. Exceeding `max_bytes` or `total_timeout` raises
+    `DICTIONARY_LOAD` with an `IO` cause. Synchronous DNS lookup or connection
+    setup can delay cancellation beyond `total_timeout`. Redirects must retain
+    the initial URL's scheme, hostname and effective port; other origins raise
+    `INVALID_INPUT` before a request is sent, so configure their final URL
+    directly. Rejected redirect responses are closed. [[#48], [#15], [#55]]
+ -  Added validated FST/CDB loading with `DICTIONARY_LOAD` errors for malformed
+    layouts or excessive resource requirements. CDB loading checks file
+    layouts before use, prevents crafted hash tables from forcing long lookup
+    probe loops, and rejects record indexes requesting more than 64 MiB
+    before allocation. FST loading limits accepted keys, their total byte
+    length and traversal work before enumeration, even with maximum-length
+    metadata. Both formats check decoded-allocation admission budgets before
+    expanding aliases or typed evidence; 32,768 distinct short aliases remain
+    loadable within those budgets. These limits do not bound total process
+    memory: file bytes, decoded payloads and allocator overhead have additional
+    costs. [[#48], [#15], [#55]]
  -  Added buffered `Converter.stream()` and `Converter.convert_iter()` methods
-    for chunked text, HTML and Markdown input. Streams produce output at
-    `finish()` and reject reuse after completion or failure.
+    for chunked text, HTML and Markdown input. Streams produce output only at
+    `finish()` and reject reuse after completion or failure; they are neither
+    asynchronous nor bounded-memory streams. `convert_iter()` finalizes only
+    after normal input exhaustion, not after an upstream error or early close.
     [[#48], [#15], [#55]]
  -  Added `mise run py-sync-version` and integrated Python metadata and
     *uv.lock* into workspace version bumps. [[#48], [#15], [#55]]
- -  Preserved `GukhanmunError` codes, messages and cause tuples when copying
-    or pickling errors, including errors returned from process workers.
-    [[#48], [#15], [#55]]
+ -  Added structured `GukhanmunError` exceptions with codes, messages and
+    immutable cause tuples, preserved when copying or pickling errors,
+    including errors returned from process workers. `chain` retains underlying
+    parser causes for malformed FST/CDB data, such as an undecodable FST map
+    or dictionary metadata; errors without an underlying cause have an empty
+    chain. [[#48], [#49], [#15], [#55], [#57]]
  -  Added a standalone `gukhanmun` source distribution. It builds with a
     Rust 1.95 or later toolchain and a PEP 517 frontend such as pip, without
-    the repository checkout, Git metadata or any dictionary source data, and it
-    leaves out the unused source data of the optional dictionary crates.
+    the repository checkout, Git metadata or any dictionary source data.
     [[#51], [#15], [#58]]
  -  Added `gukhanmun` wheels, so common platforms install without a Rust
     toolchain. One `abi3` wheel per platform supports CPython 3.11 and later on
@@ -883,9 +927,10 @@ To be released.
     aarch64), on macOS 11 or later (x86\_64 and arm64) and on Windows 10 or
     later (AMD64 and ARM64). Separate wheels support PyPy 3.11 and 3.12 (PyPy
     8.0) on the glibc Linux and macOS platforms and on Windows AMD64. Each
-    wheel is installed and tested on its own platform and architecture. There
-    are no wheels for free-threaded CPython, or for PyPy on musl or Windows
-    ARM64. [[#51], [#15], [#58]]
+    wheel is installed and tested on its own platform and architecture;
+    interpreter-specific OS requirements still apply. Free-threaded CPython is
+    unsupported. There are no wheels for PyPy on musl or Windows ARM64.
+    [[#51], [#15], [#58]]
  -  Added the `stdict`, `opendict` and `loanwords` extras, which install the
     FST data of the *Standard Korean Language Dictionary*, the *Open Korean
     Dictionary* and the NIKL loanword spelling examples, and the
@@ -910,41 +955,6 @@ To be released.
     installation, such as a missing, altered or corrupt resource, raises the
     same code with a `pip install --force-reinstall` command and any original
     cause in `chain`. [[#49], [#15], [#57]]
- -  Bounded `UrlDictionarySource` downloads with configurable `max_bytes`
-    (64 MiB by default) and `total_timeout` (30 seconds by default) for HTTP
-    response reads across redirects. Exceeding either bound raises
-    `DICTIONARY_LOAD` with an `IO` cause. Cancellation during synchronous
-    DNS lookup or connection setup can be delayed beyond `total_timeout`;
-    the existing per-operation `timeout` is preserved.
-    [[#48], [#15], [#55]]
- -  Changed URL dictionary loading to follow redirects only within the initial
-    URL's origin (scheme, hostname and effective port). Redirects to another
-    origin raise `INVALID_INPUT` before a request is sent; configure a different
-    origin's final URL directly. [[#48], [#15], [#55]]
- -  Fixed URL dictionary loading to close redirect responses when a malformed
-    redirect target is rejected. [[#48], [#15], [#55]]
- -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
-    decoded-allocation admission budgets before expanding aliases or typed
-    evidence. Small files with many alias rows can no longer bypass loading
-    limits through metadata expansion. Dictionaries with 32,768 distinct short
-    aliases remain loadable within the same admission budgets.
-    [[#48], [#15], [#55]]
- -  Fixed CDB dictionary loading to reject malformed file layouts with a
-    `DICTIONARY_LOAD` error. Crafted hash tables can no longer force long
-    lookup probe loops during conversion. [[#48], [#15], [#55]]
- -  Changed CDB loading to reject dictionaries whose record index requests
-    more than 64 MiB, before allocating the index. Loaded file bytes,
-    decoded metadata and payloads, and allocator overhead use additional
-    memory. [[#48], [#15], [#55]]
- -  Fixed FST dictionary loading to limit the number of accepted keys,
-    their total byte length and traversal work before enumerating keys, even
-    when maximum-length metadata is supplied. Files exceeding these limits
-    now fail to load.
-    [[#48], [#15], [#55]]
- -  Fixed `GukhanmunError.chain` to retain the underlying causes of malformed
-    FST and CDB dictionary data, such as an undecodable FST map or dictionary
-    metadata, instead of reporting only the outer error message. Errors without
-    an underlying cause still have an empty chain. [[#49], [#15], [#57]]
 
 [#49]: https://github.com/dahlia/gukhanmun/issues/49
 [#51]: https://github.com/dahlia/gukhanmun/issues/51
@@ -955,8 +965,9 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%2Dcli%20%28Python%29 -->
 
- -  Added standalone CLI wheels for Python 3.11 or later on Linux, macOS and
-    Windows, on x86\_64 and aarch64. Install with `pipx install gukhanmun-cli`
+ -  Added standalone CLI wheels for Python 3.11 or later on Linux with
+    glibc 2.28 or musl 1.2 or later, macOS 11 or later, and Windows,
+    on x86\_64 and aarch64. Install with `pipx install gukhanmun-cli`
     or `uv tool install gukhanmun-cli`, without Rust or the Python library's
     dictionary packages. The wheels include the `gukhanmun` and
     `gukhanmun-mkdict` executables, bundled dictionaries and shell completion

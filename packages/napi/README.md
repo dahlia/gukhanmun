@@ -61,16 +61,21 @@ dictionary bytes from disk.
 ### Streaming
 
 ~~~~ ts
-const stream = g.convertStream("text/html");
+const stream = g.stream("html");
 const writer = stream.writable.getWriter();
 const reader = stream.readable.getReader();
+const output = reader.read();
 
 await writer.write("<p>漢字</p>");
 await writer.close();
 
-const { value } = await reader.read();
+const { value } = await output;
 console.log(value); // "<p>한자</p>"
 ~~~~
+
+Both JavaScript bindings buffer all input and convert it when the writable
+side closes. Disabling homophone marking does not enable partial output.
+Start reading before writing so stream backpressure does not block the writer.
 
 
 License

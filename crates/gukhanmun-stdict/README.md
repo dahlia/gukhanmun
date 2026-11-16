@@ -19,7 +19,7 @@ Installation
 
 ~~~~ toml
 [dependencies]
-gukhanmun-stdict = "0.1"
+gukhanmun-stdict = "0.4"
 ~~~~
 
 
