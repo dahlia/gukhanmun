@@ -359,6 +359,22 @@ class BundleTests(unittest.TestCase):
         self.assertNotIn("Traceback", error.getvalue())
 
 
+class PowerShellFilenameTests(unittest.TestCase):
+    def test_native_relative_prefixes_and_quoting(self):
+        for prefix in ("", "./", ".\\"):
+            for quote in ("", "'", '"'):
+                with self.subTest(prefix=prefix, quote=quote):
+                    candidate = quote + prefix + "space name.gukfst" + quote
+                    self.assertEqual(shells.powershell_filename(candidate), "space name.gukfst")
+
+    def test_nonrelative_paths_and_other_candidates_are_not_rewritten(self):
+        for candidate in ("--preset", "ko-kr", "../sample.txt", "..\\sample.txt",
+                          "nested\\sample.txt", "C:\\sample.txt", ".\\nested\\sample.txt"):
+            with self.subTest(candidate=candidate):
+                expected = "nested\\sample.txt" if candidate.startswith(".\\") else candidate
+                self.assertEqual(shells.powershell_filename(candidate), expected)
+
+
 class HostBuildTests(unittest.TestCase):
     def test_explicit_host_ignores_cross_defaults_preserving_wrappers_and_target_options(self):
         with tempfile.TemporaryDirectory() as temporary:

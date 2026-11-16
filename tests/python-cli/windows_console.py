@@ -38,6 +38,11 @@ def broadcast(executable, event):
     callback = callback_type(lambda _: True)
     if not kernel.SetConsoleCtrlHandler(callback, True):
         raise ctypes.WinError(ctypes.get_last_error())
+    # A runner can already have the inheritable Ctrl-C ignore attribute set.
+    # Registering a callback does not clear it. Reset it before spawning so
+    # the native target inherits normal Ctrl-C processing, not a silent ignore.
+    if not kernel.SetConsoleCtrlHandler(callback_type(), False):
+        raise ctypes.WinError(ctypes.get_last_error())
     child = subprocess.Popen([executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         time.sleep(2)

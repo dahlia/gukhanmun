@@ -304,12 +304,14 @@ def test_native_task_and_local_build_share_crt_policy(monkeypatch, target):
 
 
 @pytest.mark.parametrize("event", [0, 1])
-def test_windows_console_keeps_stdin_open_until_control_exit(monkeypatch, event):
+@pytest.mark.parametrize("inherited_ignore", [False, True])
+def test_windows_console_keeps_stdin_open_until_control_exit(monkeypatch, event, inherited_ignore):
     spec = importlib.util.spec_from_file_location("console_probe", ROOT / "tests/python-cli/windows_console.py")
     probe = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(probe)
     calls = []
     child = SimpleNamespace(returncode=None)
+    state = {"ignore": inherited_ignore}
 
     def wait(timeout):
         calls.append(("wait", timeout))
@@ -320,6 +322,10 @@ def test_windows_console_keeps_stdin_open_until_control_exit(monkeypatch, event)
         calls.append(("communicate",))
 
     def handler(callback, enabled):
+        if callback is None:
+            state["ignore"] = enabled
+            calls.append(("ignore", enabled))
+            return True
         calls.append(("handler", enabled))
         return True
 
@@ -331,11 +337,15 @@ def test_windows_console_keeps_stdin_open_until_control_exit(monkeypatch, event)
     child.poll = lambda: child.returncode
     child.wait = wait
     child.communicate = communicate
+    def spawn(*_args, **_kwargs):
+        assert not state["ignore"], "target must not inherit the runner's Ctrl-C ignore attribute"
+        return child
+
     kernel = SimpleNamespace(SetConsoleCtrlHandler=handler, GenerateConsoleCtrlEvent=generate)
     monkeypatch.setattr(probe.ctypes, "WinDLL", lambda *_a, **_k: kernel, raising=False)
-    monkeypatch.setattr(probe.ctypes, "WINFUNCTYPE", lambda *_a: lambda function: function, raising=False)
+    monkeypatch.setattr(probe.ctypes, "WINFUNCTYPE", lambda *_a: lambda function=None: function, raising=False)
     monkeypatch.setattr(probe.time, "sleep", lambda _: None)
-    monkeypatch.setattr(probe.subprocess, "Popen", lambda *_a, **_k: child)
+    monkeypatch.setattr(probe.subprocess, "Popen", spawn)
     assert probe.broadcast("gukhanmun.exe", event) == 0xC000013A
-    assert calls == [("handler", True), ("event", event, 0), ("wait", 20),
+    assert calls == [("handler", True), ("ignore", False), ("event", event, 0), ("wait", 20),
                      ("communicate",), ("handler", False)]
