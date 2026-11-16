@@ -6,12 +6,14 @@ Install the dictionary-bundled command-line converter without a Rust compiler:
 ~~~~ sh
 npm install -g @gukhanmun/cli
 gukhanmun --help
+gukhanmun-mkdict --help
 ~~~~
 
-Or run it without a global installation:
+Or run either command without a global installation:
 
 ~~~~ sh
-npx @gukhanmun/cli --disambiguation off
+npx --package @gukhanmun/cli gukhanmun --disambiguation off
+npx --package @gukhanmun/cli gukhanmun-mkdict --help
 ~~~~
 
 Input comes from standard input when no filename is supplied. For example,
@@ -21,12 +23,21 @@ optional executable packages cover macOS, Windows and Linux on x64/arm64. Linux
 uses the same static musl executable on musl and compatible glibc hosts. Other
 package managers and architectures are not verified.
 
-Updates use `npm install -g @gukhanmun/cli@latest`. Development builds are
-opt-in:
+The package exposes two commands, so specify the command explicitly with
+`npx --package`. `gukhanmun-mkdict` builds FST and CDB dictionaries from TSV,
+CSV or JSON Lines input, for example:
+
+~~~~ sh
+gukhanmun-mkdict words.tsv --format fst --validate -o words.gukfst
+gukhanmun-mkdict words.tsv --format cdb --validate -o words.gukcdb
+~~~~
+
+Updates use `npm install -g @gukhanmun/cli@latest`. Select development builds
+explicitly:
 
 ~~~~ sh
 npm install -g @gukhanmun/cli@dev
-npx @gukhanmun/cli@dev --help
+npx --package @gukhanmun/cli@dev gukhanmun --help
 ~~~~
 
 Installation works with `--ignore-scripts`. Executables are included in the

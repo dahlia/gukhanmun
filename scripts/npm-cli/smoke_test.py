@@ -177,6 +177,8 @@ if "--definitely-not-a-gukhanmun-option" in args:
     print("unknown option", file=sys.stderr)
     sys.exit(2)
 result = "{smoke.FALLBACK}" if "--no-bundled-dictionaries" in args else "{smoke.BUNDLED}"
+if "--dictionary" in args:
+    result = "한자"
 if "-o" in args:
     pathlib.Path(args[args.index("-o") + 1]).write_text(result, encoding="utf-8")
 else:
@@ -184,8 +186,19 @@ else:
     sys.stdout.write(result)
 """.encode()
             candidate.files[target][artifacts.TARGETS[target]["binary"]] = native
+            candidate.files[target][artifacts.TARGETS[target]["mkdict"]] = f"""#!{sys.executable}
+import pathlib, sys
+args = sys.argv[1:]
+if args == ["--version"]:
+    print("gukhanmun-mkdict {candidate.version}")
+elif "-o" in args:
+    pathlib.Path(args[args.index("-o") + 1]).write_bytes(b"synthetic dictionary")
+else:
+    print("unknown option", file=sys.stderr)
+    sys.exit(2)
+""".encode()
             candidate.repack(target)
-            for filename in ("bin/gukhanmun.cjs", "lib/launcher.cjs"):
+            for filename in artifacts.LAUNCHER_FILES:
                 candidate.files[None][filename] = (artifacts.ROOT / "packages/cli" / filename).read_bytes()
             candidate.repack(None)
             with smoke.local_registry(temporary, candidate.manifest) as registry, \
@@ -195,6 +208,7 @@ else:
             self.assertEqual(result["global_failure_status"], 2)
             self.assertEqual(result["npx_failure_status"], 2)
             self.assertTrue(result["omitted_optional"])
+            self.assertEqual(result["mkdict_backends"], ["fst", "cdb"])
 
 
 if __name__ == "__main__":

@@ -34,7 +34,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = {
     f"{arch}-{suffix}": {"os": operating_system, "cpu": cpu,
-                         "binary": "gukhanmun.exe" if operating_system == "win32" else "gukhanmun"}
+                          "binary": "gukhanmun.exe" if operating_system == "win32" else "gukhanmun",
+                          "mkdict": "gukhanmun-mkdict.exe" if operating_system == "win32" else "gukhanmun-mkdict"}
     for arch, cpu in (("aarch64", "arm64"), ("x86_64", "x64"))
     for suffix, operating_system in (
         ("apple-darwin", "darwin"), ("pc-windows-msvc", "win32"),
@@ -47,7 +48,9 @@ SHELL_FILES = {
     "powershell": "_gukhanmun.ps1", "nushell": "gukhanmun.nu",
 }
 NOTICES = {"LICENSE", "NOTICE.md", "ATTRIBUTION.loanwords.md", "ATTRIBUTION.opendict.md"}
-PARENT_FILES = {"package.json", "LICENSE", "bin/gukhanmun.cjs", "lib/launcher.cjs",
+BIN_FILES = {command: f"bin/{command}.cjs" for command in ("gukhanmun", "gukhanmun-mkdict")}
+LAUNCHER_FILES = (*BIN_FILES.values(), "lib/launcher.cjs")
+PARENT_FILES = {"package.json", "LICENSE", *LAUNCHER_FILES,
                 "completions/manifest.json",
                 *(f"completions/{name}" for name in SHELL_FILES.values())}
 MAX_MEMBER = 512 * 1024 * 1024
@@ -257,15 +260,15 @@ def package_metadata(files, modes, record, manifest):
         raise RuntimeError("unexpected dependency in CLI package")
     if target is None:
         required = PARENT_FILES
-        if metadata.get("type") != "commonjs" or metadata.get("bin") != {"gukhanmun": "bin/gukhanmun.cjs"}:
+        if metadata.get("type") != "commonjs" or metadata.get("bin") != BIN_FILES:
             raise RuntimeError("invalid parent launcher metadata")
         if metadata.get("engines", {}).get("node") != ">=22":
             raise RuntimeError("parent must support Node.js >=22")
         if metadata.get("optionalDependencies") != {f"{PARENT}-{key}": version for key in TARGETS}:
             raise RuntimeError("optional dependency pins must match the full version exactly")
-        if modes.get("bin/gukhanmun.cjs") != 0o755:
+        if any(modes.get(path) != 0o755 for path in BIN_FILES.values()):
             raise RuntimeError("packed launcher is not mode 0755")
-        for path in ("bin/gukhanmun.cjs", "lib/launcher.cjs"):
+        for path in LAUNCHER_FILES:
             if files.get(path) != (ROOT / "packages/cli" / path).read_bytes():
                 raise RuntimeError(f"packed launcher differs from checkout source: {path}")
         completions = {key.removeprefix("completions/"): value for key, value in files.items()
@@ -278,19 +281,21 @@ def package_metadata(files, modes, record, manifest):
         if target not in TARGETS:
             raise RuntimeError("unknown target")
         spec = TARGETS[target]
-        required = {"package.json", "provenance.json", spec["binary"], *NOTICES}
+        required = {"package.json", "provenance.json", spec["binary"], spec["mkdict"], *NOTICES}
         if (metadata.get("os") != [spec["os"]] or metadata.get("cpu") != [spec["cpu"]]
                 or "libc" in metadata or metadata.get("optionalDependencies")
                 or metadata.get("license") != "SEE LICENSE IN LICENSE"):
             raise RuntimeError("invalid platform package constraints/license")
-        if modes.get(spec["binary"]) != 0o755:
+        if any(modes.get(spec[key]) != 0o755 for key in ("binary", "mkdict")):
             raise RuntimeError("packed binary is not mode 0755")
         if sha256(files.get(spec["binary"], b"")) != record.get("binary_sha256"):
             raise RuntimeError("binary hash mismatch")
+        if sha256(files.get(spec["mkdict"], b"")) != record.get("mkdict_sha256"):
+            raise RuntimeError("mkdict hash mismatch")
         provenance = read_json(files.get("provenance.json", b"null"))
         expected = {"schema_version": 1, "source": manifest["source"], "version": version,
                     "target": target, "archive": manifest["archives"][target],
-                    "binary_sha256": record["binary_sha256"]}
+                     "binary_sha256": record["binary_sha256"], "mkdict_sha256": record["mkdict_sha256"]}
         if provenance != expected:
             raise RuntimeError("payload provenance mismatch")
     if not required <= files.keys() or files.keys() - required - {"README.md"}:
@@ -389,7 +394,7 @@ def pack(archives, completions, out, version, revision):
         archive = matches[0]
         manifest["archives"][target] = {"filename": filename, "sha256": sha256(archive.read_bytes())}
         files, _ = archive_files(archive)
-        required = {spec["binary"], "LICENSE", "NOTICE.md",
+        required = {spec["binary"], spec["mkdict"], "LICENSE", "NOTICE.md",
                     *(f"completions/{name}" for name in completion_files)}
         if not required <= files.keys():
             raise RuntimeError(f"release archive is incomplete: {filename}")
@@ -399,7 +404,7 @@ def pack(archives, completions, out, version, revision):
         for name in ("LICENSE", "NOTICE.md"):
             if files[name] != (ROOT / name).read_bytes():
                 raise RuntimeError(f"release archive notice mismatch: {filename}/{name}")
-        payloads[target] = files[spec["binary"]]
+        payloads[target] = {key: files[spec[key]] for key in ("binary", "mkdict")}
     with tempfile.TemporaryDirectory(prefix=".npm-cli-stage-", dir=out.parent) as temporary:
         staging = Path(temporary)
         env = isolated_env(staging / "environment")
@@ -413,19 +418,21 @@ def pack(archives, completions, out, version, revision):
             metadata["version"] = version
             if target is None:
                 metadata["optionalDependencies"] = {f"{PARENT}-{key}": version for key in TARGETS}
-                for path in ("bin/gukhanmun.cjs", "lib/launcher.cjs"):
+                for path in LAUNCHER_FILES:
                     destination = stage / path
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(template / path, destination)
-                (stage / "bin/gukhanmun.cjs").chmod(0o755)
+                for path in BIN_FILES.values():
+                    (stage / path).chmod(0o755)
                 (stage / "completions").mkdir()
                 for filename, data in completion_files.items():
                     (stage / "completions" / filename).write_bytes(data)
                 shutil.copyfile(ROOT / "LICENSE", stage / "LICENSE")
             else:
-                binary = stage / TARGETS[target]["binary"]
-                binary.write_bytes(payloads[target])
-                binary.chmod(0o755)
+                for key in ("binary", "mkdict"):
+                    binary = stage / TARGETS[target][key]
+                    binary.write_bytes(payloads[target][key])
+                    binary.chmod(0o755)
                 for notice in ("LICENSE", "NOTICE.md"):
                     shutil.copyfile(ROOT / notice, stage / notice)
                 for dictionary in ("loanwords", "opendict"):
@@ -433,7 +440,9 @@ def pack(archives, completions, out, version, revision):
                                     stage / f"ATTRIBUTION.{dictionary}.md")
                 write_json(stage / "provenance.json", {
                     "schema_version": 1, "source": source, "version": version, "target": target,
-                    "archive": manifest["archives"][target], "binary_sha256": sha256(payloads[target]),
+                    "archive": manifest["archives"][target],
+                    "binary_sha256": sha256(payloads[target]["binary"]),
+                    "mkdict_sha256": sha256(payloads[target]["mkdict"]),
                 })
             if (template / "README.md").is_file():
                 shutil.copyfile(template / "README.md", stage / "README.md")
@@ -457,7 +466,8 @@ def pack(archives, completions, out, version, revision):
             record = {"name": metadata["name"], "version": version, "filename": filename,
                       "sha256": sha256(data), "integrity": integrity(data)}
             if target is not None:
-                record.update(target=target, binary_sha256=sha256(payloads[target]))
+                record.update(target=target, binary_sha256=sha256(payloads[target]["binary"]),
+                              mkdict_sha256=sha256(payloads[target]["mkdict"]))
             manifest["packages"].append(record)
         # Validate before publishing the commit marker, including the actual npm allowlist.
         for record in manifest["packages"]:

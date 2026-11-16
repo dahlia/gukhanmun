@@ -21,19 +21,18 @@ npm install -g @gukhanmun/cli
 gukhanmun --help
 ~~~~
 
-全域 設置 없이 `npx @gukhanmun/cli --help`로 實行할 수도 있습니다. 이
-패키지는 Node-API 바인딩이 아니라 旣存 CLI 實行 파일을 包含합니다.
-macOS, Windows, Linux의 x64/arm64를 支援합니다. Linux에서는 musl 環境이나
-이 實行 파일과 互換되는 glibc 環境에서 같은 靜的 musl 바이너리를 使用합니다.
-Rust 컴파일러나 設置 스크립트가 必要하지 않으며, `--ignore-scripts`도
-支援합니다.
+全域 設置 없이 `npx --package @gukhanmun/cli gukhanmun --help`로 實行할 수도
+있습니다. 이 패키지는 Node-API 바인딩이 아니라 旣存 CLI 實行 파일을 包含합니다.
+macOS, Windows, Linux의 x64/arm64를 支援합니다. Linux에서는 musl 環境이나 이
+實行 파일과 互換되는 glibc 環境에서 같은 靜的 musl 바이너리를 使用합니다. Rust
+컴파일러나 設置 스크립트가 必要하지 않으며, `--ignore-scripts`도 支援합니다.
 
 更新하려면 `npm install -g @gukhanmun/cli@latest`를 使用합니다.
 開發 中인 빌드를 選擇하려면 다음과 같이 `@dev`를 明示합니다:
 
 ~~~~ sh
 npm install -g @gukhanmun/cli@dev
-npx @gukhanmun/cli@dev --help
+npx --package @gukhanmun/cli@dev gukhanmun --help
 ~~~~
 
 플랫폼別 實行 파일이 함께 設置되도록 `--omit=optional`은 使用하지 마십시오.
@@ -42,8 +41,12 @@ npx @gukhanmun/cli@dev --help
 支援하지 않는 플랫폼에서는 實行 파일을 내려받거나 컴파일하는 代身
 診斷을 出力합니다.
 
-npm 패키지는 `gukhanmun`만 設置하며, `gukhanmun-mkdict`는 設置하지
-않습니다. 버전이 一致하는 다섯 셸의 自動 完成(shell completion) 스크립트
+npm 패키지는 `gukhanmun`과 `gukhanmun-mkdict`를 함께 設置합니다.
+`gukhanmun-mkdict words.tsv -o words.gukfst`로 辭典을 만들 수 있습니다.
+全域 設置 없이 쓰려면
+`npx --package @gukhanmun/cli gukhanmun-mkdict --help`처럼
+`npx --package` 뒤에 實行할 命令을 明示하십시오.
+버전이 一致하는 다섯 셸의 自動 完成(shell completion) 스크립트
 經路는 `gukhanmun --print-completion-path SHELL`로 찾을 수 있습니다.
 이 옵션은 npm에서만 提供하며 네이티브 實行 파일의 도움말과는 別個입니다.
 各 셸에서 불러오는 命令은 [패키지 說明 文書]를 參考하십시오.
@@ -113,9 +116,9 @@ Linux(x86\_64, aarch64), macOS(x86\_64, aarch64), Windows(x86\_64)用으로 미�
 `gukhanmun-mkdict` 同伴 道具
 ----------------------------
 
-mise 設置와 미리 빌드된 아카이브에는 [使用者 定義 辭典](/guide/cli/dictionary)을
-컴파일하는 道具인 `gukhanmun-mkdict`도 包含되어 있습니다.  別途의 設置 段階는
-必要하지 않습니다.
+npm 패키지, mise 設置와 미리 빌드된 아카이브에는
+[使用者 定義 辭典](/guide/cli/dictionary)을 컴파일하는 道具인
+`gukhanmun-mkdict`도 包含되어 있습니다.  別途의 設置 段階는 必要하지 않습니다.
 
 
 設置 確認
@@ -127,8 +130,7 @@ mise 設置와 미리 빌드된 아카이브에는 [使用者 定義 辭典](/gu
 gukhanmun --help
 ~~~~
 
-辭典 컴파일러도 함께 設置했다면 別途로 確認합니다. npm으로 設置했다면
-다음 命令은 省略하십시오:
+辭典 컴파일러도 別途로 確認합니다:
 
 ~~~~ sh
 gukhanmun-mkdict --help

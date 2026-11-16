@@ -42,11 +42,11 @@ def tar(path, files, modes=None):
 class Candidate:
     """Synthetic binaries deliberately do not count as native execution."""
 
-    def __init__(self, directory):
+    def __init__(self, directory, version=None):
         self.directory = Path(directory)
         self.revision = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=artifacts.ROOT, text=True).strip()
-        self.version = "0.4.0-dev.10+" + self.revision[:8]
+        self.version = version or "0.4.0-dev.10+" + self.revision[:8]
         self.source = {"commit": self.revision, "ref": "", "run_id": "", "run_attempt": ""}
         self.completions = {name: f"# {shell}\n".encode() for shell, name in artifacts.SHELL_FILES.items()}
         self.completion_manifest = {
@@ -69,6 +69,7 @@ class Candidate:
             metadata = {"name": f"{artifacts.PARENT}-{target}", "version": self.version,
                         "os": [spec["os"]], "cpu": [spec["cpu"]], "license": "SEE LICENSE IN LICENSE"}
             files = {spec["binary"]: b"synthetic native payload\n",
+                     spec["mkdict"]: b"synthetic mkdict payload\n",
                      "LICENSE": (artifacts.ROOT / "LICENSE").read_bytes(),
                      "NOTICE.md": (artifacts.ROOT / "NOTICE.md").read_bytes()}
             for dictionary in ("loanwords", "opendict"):
@@ -78,24 +79,25 @@ class Candidate:
             files["provenance.json"] = json.dumps({
                 "schema_version": 1, "source": self.source, "version": self.version,
                 "target": target, "archive": self.manifest["archives"][target],
-                "binary_sha256": binary_hash,
+                "binary_sha256": binary_hash, "mkdict_sha256": artifacts.sha256(files[spec["mkdict"]]),
             }).encode()
-            self.add(target, metadata, files, {spec["binary"]: 0o755}, binary_hash)
+            self.add(target, metadata, files, {spec["binary"]: 0o755, spec["mkdict"]: 0o755}, binary_hash)
         metadata = {"name": artifacts.PARENT, "version": self.version, "type": "commonjs",
-                    "bin": {"gukhanmun": "bin/gukhanmun.cjs"}, "engines": {"node": ">=22"},
+                     "bin": artifacts.BIN_FILES, "engines": {"node": ">=22"},
                     "optionalDependencies": {f"{artifacts.PARENT}-{key}": self.version for key in artifacts.TARGETS}}
         files = {"LICENSE": (artifacts.ROOT / "LICENSE").read_bytes(),
-                 "bin/gukhanmun.cjs": (artifacts.ROOT / "packages/cli/bin/gukhanmun.cjs").read_bytes(),
-                 "lib/launcher.cjs": (artifacts.ROOT / "packages/cli/lib/launcher.cjs").read_bytes(),
+                  **{path: (artifacts.ROOT / "packages/cli" / path).read_bytes()
+                     for path in artifacts.LAUNCHER_FILES},
                  **{f"completions/{key}": value for key, value in self.completions.items()}}
-        self.add(None, metadata, files, {"bin/gukhanmun.cjs": 0o755})
+        self.add(None, metadata, files, {path: 0o755 for path in artifacts.BIN_FILES.values()})
         self.save()
 
     def add(self, target, metadata, files, modes, binary_hash=None):
         record = {"name": metadata["name"], "version": self.version,
                   "filename": f"gukhanmun-cli{('-' + target) if target else ''}-{self.version}.tgz"}
         if target:
-            record.update(target=target, binary_sha256=binary_hash)
+            record.update(target=target, binary_sha256=binary_hash,
+                          mkdict_sha256=artifacts.sha256(files[artifacts.TARGETS[target]["mkdict"]]))
         files["package.json"] = json.dumps(metadata).encode()
         self.files[target] = files
         self.modes[target] = modes
@@ -134,6 +136,23 @@ class ArtifactTests(unittest.TestCase):
 
     def test_complete_candidate(self):
         self.assertEqual(self.validate()["version"], self.candidate.version)
+
+    def test_mkdict_payload_presence_hash_and_mode(self):
+        for mutation in ("missing", "hash", "mode"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                candidate = Candidate(directory)
+                target = next(iter(artifacts.TARGETS))
+                binary = artifacts.TARGETS[target]["mkdict"]
+                if mutation == "missing":
+                    del candidate.files[target][binary]
+                elif mutation == "hash":
+                    candidate.files[target][binary] = b"corrupt mkdict"
+                else:
+                    candidate.modes[target][binary] = 0o644
+                candidate.repack(target)
+                candidate.save()
+                with self.assertRaises(RuntimeError):
+                    artifacts.validate_bundle(directory)
 
     def test_integrity_and_manifest_digest(self):
         with self.assertRaisesRegex(RuntimeError, "manifest SHA"):
@@ -273,6 +292,7 @@ class ArtifactTests(unittest.TestCase):
         for target, spec in artifacts.TARGETS.items():
             record = self.candidate.manifest["archives"][target]
             files = {spec["binary"]: self.candidate.files[target][spec["binary"]],
+                     spec["mkdict"]: self.candidate.files[target][spec["mkdict"]],
                      "LICENSE": (artifacts.ROOT / "LICENSE").read_bytes(),
                      "NOTICE.md": (artifacts.ROOT / "NOTICE.md").read_bytes(),
                      **{f"completions/{name}": data for name, data in self.candidate.completions.items()}}

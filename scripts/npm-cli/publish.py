@@ -333,6 +333,14 @@ def real_installs(npm, manifest, channel):
                         f"Real registry dictionary witness failed for {spec}")
             require(run("--definitely-invalid-option").returncode != 0,
                     "Launcher lost native failure status")
+        for executable in ([str(prefix / "bin" / "gukhanmun-mkdict")],
+                           [npm.executable, "exec", "--yes", "--ignore-scripts",
+                            "--cache", str(cwd / "npx-cache"), "--registry", REGISTRY,
+                            "--package", spec, "--", "gukhanmun-mkdict"]):
+            result = subprocess.run([*executable, "--version"], cwd=cwd, env=env,
+                                    text=True, capture_output=True)
+            require(result.returncode == 0 and result.stdout.strip() == f"gukhanmun-mkdict {version}",
+                    f"Installed mkdict version mismatch for {spec}")
         installed = json.loads((prefix / "lib/node_modules/@gukhanmun/cli/package.json").read_text())
         require(installed["version"] == version, "Installed parent manifest version mismatch")
     npm.audit(PARENT, manifest["npm_version"])

@@ -4,7 +4,8 @@
   "description": "The dictionary-bundled Gukhanmun command-line converter.",
   "type": "commonjs",
   "bin": {
-    "gukhanmun": "bin/gukhanmun.cjs"
+    "gukhanmun": "bin/gukhanmun.cjs",
+    "gukhanmun-mkdict": "bin/gukhanmun-mkdict.cjs"
   },
   "files": [
     "bin",

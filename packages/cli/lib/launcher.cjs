@@ -51,7 +51,10 @@ function targetFor(platform, arch) {
 }
 
 /** Resolve only from the installed launcher, never from the caller's directory. */
-function binaryFor(platform = process.platform, arch = process.arch) {
+function binaryFor(platform = process.platform, arch = process.arch, command = "gukhanmun") {
+  if (!["gukhanmun", "gukhanmun-mkdict"].includes(command)) {
+    throw new Error(`Unknown executable ${command}.`);
+  }
   const target = targetFor(platform, arch);
   const name = `@gukhanmun/cli-${target}`;
   let manifestPath;
@@ -74,7 +77,7 @@ function binaryFor(platform = process.platform, arch = process.arch) {
   }
   const binary = join(
     dirname(manifestPath),
-    platform === "win32" ? "gukhanmun.exe" : "gukhanmun",
+    platform === "win32" ? `${command}.exe` : command,
   );
   if (!existsSync(binary)) {
     throw new Error(
@@ -99,7 +102,7 @@ function completionPath(shell) {
 }
 
 /** Inherit the native CLI's streams and reflect its actual exit outcome. */
-function runBinary(binary, args) {
+function runBinary(binary, args, command = "gukhanmun") {
   const handlers = new Map();
   const pending = [];
   let child;
@@ -121,7 +124,7 @@ function runBinary(binary, args) {
     } catch (error) {
       if (error.code !== "ESRCH") {
         process.stderr.write(
-          `gukhanmun: cannot forward ${signal}: ${error.message}\n`,
+          `${command}: cannot forward ${signal}: ${error.message}\n`,
         );
       }
     }
@@ -147,7 +150,7 @@ function runBinary(binary, args) {
     settled = true;
     cleanup();
     process.stderr.write(
-      `gukhanmun: cannot execute ${binary}: ${error.message}\n`,
+      `${command}: cannot execute ${binary}: ${error.message}\n`,
     );
     process.exitCode = 1;
   });
@@ -176,15 +179,15 @@ function runBinary(binary, args) {
 }
 
 /** Handle the one launcher-specific invocation; pass every other argument on. */
-function main(args = process.argv.slice(2)) {
+function main(args = process.argv.slice(2), command = "gukhanmun") {
   try {
-    if (args.length === 2 && args[0] === "--print-completion-path") {
+    if (command === "gukhanmun" && args.length === 2 && args[0] === "--print-completion-path") {
       process.stdout.write(`${completionPath(args[1])}\n`);
     } else {
-      runBinary(binaryFor(), args);
+      runBinary(binaryFor(process.platform, process.arch, command), args, command);
     }
   } catch (error) {
-    process.stderr.write(`gukhanmun: ${error.message}\n`);
+    process.stderr.write(`${command}: ${error.message}\n`);
     process.exitCode = 1;
   }
 }

@@ -289,7 +289,9 @@ class PublisherTests(unittest.TestCase):
             npm.run.side_effect = install
             def execute(command, **kwargs):
                 if "--version" in command:
-                    output = "gukhanmun " + manifest["version"]
+                    tool = "gukhanmun-mkdict" if any(
+                        str(value).endswith("gukhanmun-mkdict") for value in command) else "gukhanmun"
+                    output = tool + " " + manifest["version"]
                 elif kwargs.get("input"):
                     output = ("기거길 색깔론 동경" if "--no-bundled-dictionaries" in command
                               else "기찻길 색깔론 도쿄")

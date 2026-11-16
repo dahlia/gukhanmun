@@ -598,8 +598,9 @@ git push
 The seven _packages/cli\*_ templates are intentionally excluded from the pnpm
 library workspace. The npm CLI pack job stages copies under *target/npm-cli/*,
 reuses the six existing CLI archives and shared completion bundle, and runs
-`npm pack --ignore-scripts` once. It includes only `gukhanmun`, not
-`gukhanmun-mkdict`. Each executable package includes the software and data
+`npm pack --ignore-scripts` once. Each platform package includes both
+`gukhanmun` and `gukhanmun-mkdict`, with their hashes and executable modes
+validated independently. Each executable package includes the software and data
 notices. The parent package (`@gukhanmun/cli`) contains all five completion
 files.
 

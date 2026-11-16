@@ -189,6 +189,29 @@ def probe(command, full_version, directory, env):
     return failure.returncode
 
 
+def probe_mkdict(command, converter, full_version, directory, env):
+    """Build both dictionary backends and read them with the installed converter."""
+    result = run([*command, "--version"], directory=directory, env=env)
+    if result.stdout.strip() != f"gukhanmun-mkdict {full_version}":
+        raise RuntimeError("installed mkdict version differs from artifact version")
+    source = directory / "사전 input.tsv"
+    source.write_text("hanja\thangul\n漢字\t한자\n", encoding="utf-8")
+    for backend, suffix in (("fst", "gukfst"), ("cdb", "gukcdb")):
+        destination = directory / f"사전 output.{suffix}"
+        run([*command, str(source), "--format", backend, "--validate", "-o", str(destination)],
+            directory=directory, env=env)
+        if not destination.is_file() or not destination.stat().st_size:
+            raise RuntimeError("mkdict did not produce a dictionary")
+        result = run([*converter, "--no-bundled-dictionaries", "--dictionary", str(destination),
+                      "--disambiguation", "off"], input="漢字", directory=directory, env=env)
+        if result.stdout != "한자":
+            raise RuntimeError(f"installed {backend} dictionary did not roundtrip")
+    failure = run([*command, "--definitely-not-a-gukhanmun-option"],
+                  directory=directory, env=env, ok=False)
+    if failure.returncode == 0 or not failure.stderr:
+        raise RuntimeError("mkdict failure exit/stderr was not preserved")
+
+
 def completion_paths(command, directory, env):
     paths = {}
     for shell, filename in artifacts.SHELL_FILES.items():
@@ -392,6 +415,8 @@ def exercise_registry(registry, version, expected_full_version, target, *, shell
                     command = [npm[0], str(npx), "--yes", "--ignore-scripts",
                                f"--package={spec}", "gukhanmun"]
                 evidence["npx_failure_status"] = probe(command, expected_full_version, directory, env)
+                mkdict_command = [*command[:-1], "gukhanmun-mkdict"]
+                probe_mkdict(mkdict_command, command, expected_full_version, directory, env)
                 paths = completion_paths(command, directory, env)
                 parent_candidates = list((directory / "home/cache/_npx").glob("*/node_modules/@gukhanmun/cli/package.json"))
                 if len(parent_candidates) != 1:
@@ -412,6 +437,7 @@ def exercise_registry(registry, version, expected_full_version, target, *, shell
                     directory=directory, env=env)
                 launcher = parent / "bin/gukhanmun.cjs"
                 command = [npm[0], str(launcher)]
+                mkdict_command = [npm[0], str(parent / "bin/gukhanmun-mkdict.cjs")]
                 paths = completion_paths(command, directory, env)
                 if mode == "omitted":
                     result = run([*command, "--version"], directory=directory, env=env, ok=False)
@@ -420,12 +446,20 @@ def exercise_registry(registry, version, expected_full_version, target, *, shell
                     for omitted_target in artifacts.TARGETS:
                         resolve_payload(npm[0], parent, omitted_target, directory, env, required=False)
                     evidence["omitted_optional_status"] = result.returncode
+                    result = run([*mkdict_command, "--version"], directory=directory, env=env, ok=False)
+                    if result.returncode == 0 or not result.stderr.strip():
+                        raise RuntimeError("omitted mkdict optional dependency did not fail usefully")
                 else:
                     evidence["global_failure_status"] = probe(command, expected_full_version, directory, env)
+                    probe_mkdict(mkdict_command, command, expected_full_version, directory, env)
                     shim = prefix / ("gukhanmun.cmd" if os.name == "nt" else "bin/gukhanmun")
                     result = run(shim_command(shim, ["--version"]), directory=directory, env=env)
                     if result.stdout.strip() != f"gukhanmun {expected_full_version}":
                         raise RuntimeError("npm global command shim failed")
+                    shim = prefix / ("gukhanmun-mkdict.cmd" if os.name == "nt" else "bin/gukhanmun-mkdict")
+                    result = run(shim_command(shim, ["--version"]), directory=directory, env=env)
+                    if result.stdout.strip() != f"gukhanmun-mkdict {expected_full_version}":
+                        raise RuntimeError("npm global mkdict shim failed")
                     shell_probes(paths, shells, directory, env)
             metadata = artifacts.read_json((parent / "package.json").read_bytes())
             if metadata["version"] != expected_full_version:
@@ -441,12 +475,16 @@ def exercise_registry(registry, version, expected_full_version, target, *, shell
                     raise RuntimeError("direct native version mismatch")
                 if artifacts.TARGETS[target]["os"] == "linux":
                     evidence["elf"] = audit_elf(native.read_bytes(), artifacts.TARGETS[target]["cpu"])
+                    evidence["mkdict_elf"] = audit_elf(
+                        (payload / artifacts.TARGETS[target]["mkdict"]).read_bytes(),
+                        artifacts.TARGETS[target]["cpu"])
                 elif artifacts.TARGETS[target]["os"] == "win32" and mode == "global":
                     evidence["windows_console"] = windows_console_probe(
                         native, parent / "bin/gukhanmun.cjs", npm[0], directory, env)
         evidence.update(global_install=True, npx=True, ignore_scripts=True, omitted_optional=True,
                         completions=list(artifacts.SHELL_FILES), shell_probes=list(shells),
-                        dictionary_witness=True, stdin=True, unicode_paths=True)
+                        dictionary_witness=True, mkdict_backends=["fst", "cdb"],
+                        stdin=True, unicode_paths=True)
     return evidence
 
 

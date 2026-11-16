@@ -23,18 +23,18 @@ npm install -g @gukhanmun/cli
 gukhanmun --help
 ~~~~
 
-Or run `npx @gukhanmun/cli --help` without a global installation. The package
-contains the existing CLI executable, not the Node-API binding. It supports
-macOS, Windows and Linux on x64/arm64. Linux uses static musl binaries on both
-musl and compatible glibc hosts. No Rust compiler or installation scripts are
-needed; `--ignore-scripts` is supported.
+Or run `npx --package @gukhanmun/cli gukhanmun --help` without a global
+installation. The package contains the existing CLI executable, not the
+Node-API binding. It supports macOS, Windows and Linux on x64/arm64. Linux uses
+static musl binaries on both musl and compatible glibc hosts. No Rust compiler
+or installation scripts are needed; `--ignore-scripts` is supported.
 
 Update with `npm install -g @gukhanmun/cli@latest`. To opt into development
 builds, use:
 
 ~~~~ sh
 npm install -g @gukhanmun/cli@dev
-npx @gukhanmun/cli@dev --help
+npx --package @gukhanmun/cli@dev gukhanmun --help
 ~~~~
 
 Do not omit optional dependencies: they contain the executable for your
@@ -42,8 +42,13 @@ platform. If the launcher reports one missing, reinstall with
 `npm install -g @gukhanmun/cli --include=optional`. Unsupported platforms fail
 with a diagnostic rather than downloading or compiling an executable.
 
-The npm package installs only `gukhanmun`, not `gukhanmun-mkdict`. Its five
-version-matched completion scripts can be located with
+The npm package installs both `gukhanmun` and `gukhanmun-mkdict`. For example,
+build a dictionary with `gukhanmun-mkdict words.tsv -o words.gukfst`, or run
+`npx --package @gukhanmun/cli gukhanmun-mkdict --help` without a global
+installation. Specify the command explicitly with `npx --package` because
+the package exposes two commands.
+
+The package's five version-matched completion scripts can be located with
 `gukhanmun --print-completion-path SHELL`, a launcher-only option separate
 from native help. For explicit activation commands, see the
 [package README]. Neither npm nor the launcher edits shell startup files.
@@ -269,7 +274,7 @@ directory and explicitly source or import it. See
 The `gukhanmun-mkdict` companion
 --------------------------------
 
-The pipx, uv and mise installs, the crates.io install and the prebuilt
+The npm, pipx, uv and mise installs, the crates.io install and the prebuilt
 archives include `gukhanmun-mkdict`, the tool for compiling
 [custom dictionaries](./dictionary.md). Installing `gukhanmun-cli` with pipx or
 uv exposes both commands; uninstalling the package removes both.

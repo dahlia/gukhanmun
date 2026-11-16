@@ -92,6 +92,30 @@ test("maps exactly the six supported Node.js platform pairs", () => {
   }
 });
 
+test("mkdict has its own launcher and does not intercept completion arguments", (t) => {
+  const f = fixture(t);
+  const bin = path.join(f.parent, "bin/gukhanmun-mkdict.cjs");
+  const invoke = (args) =>
+    spawnSync(process.execPath, [bin, ...args], { encoding: "utf8", cwd: f.dir });
+  assert.match(invoke(["--version"]).stderr, /gukhanmun-mkdict: Missing optional package/);
+  f.install();
+  const missing = invoke(["--version"]);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /Executable missing/);
+  if (process.platform === "win32") return; // Native Windows execution is covered by CI.
+  const binary = path.join(f.payload, "gukhanmun-mkdict");
+  fs.writeFileSync(
+    binary,
+    `#!${process.execPath}\nprocess.stdout.write(JSON.stringify(process.argv.slice(2)));process.exit(7);\n`,
+  );
+  fs.chmodSync(binary, 0o755);
+  for (const args of [["--print-completion-path", "bash"], ["한글 space", "-o", "output path"]]) {
+    const result = invoke(args);
+    assert.equal(result.status, 7, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), args);
+  }
+});
+
 test("locates every completion without an optional executable", (t) => {
   const f = fixture(t);
   for (const [shell, file] of Object.entries(FILES)) {

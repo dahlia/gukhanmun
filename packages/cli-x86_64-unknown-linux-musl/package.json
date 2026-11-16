@@ -6,6 +6,7 @@
   "cpu": ["x64"],
   "files": [
     "gukhanmun",
+    "gukhanmun-mkdict",
     "LICENSE",
     "NOTICE.md",
     "ATTRIBUTION.loanwords.md",
