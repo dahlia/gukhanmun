@@ -35,6 +35,26 @@ OTHER_REVISION = "f" * 40
 FILENAMES = {"gukhanmun.bash", "_gukhanmun", "gukhanmun.fish", "_gukhanmun.ps1", "gukhanmun.nu"}
 
 
+class PowerShellPathTests(unittest.TestCase):
+    def test_native_relative_filename_spellings(self):
+        for value in ("space name.gukfst", "'./space name.gukfst'",
+                      "'" + ".\\space name.gukfst" + "'",
+                      '"' + ".\\space name.gukfst" + '"'):
+            with self.subTest(value=value):
+                self.assertEqual(shells.normalize_powershell_candidate(value, filename=True), "space name.gukfst")
+
+    def test_nonpath_candidates_are_unchanged(self):
+        for value in ("--preset=ko-kr", "-Spko-kp", "ko-file.txt"):
+            with self.subTest(value=value):
+                self.assertEqual(shells.normalize_powershell_candidate(value), value)
+
+    def test_path_prefixed_presets_are_not_normalized(self):
+        candidates = [".\\ko-kr", ".\\ko-kp"]
+        normalized = [shells.normalize_powershell_candidate(value) for value in candidates]
+        with self.assertRaises(AssertionError):
+            shells.require(normalized, ["ko-kr", "ko-kp"], "non-path preset")
+
+
 class BundleTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
