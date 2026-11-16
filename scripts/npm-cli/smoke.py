@@ -160,7 +160,11 @@ def shim_command(path, arguments):
     # Only fixed probe flags are used here. Hostile quoting belongs to direct
     # node-launcher tests, rather than cmd.exe's fundamentally different grammar.
     line = subprocess.list2cmdline([str(path), *arguments])
-    return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", f'"{line}"']
+    # Pass the complete cmd.exe command line as a string. Passing its /c
+    # payload in a list makes subprocess escape quotes with backslashes for
+    # the C runtime, which cmd.exe does not use to parse its command text.
+    interpreter = subprocess.list2cmdline([os.environ.get("COMSPEC", "cmd.exe")])
+    return f'{interpreter} /d /s /c "{line}"'
 
 
 def probe(command, full_version, directory, env):

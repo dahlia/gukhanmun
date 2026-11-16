@@ -44,6 +44,27 @@ def elf(machine=62, kind=1, dynamic_tag=0):
 
 
 class SmokeTests(unittest.TestCase):
+    def test_windows_shim_command_avoids_c_runtime_requoting(self):
+        path = r"C:\temp\gukhanmun npm 한글\prefix\gukhanmun.cmd"
+        with patch.object(os, "name", "nt"), \
+                patch.dict(os.environ, {"COMSPEC": r"C:\Windows\system32\cmd.exe"}):
+            command = smoke.shim_command(path, ["--version"])
+        self.assertEqual(
+            command,
+            f'C:\\Windows\\system32\\cmd.exe /d /s /c ""{path}" --version"',
+        )
+        self.assertNotIn(r'\"', command)
+
+    @unittest.skipUnless(os.name == "nt", "cmd.exe execution requires Windows")
+    def test_actual_windows_shim_in_unicode_spaced_directory(self):
+        with tempfile.TemporaryDirectory(prefix="npm shim 한글 ") as temporary:
+            directory = Path(temporary)
+            shim = directory / "gukhanmun.cmd"
+            shim.write_text("@echo off\r\necho shim-%1\r\n", encoding="ascii")
+            result = smoke.run(smoke.shim_command(shim, ["--version"]),
+                               directory=directory, env=os.environ.copy())
+            self.assertEqual(result.stdout.strip(), "shim---version")
+
     def test_static_elf_and_target_architecture(self):
         self.assertEqual(smoke.audit_elf(elf(), "x64")["elf_machine"], 62)
         self.assertEqual(smoke.audit_elf(elf(machine=183), "arm64")["elf_machine"], 183)
