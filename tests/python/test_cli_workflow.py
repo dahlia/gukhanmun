@@ -253,8 +253,8 @@ def test_floor_images_run_oldest_current_without_building_or_downloading(tmp_pat
     install = commands[1]
     assert "--no-index" in install and "--require-hashes" in install and "--find-links" in install
     assert all("cargo" not in command and "build" not in command for command in commands)
-    assert [str(call[0][3]) for call in calls] == [
-        "/opt/python/cp311-cp311/bin/python", "/opt/python/cp315-cp315/bin/python"]
+    assert [call[0][3] for call in calls] == [
+        Path("/opt/python/cp311-cp311/bin/python"), Path("/opt/python/cp315-cp315/bin/python")]
     assert all(call[1]["environment"] == "musllinux_1_2" and call[1]["image"] == "pinned-image"
                and call[1]["pipx"].name.startswith("pipx") for call in calls)
 
