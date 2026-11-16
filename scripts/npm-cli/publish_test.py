@@ -101,9 +101,6 @@ class FakeNpm:
     def audit(self, name, version):
         self.audits.append((name, version))
 
-    def default_absent(self, name):
-        pass
-
     def publish(self, tarball, channel):
         package = next(p for p in self.registry.manifest["packages"] if p["filename"] == tarball.name)
         self.uploads.append(package["name"])
@@ -126,31 +123,6 @@ class BundledNpmTests(unittest.TestCase):
             if (root / "node_modules/npm-pick-manifest/lib/index.js").is_file():
                 return node, root
         self.skipTest("Bundled npm implementation is unavailable")
-
-    def test_actual_pick_manifest_default_errors_are_narrowly_recognized(self):
-        node, root = self.bundled_npm()
-        script = r"""
-const pick = require(process.argv[1] + '/node_modules/npm-pick-manifest');
-const name = '@gukhanmun/cli';
-const dev = {name, version:'0.4.0-dev.10'};
-const inventories = [
-  {name, versions:{'0.4.0-dev.10':dev}, 'dist-tags':{dev:dev.version}},
-  {name, versions:{}, 'dist-tags':{}},
-  {name, versions:{'0.4.0-dev.10':dev}, 'dist-tags':{dev:dev.version, latest:dev.version}},
-];
-console.log(JSON.stringify(inventories.map(packument => {
-  try { pick(packument, '*'); return {returncode:0, stdout:'{}'}; }
-  catch (error) {
-    return {returncode:1, stdout:JSON.stringify({error:{code:error.code, summary:error.message}})};
-  }
-})));
-"""
-        results = json.loads(subprocess.check_output([node, "-e", script, str(root)], text=True))
-        self.assertEqual([json.loads(r["stdout"]).get("error", {}).get("code") for r in results],
-                         ["ETARGET", "ENOVERSIONS", None])
-        for result, expected in zip(results, (True, True, False)):
-            self.assertEqual(publish.default_resolution_absent(
-                subprocess.CompletedProcess([], **result), publish.PARENT), expected)
 
     def test_actual_npm1120_provenance_generator_matches_fixture(self):
         node, root = self.bundled_npm()
@@ -190,30 +162,6 @@ require(directory + '/provenance.js').generateProvenance([subject], {})
 
 
 class PolicyTests(unittest.TestCase):
-    def test_default_gate_rejects_unrelated_errors_and_malformed_output(self):
-        for code, summary in (
-            ("E401", "Unable to authenticate"),
-            ("ENOTFOUND", "No versions available for @gukhanmun/cli"),
-            ("ETARGET", "No matching version found for @gukhanmun/cli@dev."),
-            ("ETARGET", "No matching version found for @other/package@*."),
-            ("ENOVERSIONS", "No versions available for @other/package"),
-        ):
-            result = subprocess.CompletedProcess([], 1, stdout=json.dumps(
-                {"error": {"code": code, "summary": summary}}), stderr="ENOVERSIONS")
-            self.assertFalse(publish.default_resolution_absent(result, publish.PARENT))
-        for stdout in ("not json", "null", "[]", '{"error":null}'):
-            result = subprocess.CompletedProcess([], 1, stdout=stdout)
-            self.assertFalse(publish.default_resolution_absent(result, publish.PARENT))
-
-    def test_default_gate_does_not_copy_auth_failures_to_exception(self):
-        with tempfile.TemporaryDirectory() as directory:
-            npm = publish.Npm(Path(directory), {"PATH": os.environ["PATH"]})
-            result = subprocess.CompletedProcess([], 1, stdout='{"error":{"code":"E401"}}',
-                                                 stderr="token-secret")
-            with mock.patch.object(npm, "run", return_value=result), self.assertRaises(ValueError) as error:
-                npm.default_absent(publish.PARENT)
-            self.assertNotIn("token-secret", str(error.exception))
-
     def test_publish_does_not_copy_credentialed_output_to_exception(self):
         with tempfile.TemporaryDirectory() as directory:
             npm = publish.Npm(Path(directory), {"PATH": os.environ["PATH"]})
@@ -258,8 +206,9 @@ class PolicyTests(unittest.TestCase):
 
     def test_invalid_dangling_and_wrong_channel_tags(self):
         manifest = candidate()
-        for tags in ({"dev": "garbage"}, {"latest": "0.4.0-dev.9"}, {"dev": "0.4.0-dev.8"}):
+        for tags in ({"dev": "garbage"}, {"dev": "0.4.0"}, {"dev": "0.4.0-dev.8"}):
             docs = self.documents(manifest)
+            next(iter(docs.values()))["versions"]["0.4.0"] = {}
             next(iter(docs.values()))["dist-tags"] = tags
             with self.subTest(tags=tags), self.assertRaises(ValueError):
                 publish.reconcile(docs, manifest, "dev")
@@ -329,6 +278,30 @@ class PolicyTests(unittest.TestCase):
 
 
 class PublisherTests(unittest.TestCase):
+    def test_real_dev_installs_do_not_require_default_install_to_fail(self):
+        manifest = candidate()
+        with tempfile.TemporaryDirectory() as directory:
+            npm = mock.Mock(root=Path(directory), executable="/npm", env={})
+            def install(*args, cwd):
+                installed = cwd / "prefix/lib/node_modules/@gukhanmun/cli/package.json"
+                installed.parent.mkdir(parents=True)
+                installed.write_text(json.dumps({"version": manifest["version"]}))
+            npm.run.side_effect = install
+            def execute(command, **kwargs):
+                if "--version" in command:
+                    output = "gukhanmun " + manifest["version"]
+                elif kwargs.get("input"):
+                    output = ("기거길 색깔론 동경" if "--no-bundled-dictionaries" in command
+                              else "기찻길 색깔론 도쿄")
+                else:
+                    return subprocess.CompletedProcess(command, 2, stdout="", stderr="invalid")
+                return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
+            with mock.patch.object(publish.subprocess, "run", side_effect=execute), \
+                    mock.patch.object(publish.Registry, "package", side_effect=AssertionError("default gate")):
+                publish.real_installs(npm, manifest, "dev")
+            npm.default_absent.assert_not_called()
+            npm.audit.assert_called_once_with(publish.PARENT, manifest["npm_version"])
+
     def setup_publisher(self):
         manifest = candidate()
         registry = FakeRegistry(manifest)
@@ -352,14 +325,43 @@ class PublisherTests(unittest.TestCase):
             publisher.publish()
         self.assertEqual(npm.uploads, [])
 
-    def test_bootstrap_default_gate_precedes_every_upload(self):
+    def test_bootstrap_dev_latest_is_preserved_across_all_uploads(self):
         manifest, registry, npm, publisher = self.setup_publisher()
-        def default_available(name):
-            raise ValueError("Registry exposes dev through unqualified install")
-        npm.default_absent = default_available
-        with self.assertRaisesRegex(ValueError, "unqualified"):
+        for doc in registry.docs.values():
+            doc["dist-tags"]["latest"] = "0.4.0-dev.9"
+            doc["versions"]["0.0.0-stage"] = {
+                "description": "Temporary package placeholder for staged publishing",
+            }
+        publisher.publish()
+        self.assertEqual(len(npm.uploads), 7)
+        self.assertEqual(npm.uploads[-1], publish.PARENT)
+        for doc in registry.docs.values():
+            self.assertEqual(doc["dist-tags"], {
+                "latest": "0.4.0-dev.9", "dev": manifest["npm_version"],
+            })
+
+    def test_unrecognized_staging_version_blocks_before_upload(self):
+        manifest, registry, npm, publisher = self.setup_publisher()
+        registry.docs[publish.PARENT]["versions"]["0.0.0-stage"] = {
+            "description": "Not the npm placeholder",
+        }
+        with self.assertRaises(ValueError):
             publisher.publish()
         self.assertEqual(npm.uploads, [])
+
+    def test_stable_publication_can_replace_bootstrap_dev_latest(self):
+        manifest = candidate("0.4.0")
+        registry = FakeRegistry(manifest)
+        for doc in registry.docs.values():
+            doc["dist-tags"]["latest"] = "0.4.0-dev.9"
+        npm = FakeNpm(registry)
+        publisher = publish.Publisher(Path("/candidate"), manifest, "latest", registry, npm,
+                                      sleep=lambda _: None)
+        publisher.publish()
+        self.assertEqual(len(npm.uploads), 7)
+        for doc in registry.docs.values():
+            self.assertEqual(doc["dist-tags"]["latest"], "0.4.0")
+            self.assertEqual(doc["dist-tags"]["dev"], "0.4.0-dev.9")
 
     def test_partial_response_loss_recovers_only_identical_provenance(self):
         manifest, registry, npm, publisher = self.setup_publisher()
@@ -395,6 +397,20 @@ class PublisherTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "changed externally"):
             publisher.publish()
         self.assertEqual(len(npm.uploads), 1)
+
+    def test_dev_upload_cannot_retag_latest(self):
+        manifest, registry, npm, publisher = self.setup_publisher()
+        for doc in registry.docs.values():
+            doc["dist-tags"]["latest"] = "0.4.0-dev.9"
+        original_publish = npm.publish
+        def retag_latest(path, channel):
+            original_publish(path, channel)
+            registry.docs[npm.uploads[-1]]["dist-tags"]["latest"] = manifest["npm_version"]
+        npm.publish = retag_latest
+        with self.assertRaisesRegex(ValueError, "Unexpected tags"):
+            publisher.publish()
+        self.assertEqual(len(npm.uploads), 1)
+        self.assertNotIn(publish.PARENT, npm.uploads)
 
     def test_visibility_is_bounded_and_parent_never_published_on_timeout(self):
         manifest, registry, npm, publisher = self.setup_publisher()

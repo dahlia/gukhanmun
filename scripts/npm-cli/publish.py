@@ -127,17 +127,6 @@ class Npm:
                      f"{name}@{version}", cwd=cwd)
             self.run("audit", "signatures", cwd=cwd)
 
-    def default_absent(self, name):
-        # Operator bootstrap must establish this invariant before any CI write.
-        # An absent latest tag alone is insufficient: npm may choose a fallback.
-        with tempfile.TemporaryDirectory(dir=self.root) as directory:
-            cwd = Path(directory)
-            (cwd / "package.json").write_text('{"name":"cli-default-check","private":true}')
-            result = self.run("install", "--json", "--ignore-scripts", "--force", "--no-audit", "--no-fund",
-                              "--cache", str(cwd / "cache"), name, cwd=cwd, check=False)
-            require(default_resolution_absent(result, name),
-                    f"Cannot confirm default install is unavailable for {name}. {SETUP}")
-
     def publish(self, tarball, channel):
         try:
             self.run("publish", str(tarball.resolve()), "--ignore-scripts", "--provenance",
@@ -145,28 +134,6 @@ class Npm:
         except subprocess.CalledProcessError:
             # Do not copy credentialed npm stdout/stderr to logs or receipts.
             raise ValueError(f"OIDC publication failed. {SETUP}") from None
-
-
-def default_resolution_absent(result, name):
-    """Accept only npm's package-specific default-resolution errors, not transport/auth failures."""
-    if result.returncode == 0:
-        return False
-    try:
-        error = json.loads(result.stdout)["error"]
-    except (ValueError, KeyError, TypeError):
-        return False
-    if not isinstance(error, dict):
-        return False
-    return (
-        error.get("code") == "ETARGET"
-        and error.get("summary") in {
-            f"No matching version found for {name}@*.",
-            f"No matching version found for {name}@latest.",
-        }
-    ) or (
-        error.get("code") == "ENOVERSIONS"
-        and error.get("summary") == f"No versions available for {name}"
-    )
 
 
 class Registry:
@@ -246,9 +213,15 @@ def reconcile(documents, manifest, channel):
         for tag in ("latest", "dev"):
             if tag in tags:
                 parts = version_parts(tags[tag])
-                require((parts[3] is None) == (tag == "latest"), f"Invalid {name} {tag} tag")
+                # npm can assign latest to the first development publication.
+                # Later dev uploads must preserve it, not require it to be stable.
+                require(tag == "latest" or parts[3] is not None, f"Invalid {name} {tag} tag")
                 require(tags[tag] in versions, f"Dangling {name} {tag} tag")
         for published in versions:
+            if (published == "0.0.0-stage" and isinstance(versions[published], dict)
+                    and versions[published].get("description") ==
+                    "Temporary package placeholder for staged publishing"):
+                continue
             # This distribution has only stable and dev.N versions.
             pmajor, pminor, ppatch, pdev = version_parts(published)
             if channel == "dev" and pdev is not None:
@@ -316,9 +289,6 @@ class Publisher:
     def publish(self):
         documents = self.documents()
         self.snapshots = reconcile(documents, self.manifest, self.channel)
-        for name, document in documents.items():
-            if not any(version_parts(v)[3] is None for v in document["versions"]):
-                self.npm.default_absent(name)
         # Every conflict/provenance check must finish before the first upload.
         existing = {p["name"]: self.validate_existing(p, documents[p["name"]])
                     for p in self.manifest["packages"]}
@@ -366,11 +336,6 @@ def real_installs(npm, manifest, channel):
         installed = json.loads((prefix / "lib/node_modules/@gukhanmun/cli/package.json").read_text())
         require(installed["version"] == version, "Installed parent manifest version mismatch")
     npm.audit(PARENT, manifest["npm_version"])
-    # Before the first stable release, unqualified installs must not resolve dev.
-    if channel == "dev":
-        doc = Registry().package(PARENT)
-        if not any(version_parts(v)[3] is None for v in doc["versions"]):
-            npm.default_absent(PARENT)
 
 
 def main():

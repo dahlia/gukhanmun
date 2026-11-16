@@ -639,18 +639,21 @@ All seven npm packages need an initial functioning package and their own
 trusted publisher configuration. This is a separate maintainer operation, not
 part of normal CI:
 
-1.  Before seeding anything, verify with official npm behavior or a disposable
-    package that first publication under `dev` keeps `latest` absent and that
-    an unqualified installation cannot select a prerelease. Do not briefly
-    expose development builds as the default and remove the tag afterward.
-    If npm cannot maintain that invariant, stop and resolve the bootstrap policy
-    before publishing any real CLI package.
+1.  Publish development candidates explicitly under `dev`. On first
+    publication, npm can also assign `latest` to that development version and
+    create a `0.0.0-stage` placeholder. This bootstrap state is accepted:
+    installs without a tag or version, such as `npm install @gukhanmun/cli`,
+    may select the initial development version until the first stable release.
+    Later development publications must leave the existing `latest` tag
+    unchanged.
 2.  Download one successfully tested, upstream development candidate. Verify its
     manifest and original artifact identity. With short-lived operator
     authentication, publish those exact functioning tarballs under `dev`,
     platform packages first and parent last. Do not seed dummy launchers or
-    independently rebuilt binaries. Check the default-install invariant after
-    each publication, then revoke the temporary credential.
+    independently rebuilt binaries. Verify the public tarball hashes and that
+    `dev` points to the published version; `latest` may point to it as well.
+    Allow for registry processing and cached responses when checking visibility,
+    then revoke the temporary credential.
 3.  Configure each package for owner `dahlia`, repository `gukhanmun`, workflow
     filename `main.yaml`, with no environment. Explicitly allow direct
     `npm publish`: new configurations otherwise allow staging only. This
