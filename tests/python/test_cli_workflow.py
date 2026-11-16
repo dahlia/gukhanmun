@@ -301,3 +301,41 @@ def test_native_task_and_local_build_share_crt_policy(monkeypatch, target):
     task = tomllib.loads((ROOT / "mise.toml").read_text())["tasks"]["py-cli-native"]
     assert task["run"] == ["rustup target add {{usage.target}}",
                            "python -I scripts/python/cli_ci.py native --target {{usage.target}}"]
+
+
+@pytest.mark.parametrize("event", [0, 1])
+def test_windows_console_keeps_stdin_open_until_control_exit(monkeypatch, event):
+    spec = importlib.util.spec_from_file_location("console_probe", ROOT / "tests/python-cli/windows_console.py")
+    probe = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(probe)
+    calls = []
+    child = SimpleNamespace(returncode=None)
+
+    def wait(timeout):
+        calls.append(("wait", timeout))
+        child.returncode = 0xC000013A
+
+    def communicate():
+        assert child.returncode == 0xC000013A, "EOF must not race control delivery"
+        calls.append(("communicate",))
+
+    def handler(callback, enabled):
+        calls.append(("handler", enabled))
+        return True
+
+    def generate(value, group):
+        assert child.returncode is None
+        calls.append(("event", value, group))
+        return True
+
+    child.poll = lambda: child.returncode
+    child.wait = wait
+    child.communicate = communicate
+    kernel = SimpleNamespace(SetConsoleCtrlHandler=handler, GenerateConsoleCtrlEvent=generate)
+    monkeypatch.setattr(probe.ctypes, "WinDLL", lambda *_a, **_k: kernel, raising=False)
+    monkeypatch.setattr(probe.ctypes, "WINFUNCTYPE", lambda *_a: lambda function: function, raising=False)
+    monkeypatch.setattr(probe.time, "sleep", lambda _: None)
+    monkeypatch.setattr(probe.subprocess, "Popen", lambda *_a, **_k: child)
+    assert probe.broadcast("gukhanmun.exe", event) == 0xC000013A
+    assert calls == [("handler", True), ("event", event, 0), ("wait", 20),
+                     ("communicate",), ("handler", False)]

@@ -47,7 +47,10 @@ def broadcast(executable, event):
         # Ctrl-C and Ctrl-Break; no CREATE_NEW_PROCESS_GROUP disables Ctrl-C.
         if not kernel.GenerateConsoleCtrlEvent(event, 0):
             raise ctypes.WinError(ctypes.get_last_error())
-        child.communicate(timeout=20)
+        # communicate() closes stdin, which can let the converter exit on EOF
+        # before Windows dispatches the control event to its handler.
+        child.wait(timeout=20)
+        child.communicate()
         if child.returncode & 0xffffffff != 0xC000013A:
             raise RuntimeError(f"control event {event} produced {child.returncode!r}")
         return child.returncode & 0xffffffff
