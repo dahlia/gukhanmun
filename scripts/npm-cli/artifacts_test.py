@@ -261,6 +261,7 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(env["NPM_CONFIG_IGNORE_SCRIPTS"], "true")
 
     @unittest.skipUnless(shutil.which("node") and shutil.which("npm"), "Node.js/npm unavailable")
+    @unittest.skipIf(os.name == "nt", "The producer packs once on POSIX; Windows consumes those tarballs")
     def test_actual_npm_pack_all_seven_and_archive_completion_binding(self):
         archives = self.directory / "archives"
         completions = self.directory / "completions"

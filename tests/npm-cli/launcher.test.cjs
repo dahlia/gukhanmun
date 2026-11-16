@@ -36,7 +36,7 @@ const FILES = {
 };
 
 function fixture(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gukhanmun npm 한글 "));
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "gukhanmun npm 한글 ")));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const parent = path.join(dir, "installed", "cli");
   fs.cpSync(path.join(ROOT, "packages/cli"), parent, { recursive: true });
@@ -106,6 +106,23 @@ test("locates every completion without an optional executable", (t) => {
   const result = f.invoke(["--print-completion-path", "__proto__"]);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Unknown completion shell/);
+});
+
+test("fixtures resolve a symlinked temporary-directory root", {
+  skip: process.platform === "win32",
+}, (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "gukhanmun temp alias "));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const real = path.join(root, "real");
+  const alias = path.join(root, "alias");
+  fs.mkdirSync(real);
+  fs.symlinkSync(real, alias, "dir");
+  t.mock.method(os, "tmpdir", () => alias);
+  const f = fixture(t);
+  assert.equal(f.dir, fs.realpathSync(f.dir));
+  const result = f.invoke(["--print-completion-path", "bash"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), path.join(f.parent, "completions", FILES.bash));
 });
 
 test("reports missing optional dependencies instead of fetching a binary", (t) => {
