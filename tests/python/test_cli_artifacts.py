@@ -140,8 +140,10 @@ def pe_fixture(item, library=None, delay=False):
 
 
 @pytest.fixture
-def complete_cli(tmp_path):
+def complete_cli(tmp_path, monkeypatch):
     """Entirely synthetic unit fixtures, never retained as execution evidence."""
+    for key in ("GITHUB_ACTIONS", "GITHUB_SHA", "GITHUB_REF", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"):
+        monkeypatch.delenv(key, raising=False)
     directory = tmp_path / "bundle"
     directory.mkdir()
     completion = tmp_path / "completion"
@@ -223,6 +225,16 @@ def test_complete_cli_validator_is_offline_and_independent(complete_cli, monkeyp
     result = artifacts.validate(complete_cli, "0.4.0", env={})
     assert len(result["artifacts"]) == 6
     assert result["kind"] == "gukhanmun-cli"
+
+
+@pytest.mark.parametrize("key,value", [("GITHUB_SHA", "b" * 40), ("GITHUB_RUN_ID", "999")])
+def test_real_run_identity_is_still_checked(complete_cli, key, value):
+    env = {"GITHUB_ACTIONS": "true", "GITHUB_SHA": "a" * 40, "GITHUB_REF": "refs/heads/main",
+           "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1"}
+    artifacts.validate(complete_cli, "0.4.0", env=env)
+    env[key] = value
+    with pytest.raises(RuntimeError, match=key):
+        artifacts.validate(complete_cli, "0.4.0", env=env)
 
 
 @pytest.mark.parametrize("filename,field,value", [
