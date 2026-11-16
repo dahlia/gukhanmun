@@ -487,8 +487,12 @@ itself is just a signed tag whose name equals that version.  After releasing
 CI derives every published version from `workspace.package.version` at publish
 time: the `x.y.z-dev.N+<sha>` development publishes on `main` and the `x.y.z`
 release publishes on a tag, restamping the Rust and JavaScript manifests alike.
+Python distributions use the corresponding [PEP 440] version, `x.y.z.devN` for
+development builds and `x.y.z` for stable tags, without the `+sha` suffix.
 You never hand-edit those versions for a release; the bump command below is the
 only place a contributor sets a version.
+
+[PEP 440]: https://peps.python.org/pep-0440/
 
 ### Version bumps
 
@@ -546,8 +550,6 @@ Push the bump commit normally:
 ~~~~ sh
 git push
 ~~~~
-
-[PEP 440]: https://peps.python.org/pep-0440/
 
 ### Tagging a release
 

@@ -1205,7 +1205,7 @@ Python은 構造的 記述子 代身 變更할 수 없는 `MapDictionarySource`,
 | `gukhanmun-loanwords`      | 예        | 아니오      | 아니오          | 아니오 |
 | `gukhanmun-mkdict`         | 예        | 아니오      | 아니오          | 아니오 |
 | `gukhanmun`                | 예        | 아니오      | 아니오          | 예     |
-| `gukhanmun-cli`            | 예        | 아니오      | 아니오          | 아니오 |
+| `gukhanmun-cli`            | 예        | 아니오      | 아니오          | 예     |
 | `gukhanmun-wasm`           | 예        | 아니오      | 아니오          | 아니오 |
 | `gukhanmun-napi`           | 예        | 아니오      | 아니오          | 아니오 |
 | `gukhanmun-python`         | 아니오    | 아니오      | 아니오          | 아니오 |
@@ -1226,18 +1226,23 @@ Python은 構造的 記述子 代身 變更할 수 없는 `MapDictionarySource`,
 | `gukhanmun-loanwords-cdb`  | 아니오    | 아니오      | 아니오          | 예     |
 
 CLI 바이너리는 各 릴리스 GitHub Releases에 플랫폼別(Linux x86\_64·aarch64, macOS
-arm64·x86\_64, Windows x86\_64) 添附된다.
+arm64·x86\_64, Windows AMD64·ARM64) 添附된다. 獨立된 `gukhanmun-cli` PyPI
+配布版은 같은 辭典 內藏 變換器와 `gukhanmun-mkdict`를 여섯 플랫폼別 휠(wheel)로
+提供한다. Python 바인딩인 `gukhanmun`이나 辭典 데이터 配布版에는 依存하지
+않으며, 自動 完成 資源과 소프트웨어·데이터 告知도 包含한다. 이 CLI의 產出物과
+檢證 記錄은 Python 바인딩의 31個 配布 파일과 別途로 管理한다.
 
 公開 패키지의 버전은 모두 同一步調(lockstep)로 進行한다.
 *Cargo.toml*의 `workspace.package.version`만 手動으로 選擇하며, 다음에
 計劃한 릴리스 버전을 나타낸다. `mise run bump-execute`는 워크스페이스와
-JavaScript 매니페스트, 일곱 Python 매니페스트, 正確한 엑스트라 버전 固定과
+JavaScript 매니페스트, 여덟 Python 매니페스트, 正確한 엑스트라 버전 固定과
 *uv.lock*을 하나의 署名 커밋에서 함께 올린다. 릴리스 태그는 버전을 바꾸지 않고
 그 버전을 配布한다. 機能이 달라지지 않은 패키지도 言語 間 依存性을 맞추기
 爲해 함께 올린다. 配布를 함께 調整하여 個別 버전을 使用하는 런타임·共有
 타입·辭典 패키지 사이의 依存 範圍 不一致를 防止한다. 태그 워크플로는
-크레이트를 crates.io에, JavaScript 패키지를 npm/JSR에 配布하고, 플랫폼別
-NAPI 事前 빌드 바이너리를 빌드하며, 릴리스 바이너리를 GitHub 릴리스에 添附한다.
+크레이트를 crates.io에, JavaScript 패키지를 npm/JSR에, Python 配布版을 PyPI에
+配布하고, 플랫폼別 NAPI 事前 빌드 바이너리를 빌드하며, 릴리스 바이너리를
+GitHub 릴리스에 添附한다.
 非公開 `gukhanmun-python` 크레이트는 Python 原始 코드
 配布版에 담되 crates.io에는 配布하지 않는다.
 

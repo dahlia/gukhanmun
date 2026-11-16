@@ -19,8 +19,16 @@ JavaScript callers load `@gukhanmun/loanwords-fst` or
 `@gukhanmun/loanwords-cdb` after user dictionaries and before the preset
 dictionaries.
 
+Python callers install `gukhanmun[loanwords]` and explicitly add
+`gukhanmun.dictionaries.loanwords()` to `Converter(dictionaries=[...])`.
+Neither Python preset loads dictionary data automatically, and installing the
+extra does not change that. See the [Python dictionary guide] for source roles
+and selection policies.
+
 See *ATTRIBUTION.md* and *LICENSE* for source permissions, which are separate
 from the GPLv3-or-later software terms. Ordinary builds need no API key.
+
+[Python dictionary guide]: https://gukhanmun.org/en/guide/python/dictionaries
 
 
 Regeneration and scheduled updates

@@ -1442,7 +1442,7 @@ sequence. The corresponding `*_bytes()` helpers return dictionary bytes.
 | `gukhanmun-loanwords`      | yes       | no                      | no                 | no   |
 | `gukhanmun-mkdict`         | yes       | no                      | no                 | no   |
 | `gukhanmun`                | yes       | no                      | no                 | yes  |
-| `gukhanmun-cli`            | yes       | no                      | no                 | no   |
+| `gukhanmun-cli`            | yes       | no                      | no                 | yes  |
 | `gukhanmun-wasm`           | yes       | no                      | no                 | no   |
 | `gukhanmun-napi`           | yes       | no                      | no                 | no   |
 | `gukhanmun-python`         | no        | no                      | no                 | no   |
@@ -1483,8 +1483,9 @@ tag publishes that version without changing it. Packages with no functional
 change still advance together to keep cross-language dependencies aligned.
 Coordinated releases avoid dependency-range drift between independently
 versioned runtimes, shared types and dictionary packages. The tag workflow
-publishes crates to crates.io and JavaScript packages to npm/JSR, builds
-per-platform NAPI prebuilts, and attaches release binaries to GitHub Releases.
+publishes crates to crates.io, JavaScript packages to npm/JSR, and Python
+distributions to PyPI. It builds per-platform NAPI prebuilts and attaches
+release binaries to GitHub Releases.
 The private `gukhanmun-python` crate is packaged in the Python sdist, not
 published to crates.io.
 

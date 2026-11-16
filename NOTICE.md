@@ -96,10 +96,11 @@ terms. The API key holder reported no additional conditions during issuance.
 
 The pinned snapshot, content checksum and collection date are recorded in
 *crates/gukhanmun-loanwords/data/snapshot.json*. The full source and audit stay
-in the repository; runtime Rust/JavaScript packages carry the generated
-lookup data, provenance and *ATTRIBUTION.md*. All such packages must retain
-that attribution under this project's packaging policy. Session/IP metadata
-from the API response envelope is discarded.
+in the repository. Distributions that include this dictionary, whether for
+Rust, JavaScript or Python, carry the generated lookup data, provenance and
+*ATTRIBUTION.md*. All such packages must retain that attribution under this
+project's packaging policy. Session/IP metadata from the API response envelope
+is discarded.
 
 [*Korean Language Norms* loanword examples]: https://korean.go.kr/kornorms/example/exampleList.do?regltn_code=0003
 [help page, item 7]: https://korean.go.kr/kornorms/help/helpView.do

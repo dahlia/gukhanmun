@@ -55,7 +55,9 @@ outputs.
 The `gukhanmun-opendict` build script invokes `gukhanmun-mkdict` to build four
 embedded FST dictionaries at compile time.  The JavaScript package data tasks
 build matching FST and CDB binaries for `@gukhanmun/opendict-fst` and
-`@gukhanmun/opendict-cdb`.
+`@gukhanmun/opendict-cdb`. The Python data distributions
+`gukhanmun-opendict-fst` and `gukhanmun-opendict-cdb` package those same
+binaries.
 
 
 Extraction policy
@@ -133,3 +135,9 @@ and the CLI. The JavaScript bindings do not auto-load dictionary data for
 either preset; use `@gukhanmun/opendict-fst` or `@gukhanmun/opendict-cdb`
 explicitly and pass the categories you need through
 `load({ dictionaries: [...] })`.
+
+Python likewise requires explicit dictionary sources, even with `Preset.KO_KP`.
+Install the `gukhanmun[opendict]` extra, then pass the needed category sources,
+such as `opendict_north_korean()`, from `gukhanmun.dictionaries` to
+`Converter(dictionaries=[...])`. Installing the extra alone does not load data.
+See the [Python dictionary guide](../guide/python/dictionaries.md).

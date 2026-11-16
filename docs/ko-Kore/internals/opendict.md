@@ -43,6 +43,11 @@ mise run opendict-extract-check -- /path/to/opendict.zip
 받습니다. 디렉터리 內 項目과 壓縮 파일 內 項目은 文字列 順序로 處理합니다. 各
 分類 TSV는 UTF-8이고 辭典 키 順으로 決定的으로 整列됩니다.
 
+Rust 크레이트는 빌드 時 네 分類를 FST 辭典으로 內藏합니다. JavaScript의
+`@gukhanmun/opendict-fst`와 `@gukhanmun/opendict-cdb`를 爲한 데이터 作業은
+같은 內容의 FST/CDB 바이너리를 만들며, Python의 `gukhanmun-opendict-fst`와
+`gukhanmun-opendict-cdb`도 이 바이너리를 包裝합니다.
+
 
 抽出 方針
 ---------
@@ -110,3 +115,10 @@ JavaScript 바인딩은 어느 프리셋에서도 辭典 데이터를 自動으�
 않습니다. 必要한 分類를 `@gukhanmun/opendict-fst`나
 `@gukhanmun/opendict-cdb`에서 불러와 `load({ dictionaries: [...] })`에
 넘기면 됩니다.
+
+Python도 `Preset.KO_KP`를 包含한 모든 프리셋에서 辭典을 明示的으로
+追加해야 합니다. `gukhanmun[opendict]` 엑스트라(extra)를 設置한 뒤,
+`gukhanmun.dictionaries`의 `opendict_north_korean()` 等 必要한 分類의 出處를
+`Converter(dictionaries=[...])`에 傳達합니다. 엑스트라를 設置하는 것만으로
+데이터를 불러오지는 않습니다.
+〈[Python 辭典 案內](../guide/python/dictionaries.md)〉를 參照하십시오.
