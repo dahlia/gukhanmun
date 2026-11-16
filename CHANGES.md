@@ -459,6 +459,89 @@ To be released.
     cooperation and expose policy, reference-only eligibility and explicit
     dictionary roles through their JavaScript options. [[#42], [#44]]
 
+### @gukhanmun/cli (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fcli%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Added the dictionary-bundled CLI through `npm install -g @gukhanmun/cli`
+    and `npx --package @gukhanmun/cli gukhanmun`, without Rust or installation
+    scripts. The package includes five-shell completions, supports macOS,
+    Windows and Linux on x64/arm64, and offers development builds through
+    `@dev`. On first publication, npm may also assign `latest` to the initial
+    development version; later development publications leave `latest`
+    unchanged. [[#71], [#77]]
+ -  Added `gukhanmun-mkdict` alongside the converter to build FST and CDB
+    dictionaries. With two commands installed, select either explicitly with
+    `npx --package @gukhanmun/cli gukhanmun` or
+    `npx --package @gukhanmun/cli gukhanmun-mkdict`. [[#71], [#77]]
+
+[#71]: https://github.com/dahlia/gukhanmun/issues/71
+[#77]: https://github.com/dahlia/gukhanmun/pull/77
+
+### @gukhanmun/cli-aarch64-apple-darwin (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Daarch64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Added the bundled macOS arm64 executable, selected automatically when
+    installing `@gukhanmun/cli` with optional dependencies enabled.
+    [[#71], [#77]]
+ -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
+    converter, with matching versions and independently verified hashes.
+    [[#71], [#77]]
+
+### @gukhanmun/cli-aarch64-pc-windows-msvc (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Daarch64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Added the bundled Windows arm64 executable, selected automatically when
+    installing `@gukhanmun/cli` with optional dependencies enabled.
+    [[#71], [#77]]
+ -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
+    converter, with matching versions and independently verified hashes.
+    [[#71], [#77]]
+
+### @gukhanmun/cli-aarch64-unknown-linux-musl (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Daarch64%2Dunknown%2Dlinux%2Dmusl%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Added the bundled static Linux arm64 executable for musl and compatible
+    glibc hosts, selected automatically by `@gukhanmun/cli`. [[#71], [#77]]
+ -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
+    converter, with matching versions and independently verified hashes.
+    [[#71], [#77]]
+
+### @gukhanmun/cli-x86\_64-apple-darwin (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Dx86_64%2Dapple%2Ddarwin%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Added the bundled macOS x64 executable, selected automatically when
+    installing `@gukhanmun/cli` with optional dependencies enabled.
+    [[#71], [#77]]
+ -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
+    converter, with matching versions and independently verified hashes.
+    [[#71], [#77]]
+
+### @gukhanmun/cli-x86\_64-pc-windows-msvc (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Dx86_64%2Dpc%2Dwindows%2Dmsvc%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Added the bundled Windows x64 executable, selected automatically when
+    installing `@gukhanmun/cli` with optional dependencies enabled.
+    [[#71], [#77]]
+ -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
+    converter, with matching versions and independently verified hashes.
+    [[#71], [#77]]
+
+### @gukhanmun/cli-x86\_64-unknown-linux-musl (JavaScript/TypeScript)
+
+<!-- sacho:section:v1 id=%40gukhanmun%2Fcli%2Dx86_64%2Dunknown%2Dlinux%2Dmusl%20%28JavaScript%2FTypeScript%29 -->
+
+ -  Added the bundled static Linux x64 executable for musl and compatible
+    glibc hosts, selected automatically by `@gukhanmun/cli`. [[#71], [#77]]
+ -  Added the native `gukhanmun-mkdict` dictionary builder alongside the
+    converter, with matching versions and independently verified hashes.
+    [[#71], [#77]]
+
 ### @gukhanmun/loanwords-cdb (JavaScript/TypeScript)
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Floanwords%2Dcdb%20%28JavaScript%2FTypeScript%29 -->

@@ -1218,6 +1218,12 @@ runtime implementation:
  -  *@gukhanmun/napi* (npm only): Node-API implementation. Re-exports the
     types. Ships per-platform prebuilt binaries through napi-rs's
     optional-dependency packaging.
+ -  *@gukhanmun/cli* (npm only): a dependency-free Node.js launcher for the
+    existing dictionary-bundled CLI. Six exact-version optional packages carry
+    macOS, Windows and static musl Linux executables on x64/arm64. The parent
+    contains the shared completion bundle. These packages are staged and packed
+    outside the pnpm library workspace, without installation scripts or a
+    dependency on the Node-API binding.
 
 The data dictionaries ship as separate packages so that the runtime bundle
 stays small:

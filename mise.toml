@@ -78,6 +78,7 @@ depends = [
   "js-doc",
   "js-fmt-check",
   "py-fast",
+  "npm-cli-unit",
 ]
 
 [tasks.changelog-check]
@@ -246,6 +247,26 @@ run = "python -B scripts/completions/shells.py"
 [tasks.completions-unit]
 description = "Test completion bundle generation and verification"
 run = 'python -B -m unittest discover -s scripts/completions -p "*_test.py"'
+
+[tasks.npm-cli-unit]
+description = "Test the npm CLI launcher, immutable packaging and publication helpers"
+run = [
+  "node --test tests/npm-cli/launcher.test.cjs",
+  'python -B -m unittest discover -s tests/npm-cli -p "*_test.py"',
+  'python -B -m unittest discover -s scripts/npm-cli -p "*_test.py"',
+]
+
+[tasks.npm-cli-pack]
+description = "Pack the seven npm CLI tarballs from existing CLI archives"
+run = "python -B scripts/npm-cli/artifacts.py pack"
+
+[tasks.npm-cli-validate]
+description = "Validate an immutable npm CLI candidate without registry access"
+run = "python -B scripts/npm-cli/artifacts.py validate"
+
+[tasks.npm-cli-smoke]
+description = "Install and execute the original npm CLI tarballs on this host"
+run = "python -B scripts/npm-cli/smoke.py"
 
 [tasks.test]
 description = "Run Rust workspace tests"
@@ -462,10 +483,17 @@ for pkg in [
   packages/napi-aarch64-apple-darwin packages/napi-x86_64-apple-darwin
   packages/napi-aarch64-pc-windows-msvc packages/napi-x86_64-pc-windows-msvc
   packages/napi-aarch64-unknown-linux-gnu packages/napi-x86_64-unknown-linux-gnu
+  packages/cli
+  packages/cli-aarch64-apple-darwin packages/cli-x86_64-apple-darwin
+  packages/cli-aarch64-pc-windows-msvc packages/cli-x86_64-pc-windows-msvc
+  packages/cli-aarch64-unknown-linux-musl packages/cli-x86_64-unknown-linux-musl
   packages/stdict-fst packages/stdict-cdb packages/opendict-fst packages/opendict-cdb packages/loanwords-fst packages/loanwords-cdb
 ] {
   update_json $"($pkg)/package.json"
-}
+ }
+let cli = open packages/cli/package.json
+let pins = ($cli.optionalDependencies | columns | reduce --fold {} { |name, acc| $acc | insert $name $ver })
+($cli | upsert optionalDependencies $pins | to json --indent 2) + "\n" | save --force packages/cli/package.json
 for pkg in [
   packages/types packages/wasm packages/stdict-fst packages/stdict-cdb
   packages/opendict-fst packages/opendict-cdb packages/loanwords-fst packages/loanwords-cdb

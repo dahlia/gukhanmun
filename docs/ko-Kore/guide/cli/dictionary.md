@@ -82,8 +82,8 @@ Gukhanmun은 두 가지 바이너리 辭典 形式을 支援합니다:
 *.gukfst*와 *.gukcdb* 파일은 컴파일된 產出物이며, 손으로 編輯하는 것이
 아닙니다. 項目은 平文 텍스트 表로 作成하여 `gukhanmun-mkdict`로 컴파일합니다.
 
-`gukhanmun-mkdict` 빌더는 [mise를 通한 設置](./install.md#mise를-通하여)이든
-[미리 빌드된 아카이브 내려받기](./install.md#미리-빌드된-바이너리)든
+`gukhanmun-mkdict` 빌더는 [mise를 通한 設置](./install.mdx#mise를-通해서)이든
+[미리 빌드된 아카이브 내려받기](./install.mdx#미리-빌드된-바이너리)든
 `gukhanmun`과 함께 設置됩니다.  代身 crates.io에서 빌드했다면, 빌더도 같은
 方式으로 設置합니다:
 

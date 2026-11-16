@@ -239,6 +239,13 @@ def powershell_filename(value):
     return value
 
 
+
+
+def normalize_powershell_candidate(value, *, filename=False):
+    """Allow Windows relative prefixes only in native filename cases."""
+    return powershell_filename(value) if filename else value.strip("'\"").removeprefix("./")
+
+
 def powershell(binary, source, directory, env):
     quote = lambda text: "'" + str(text).replace("'", "''") + "'"
     setup = (
@@ -287,11 +294,12 @@ def powershell(binary, source, directory, env):
         )
         result = json.loads(run([binary, "-NoProfile", "-NonInteractive", "-Command", script], directory, env))
         candidates = result["candidates"]
-        # Native filename completions preserve quoting and the host's ./ or .\ prefix.
-        normalized = [powershell_filename(value) for value in candidates]
+        # Native filename completions preserve quoting and a host-specific prefix.
+        filename = bool(expected) and all(value in FIXTURES for value in expected)
+        normalized = [normalize_powershell_candidate(value, filename=filename) for value in candidates]
         for value in candidates:
             if "=" in value:
-                normalized.append(powershell_filename(value.split("=", 1)[1]))
+                normalized.append(normalize_powershell_candidate(value.split("=", 1)[1], filename=filename))
         require(normalized, expected, f"PowerShell {line} at {cursor}")
         if not expected:
             unchanged = result["replacement"] or " "

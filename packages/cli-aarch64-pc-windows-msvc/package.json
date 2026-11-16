@@ -1,0 +1,22 @@
+{
+  "name": "@gukhanmun/cli-aarch64-pc-windows-msvc",
+  "version": "0.4.0",
+  "description": "Gukhanmun CLI executable for aarch64-pc-windows-msvc.",
+  "os": ["win32"],
+  "cpu": ["arm64"],
+  "files": [
+    "gukhanmun.exe",
+    "gukhanmun-mkdict.exe",
+    "LICENSE",
+    "NOTICE.md",
+    "ATTRIBUTION.loanwords.md",
+    "ATTRIBUTION.opendict.md",
+    "provenance.json"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/gukhanmun.git",
+    "directory": "packages/cli-aarch64-pc-windows-msvc"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@gukhanmun/cli-aarch64-unknown-linux-musl",
+  "version": "0.4.0",
+  "description": "Static Gukhanmun CLI executable for Linux arm64, including compatible glibc hosts.",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "files": [
+    "gukhanmun",
+    "gukhanmun-mkdict",
+    "LICENSE",
+    "NOTICE.md",
+    "ATTRIBUTION.loanwords.md",
+    "ATTRIBUTION.opendict.md",
+    "provenance.json"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dahlia/gukhanmun.git",
+    "directory": "packages/cli-aarch64-unknown-linux-musl"
+  }
+}
