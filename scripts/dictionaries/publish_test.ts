@@ -43,12 +43,14 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
     const save = (v: unknown) => Deno.writeFile(`${directory}/manifest.json`, json(v));
     await save(m);
     assert.equal(
-      (await validate(directory, { base: "b".repeat(40), layout: "legacy" })).target,
+      (await validate(directory, { base: "b".repeat(40), layout: "legacy", profile: "current" }))
+        .target,
       "0.10-maintenance",
     );
     await save({ ...m, target: "main" });
     assert.equal(
-      (await validate(directory, { base: "b".repeat(40), layout: "legacy" })).target,
+      (await validate(directory, { base: "b".repeat(40), layout: "legacy", profile: "current" }))
+        .target,
       "main",
     );
     for (
@@ -62,7 +64,9 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
       ]
     ) {
       await save({ ...m, files });
-      await assert.rejects(() => validate(directory, { base: "b".repeat(40), layout: "legacy" }));
+      await assert.rejects(() =>
+        validate(directory, { base: "b".repeat(40), layout: "legacy", profile: "current" })
+      );
     }
     for (
       const value of [{ ...m, target: "feature" }, { ...m, status: "unchanged" }, {
@@ -71,19 +75,21 @@ Deno.test("artifact validation refuses forged paths, blobs, modes and controller
       }]
     ) {
       await save(value);
-      await assert.rejects(() => validate(directory, { base: "b".repeat(40), layout: "legacy" }));
+      await assert.rejects(() =>
+        validate(directory, { base: "b".repeat(40), layout: "legacy", profile: "current" })
+      );
     }
     await save(m);
     await Deno.writeTextFile(`${directory}/file-0`, "corruption");
     await assert.rejects(
-      () => validate(directory, { base: "b".repeat(40), layout: "legacy" }),
+      () => validate(directory, { base: "b".repeat(40), layout: "legacy", profile: "current" }),
       /checksum/,
     );
     if (Deno.build.os !== "windows") {
       await Deno.remove(`${directory}/file-0`);
       await Deno.symlink("manifest.json", `${directory}/file-0`);
       await assert.rejects(
-        () => validate(directory, { base: "b".repeat(40), layout: "legacy" }),
+        () => validate(directory, { base: "b".repeat(40), layout: "legacy", profile: "current" }),
         /symlink/,
       );
     }
@@ -177,7 +183,7 @@ async function publicationCases(layout: ChangelogLayout): Promise<void> {
           "0.10-maintenance",
           git,
         );
-        let m = await validate(directory, { base, layout });
+        let m = await validate(directory, { base, layout, profile: "current" });
         await git("git", ["restore", "--staged", "--worktree", "."]);
         if (scenario === "wrong-tree" || scenario === "wrong-controller") {
           m = { ...m, [scenario === "wrong-tree" ? "tree" : "controller"]: "f".repeat(40) };

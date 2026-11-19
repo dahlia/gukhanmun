@@ -19,20 +19,33 @@ import { readLayout } from "./changelog.ts";
 import type { ChangelogLayout } from "./changelog.ts";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
-import { data, fragments, hash, json, kinds, notices, outputs, updatePaths } from "./model.ts";
+import {
+  data,
+  fragments,
+  hash,
+  json,
+  kinds,
+  noticeFiles,
+  outputFiles,
+  updatePaths,
+} from "./model.ts";
+import type { DictionaryProfile } from "./changelog.ts";
 import { mappingReport, run, update } from "./update.ts";
 import type { Run, Source } from "./update.ts";
 const project = fileURLToPath(new URL("../../", import.meta.url));
 const encoder = new TextEncoder();
 const old = encoder.encode("hanja\thangul\n甲\t갑\n乙\t을\n");
 const revised = encoder.encode("hanja\thangul\n甲\t가\n甲\t갑\n丙\t병\n");
-async function fixture(layout: ChangelogLayout = "legacy") {
+async function fixture(layout: ChangelogLayout, profile: DictionaryProfile) {
   const root = await Deno.makeTempDir();
   await Deno.copyFile(`${project}/mise.toml`, `${root}/mise.toml`);
   await Deno.writeTextFile(`${root}/sacho.toml`, configuration(layout));
   for (const path of ["Cargo.toml", "Cargo.lock", "scripts/dictionaries/interface.json"]) {
     await Deno.mkdir(`${root}/${path.split("/").slice(0, -1).join("/")}`, { recursive: true });
-    await Deno.writeTextFile(`${root}/${path}`, "synthetic");
+    await Deno.writeTextFile(
+      `${root}/${path}`,
+      path.endsWith("interface.json") ? JSON.stringify({ version: 1, profile }) : "synthetic",
+    );
   }
   await Deno.mkdir(`${root}/changes.d`);
   await Deno.writeTextFile(`${root}/changes.d/next`, "99.0.0\n");
@@ -50,7 +63,7 @@ async function fixture(layout: ChangelogLayout = "legacy") {
         license: "synthetic",
       }),
     );
-    for (const name of outputs[kind]) {
+    for (const name of outputFiles(kind, profile)) {
       await Deno.writeFile(
         `${root}/${data(kind)}/${name}`,
         name === "phrase-evidence.json"
@@ -92,7 +105,7 @@ async function fixture(layout: ChangelogLayout = "legacy") {
       await Deno.writeTextFile(`${root}/${path}`, " - Preserved independent note. [[#29]]\n");
     }
   }
-  for (const path of notices) {
+  for (const path of noticeFiles(profile)) {
     await Deno.mkdir(`${root}/${path.split("/").slice(0, -1).join("/")}`, { recursive: true });
     await Deno.writeTextFile(
       `${root}/${path}`,
@@ -115,9 +128,9 @@ async function fixture(layout: ChangelogLayout = "legacy") {
   }]));
   return { root, sources };
 }
-async function snapshot(root: string) {
+async function snapshot(root: string, profile: DictionaryProfile) {
   return await Promise.all(
-    updatePaths(await readLayout(root)).map(async (path) => {
+    updatePaths(await readLayout(root), profile).map(async (path) => {
       try {
         return [path, await hash(await Deno.readFile(`${root}/${path}`))];
       } catch (e) {
@@ -137,8 +150,8 @@ Deno.test("reports preserve full candidate row groups", async () => {
     changed: 1,
   });
 });
-async function transactionCase(layout: ChangelogLayout): Promise<void> {
-  const { root, sources } = await fixture(layout);
+async function transactionCase(layout: ChangelogLayout, profile: DictionaryProfile): Promise<void> {
+  const { root, sources } = await fixture(layout, profile);
   let fail: "none" | "extract" | "format" = "none";
   const execute: Run = async (cmd, args, cwd, env = {}) => {
     if (cmd === "python" && args.includes("validate")) {
@@ -149,7 +162,7 @@ async function transactionCase(layout: ChangelogLayout): Promise<void> {
         throw new Error("synthetic candidate set changed");
       }
       const kind = args[1] === "stdict-extract" ? "stdict" : "opendict";
-      for (const name of outputs[kind]) {
+      for (const name of outputFiles(kind, profile)) {
         await Deno.writeFile(
           `${env.GUKHANMUN_DICTS_OUTPUT_DIR}/${name}`,
           name === "phrase-evidence.json"
@@ -197,13 +210,13 @@ async function transactionCase(layout: ChangelogLayout): Promise<void> {
       MISE_TRUSTED_CONFIG_PATHS: root,
     });
     await run("mise", ["exec", "--", "sacho", "fmt"], root, { MISE_TRUSTED_CONFIG_PATHS: root });
-    const before = await snapshot(root);
+    const before = await snapshot(root, profile);
     fail = "extract";
     await assert.rejects(() => update(root, "/unused", execute), /candidate set changed/);
-    assert.deepEqual(await snapshot(root), before);
+    assert.deepEqual(await snapshot(root, profile), before);
     fail = "format";
     await assert.rejects(() => update(root, "/unused", execute), /formatter failure/);
-    assert.deepEqual(await snapshot(root), before);
+    assert.deepEqual(await snapshot(root, profile), before);
     fail = "none";
     const result = await update(root, "/unused", execute);
     assert.equal(result.status, "updated");
@@ -213,13 +226,13 @@ async function transactionCase(layout: ChangelogLayout): Promise<void> {
       assert.match(text, /Preserved independent note/);
       assert.equal((text.match(/Updated the bundled/g) ?? []).length, 1);
     }
-    const after = await snapshot(root);
+    const after = await snapshot(root, profile);
     assert.equal((await update(root, "/unused", execute)).status, "unchanged");
-    assert.deepEqual(await snapshot(root), after);
+    assert.deepEqual(await snapshot(root, profile), after);
     // Recipe-only drift re-extracts but does not produce a provenance PR.
     await Deno.writeTextFile(`${root}/Cargo.toml`, "changed unrelated code inputs");
     assert.equal((await update(root, "/unused", execute)).status, "unchanged");
-    assert.deepEqual(await snapshot(root), after);
+    assert.deepEqual(await snapshot(root, profile), after);
     // A re-issued identifier with unchanged data is provenance-only. An empty
     // notice list must never invoke Hongdown on the entire repository.
     const unrelated = "#   Keep this unrelated Markdown byte for byte\n";
@@ -240,9 +253,15 @@ async function transactionCase(layout: ChangelogLayout): Promise<void> {
     await Deno.remove(root, { recursive: true });
   }
 }
-for (const layout of ["legacy", "language"] as const) {
-  Deno.test(`${layout}: two-dictionary transaction, idempotent fragments and rollback after formatter failure`, () =>
-    transactionCase(layout));
+for (
+  const [layout, profile] of [
+    ["legacy", "current"],
+    ["language", "current"],
+    ["legacy", "legacy-tsv"],
+  ] as const
+) {
+  Deno.test(`${layout}/${profile}: two-dictionary transaction, idempotent fragments and rollback after formatter failure`, () =>
+    transactionCase(layout, profile));
 }
 
 Deno.test("local collection helper accepts filesystem paths with spaces", async () => {

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { readLayout } from "./changelog.ts";
+import { parseProfile, readLayout } from "./changelog.ts";
 import { fileURLToPath } from "node:url";
 import {
   data,
@@ -22,8 +22,8 @@ import {
   hash,
   json,
   kinds,
-  notices,
-  outputs,
+  noticeFiles,
+  outputFiles,
   read,
   safePath,
   updatePaths,
@@ -240,7 +240,11 @@ function updateNotice(text: string, kind: Kind, source: Source): string {
 /** Validates sources, stages all extraction, then applies data and Sacho together. */
 export async function update(root: string, directory: string, execute: Run = run): Promise<Result> {
   const layout = await readLayout(root);
-  const paths = updatePaths(layout);
+  const marker = await read(root, "scripts/dictionaries/interface.json");
+  if (!marker) throw new Error("missing dictionary target interface");
+  const profile = parseProfile(decoder.decode(marker));
+  const notices = noticeFiles(profile);
+  const paths = updatePaths(layout, profile);
   const temp = await Deno.makeTempDir({ prefix: "gukhanmun-dictionaries-" });
   const changes = new Map<string, Uint8Array>();
   const sources: Partial<Record<Kind, Source>> = {};
@@ -281,7 +285,7 @@ export async function update(root: string, directory: string, execute: Run = run
       });
       const reports: Record<string, MappingReport> = {};
       let behaviorChanged = false;
-      for (const name of outputs[kind]) {
+      for (const name of outputFiles(kind, profile)) {
         const bytes = await Deno.readFile(`${staged}/${name}`);
         const old = await read(root, `${data(kind)}/${name}`);
         if (!old) throw new Error("target dictionary file missing");

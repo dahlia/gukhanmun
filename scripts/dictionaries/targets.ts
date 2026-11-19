@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { pinnedLayout } from "./changelog.ts";
+import { pinnedDictionaryLayout } from "./changelog.ts";
 import { command } from "./model.ts";
 import type { Execute } from "./model.ts";
 /** A target head pinned before credential-bearing collection. */
@@ -72,16 +72,12 @@ export async function target(execute: Execute = command, remote = "origin"): Pro
   }
   if (!selected) throw new Error("no dictionary maintenance branch or main exists");
   try {
-    const marker = JSON.parse(
-      await execute("git", ["show", `${selected.oid}:scripts/dictionaries/interface.json`]),
-    );
-    if (marker.version !== 1) throw new Error("unsupported interface");
     const config = await execute("git", ["show", `${selected.oid}:mise.toml`]);
     for (const task of ["stdict-extract", "opendict-extract", "ci"]) {
       if (!config.includes(`[tasks.${task}]`)) throw new Error("missing task");
     }
     if (!config.includes("GUKHANMUN_DICTS_OUTPUT_DIR")) throw new Error("missing staging support");
-    await pinnedLayout(execute, selected.oid);
+    await pinnedDictionaryLayout(execute, selected.oid);
     for (const kind of ["stdict", "opendict"]) {
       const metadata = JSON.parse(
         await execute("git", [

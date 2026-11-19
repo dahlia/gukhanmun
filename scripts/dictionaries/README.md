@@ -13,6 +13,12 @@ interface version 1, staging-aware extraction tasks, metadata integration, or
 Sacho. Backport the infrastructure before enabling collection; incompatibility
 does not select a newer line instead.
 
+The target's committed *scripts/dictionaries/interface.json* selects its
+output set. Interface version 1 defaults to the current outputs.
+`"profile": "legacy-tsv"` selects the TSVs and notices used by older releases
+without alias or evidence files. The collector and publisher use that same
+profile when checking prior data and validating proposed changes.
+
 
 Local collection and regeneration
 ---------------------------------

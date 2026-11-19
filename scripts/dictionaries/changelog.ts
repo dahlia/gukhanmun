@@ -16,10 +16,16 @@
 
 /** Supported fragment layouts; source trees remain crates/ and packages/. */
 export type ChangelogLayout = "legacy" | "language";
+/** Known target output sets. A missing profile in a v1 marker means current. */
+export type DictionaryProfile = "current" | "legacy-tsv";
 /** A layout obtained from the independently pinned target commit, never an artifact. */
 export interface PinnedLayout {
   readonly base: string;
   readonly layout: ChangelogLayout;
+}
+/** Korean dictionary publication also binds the output set to the pinned target. */
+export interface PinnedDictionaryLayout extends PinnedLayout {
+  readonly profile: DictionaryProfile;
 }
 /** Read-only process boundary for pinned Git object inspection. */
 export type Inspect = (cmd: string, args: string[], optional?: boolean) => Promise<string>;
@@ -78,12 +84,31 @@ export async function parseLayout(config: string): Promise<ChangelogLayout> {
 export async function readLayout(root: string): Promise<ChangelogLayout> {
   return await parseLayout(await Deno.readTextFile(`${root}/sacho.toml`));
 }
+/** Checks a target's interface marker without executing target code. */
+export function parseProfile(marker: string): DictionaryProfile {
+  const { version, profile = "current" } = JSON.parse(marker);
+  if (version !== 1 || (profile !== "current" && profile !== "legacy-tsv")) {
+    throw new Error("unsupported dictionary target interface");
+  }
+  return profile;
+}
 /** Resolves configuration from a pinned commit in the controller's object database. */
 export async function pinnedLayout(execute: Inspect, oid?: string): Promise<PinnedLayout> {
   const base = oid ?? await execute("git", ["rev-parse", "HEAD"]);
   if (!/^[a-f0-9]{40,64}$/.test(base)) throw new Error("invalid pinned target object");
   const layout = await parseLayout(await execute("git", ["show", `${base}:sacho.toml`]));
   return Object.freeze({ base, layout });
+}
+/** Resolves the output profile from the same object as the changelog layout. */
+export async function pinnedDictionaryLayout(
+  execute: Inspect,
+  oid?: string,
+): Promise<PinnedDictionaryLayout> {
+  const context = await pinnedLayout(execute, oid);
+  const profile = parseProfile(
+    await execute("git", ["show", `${context.base}:scripts/dictionaries/interface.json`]),
+  );
+  return Object.freeze({ ...context, profile });
 }
 /** Maps component source roots to one target's fragment directories. */
 export function fragmentSections(sources: readonly string[], layout: ChangelogLayout): string[] {

@@ -309,6 +309,8 @@ class CollectorTests(unittest.TestCase):
             root = Path(temp)
             for name in ["Cargo.toml", "Cargo.lock", "mise.toml", "scripts/dictionaries/interface.json", "crates/gukhanmun-stdict/src/extract.rs", "crates/gukhanmun-stdict/data/defaults.tsv"]:
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text("synthetic")
+            marker = root / "scripts/dictionaries/interface.json"
+            marker.write_text('{"version":1}')
             base = root / "crates/gukhanmun-stdict/data"
             outputs = {}
             for name in c.FILES["stdict"]:
@@ -330,6 +332,16 @@ class CollectorTests(unittest.TestCase):
             (base / "stdict.tsv").write_text("hanja\thangul\n甲\t갑\n")
             (base / "defaults.tsv").write_text("changed decision")
             self.assertNotIn("stdict", c.state(root)["dictionaries"])
+            marker.write_text('{"version":1,"profile":"legacy-tsv"}')
+            source["inputs_sha256"] = c.input_fingerprint(root)
+            (base / "source.json").write_bytes(c.json_bytes(source))
+            self.assertNotIn("stdict", c.state(root)["dictionaries"])
+            source["outputs"] = {name: outputs[name] for name in ("stdict.tsv", "suffix.tsv")}
+            (base / "source.json").write_bytes(c.json_bytes(source))
+            self.assertIn("stdict", c.state(root)["dictionaries"])
+            marker.write_text('{"version":1,"profile":"unknown"}')
+            with self.assertRaises(c.InvalidDump):
+                c.state(root)
 
 
 if __name__ == "__main__":

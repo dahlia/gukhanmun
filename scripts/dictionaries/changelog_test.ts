@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import assert from "node:assert/strict";
-import { parseLayout, pinnedLayout } from "./changelog.ts";
+import { parseLayout, pinnedDictionaryLayout, pinnedLayout } from "./changelog.ts";
 import { configuration } from "./changelog_fixture.ts";
 import { hash, json } from "./model.ts";
 import { update as updateDictionary } from "./update.ts";
@@ -43,13 +43,20 @@ Deno.test("target layouts require complete matching source, ID and directory fam
     ]
   ) await assert.rejects(() => parseLayout(invalid), /target/);
   const oid = "a".repeat(40), calls: string[][] = [];
-  const context = await pinnedLayout((_cmd, args) => {
+  const context = await pinnedDictionaryLayout((_cmd, args) => {
     calls.push(args);
-    return Promise.resolve(configuration("legacy"));
+    return Promise.resolve(
+      args[1].endsWith("interface.json")
+        ? '{"version":1,"profile":"legacy-tsv"}'
+        : configuration("legacy"),
+    );
   }, oid);
-  assert.deepEqual(context, { base: oid, layout: "legacy" });
+  assert.deepEqual(context, { base: oid, layout: "legacy", profile: "legacy-tsv" });
   assert.ok(Object.isFrozen(context));
-  assert.deepEqual(calls, [["show", `${oid}:sacho.toml`]]);
+  assert.deepEqual(calls, [
+    ["show", `${oid}:sacho.toml`],
+    ["show", `${oid}:scripts/dictionaries/interface.json`],
+  ]);
   await assert.rejects(() => pinnedLayout(() => Promise.resolve(""), "../main"), /invalid pinned/);
 });
 
@@ -97,8 +104,9 @@ Deno.test("artifact validation permits exactly the pinned target fragment layout
         ] as const
       ) {
         await Deno.writeFile(`${root}/manifest.json`, json(manifest));
-        await validate(root, { base, layout });
-        await assert.rejects(() => validate(root, { base: "c".repeat(40), layout }));
+        const context = { base, layout, profile: "current" as const };
+        await validate(root, context);
+        await assert.rejects(() => validate(root, { ...context, base: "c".repeat(40) }));
         await Deno.writeFile(
           `${root}/manifest.json`,
           json({
@@ -109,8 +117,36 @@ Deno.test("artifact validation permits exactly the pinned target fragment layout
             })),
           }),
         );
-        await assert.rejects(() => validate(root, { base, layout }), /path/);
+        await assert.rejects(() => validate(root, context), /path/);
       }
+    }
+    const context = { base, layout: "legacy", profile: "legacy-tsv" } as const;
+    for (
+      const [name, allowed] of [
+        ["stdict.tsv", true],
+        ["phrase-manifest.json", false],
+      ] as const
+    ) {
+      await Deno.writeFile(
+        `${root}/manifest.json`,
+        json({
+          version: 1,
+          base,
+          controller: base,
+          tree: base,
+          target: "0.2-maintenance",
+          status: "updated",
+          summary: "Synthetic",
+          files: [{
+            path: `crates/gukhanmun-stdict/data/${name}`,
+            blob: "file-0",
+            sha256: await hash(bytes),
+            mode: "100644",
+          }],
+        }),
+      );
+      if (allowed) await validateDictionary(root, context);
+      else await assert.rejects(() => validateDictionary(root, context), /path/);
     }
   } finally {
     await Deno.remove(root, { recursive: true });

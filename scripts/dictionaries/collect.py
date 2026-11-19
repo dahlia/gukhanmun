@@ -134,15 +134,20 @@ def state(root):
     """Read only committed target paths in the caller's pinned target checkout."""
     root = Path(root).resolve()
     fingerprint = input_fingerprint(root)
+    marker = read_json(root / "scripts/dictionaries/interface.json", root=root)
+    profile = marker.get("profile", "current")
+    if marker.get("version") != 1 or profile not in ("current", "legacy-tsv"):
+        raise InvalidDump("unsupported dictionary target interface")
     result = {"version": 1, "inputs_sha256": fingerprint, "dictionaries": {}}
     for kind in KINDS:
         base = root / f"crates/gukhanmun-{kind}/data"
         try:
             source = read_json(base / "source.json", root=root)
             outputs = source["outputs"]
-            if source["inputs_sha256"] != fingerprint or set(outputs) != set(FILES[kind]):
+            files = FILES[kind] if profile == "current" else FILES[kind][:2 if kind == "stdict" else 4]
+            if source["inputs_sha256"] != fingerprint or set(outputs) != set(files):
                 continue
-            if any(outputs[name]["sha256"] != sha_file(regular(base / name, root)) for name in FILES[kind]):
+            if any(outputs[name]["sha256"] != sha_file(regular(base / name, root)) for name in files):
                 continue
             if not re.fullmatch(r"[a-f0-9]{64}", source["archive_sha256"]):
                 continue

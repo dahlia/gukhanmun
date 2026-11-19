@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { fragmentSections } from "./changelog.ts";
-import type { ChangelogLayout } from "./changelog.ts";
+import type { ChangelogLayout, DictionaryProfile } from "./changelog.ts";
 
 /** Public dataset identifiers understood by interface version 1. */
 export const kinds = ["stdict", "opendict"] as const;
@@ -52,6 +52,12 @@ export const outputs: Record<Kind, string[]> = {
     "archaic-manifest.jsonl",
   ],
 };
+/** Selects only the fixed outputs generated and consumed by the target. */
+export function outputFiles(kind: Kind, profile: DictionaryProfile): readonly string[] {
+  return profile === "legacy-tsv"
+    ? outputs[kind].slice(0, kind === "stdict" ? 2 : 4)
+    : outputs[kind];
+}
 /** Components that bundle or expose each dataset. */
 export function sections(kind: Kind): string[] {
   return [
@@ -79,17 +85,24 @@ export const notices = [
   "packages/opendict-fst/ATTRIBUTION.md",
   "packages/opendict-cdb/ATTRIBUTION.md",
 ];
+/** Older releases ship Open Korean Dictionary attribution without a root notice. */
+export function noticeFiles(profile: DictionaryProfile): readonly string[] {
+  return profile === "legacy-tsv" ? notices.slice(1) : notices;
+}
 /** Complete transfer allowlist: no executable code, policies, manifests or binaries. */
-export function updatePaths(layout: ChangelogLayout): string[] {
+export function updatePaths(
+  layout: ChangelogLayout,
+  profile: DictionaryProfile = "current",
+): string[] {
   return [
     ...new Set([
       ...kinds.flatMap((kind) => [
-        ...[...outputs[kind], "source.json", "metadata.json"].map((name) =>
+        ...[...outputFiles(kind, profile), "source.json", "metadata.json"].map((name) =>
           `${data(kind)}/${name}`
         ),
         ...fragments(kind, layout),
       ]),
-      ...notices,
+      ...noticeFiles(profile),
       "CHANGES.md",
     ]),
   ];
