@@ -982,7 +982,6 @@ hanja	hangul	require_hanja	require_hangul
 家庭노롬	가정노롬	false	false
 家用돈	가용돈	false	false
 家用푼	가용푼	false	false
-家門잔치	가문잔치	false	false
 家퇴끼	가퇴끼	false	false
 寄生풀	기생풀	false	false
 密세하다	밀세하다	false	false
@@ -3631,6 +3630,7 @@ hanja	hangul	require_hanja	require_hangul
 고도레方席	고도레방석	false	false
 고동枾	고동시	false	false
 고두方席	고두방석	false	false
+고디湯	고디탕	false	false
 고랑八十	고랑팔십	false	false
 고랑葬	고랑장	false	false
 고레葬	고레장	false	false

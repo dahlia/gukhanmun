@@ -1730,7 +1730,7 @@ hanja	hangul	require_hanja	require_hangul
 七甲山	칠갑산	false	false
 七略	칠략	false	false
 七疝	칠산	false	false
-七百義冢	칠백의총	false	false
+七百義塚	칠백의총	false	false
 七祀	칠사	false	false
 七祈求	칠기구	false	false
 七福	칠복	false	false
@@ -7444,6 +7444,7 @@ hanja	hangul	require_hanja	require_hangul
 中錨	중묘	false	false
 中鍼	중침	false	false
 中鑛	중광	false	false
+中長年	중장년	false	false
 中長期	중장기	false	false
 中長距離	중장거리	false	false
 中門	중문	false	false
@@ -22027,6 +22028,7 @@ hanja	hangul	require_hanja	require_hangul
 元祖	원조	false	false
 元穀	원곡	false	false
 元等	원등	false	false
+元筍	원순	false	false
 元素	원소	false	false
 元素名	원소명	false	false
 元素族	원소족	false	false
@@ -22043,7 +22045,6 @@ hanja	hangul	require_hanja	require_hangul
 元興曲	원흥곡	false	false
 元舞	원무	false	false
 元良	원량	false	false
-元荀	원순	false	false
 元蔘	원삼	false	false
 元號	원호	false	false
 元血	원혈	false	false
@@ -22810,6 +22811,7 @@ hanja	hangul	require_hanja	require_hangul
 光屈折	광굴절	false	false
 光州	광주	false	false
 光州廣域市	광주광역시	false	false
+光州特別市	광주특별시	false	false
 光州線	광주선	false	false
 光差	광차	false	false
 光年	광년	false	false
@@ -24681,6 +24683,7 @@ hanja	hangul	require_hanja	require_hangul
 全北平野	전북평야	false	false
 全北特別自治道	전북특별자치도	false	false
 全南	전남	false	false
+全南光州統合特別市	전남광주통합특별시	false	false
 全南平野	전남평야	false	false
 全卵粉	전난분	false	false
 全卷	전권	false	false
@@ -44460,9 +44463,6 @@ hanja	hangul	require_hanja	require_hangul
 合席하다	합석하다	false	false
 合幅	합폭	false	false
 合從	합종	false	false
-合從策	합종책	false	false
-合從說	합종설	false	false
-合從連橫	합종연횡	false	false
 合從하다	합종하다	false	false
 合德	합덕	false	false
 合心	합심	false	false
@@ -44689,6 +44689,9 @@ hanja	hangul	require_hanja	require_hangul
 合編萼	합편악	false	false
 合編하다	합편하다	false	false
 合縱	합종	false	false
+合縱策	합종책	false	false
+合縱說	합종설	false	false
+合縱連橫	합종연횡	false	false
 合縱하다	합종하다	false	false
 合纖	합섬	false	false
 合纖綿	합섬면	false	false
@@ -58127,6 +58130,7 @@ hanja	hangul	require_hanja	require_hangul
 多指症	다지증	false	false
 多搖	다요	false	false
 多收穫	다수확	false	false
+多收穫王	다수확왕	false	false
 多收穫種	다수확종	false	false
 多故	다고	false	false
 多故하다	다고하다	false	false
@@ -58135,7 +58139,6 @@ hanja	hangul	require_hanja	require_hangul
 多數決	다수결	false	false
 多數派	다수파	false	false
 多數票	다수표	false	false
-多數穫王	다수확왕	false	false
 多數者	다수자	false	false
 多數黨	다수당	false	false
 多數하다	다수하다	false	false
@@ -66541,6 +66544,7 @@ hanja	hangul	require_hanja	require_hangul
 孶息	자식	false	false
 孶息하다	자식하다	false	false
 孶畜	자축	false	false
+孶畜하다	자축하다	false	false
 孶育	자육	false	false
 孶育하다	자육하다	false	false
 學	학	false	false
@@ -70386,7 +70390,6 @@ hanja	hangul	require_hanja	require_hangul
 密訴하다	밀소하다	false	false
 密詔	밀조	false	false
 密話	밀화	false	false
-密話부리	밀화부리	false	false
 密話하다	밀화하다	false	false
 密語	밀어	false	false
 密語相通	밀어상통	false	false
@@ -71663,6 +71666,7 @@ hanja	hangul	require_hanja	require_hangul
 寬裕하다	관유하다	false	false
 寬解	관해	false	false
 寬貸	관대	false	false
+寬貸하다	관대하다	false	false
 寬闊	관활	false	false
 寬闊하다	관활하다	false	false
 寬限	관한	false	false
@@ -81474,6 +81478,7 @@ hanja	hangul	require_hanja	require_hangul
 廢倉	폐창	false	false
 廢倉하다	폐창하다	false	false
 廢倫	폐륜	false	false
+廢倫하다	폐륜하다	false	false
 廢儲	폐저	false	false
 廢儲하다	폐저하다	false	false
 廢兵	폐병	false	false
@@ -83696,6 +83701,7 @@ hanja	hangul	require_hanja	require_hangul
 彌滿	미만	false	false
 彌滿하다	미만하다	false	false
 彌漫	미만	false	false
+彌漫性	미만성	false	false
 彌漫하다	미만하다	false	false
 彌烏邪馬國	미오야마국	false	false
 彌留	미류	false	false
@@ -98336,8 +98342,8 @@ hanja	hangul	require_hanja	require_hangul
 捲音	권음	false	false
 捶殺	추살	false	false
 捶殺하다	추살하다	false	false
-捶苔	추태	false	false
-捶苔하다	추태하다	false	false
+捶笞	추태	false	false
+捶笞하다	추태하다	false	false
 捷利	첩리	false	false
 捷利하다	첩리하다	false	false
 捷勁	첩경	false	false
@@ -106340,6 +106346,7 @@ hanja	hangul	require_hanja	require_hangul
 新元	신원	false	false
 新元史	신원사	false	false
 新元素	신원소	false	false
+新光寺	신광사	false	false
 新免	신면	false	false
 新入	신입	false	false
 新入射	신입사	false	false
@@ -118125,7 +118132,6 @@ hanja	hangul	require_hanja	require_hangul
 柩車	구거	false	false
 柯亭	가정	false	false
 柯亭竹	가정죽	false	false
-柯仁峯	가인봉	false	false
 柯葉	가엽	false	false
 柱	주	false	false
 柱三包	주삼포	false	false
@@ -119871,11 +119877,11 @@ hanja	hangul	require_hanja	require_hangul
 椄枝하다	접지하다	false	false
 椄穗	접수	false	false
 椄穗하다	접수하다	false	false
+椄筍	접순	false	false
+椄筍하다	접순하다	false	false
 椄臺	접대	false	false
 椄芽	접아	false	false
 椄苗	접묘	false	false
-椄荀	접순	false	false
-椄荀하다	접순하다	false	false
 椄蠟	접랍	false	false
 椄가지	접가지	false	false
 椄가지하다	접가지하다	false	false
@@ -127144,7 +127150,6 @@ hanja	hangul	require_hanja	require_hangul
 氣序	기서	false	false
 氣序流易	기서유역	false	false
 氣度	기도	false	false
-氣廮	기영	false	false
 氣弱	기약	false	false
 氣弱하다	기약하다	false	false
 氣心痛	기심통	false	false
@@ -127222,6 +127227,7 @@ hanja	hangul	require_hanja	require_hangul
 氣癖	기벽	false	false
 氣癧	기력	false	false
 氣癩	기라	false	false
+氣癭	기영	false	false
 氣發理乘	기발이승	false	false
 氣盛	기성	false	false
 氣盛차다	기성차다	false	false
@@ -139416,6 +139422,7 @@ hanja	hangul	require_hanja	require_hangul
 濟州山버들	제주산버들	false	false
 濟州島	제주도	false	false
 濟州特別自治道	제주특별자치도	false	false
+濟州蜜花부리	제주밀화부리	false	false
 濟州道	제주도	false	false
 濟州陽地꽃	제주양지꽃	false	false
 濟州馬	제주마	false	false
@@ -139429,7 +139436,6 @@ hanja	hangul	require_hanja	require_hangul
 濟州뒤쥐	제주뒤쥐	false	false
 濟州땃쥐	제주땃쥐	false	false
 濟州말	제주말	false	false
-濟州밀화부리	제주밀화부리	false	false
 濟州벚나무	제주벚나무	false	false
 濟州아그배나무	제주아그배나무	false	false
 濟州오목눈이	제주오목눈이	false	false
@@ -139688,7 +139694,6 @@ hanja	hangul	require_hanja	require_hangul
 瀦宅	저택	false	false
 瀦宅하다	저택하다	false	false
 瀦水	저수	false	false
-瀰漫性	미만성	false	false
 瀼泄	양설	false	false
 瀾汗	난한	false	false
 瀾滄江	란창강	false	false
@@ -168801,7 +168806,6 @@ hanja	hangul	require_hanja	require_hangul
 筋學	근학	false	false
 筋小胞體	근소포체	false	false
 筋度	근도	false	false
-筋廮	근영	false	false
 筋弛緩劑	근이완제	false	false
 筋強剛	근강강	false	false
 筋形質	근형질	false	false
@@ -168824,6 +168828,7 @@ hanja	hangul	require_hanja	require_hangul
 筋痿	근위	false	false
 筋瘈	근계	false	false
 筋癧	근력	false	false
+筋癭	근영	false	false
 筋硬症	근경증	false	false
 筋硬直	근경직	false	false
 筋節	근절	false	false
@@ -174346,6 +174351,7 @@ hanja	hangul	require_hanja	require_hangul
 統合	통합	false	false
 統合力	통합력	false	false
 統合性	통합성	false	false
+統合特別市	통합특별시	false	false
 統合的	통합적	false	false
 統合軍	통합군	false	false
 統合驛	통합역	false	false
@@ -180699,6 +180705,7 @@ hanja	hangul	require_hanja	require_hangul
 聯亘	연긍	false	false
 聯亘하다	연긍하다	false	false
 聯作	연작	false	false
+聯作하다	연작하다	false	false
 聯借	연차	false	false
 聯借하다	연차하다	false	false
 聯動	연동	false	false
@@ -189972,7 +189979,6 @@ hanja	hangul	require_hanja	require_hangul
 菌傘	균산	false	false
 菌學	균학	false	false
 菌帽	균모	false	false
-菌廮	균영	false	false
 菌株	균주	false	false
 菌核	균핵	false	false
 菌核病	균핵병	false	false
@@ -189982,6 +189988,7 @@ hanja	hangul	require_hanja	require_hangul
 菌狀	균상	false	false
 菌環	균환	false	false
 菌症	균증	false	false
+菌癭	균영	false	false
 菌細胞	균세포	false	false
 菌絲	균사	false	false
 菌絲束	균사속	false	false
@@ -190037,6 +190044,7 @@ hanja	hangul	require_hanja	require_hangul
 菜毒	채독	false	false
 菜毒症	채독증	false	false
 菜毒벌레	채독벌레	false	false
+菜水	채수	false	false
 菜油	채유	false	false
 菜田	채전	false	false
 菜疸	채달	false	false
@@ -191390,7 +191398,7 @@ hanja	hangul	require_hanja	require_hangul
 葡萄빛	포돗빛	false	false
 葡萄송이	포도송이	false	false
 葡萄알菌	포도알균	false	false
-葡萄잎바구미	포도잎바구미	false	false
+葡萄잎바구미	포돗잎바구미	false	false
 葡萄차	포도차	false	false
 董	동	false	false
 董仲舒	동중서	false	false
@@ -194753,6 +194761,7 @@ hanja	hangul	require_hanja	require_hangul
 蜜花貝纓	밀화패영	false	false
 蜜花갓끈	밀화갓끈	false	false
 蜜花단추	밀화단추	false	false
+蜜花부리	밀화부리	false	false
 蜜菓	밀과	false	false
 蜜蜂	밀봉	false	false
 蜜蠟	밀랍	false	false
@@ -195442,7 +195451,6 @@ hanja	hangul	require_hanja	require_hangul
 血尿	혈뇨	false	false
 血屬	혈속	false	false
 血崩	혈붕	false	false
-血廮	혈영	false	false
 血心	혈심	false	false
 血心痛	혈심통	false	false
 血心苦篤	혈심고독	false	false
@@ -195531,6 +195539,7 @@ hanja	hangul	require_hanja	require_hangul
 血癊	혈음	false	false
 血癖	혈벽	false	false
 血癥	혈징	false	false
+血癭	혈영	false	false
 血盟	혈맹	false	false
 血盟하다	혈맹하다	false	false
 血相	혈상	false	false
@@ -198762,7 +198771,7 @@ hanja	hangul	require_hanja	require_hangul
 要約되다	요약되다	false	false
 要約하다	요약하다	false	false
 要素	요소	false	false
-要素派	요소파	false	false
+要素波	요소파	false	false
 要素값	요솟값	false	false
 要結	요결	false	false
 要綱	요강	false	false
@@ -199331,7 +199340,7 @@ hanja	hangul	require_hanja	require_hangul
 親傳하다	친전하다	false	false
 親兄	친형	false	false
 親兄弟	친형제	false	false
-親兄弟姉妹	친형제자매	false	false
+親兄弟姊妹	친형제자매	false	false
 親兵	친병	false	false
 親分	친분	false	false
 親切	친절	false	false
@@ -199377,7 +199386,7 @@ hanja	hangul	require_hanja	require_hangul
 親女	친녀	false	false
 親好	친호	false	false
 親好하다	친호하다	false	false
-親姉妹	친자매	false	false
+親姊妹	친자매	false	false
 親姪	친질	false	false
 親姻	친인	false	false
 親姻戚	친인척	false	false
@@ -225943,7 +225952,7 @@ hanja	hangul	require_hanja	require_hangul
 銀粒	은립	false	false
 銀粧刀	은장도	false	false
 銀紙	은지	false	false
-銀紙畵	은지화	false	false
+銀紙畫	은지화	false	false
 銀細工	은세공	false	false
 銀絲	은사	false	false
 銀經	은경	false	false
@@ -228083,7 +228092,6 @@ hanja	hangul	require_hanja	require_hangul
 長信宮	장신궁	false	false
 長兄	장형	false	false
 長兄父母	장형부모	false	false
-長光刀	장광도	false	false
 長公主	장공주	false	false
 長兵	장병	false	false
 長刀	장도	false	false
@@ -228210,6 +228218,8 @@ hanja	hangul	require_hanja	require_hangul
 長幕物	장막물	false	false
 長平鎭	장평진	false	false
 長年	장년	false	false
+長年層	장년층	false	false
+長年期	장년기	false	false
 長幼	장유	false	false
 長幼有序	장유유서	false	false
 長庚	장경	false	false
@@ -229365,8 +229375,8 @@ hanja	hangul	require_hanja	require_hangul
 開放化	개방화	false	false
 開放化되다	개방화되다	false	false
 開放化하다	개방화하다	false	false
+開放型	개방형	false	false
 開放式	개방식	false	false
-開放形	개방형	false	false
 開放性	개방성	false	false
 開放的	개방적	false	false
 開放系	개방계	false	false
@@ -246250,7 +246260,7 @@ hanja	hangul	require_hanja	require_hangul
 魯桑	노상	false	false
 魯漫主義	노만주의	false	false
 魯男子	노남자	false	false
-魯省	노성	false	false
+魯省	루성	false	false
 魯縞	노호	false	false
 魯莽	노무	false	false
 魯莽하다	노무하다	false	false
@@ -246440,7 +246450,6 @@ hanja	hangul	require_hanja	require_hangul
 鰈魚臇	접어전	false	false
 鰈魚醢	접어해	false	false
 鰉魚	황어	false	false
-鰊卵醢	연란해	false	false
 鰋魚	언어	false	false
 鰌魚	추어	false	false
 鰍湯	추탕	false	false
@@ -246477,6 +246486,7 @@ hanja	hangul	require_hanja	require_hangul
 鰮粕	온박	false	false
 鰮魚	온어	false	false
 鰱卵	연란	false	false
+鰱卵醢	연란해	false	false
 鰱魚	연어	false	false
 鰱魚目	연어목	false	false
 鰱魚科	연어과	false	false
@@ -251324,7 +251334,7 @@ hanja	hangul	require_hanja	require_hangul
 곱돌湯罐	곱돌탕관	false	false
 곱돌火爐	곱돌화로	false	false
 곱사松魚	곱사송어	false	false
-곱사鰊魚	곱사연어	false	false
+곱사鰱魚	곱사연어	false	false
 곱살門	곱살문	false	false
 곱삿病	곱삿병	false	false
 곱셈標	곱셈표	false	false
@@ -252098,7 +252108,7 @@ hanja	hangul	require_hanja	require_hangul
 꿍꿍이酬酌	꿍꿍이수작	false	false
 꿍꿍이酬酌하다	꿍꿍이수작하다	false	false
 꿩科	꿩과	false	false
-꿩綱태	꿩망태	false	false
+꿩網태	꿩망태	false	false
 꿸中枋	꿸중방	false	false
 끄실狀	끄실상	false	false
 끈氣	끈기	false	false
@@ -252197,6 +252207,7 @@ hanja	hangul	require_hanja	require_hangul
 나무水菊	나무수국	false	false
 나무汁	나무즙	false	false
 나무牌	나무패	false	false
+나무筍	나무순	false	false
 나무蘆薈	나무노회	false	false
 나무象嵌	나무상감	false	false
 나무質	나무질	false	false
@@ -253902,7 +253913,7 @@ hanja	hangul	require_hanja	require_hangul
 뜬鬼神	뜬귀신	false	false
 뜬龍	뜬용	false	false
 뜰層階	뜰층계	false	false
-뜰綱	뜰망	false	false
+뜰網	뜰망	false	false
 뜰아랫房	뜰아랫방	false	false
 뜸幕	뜸막	false	false
 뜸桶	뜸통	false	false
@@ -255137,7 +255148,7 @@ hanja	hangul	require_hanja	require_hangul
 바큇살菌	바큇살균	false	false
 바큇살菌症	바큇살균증	false	false
 바탕漆	바탕칠	false	false
-바탕畵面	바탕화면	false	false
+바탕畫面	바탕화면	false	false
 바탕色	바탕색	false	false
 바탕音	바탕음	false	false
 박主	박주	false	false
@@ -258588,7 +258599,7 @@ hanja	hangul	require_hanja	require_hangul
 잣薄饊	잣박산	false	false
 잣軟絲	잣연사	false	false
 잣饊子	잣산자	false	false
-잣나무茯岺	잣나무복령	false	false
+잣나무茯苓	잣나무복령	false	false
 장三	장삼	false	false
 장八	장팔	false	false
 장門	장문	false	false
@@ -259766,6 +259777,7 @@ hanja	hangul	require_hanja	require_hangul
 큰방울새蘭	큰방울새난	false	false
 큰방울새蘭草	큰방울새난초	false	false
 큰볼기筋	큰볼기근	false	false
+큰부리蜜花부리	큰부리밀화부리	false	false
 큰붉은點	큰붉은점	false	false
 큰뿔野生羊	큰뿔야생양	false	false
 큰손症	큰손증	false	false
