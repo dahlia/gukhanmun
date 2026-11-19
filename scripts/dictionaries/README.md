@@ -47,11 +47,11 @@ cause repeat downloads until the next source update.
 Source validation and editorial decisions
 -----------------------------------------
 
-The collector keeps account sessions in memory and restricts requests to the
-sites' HTTPS origins, including the shared login host for the
-*Open Korean Dictionary* (우리말샘). Its download listing needs an
-`Accept-Language` header. A `200 OK` response is insufficient: unauthenticated
-downloads may return login HTML.
+The collector keeps separate in-memory sessions for the two dictionaries and
+restricts requests to their HTTPS origins. Both use the shared login at
+`kdict.korean.go.kr`. The *Open Korean Dictionary* (우리말샘) download listing
+needs an `Accept-Language` header. A `200 OK` response is insufficient:
+unauthenticated downloads may return login HTML.
 
 Archive validation checks CRCs, JSON shapes, dates, contiguous shard filenames
 and totals without extracting paths. The tested whole-dump format uses

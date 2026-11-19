@@ -214,7 +214,7 @@ def test_stage_generates_resources_licenses_and_provenance(tmp_path: Path) -> No
             assert "GPL-3.0-only" in attribution
             assert "CC BY-SA 2.0 KR" in attribution
             assert "Snapshot:" in attribution
-            assert "copyrightPolicy.do" in attribution
+            assert "https://kdict.korean.go.kr/info/copyright" in attribution
             assert "Open Korean Dictionary" not in attribution
         elif distribution.dictionary == "opendict":
             source = REPOSITORY / "packages" / f"opendict-{distribution.format}"

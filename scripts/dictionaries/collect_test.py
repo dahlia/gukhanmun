@@ -28,7 +28,17 @@ import collect as c
 
 def button(kind, key="123", month="2026-10"):
     if kind == "stdict":
-        return f'''<p>올린 날짜 : {month}</p><a href="javascript:fnDownloadFile('9');">XML 전체 내려받기</a><a href="javascript:fnDownloadFile('{key}');"><img alt="JSON">전체 내려받기</a>'''
+        return f'''<form name="downloadListForm" method="post">
+<input type="hidden" name="linkKey" value="0">
+<select name="pageUnit">
+  <option selected="selected" value="10">10개씩 보기</option>
+  <option value="20">20개씩 보기</option>
+</select>
+<input type="hidden" name="pageIndex" value="2">
+<p>올린 날짜 : {month}</p>
+<a href="javascript:fnDownloadFile('9');"><img alt="XML">전체 내려받기</a>
+<a href="javascript:fnDownloadFile('{key}');"><img alt="JSON">전체 내려받기</a>
+</form>'''
     return f'''<div>{month}</div><button onclick="javascript:fnCmdDowndload('{key}');">JSON 전체 내려받기</button>'''
 
 
@@ -52,34 +62,55 @@ def archive(path, kind, shards, total=None, date="20261012"):
 class CollectorTests(unittest.TestCase):
     def test_semantic_discovery_and_ambiguity(self):
         for kind in c.KINDS:
-            self.assertEqual(c.discover(kind, button(kind)), {"link_key": "123", "month": "2026-10"})
+            listing = c.discover(kind, button(kind))
+            self.assertEqual((listing.link_key, listing.month), ("123", "2026-10"))
+            self.assertEqual(listing.download_fields, {
+                "linkKey": "123", "pageUnit": "10", "pageIndex": "2",
+            } if kind == "stdict" else {"link_key": "123"})
             for invalid in ["<html>Login</html>", button(kind) + button(kind, "456"), button(kind).replace("JSON", "XML")]:
                 with self.assertRaises(c.InvalidDump):
                     c.discover(kind, invalid)
 
-    def test_rsa_padding_capacity_and_login_shapes(self):
-        modulus = "f" * 256
-        with patch.object(c.secrets, "token_bytes", return_value=b"\x01" * 128):
-            encrypted = c.rsa_password("비밀", modulus, "10001")
-            payload = "비밀".encode()
-            padded = b"\x00\x02" + b"\x01" * (128 - len(payload) - 3) + b"\x00" + payload
-            self.assertEqual(encrypted, format(pow(int.from_bytes(padded, "big"), 65537, int(modulus, 16)), "x").zfill(256))
-        with self.assertRaises(c.InvalidDump):
-            c.rsa_password("x" * 200, modulus, "10001")
+    def test_stdict_pagination_is_read_from_the_download_form(self):
+        html = button("stdict")
+        for invalid in [
+            html.replace('name="downloadListForm"', 'name="other"'),
+            html.replace('name="pageIndex" value="2"', 'name="pageIndex" value="-1"'),
+        ]:
+            with self.assertRaisesRegex(c.InvalidDump, "invalid download pagination"):
+                c.discover("stdict", invalid)
+        listing = c.discover("stdict", html)
+        different_page = c.discover("stdict", html.replace('value="2"', 'value="3"'))
+        self.assertEqual(listing, different_page)
+        self.assertEqual(different_page.download_fields["pageIndex"], "3")
+        changed_unit = html.replace('selected="selected" value="10"', 'value="10"').replace(
+            'value="20"', 'selected="selected" value="20"',
+        )
+        self.assertEqual(c.discover("stdict", changed_unit).download_fields["pageUnit"], "20")
+
+    def test_shared_login_shapes(self):
         for kind in c.KINDS:
-            calls = []
-            class Fake:
-                def page(self, url, data=None):
-                    calls.append((url, data))
-                    if "loginForm" in url:
-                        return f'<input name="RSAModulus" value="{modulus}"><input name="RSAExponent" value="10001">'
-                    return button(kind)
-            self.assertEqual(c.login(kind, "synthetic-user", "synthetic-password", Fake())["link_key"], "123")
-            posted = [data for _, data in calls if data is not None][0]
-            self.assertNotIn("synthetic-password", posted.values())
-            self.assertEqual(posted["j_username" if kind == "stdict" else "user_id"], "synthetic-user")
+            session = Mock()
+            session.page.side_effect = ["login form", "login result", button(kind)]
+            listing = c.login(kind, "synthetic-user", "password", session)
+            self.assertEqual(listing.link_key, "123")
+            self.assertEqual([call.args for call in session.page.call_args_list], [
+                ("https://kdict.korean.go.kr/login" if kind == "stdict" else c.LISTINGS[kind],),
+                ("https://kdict.korean.go.kr/sign/loginProc", {
+                    "user_id": "synthetic-user",
+                    "user_password": "",
+                    "returnUrl": "",
+                    "hashed_password": "5f4dcc3b5aa765d61d8327deb882cf99",
+                }),
+                (c.LISTINGS[kind],),
+            ])
 
     def test_redirect_origins_and_error_redaction(self):
+        stdict = c.Session("stdict")
+        with self.assertRaisesRegex(c.InvalidDump, "unexpected request/redirect origin"):
+            stdict.open("https://stdict.korean.go.kr/")
+        with self.assertRaisesRegex(c.InvalidDump, "unexpected request/redirect origin"):
+            stdict.open("http://kdict.korean.go.kr/standard/login/loginForm.do")
         session = c.Session("opendict")
         for url in ["http://opendict.korean.go.kr/main", "https://opendict.korean.go.kr.evil.test/", "https://user@opendict.korean.go.kr/", "https://opendict.korean.go.kr:444/"]:
             with self.assertRaises(c.InvalidDump):
@@ -153,12 +184,12 @@ class CollectorTests(unittest.TestCase):
         with patch.object(session.opener, "open", side_effect=error) as opened, patch.object(c.time, "sleep"):
             with self.assertRaises(c.InvalidDump) as raised:
                 session.open(c.LISTINGS["stdict"], retry=True)
-        self.assertEqual(str(raised.exception), "requesting stdict.korean.go.kr download listing: NIKL HTTP request failed (HTTP 503)")
+        self.assertEqual(str(raised.exception), "requesting kdict.korean.go.kr download listing: NIKL HTTP request failed (HTTP 503)")
         self.assertEqual(opened.call_count, 3)
         response.read.assert_not_called()
         with patch.object(session.opener, "open", side_effect=urllib.error.URLError("private-secret")):
             with self.assertRaises(c.InvalidDump) as raised:
-                session.open("https://stdict.korean.go.kr/private-secret?password=private-secret")
+                session.open("https://kdict.korean.go.kr/private-secret?password=private-secret")
         self.assertNotIn("private-secret", str(raised.exception))
 
     @unittest.skipIf(c.os.name == "nt", "symlink creation requires elevated Windows privileges")
@@ -239,7 +270,7 @@ class CollectorTests(unittest.TestCase):
                 def __init__(self, kind): self.kind = kind
                 def page(self, url, data=None): return button(self.kind)
                 def open(self, *args, **kwargs): raise AssertionError("unchanged source must not download")
-            prior = {"dictionaries": {k: {"link_key": "123", "archive_date": "2026-10-12"} for k in c.KINDS}}
+            prior = {"dictionaries": {k: {"source_url": c.ENDPOINTS[k], "link_key": "123", "archive_date": "2026-10-12"} for k in c.KINDS}}
             with patch.dict(c.os.environ, NIKL_USERNAME="synthetic", NIKL_PASSWORD="synthetic"), patch.object(c, "login", side_effect=lambda kind, u, p, s: c.discover(kind, button(kind))):
                 result = c.collect(path, prior, sessions=Fake)
                 self.assertEqual([v["status"] for v in result["dictionaries"].values()], ["unchanged", "unchanged"])
@@ -248,7 +279,7 @@ class CollectorTests(unittest.TestCase):
                 with self.assertRaises(c.InvalidDump): c.collect(path2, {}, sessions=Fake)
             self.assertFalse(path2.exists())
 
-    def test_month_mismatch_reports_validated_public_dates(self):
+    def test_migrated_endpoint_downloads_again_and_validates_archive_month(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "collection"
             response = Mock()
@@ -257,9 +288,19 @@ class CollectorTests(unittest.TestCase):
             session = Mock()
             session.open.return_value.__enter__ = Mock(return_value=response)
             session.open.return_value.__exit__ = Mock(return_value=False)
-            with patch.dict(c.os.environ, NIKL_USERNAME="private-secret", NIKL_PASSWORD="private-secret"), patch.object(c, "login", return_value={"link_key": "123", "month": "2026-11"}), patch.object(c, "validate_archive", return_value={"archive_date": "2026-10-12"}):
+            prior = {"dictionaries": {"stdict": {
+                "source_url": "https://stdict.korean.go.kr/common/download.do",
+                "link_key": "123", "archive_date": "2026-11-06",
+            }}}
+            listing = c.discover("stdict", button("stdict", month="2026-11"))
+            with patch.dict(c.os.environ, NIKL_USERNAME="private-secret", NIKL_PASSWORD="private-secret"), patch.object(c, "login", return_value=listing), patch.object(c, "validate_archive", return_value={"archive_date": "2026-10-12"}):
                 with self.assertRaises(c.InvalidDump) as raised:
-                    c.collect(path, {}, sessions=lambda kind: session)
+                    c.collect(path, prior, sessions=lambda kind: session)
+            session.open.assert_called_once_with(
+                "https://kdict.korean.go.kr/standard/common/download.do",
+                {"linkKey": "123", "pageUnit": "10", "pageIndex": "2"},
+                retry=True,
+            )
             self.assertEqual(str(raised.exception), "stdict: listing/archive month mismatch (listing 2026-11, archive 2026-10-12)")
             self.assertFalse(path.exists())
 
