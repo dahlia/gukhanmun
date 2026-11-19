@@ -76,7 +76,7 @@ examples if available. The repository is optional, not a dependency. Its
 contents, including older spellings, foreign-language titles, quotations, and
 possible drafts, do not outweigh an explicit decision recorded in this skill.
 
-[Standard Korean Language Dictionary]: https://stdict.korean.go.kr/
+[Standard Korean Language Dictionary]: https://kdict.korean.go.kr/standard
 [Open Korean Dictionary]: https://opendict.korean.go.kr/
 [Taiwan MOE Dictionary of Chinese Character Variants]: https://dict.variants.moe.edu.tw/
 [MOE 產 entry, including 産]: https://dict.variants.moe.edu.tw/dictView.jsp?ID=28200&la=0&powerMode=2

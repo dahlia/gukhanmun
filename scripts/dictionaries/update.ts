@@ -293,7 +293,8 @@ export async function update(root: string, directory: string, execute: Run = run
       }
       const oldBytes = await read(root, `${data(kind)}/source.json`);
       const old = oldBytes ? JSON.parse(decoder.decode(oldBytes)) : null;
-      const sameSource = old && old.link_key === source.link_key &&
+      const sameSource = old && old.source_url === source.source_url &&
+        old.link_key === source.link_key &&
         old.archive_sha256 === source.archive_sha256 && old.archive_date === source.archive_date;
       // A recipe-only change with identical outputs should not create provenance PRs.
       if (sameSource && !behaviorChanged) continue;

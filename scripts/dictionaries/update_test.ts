@@ -104,6 +104,7 @@ async function fixture(layout: ChangelogLayout = "legacy") {
     source: {
       version: 1,
       dictionary: kind,
+      source_url: `https://example.test/${kind}/download`,
       link_key: "123",
       archive_sha256: "a".repeat(64),
       archive_date: "2026-10-12",
@@ -223,6 +224,9 @@ async function transactionCase(layout: ChangelogLayout): Promise<void> {
     // notice list must never invoke Hongdown on the entire repository.
     const unrelated = "#   Keep this unrelated Markdown byte for byte\n";
     await Deno.writeTextFile(`${root}/unrelated.md`, unrelated);
+    sources.stdict.source.source_url = "https://example.test/standard/download";
+    assert.equal((await update(root, "/unused", execute)).status, "updated");
+    assert.equal((await update(root, "/unused", execute)).status, "unchanged");
     sources.stdict.source.link_key = "456";
     assert.equal((await update(root, "/unused", execute)).status, "updated");
     assert.equal(await Deno.readTextFile(`${root}/unrelated.md`), unrelated);

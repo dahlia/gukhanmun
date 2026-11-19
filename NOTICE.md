@@ -19,9 +19,9 @@ Gukhanmun extracts and normalizes dictionary records from the JSON dump into
 the canonical TSV snapshot under *crates/gukhanmun-stdict/data/*. The bundled
 FST and CDB files are generated from that modified snapshot.
 
-[*Standard Korean Language Dictionary*]: https://stdict.korean.go.kr/
+[*Standard Korean Language Dictionary*]: https://kdict.korean.go.kr/standard
 [Creative Commons Attribution-ShareAlike 2.0 Korea]: https://creativecommons.org/licenses/by-sa/2.0/kr/
-[*Standard Korean Language Dictionary* copyright policy]: https://stdict.korean.go.kr/join/copyrightPolicy.do
+[*Standard Korean Language Dictionary* copyright policy]: https://kdict.korean.go.kr/info/copyright
 
 
 Open Korean Dictionary data

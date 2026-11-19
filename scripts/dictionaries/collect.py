@@ -17,6 +17,7 @@
 """Credential-bearing collection is separate from offline extraction/publication."""
 
 import argparse
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import hashlib
 from html.parser import HTMLParser
@@ -25,7 +26,6 @@ import json
 import os
 from pathlib import Path
 import re
-import secrets
 import socket
 import ssl
 import stat
@@ -37,12 +37,15 @@ import urllib.request
 import zipfile
 
 KINDS = ("stdict", "opendict")
+KDICT = "https://kdict.korean.go.kr"
+LOGIN = f"{KDICT}/login"
+LOGIN_POST = f"{KDICT}/sign/loginProc"
 LISTINGS = {
-    "stdict": "https://stdict.korean.go.kr/mypage/download/downloadList.do",
+    "stdict": f"{KDICT}/standard/mypage/download/downloadList.do",
     "opendict": "https://opendict.korean.go.kr/member/memberDownloadList",
 }
 ENDPOINTS = {
-    "stdict": "https://stdict.korean.go.kr/common/download.do",
+    "stdict": f"{KDICT}/standard/common/download.do",
     "opendict": "https://opendict.korean.go.kr/member/fileDownload",
 }
 FILES = {
@@ -162,15 +165,27 @@ class Page(HTMLParser):
 
     def __init__(self):
         super().__init__()
-        self.inputs = {}
+        self.download_inputs = {}
+        self.in_download_form = False
+        self.in_page_unit = False
         self.text = []
         self.buttons = []
         self.current = None
 
     def handle_starttag(self, tag, attributes):
         attributes = dict(attributes)
-        if tag == "input":
-            self.inputs[attributes.get("name", attributes.get("id", ""))] = attributes.get("value", "")
+        if tag == "form":
+            self.in_download_form = attributes.get("name") == "downloadListForm"
+        if tag == "input" and self.in_download_form:
+            self.download_inputs[attributes.get("name", "")] = attributes.get("value", "")
+        if tag == "select" and self.in_download_form:
+            self.in_page_unit = attributes.get("name") == "pageUnit"
+        if tag == "option" and self.in_page_unit and "disabled" not in attributes:
+            value = attributes.get("value", "")
+            if "selected" in attributes:
+                self.download_inputs["pageUnit"] = value
+            else:
+                self.download_inputs.setdefault("pageUnit", value)
         if tag in ("a", "button"):
             self.current = {"action": attributes.get("onclick", "") + attributes.get("href", ""), "label": "", "before": " ".join(self.text)}
         if tag == "img" and self.current:
@@ -182,9 +197,21 @@ class Page(HTMLParser):
             self.current["label"] += text
 
     def handle_endtag(self, tag):
+        if tag == "form":
+            self.in_download_form = False
+        if tag in ("select", "form"):
+            self.in_page_unit = False
         if tag in ("a", "button") and self.current:
             self.buttons.append(self.current)
             self.current = None
+
+
+@dataclass(frozen=True)
+class Listing:
+    link_key: str
+    month: str
+    # Pagination affects the POST, not the identity of the archive.
+    download_fields: dict[str, str] = field(compare=False)
 
 
 def discover(kind, html):
@@ -199,10 +226,20 @@ def discover(kind, html):
             months = re.findall(r"\b(20[0-9]{2}-(?:0[1-9]|1[0-2]))\b", button["before"])
             if not months:
                 raise InvalidDump(f"{kind}: listing month missing")
-            choices.append({"link_key": match[1], "month": months[-1]})
+            choices.append((match[1], months[-1]))
     if len(choices) != 1:
         raise InvalidDump(f"{kind}: authenticated whole JSON button missing or ambiguous")
-    return choices[0]
+    link_key, month = choices[0]
+    if kind == "stdict":
+        fields = {"linkKey": link_key}
+        for name in ("pageUnit", "pageIndex"):
+            value = page.download_inputs.get(name, "")
+            if not re.fullmatch(r"[1-9][0-9]*", value):
+                raise InvalidDump("stdict: invalid download pagination")
+            fields[name] = value
+    else:
+        fields = {"link_key": link_key}
+    return Listing(link_key, month, fields)
 
 
 def allowed_url(url, hosts):
@@ -235,9 +272,7 @@ class Redirects(urllib.request.HTTPRedirectHandler):
 
 class Session:
     def __init__(self, kind):
-        self.hosts = {f"{kind}.korean.go.kr"}
-        if kind == "opendict":
-            self.hosts.add("kdict.korean.go.kr")
+        self.hosts = {urllib.parse.urlsplit(url).netloc for url in (LISTINGS[kind], LOGIN)}
         self.opener = urllib.request.build_opener(Redirects(self.hosts), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         self.opener.addheaders = [("User-Agent", "Gukhanmun dictionary updater"), ("Accept-Language", LANGUAGE)]
 
@@ -247,13 +282,11 @@ class Session:
         # Use only known public route labels: neither queries nor arbitrary
         # response/error text are safe to print during account operations.
         operation = {
-            "/login/loginForm.do": "login page",
-            "/login/loginLogin.do": "login submission",
             "/login": "login page",
             "/sign/loginProc": "login submission",
-            "/mypage/download/downloadList.do": "download listing",
+            "/standard/mypage/download/downloadList.do": "download listing",
             "/member/memberDownloadList": "download listing",
-            "/common/download.do": "archive download",
+            "/standard/common/download.do": "archive download",
             "/member/fileDownload": "archive download",
         }.get(parsed.path, "request")
         # This is the initial request; an allowed redirect may fail elsewhere.
@@ -291,37 +324,17 @@ class Session:
         return content.decode("utf-8")
 
 
-def rsa_password(password, modulus, exponent):
-    if not re.fullmatch(r"[a-fA-F0-9]{256,1024}", modulus) or exponent.lower() != "10001":
-        raise InvalidDump("unexpected login public key")
-    number = int(modulus, 16)
-    size = (number.bit_length() + 7) // 8
-    payload = password.encode()
-    if len(payload) > size - 11:
-        raise InvalidDump("password exceeds login key capacity")
-    padding = b""
-    while len(padding) < size - len(payload) - 3:
-        padding += secrets.token_bytes(size).replace(b"\x00", b"")
-    message = b"\x00\x02" + padding[:size - len(payload) - 3] + b"\x00" + payload
-    return format(pow(int.from_bytes(message, "big"), 65537, number), "x").zfill(size * 2)
-
-
 def login(kind, username, password, session):
     if kind == "stdict":
-        page = Page()
-        page.feed(session.page("https://stdict.korean.go.kr/login/loginForm.do"))
-        encrypted = rsa_password(password, page.inputs.get("RSAModulus", ""), page.inputs.get("RSAExponent", ""))
-        session.page("https://stdict.korean.go.kr/login/loginLogin.do", {
-            "user_agent": "Gukhanmun dictionary updater", "user_targetUrl": "",
-            "j_username": username, "j_password": encrypted,
-            "j_username_txt": username, "j_password_txt": "",
-        })
+        # The unauthenticated listing redirects to an HTTP login bridge.
+        # Start at the shared HTTPS login page instead.
+        session.page(LOGIN)
     else:
         session.page(LISTINGS[kind])
-        session.page("https://kdict.korean.go.kr/sign/loginProc", {
-            "user_id": username, "user_password": "", "returnUrl": "",
-            "hashed_password": hashlib.md5(password.encode(), usedforsecurity=False).hexdigest(),
-        })
+    session.page(LOGIN_POST, {
+        "user_id": username, "user_password": "", "returnUrl": "",
+        "hashed_password": hashlib.md5(password.encode(), usedforsecurity=False).hexdigest(),
+    })
     return discover(kind, session.page(LISTINGS[kind]))
 
 
@@ -436,14 +449,12 @@ def collect(destination, prior, sessions=Session):
             session = sessions(kind)
             identity = login(kind, username, password, session)
             old = prior.get("dictionaries", {}).get(kind, {})
-            if old.get("link_key") == identity["link_key"] and old.get("archive_date", "").startswith(identity["month"]):
+            if (old.get("source_url") == ENDPOINTS[kind] and old.get("link_key") == identity.link_key
+                    and old.get("archive_date", "").startswith(identity.month)):
                 outcome["dictionaries"][kind] = {"status": "unchanged", "source": old}
                 continue
-            fields = {"link_key": identity["link_key"]}
-            if kind == "stdict":
-                fields.update(pageUnit=10, pageIndex=1)
             path = destination / f"{kind}.zip"
-            with session.open(ENDPOINTS[kind], fields, retry=True) as response, path.open("xb") as stream:
+            with session.open(ENDPOINTS[kind], identity.download_fields, retry=True) as response, path.open("xb") as stream:
                 filename = urllib.parse.unquote(response.headers.get_filename() or "")
                 size = 0
                 while block := response.read(1024 * 1024):
@@ -451,9 +462,9 @@ def collect(destination, prior, sessions=Session):
                     if size > MAX_ZIP:
                         raise InvalidDump("download exceeds size limit")
                     stream.write(block)
-            source = validate_archive(path, kind, identity["link_key"], filename)
-            if not source["archive_date"].startswith(identity["month"]):
-                raise InvalidDump(f"{kind}: listing/archive month mismatch (listing {identity['month']}, archive {source['archive_date']})")
+            source = validate_archive(path, kind, identity.link_key, filename)
+            if not source["archive_date"].startswith(identity.month):
+                raise InvalidDump(f"{kind}: listing/archive month mismatch (listing {identity.month}, archive {source['archive_date']})")
             if discover(kind, session.page(LISTINGS[kind])) != identity:
                 raise InvalidDump("source changed during collection; retry next run")
             outcome["dictionaries"][kind] = {"status": "downloaded", "source": source}
