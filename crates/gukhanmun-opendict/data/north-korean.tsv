@@ -158,6 +158,7 @@ hanja	hangul	require_hanja	require_hangul
 三段매듭	삼단매듭	false	false
 三池淵	삼지연	false	false
 三池淵郡	삼지연군	false	false
+三泉	삼천	false	false
 三泉郡	삼천군	false	false
 三焦兪	삼초유	false	false
 三用受信機	삼용수신기	false	false
@@ -11110,6 +11111,7 @@ hanja	hangul	require_hanja	require_hangul
 新語造成	신어조성	false	false
 新貨幣	신화페	false	false
 新資窠	신자과	false	false
+新院	신원	false	false
 新院郡	신원군	false	false
 新陽郡	신양군	false	false
 新面目	신면목	false	false
@@ -20607,6 +20609,7 @@ hanja	hangul	require_hanja	require_hangul
 芻蕘者	추요자	false	false
 芽胞果	아포과	false	false
 芽菜類	아채류	false	false
+苔灘	태탄	false	false
 苔灘郡	태탄군	false	false
 苔癬動物	태선동물	false	false
 苛烈悽絕하다	가렬처절하다	false	false
@@ -33567,13 +33570,12 @@ hanja	hangul	require_hanja	require_hangul
 콩팥硬化症	콩팥경화증	false	false
 콩팥웃線	콩팥웃선	false	false
 콩팥잔管	콩팥잔관	false	false
-콩팥피줄造映法	콩팥피줄조영법	false	false
+콩팥피줄造影法	콩팥피줄조영법	false	false
 콩풀漆	콩풀칠	false	false
 콩풀漆하다	콩풀칠하다	false	false
 콩흰줄螟밤나비	콩흰줄명밤나비	false	false
 큰姓	큰성	false	false
 큰姓받이	큰성받이	false	false
-큰密花부리	큰밀화부리	false	false
 큰山萬年이끼	큰산만년이끼	false	false
 큰山金발이끼	큰산금발이끼	false	false
 큰山뱀눈나비	큰산뱀눈나비	false	false
@@ -33591,6 +33593,7 @@ hanja	hangul	require_hanja	require_hangul
 큰穀稻蟲	큰곡도충	false	false
 큰藤말굴레	큰등말굴레	false	false
 큰藤말굴레풀	큰등말굴레풀	false	false
+큰蜜花부리	큰밀화부리	false	false
 큰豹文나비	큰표문나비	false	false
 큰銀줄豹紋나비	큰은줄표문나비	false	false
 큰雲母조개	큰운모조개	false	false

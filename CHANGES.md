@@ -38,6 +38,52 @@ Version 0.2.2
 
 To be released.
 
+### gukhanmun
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
+[#29]: https://github.com/dahlia/gukhanmun/issues/29
+
+### gukhanmun-cli
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
+### gukhanmun-opendict
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+
+### gukhanmun-stdict
+
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
+### @gukhanmun/opendict-cdb
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+
+### @gukhanmun/opendict-fst
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+
+### @gukhanmun/stdict-cdb
+
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
+### @gukhanmun/stdict-fst
+
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
 <!-- sacho:unreleased:end -->
 
 

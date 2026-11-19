@@ -1,0 +1,51 @@
+{
+  "archive_bytes": 197601983,
+  "archive_date": "2026-11-04",
+  "archive_filename": "전체 내려받기_우리말샘_json_20261104.zip",
+  "archive_member_key": "1621592",
+  "archive_sha256": "fabe06cdc30ffdde99f3b58f3525c23d3468f100d5ef5642cc84083cd73795a7",
+  "dictionary": "opendict",
+  "duplicate_record_count": 260,
+  "link_key": "1621592",
+  "record_count": 1246000,
+  "shard_count": 25,
+  "source_url": "https://opendict.korean.go.kr/member/fileDownload",
+  "terminal_endpoint": 1245609,
+  "unique_record_count": 1245740,
+  "version": 1,
+  "inputs_sha256": "21a518b9c5293cdf5e1e551c53ec358250fd8a421d3f496280a3f768b4138e1a",
+  "outputs": {
+    "general.tsv": {
+      "sha256": "fea3c082514002b41fd886e02f98f6831c27bc2a15a3046d228e45e4c1947327",
+      "rows": 356333,
+      "keys": 356333,
+      "added": 6107,
+      "removed": 104,
+      "changed": 110
+    },
+    "north-korean.tsv": {
+      "sha256": "1ea206551be0c52512ea2589c201a4b5fe5df3c79dc91dd597c07e9899199e32",
+      "rows": 34096,
+      "keys": 34096,
+      "added": 5,
+      "removed": 2,
+      "changed": 0
+    },
+    "dialect.tsv": {
+      "sha256": "5c93bdf0aa905272b2cca9d1c0a566fd33f93b1281572b58b9a7ef5f8d04b986",
+      "rows": 5714,
+      "keys": 5714,
+      "added": 1,
+      "removed": 1,
+      "changed": 0
+    },
+    "archaic.tsv": {
+      "sha256": "0f77342de48317faf10a997b156955bf73cad442e36d150a91ed19265fea0bdc",
+      "rows": 16,
+      "keys": 16,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    }
+  }
+}
