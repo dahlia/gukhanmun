@@ -1,4 +1,5 @@
 [tools]
+"github:dahlia/sacho" = "0.4.0"
 "github:crate-ci/cargo-release" = "1.1.2"
 "github:mitsuhiko/insta" = "1.47.2"
 "github:rhysd/actionlint" = "1.7.12"
@@ -38,6 +39,7 @@ linux-arm64 = "hongdown-*-aarch64-unknown-linux-musl.tar.bz2"
 [tasks.check]
 description = "Run fast checks suitable for pre-commit"
 depends = [
+  "changelog-check",
   "actionlint",
   "fmt-check",
   "typecheck",
@@ -47,6 +49,30 @@ depends = [
   "js-doc",
   "js-fmt-check",
 ]
+
+[tasks.changelog-check]
+description = "Check the fragment-based changelog"
+run = "sacho check"
+
+[tasks.stdict-extract]
+description = "Regenerate the standard dictionary TSVs"
+usage = 'arg "<input>"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = """
+let output = ($env.GUKHANMUN_DICTS_OUTPUT_DIR? | default "crates/gukhanmun-stdict/data")
+cargo run --locked -p gukhanmun-stdict --bin gukhanmun-stdict-extract -- $env.usage_input --output $"($output)/stdict.tsv" --suffix-output $"($output)/suffix.tsv"
+"""
+
+[tasks.opendict-extract]
+description = "Regenerate the open dictionary TSVs"
+usage = 'arg "<input>"'
+shell = "nu -c"
+depends = ["rust-init"]
+run = """
+let output = ($env.GUKHANMUN_DICTS_OUTPUT_DIR? | default "crates/gukhanmun-opendict/data")
+cargo run --locked -p gukhanmun-opendict --bin gukhanmun-opendict-extract -- $env.usage_input --general-output $"($output)/general.tsv" --north-korean-output $"($output)/north-korean.tsv" --dialect-output $"($output)/dialect.tsv" --archaic-output $"($output)/archaic.tsv"
+"""
 
 [tasks.actionlint]
 description = "Lint GitHub Actions workflows"
@@ -106,7 +132,9 @@ run = """
 cargo release --workspace --no-publish --no-tag --no-push --execute $env.usage_version
 $env.VERSION = (open Cargo.toml | get workspace.package.version)
 mise run js-sync-version
-git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json
+sacho next $env.VERSION
+sacho sync --force
+git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json changes.d/next CHANGES.md
 """
 
 [tasks.typecheck]
@@ -228,7 +256,8 @@ shell = "nu -c"
 depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-stdict"
-cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb --rules $"($manifest_dir)/data/rules.tsv" $"($manifest_dir)/data/stdict.tsv"
+let metadata = (open $"($manifest_dir)/data/metadata.json" | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
+cargo run --release -p gukhanmun-mkdict -- --format cdb --output packages/stdict-cdb/stdict.cdb ...$metadata --rules $"($manifest_dir)/data/rules.tsv" $"($manifest_dir)/data/stdict.tsv"
 """
 
 [tasks.opendict-fst-data]
@@ -258,8 +287,9 @@ shell = "nu -c"
 depends = ["rust-init"]
 run = """
 let manifest_dir = $"(pwd)/crates/gukhanmun-opendict"
+let metadata = (open $"($manifest_dir)/data/metadata.json" | transpose key value | each { |item| ["--metadata" $"($item.key)=($item.value)"] } | flatten)
 for category in [general north-korean dialect archaic] {
-  cargo run --release -p gukhanmun-mkdict -- --format cdb --output $"packages/opendict-cdb/($category).cdb" $"($manifest_dir)/data/($category).tsv"
+  cargo run --release -p gukhanmun-mkdict -- --format cdb --output $"packages/opendict-cdb/($category).cdb" ...$metadata --metadata $"category=($category)" $"($manifest_dir)/data/($category).tsv"
   # Store gzip-compressed so every binary stays under the JSR 20 MiB per-file
   # limit; the byte loaders inflate transparently.  -n keeps the output
   # reproducible by omitting the name and timestamp.

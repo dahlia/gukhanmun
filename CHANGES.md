@@ -30,6 +30,17 @@ Format guide for contributors:
 -->
 
 
+<!-- sacho:unreleased:begin -->
+
+
+Version 0.2.2
+-------------
+
+To be released.
+
+<!-- sacho:unreleased:end -->
+
+
 Version 0.2.1
 -------------
 

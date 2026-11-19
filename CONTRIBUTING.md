@@ -241,8 +241,8 @@ Version bumps go through `mise run bump-execute`, which wraps `cargo-release`.
 dependency requirements, and *Cargo.lock*, then writes a signed commit.  It does
 not understand the npm and JSR manifests, so the task additionally syncs every
 *package.json* and *deno.json* under *packages/* to the version `cargo-release`
-applied and folds exactly those manifests into that one signed commit.  The task
-never tags, pushes, or publishes.
+applied. It also advances the Sacho version, then amends the signed commit
+with the manifests and changelog. The task never tags, pushes, or publishes.
 
 Run the bump on a clean working tree: `cargo-release` refuses to proceed when
 there are uncommitted changes, and the bump amends its own commit.
@@ -279,8 +279,10 @@ git push
 
 ### Tagging a release
 
-Prepare *CHANGES.md* so it contains a `Version x.y.z` section for the release.
-The GitHub Release body is cut from that section.
+Keep unreleased notes as Sacho fragments in *changes.d/*. Preview them with
+`mise exec -- sacho preview`, then run `mise exec -- sacho release` before
+tagging. Commit the updated *CHANGES.md* and the removed fragments and
+*changes.d/next*. The GitHub Release body is cut from that release section.
 
 A release does not bump anything; it tags the version that
 `workspace.package.version` already holds.  Create and push a signed tag with
