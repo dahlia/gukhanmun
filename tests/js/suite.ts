@@ -176,6 +176,36 @@ export function registerSuite(name: string, binding: Binding): void {
       });
     }
 
+    test("keeps ordered variant overrides local to each converter", async () => {
+      const source = await stdictFst();
+      const reference = await loadDictionary(source);
+      const options = {
+        sourcePolicy: "ordered",
+        firstOccurrenceWindow: "per-document",
+        homophoneWindow: "off",
+        hanjaVariantSet: "as-dictionary",
+      } as const;
+      const cases = await Promise.all(["예술", "기예"].map(async (reading) => {
+        const override = {
+          entries: [{ hanja: "藝術", reading, requireHanja: true }],
+        };
+        const converter = await load({
+          ...options,
+          dictionaries: [override, reference],
+        });
+        const raw = await load({ ...options, dictionaries: [override, source] });
+        return { reading, converter, raw };
+      }));
+
+      for (const { reading, converter, raw } of cases) {
+        for (const input of ["藝術 芸術", "芸術 藝術"]) {
+          const expected = `${reading}(藝術) ${reading}`;
+          assert.equal(converter.convert(input), expected, input);
+          assert.equal(converter.convert(input), raw.convert(input), input);
+        }
+      }
+    });
+
     test("snapshots mutable entries and rejects foreign handles", async () => {
       const source = { entries: [{ hanja: "東京", reading: "도쿄" }] };
       const loaded = await loadDictionary(source);
