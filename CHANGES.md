@@ -23,18 +23,37 @@ To be released.
 
  -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
     records) and regenerated its dictionary data. [[#18]]
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
 
 [#18]: https://github.com/dahlia/gukhanmun/issues/18
+[#29]: https://github.com/dahlia/gukhanmun/issues/29
 
 ### gukhanmun-cli
 
  -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
     records) and regenerated its dictionary data. [[#18]]
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
 
 ### gukhanmun-loanwords
 
  -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
     records) and regenerated its dictionary data. [[#18]]
+
+### gukhanmun-opendict
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+
+### gukhanmun-stdict
+
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
 
 ### @gukhanmun/loanwords-cdb
 
@@ -45,6 +64,26 @@ To be released.
 
  -  Updated the NIKL loanword examples snapshot (`35df9580ebef`; 67303 source
     records) and regenerated its dictionary data. [[#18]]
+
+### @gukhanmun/opendict-cdb
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+
+### @gukhanmun/opendict-fst
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+
+### @gukhanmun/stdict-cdb
+
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
+### @gukhanmun/stdict-fst
+
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
 
 <!-- sacho:unreleased:end -->
 
@@ -516,6 +555,58 @@ Released on October 24, 2026.
     [[#19], [#22]]
  -  Dictionary-wide homophone marking includes selected suffix readings.
     [[#19], [#22]]
+
+
+Version 0.2.2
+-------------
+
+Released on November 20, 2026.
+
+### gukhanmun
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
+[#29]: https://github.com/dahlia/gukhanmun/issues/29
+
+### gukhanmun-cli
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
+### gukhanmun-opendict
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+
+### gukhanmun-stdict
+
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
+### @gukhanmun/opendict-cdb
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+
+### @gukhanmun/opendict-fst
+
+ -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
+    2026-11-04. [[#29]]
+
+### @gukhanmun/stdict-cdb
+
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
+
+### @gukhanmun/stdict-fst
+
+ -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
+    to 2026-11-06. [[#29]]
 
 
 Version 0.2.1
