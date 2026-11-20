@@ -357,6 +357,8 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Added `load_dictionary()` to share a parsed dictionary across converters
+    without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added source-attested phrase resolution in conversion and streaming,
     including licensed complete verb forms and strict phrase spacing, while
     preserving complete candidate metadata and source-policy eligibility. Load
@@ -393,6 +395,9 @@ To be released.
  -  Native converters now default to reference-authorized source cooperation
     and expose policy, reference-only eligibility and explicit dictionary roles
     through their JavaScript options. [[#42], [#44]]
+
+[#80]: https://github.com/dahlia/gukhanmun/issues/80
+[#83]: https://github.com/dahlia/gukhanmun/pull/83
 
 ### gukhanmun-opendict (Rust)
 
@@ -436,6 +441,8 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Added `load_dictionary()` to share a parsed dictionary across converters
+    without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added source-attested phrase resolution in conversion and streaming,
     including licensed complete verb forms and strict phrase spacing, while
     preserving complete candidate metadata and source-policy eligibility. Load
@@ -616,9 +623,6 @@ To be released.
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
-
-[#80]: https://github.com/dahlia/gukhanmun/issues/80
-[#83]: https://github.com/dahlia/gukhanmun/pull/83
 
 ### @gukhanmun/napi-aarch64-apple-darwin (JavaScript/TypeScript)
 
