@@ -458,6 +458,32 @@ intended change.  Snapshot review is intentionally not part of `mise run test`
 because it requires a TTY.
 
 
+Benchmarking dictionary reuse
+-----------------------------
+
+Build the local Node-API addon and the *Standard Korean Dictionary* FST, then
+run the raw-source and shared-handle cases in separate processes:
+
+~~~~ sh
+mise run napi-build
+mise run stdict-fst-data
+mise run bench-loaded-dictionaries -- raw 4
+mise run bench-loaded-dictionaries -- loaded 4
+~~~~
+
+Each run reads the FST before the baseline and samples process RSS after
+garbage collection with all converters still live, before converting any
+text. Compare `totalMs` for end-to-end construction (including the one-time
+parse in the shared-handle case) and `rssDeltaMiB` for the increase in process
+RSS; the latter includes more than the dictionary allocations.
+
+Take the median of at least three fresh processes per case. To measure
+`ordered` separately, pass it after the converter count and repeat at counts
+of 2, 4 and 8. The increase across counts includes the alias index that each
+`ordered` converter builds for its own overrides. This is a manual benchmark,
+not a CI gate.
+
+
 AI usage
 --------
 
