@@ -147,7 +147,11 @@ impl Drop for DictionaryLease {
 /// Native carrier kept private by the JavaScript facade.
 #[napi(object, object_from_js = false)]
 pub struct LoadedDictionaryLease {
+    /// Private registry lookup ID. Keeping the number alone does not keep the
+    /// registry entry alive.
     pub id: u32,
+    /// Strong owner of the registry entry's dictionary. Keep this reachable
+    /// until the converter has acquired its own reference.
     pub lease: External<DictionaryLease>,
 }
 
