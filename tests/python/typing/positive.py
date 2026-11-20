@@ -19,8 +19,8 @@ from typing import assert_type
 
 from gukhanmun import (
     ConversionStream, Converter, CustomPunctuationProfile, DictionaryEntry, Directives, ErrorCause, ErrorCode,
-    DictionaryFormat, GukhanmunError, HtmlOptions, InputFormat, MapDictionarySource, UrlDictionarySource,
-    MarkdownOptions, Preset, ResolvedOptions, SourceRole, StopStyle, UNSET, UnsetType, __version__,
+    DictionaryFormat, GukhanmunError, HtmlOptions, InputFormat, LoadedDictionary, MapDictionarySource, UrlDictionarySource,
+    MarkdownOptions, Preset, ResolvedOptions, SourceRole, StopStyle, UNSET, UnsetType, __version__, load_dictionary,
 )
 
 assert_type(__version__, str)
@@ -30,7 +30,8 @@ dictionary = MapDictionarySource(entries=[entry], role=SourceRole.OVERRIDE)
 assert_type(dictionary.entries, tuple[DictionaryEntry, ...])
 assert_type(Directives(require_hanja=["漢字"]).require_hanja, tuple[str, ...])
 assert_type(HtmlOptions(preserve_classes=["keep"]).preserve_classes, tuple[str, ...])
-converter = Converter(preset=Preset.KO_KR, dictionaries=[dictionary])
+loaded = assert_type(load_dictionary(dictionary), LoadedDictionary)
+converter = Converter(preset=Preset.KO_KR, dictionaries=[loaded, dictionary])
 assert_type(converter.convert("漢字"), str)
 assert_type(converter.convert("漢字", format=InputFormat.HTML), str)
 assert_type(converter.convert("漢字", format=MarkdownOptions(gfm=True)), str)

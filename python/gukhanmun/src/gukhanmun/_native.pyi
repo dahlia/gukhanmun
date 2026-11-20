@@ -14,18 +14,26 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import final
+from typing import Never, final
 
-__all__ = ["Converter", "NativeError"]
+__all__ = ["Converter", "LoadedDictionary", "NativeError", "load_dictionary"]
 
 class NativeError(Exception): ...
+
+_RawDictionary = tuple[str | None, str | None, bytes | None, str | None]
+
+@final
+class LoadedDictionary:
+    def __new__(cls, _unconstructible: Never, /) -> LoadedDictionary: ...
+
+def load_dictionary(source: _RawDictionary) -> LoadedDictionary: ...
 
 @final
 class Converter:
     def __new__(
         cls,
         options_json: str,
-        dictionaries: list[tuple[str | None, str | None, bytes | None, str | None]],
+        dictionaries: list[_RawDictionary | LoadedDictionary],
     ) -> Converter: ...
     def convert(self, source: str, format: str, gfm: bool) -> str: ...
     def options_json(self) -> str: ...

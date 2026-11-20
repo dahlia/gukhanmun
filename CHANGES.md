@@ -576,6 +576,8 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Added `loadDictionary()` to share a parsed dictionary across converters
+    without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
     homophone identity and count as one lexeme for first-occurrence filtering.
     [[#38], [#39]]
@@ -614,6 +616,9 @@ To be released.
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
+
+[#80]: https://github.com/dahlia/gukhanmun/issues/80
+[#83]: https://github.com/dahlia/gukhanmun/pull/83
 
 ### @gukhanmun/napi-aarch64-apple-darwin (JavaScript/TypeScript)
 
@@ -808,6 +813,9 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Ftypes%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Added `LoadedDictionary` and `GukhanmunLoadOptions` for mixing loaded
+    dictionaries with existing sources without changing `GukhanmunOptions`.
+    [[#80], [#83]]
  -  Added `sourcePolicy`, `referenceOnly` and explicit dictionary `role`
     options. File descriptors can inherit roles from embedded evidence; entry
     descriptors and untagged legacy files default to authored overrides.
@@ -825,6 +833,8 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Added `loadDictionary()` to share a parsed dictionary across converters
+    without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
     homophone identity and count as one lexeme for first-occurrence filtering.
     [[#38], [#39]]
@@ -882,7 +892,7 @@ To be released.
     control reference-authorized cooperation; authored overrides remain
     authoritative. Compiled dictionaries support compound aliases, source
     evidence and phrase constraints, including version 4 data.
-    [[#48], [#15], [#55]]
+    [[#48], [#15], [#55], [#80], [#83]]
  -  Added `UrlDictionarySource` for HTTP(S) dictionaries with configurable
     `max_bytes` (64 MiB by default), a response-reading `total_timeout`
     (30 seconds by default) shared across redirects, and a per-operation

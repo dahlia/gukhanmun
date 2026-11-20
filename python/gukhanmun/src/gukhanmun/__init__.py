@@ -17,6 +17,8 @@
 from importlib.metadata import version as _distribution_version
 
 from ._api import ConversionStream, Converter as Converter
+from ._api import load_dictionary as load_dictionary
+from ._native import LoadedDictionary as LoadedDictionary
 from ._types import (
     Preset as Preset,
     RenderMode as RenderMode,
@@ -81,6 +83,8 @@ __all__ = [
     "FileDictionarySource",
     "UrlDictionarySource",
     "MapDictionarySource",
+    "LoadedDictionary",
+    "load_dictionary",
     "Directives",
     "HtmlOptions",
     "AttributeMatcher",

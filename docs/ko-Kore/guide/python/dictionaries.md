@@ -21,6 +21,23 @@ converter = Converter(dictionaries=[stdict()])
 assert converter.convert("無條件降服") == "무조건항복"
 ~~~~
 
+같은 辭典을 여러 變換器에서 使用할 때는 `load_dictionary()`로 한 번만
+불러옵니다. 返還된 `LoadedDictionary`는 旣存 辭典 出處와 섞어 넘길 수
+있습니다.
+
+~~~~ python
+from gukhanmun import Converter, DictionaryEntry, MapDictionarySource, RenderMode, load_dictionary
+from gukhanmun.dictionaries import stdict
+
+reference = load_dictionary(stdict())
+overrides = MapDictionarySource([DictionaryEntry("東京", "도쿄")])
+plain = Converter(dictionaries=[overrides, reference])
+ruby = Converter(dictionaries=[overrides, reference], rendering=RenderMode.RUBY_ON_HANGUL)
+~~~~
+
+`reference`를 버려도 變換器는 辭典을 繼續 使用할 수 있습니다. 파일이나
+URL의 內容이 바뀌면 再次 불러옵니다.
+
 
 데이터 設置
 -----------

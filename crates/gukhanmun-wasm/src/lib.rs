@@ -26,6 +26,7 @@
 //! `release_max_level_off`.
 
 use std::rc::Rc;
+use std::sync::Arc;
 
 use js_sys::{Array, Object, Reflect, Uint8Array};
 use serde::Deserialize;
@@ -154,7 +155,11 @@ impl WasmGukhanmun {
     /// Throws a `GukhanmunError`-shaped object on invalid input or a failed
     /// dictionary load.
     #[wasm_bindgen(constructor)]
-    pub fn new(options: JsValue, dictionaries: JsValue) -> Result<WasmGukhanmun, JsValue> {
+    pub fn new(
+        options: JsValue,
+        dictionaries: JsValue,
+        loaded: &WasmLoadedInputs,
+    ) -> Result<WasmGukhanmun, JsValue> {
         let opts: JsOptions = if options.is_null() || options.is_undefined() {
             JsOptions::default()
         } else {
@@ -256,80 +261,16 @@ impl WasmGukhanmun {
         let dicts_arr = Array::from(&dictionaries);
         for i in 0..dicts_arr.length() {
             let entry = dicts_arr.get(i);
-            let role_value = Reflect::get(&entry, &JsValue::from_str("role"))
-                .map_err(|_| make_error("invalid-input", "cannot read dictionary role"))?;
-            let role = if role_value.is_undefined() {
-                None
+            let dictionary = if entry.is_null() {
+                loaded
+                    .0
+                    .get(&i)
+                    .cloned()
+                    .ok_or_else(|| make_error("invalid-input", "missing loaded dictionary"))?
             } else {
-                let value = role_value.as_string().ok_or_else(|| {
-                    make_error("invalid-input", "dictionary role must be a string")
-                })?;
-                Some(parse_source_role(&value)?)
+                decode_dictionary(&entry)?
             };
-            let entries_val =
-                Reflect::get(&entry, &JsValue::from_str("entriesJson")).map_err(|_| {
-                    make_error(
-                        "invalid-input",
-                        "each dictionary must have an 'entriesJson' or 'format' field",
-                    )
-                })?;
-            if !entries_val.is_undefined() && !entries_val.is_null() {
-                let json = entries_val.as_string().ok_or_else(|| {
-                    make_error("invalid-input", "dictionary 'entriesJson' must be a string")
-                })?;
-                let has_binary = Reflect::has(&entry, &JsValue::from_str("format"))
-                    .unwrap_or(false)
-                    || Reflect::has(&entry, &JsValue::from_str("bytes")).unwrap_or(false);
-                if has_binary {
-                    return Err(make_error(
-                        "invalid-input",
-                        "a dictionary must not combine `entries` with `format` or `bytes`",
-                    ));
-                }
-                builder = builder.push_dictionary_with_role(
-                    entry_dictionary(&json)?,
-                    role.unwrap_or(SourceRole::Override),
-                );
-                continue;
-            }
-            let fmt = Reflect::get(&entry, &JsValue::from_str("format"))
-                .ok()
-                .and_then(|v| v.as_string())
-                .ok_or_else(|| {
-                    make_error(
-                        "invalid-input",
-                        "each dictionary must have a 'format' string field",
-                    )
-                })?;
-            let bytes_val = Reflect::get(&entry, &JsValue::from_str("bytes")).map_err(|_| {
-                make_error("invalid-input", "each dictionary must have a 'bytes' field")
-            })?;
-            let bytes = Uint8Array::new(&bytes_val).to_vec();
-
-            match fmt.as_str() {
-                "fst" => {
-                    let dict = FstDictionary::from_bytes(&bytes)
-                        .map_err(|e| make_error("dictionary-load", &e.to_string()))?;
-                    let role = role
-                        .or_else(|| dict.source_evidence().map(|evidence| evidence.role))
-                        .unwrap_or(SourceRole::Override);
-                    builder = builder.push_dictionary_with_role(dict, role);
-                }
-                "cdb" => {
-                    let dict = CdbDictionary::from_bytes(&bytes)
-                        .map_err(|e| make_error("dictionary-load", &e.to_string()))?;
-                    let role = role
-                        .or_else(|| dict.source_evidence().map(|evidence| evidence.role))
-                        .unwrap_or(SourceRole::Override);
-                    builder = builder.push_dictionary_with_role(dict, role);
-                }
-                other => {
-                    return Err(make_error(
-                        "unsupported-content-type",
-                        &format!("unknown dictionary format: {other}"),
-                    ));
-                }
-            }
+            builder = builder.push_dictionary_with_role(dictionary.dictionary, dictionary.role);
         }
 
         let converter = builder.build().map_err(|e| map_gukhanmun_error(&e))?;
@@ -369,6 +310,108 @@ impl WasmGukhanmun {
             buffer: String::new(),
         })
     }
+}
+
+/// Private native owner behind the public JavaScript dictionary handle.
+#[derive(Clone)]
+#[wasm_bindgen]
+pub struct WasmLoadedDictionary {
+    dictionary: Arc<dyn HanjaDictionary + Send + Sync>,
+    role: SourceRole,
+}
+
+/// Per-converter transport for borrowed loaded handles, indexed by source slot.
+#[derive(Default)]
+#[wasm_bindgen]
+pub struct WasmLoadedInputs(std::collections::BTreeMap<u32, WasmLoadedDictionary>);
+
+#[wasm_bindgen]
+impl WasmLoadedInputs {
+    /// Creates an empty transport.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Copies an owning reference, leaving the input handle reusable.
+    pub fn insert(&mut self, index: u32, dictionary: &WasmLoadedDictionary) {
+        self.0.insert(index, dictionary.clone());
+    }
+}
+
+/// Decodes one dictionary for reuse across converters.
+#[wasm_bindgen]
+pub fn load_dictionary(source: JsValue) -> Result<WasmLoadedDictionary, JsValue> {
+    decode_dictionary(&source)
+}
+
+fn decode_dictionary(entry: &JsValue) -> Result<WasmLoadedDictionary, JsValue> {
+    let role_value = Reflect::get(entry, &JsValue::from_str("role"))
+        .map_err(|_| make_error("invalid-input", "cannot read dictionary role"))?;
+    let role = if role_value.is_undefined() {
+        None
+    } else {
+        let value = role_value
+            .as_string()
+            .ok_or_else(|| make_error("invalid-input", "dictionary role must be a string"))?;
+        Some(parse_source_role(&value)?)
+    };
+    let entries_val = Reflect::get(entry, &JsValue::from_str("entriesJson")).map_err(|_| {
+        make_error(
+            "invalid-input",
+            "each dictionary must have an 'entriesJson' or 'format' field",
+        )
+    })?;
+    let dictionary: Arc<dyn HanjaDictionary + Send + Sync> =
+        if !entries_val.is_undefined() && !entries_val.is_null() {
+            let json = entries_val.as_string().ok_or_else(|| {
+                make_error("invalid-input", "dictionary 'entriesJson' must be a string")
+            })?;
+            let has_binary = Reflect::has(entry, &JsValue::from_str("format")).unwrap_or(false)
+                || Reflect::has(entry, &JsValue::from_str("bytes")).unwrap_or(false);
+            if has_binary {
+                return Err(make_error(
+                    "invalid-input",
+                    "a dictionary must not combine `entries` with `format` or `bytes`",
+                ));
+            }
+            Arc::new(entry_dictionary(&json)?)
+        } else {
+            let fmt = Reflect::get(entry, &JsValue::from_str("format"))
+                .ok()
+                .and_then(|v| v.as_string())
+                .ok_or_else(|| {
+                    make_error(
+                        "invalid-input",
+                        "each dictionary must have a 'format' string field",
+                    )
+                })?;
+            let bytes_val = Reflect::get(entry, &JsValue::from_str("bytes")).map_err(|_| {
+                make_error("invalid-input", "each dictionary must have a 'bytes' field")
+            })?;
+            let bytes = Uint8Array::new(&bytes_val).to_vec();
+
+            match fmt.as_str() {
+                "fst" => Arc::new(
+                    FstDictionary::from_bytes(&bytes)
+                        .map_err(|e| make_error("dictionary-load", &e.to_string()))?,
+                ),
+                "cdb" => Arc::new(
+                    CdbDictionary::from_bytes(&bytes)
+                        .map_err(|e| make_error("dictionary-load", &e.to_string()))?,
+                ),
+                other => {
+                    return Err(make_error(
+                        "unsupported-content-type",
+                        &format!("unknown dictionary format: {other}"),
+                    ));
+                }
+            }
+        };
+    let role = role
+        .or_else(|| dictionary.source_evidence().map(|evidence| evidence.role))
+        .unwrap_or(SourceRole::Override);
+    Ok(WasmLoadedDictionary { dictionary, role })
 }
 
 /// Chunked streaming handle produced by [`WasmGukhanmun::open_stream`].

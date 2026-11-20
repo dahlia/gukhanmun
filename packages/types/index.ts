@@ -385,6 +385,24 @@ export interface MapDictionarySource {
  */
 export type DictionarySource = FileDictionarySource | MapDictionarySource;
 
+/**
+ * An immutable dictionary snapshot made by a backend's {@link loadDictionary}.
+ * Use the handle with the same backend instance that created it.
+ */
+declare class LoadedDictionary {
+  private constructor();
+  private readonly loadedDictionaryBrand: true;
+}
+export type { LoadedDictionary };
+
+/**
+ * Options for the backend's top-level {@link load} function. Loaded snapshots
+ * can appear alongside ordinary dictionary sources in registration order.
+ */
+export type GukhanmunLoadOptions = Omit<GukhanmunOptions, "dictionaries"> & {
+  readonly dictionaries?: readonly (DictionarySource | LoadedDictionary)[];
+};
+
 // ── HTML options ────────────────────────────────────────────────────────────
 
 /**
@@ -458,7 +476,11 @@ export interface Directives {
 /** Policy for ordinary spaces following an eligible stop. */
 export type SpaceAfter = "preserve" | "remove" | "single";
 /** Built-in output style; input recognition is independent of this choice. */
-export type PunctuationPreset = "preserve" | "modern" | "traditional" | "traditional-vertical";
+export type PunctuationPreset =
+  | "preserve"
+  | "modern"
+  | "traditional"
+  | "traditional-vertical";
 /** A single Unicode scalar and its following U+0020 policy. */
 export interface StopStyle {
   /** One Unicode scalar, validated by the shared profile resolver. */
@@ -773,7 +795,14 @@ export interface GukhanmunFactory {
  * that code that `import { load }` from either implementation package
  * type-checks against the same signature.
  */
-export declare const load: GukhanmunFactory["load"];
+export declare function load(
+  options?: GukhanmunLoadOptions,
+): Promise<Gukhanmun>;
+
+/** Load one dictionary snapshot for reuse by converters on this backend. */
+export declare function loadDictionary(
+  source: DictionarySource,
+): Promise<LoadedDictionary>;
 
 // ── Error ──────────────────────────────────────────────────────────────────
 

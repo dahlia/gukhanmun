@@ -30,7 +30,8 @@ from urllib.parse import quote, urljoin, urlsplit
 from typing import IO, TypeAlias, cast
 
 from ._native import Converter as NativeConverter
-from ._native import NativeError
+from ._native import LoadedDictionary, NativeError
+from ._native import load_dictionary as _load_native_dictionary
 from ._types import (
     AttributeMatcher,
     ContextWindow,
@@ -324,32 +325,46 @@ def _entry(value: DictionaryEntry, index: int) -> dict[str, _Json]:
     }
 
 
-def _dictionaries(values: Sequence[_Dictionary]) -> list[_NativeDictionary]:
+def _dictionary(value: _Dictionary) -> _NativeDictionary:
+    if isinstance(value, MapDictionarySource):
+        source = MapDictionarySource(value.entries, value.role)
+        entries: list[_Json] = [_entry(entry, index) for index, entry in enumerate(source.entries)]
+        return (source.role.value, None, None, _dump(entries))
+    if isinstance(value, FileDictionarySource):
+        file = FileDictionarySource(value.data, value.format, value.role)
+        if isinstance(file.data, bytes):
+            data = file.data
+        else:
+            try:
+                data = Path(file.data).read_bytes()
+            except (OSError, ValueError) as error:
+                raise _io_error(error, f"could not load dictionary file {file.data!r}") from error
+        return (None if file.role is None else file.role.value, file.format.value, data, None)
+    if isinstance(value, UrlDictionarySource):
+        url = UrlDictionarySource(value.url, value.format, value.role, value.timeout,
+                                  value.max_bytes, value.total_timeout)
+        return (None if url.role is None else url.role.value, url.format.value, _fetch(url), None)
+    raise TypeError("dictionaries must contain dictionary descriptors")
+
+
+def load_dictionary(source: _Dictionary) -> LoadedDictionary:
+    """Load one dictionary snapshot for reuse in multiple converters."""
+    raw = _dictionary(source)
+    try:
+        return _load_native_dictionary(raw)
+    except NativeError as error:
+        raise _native_error(error) from error
+
+
+def _dictionaries(
+    values: Sequence[_Dictionary | LoadedDictionary],
+) -> list[_NativeDictionary | LoadedDictionary]:
     if isinstance(values, (str, bytes, bytearray)) or not isinstance(values, Sequence):
         raise TypeError("dictionaries must be a sequence of dictionary descriptors")
-    result: list[_NativeDictionary] = []
-    for value in tuple(values):
-        if isinstance(value, MapDictionarySource):
-            source = MapDictionarySource(value.entries, value.role)
-            entries: list[_Json] = [_entry(entry, index) for index, entry in enumerate(source.entries)]
-            result.append((source.role.value, None, None, _dump(entries)))
-        elif isinstance(value, FileDictionarySource):
-            file = FileDictionarySource(value.data, value.format, value.role)
-            if isinstance(file.data, bytes):
-                data = file.data
-            else:
-                try:
-                    data = Path(file.data).read_bytes()
-                except (OSError, ValueError) as error:
-                    raise _io_error(error, f"could not load dictionary file {file.data!r}") from error
-            result.append((None if file.role is None else file.role.value, file.format.value, data, None))
-        elif isinstance(value, UrlDictionarySource):
-            url = UrlDictionarySource(value.url, value.format, value.role, value.timeout,
-                                      value.max_bytes, value.total_timeout)
-            result.append((None if url.role is None else url.role.value, url.format.value, _fetch(url), None))
-        else:
-            raise TypeError("dictionaries must contain dictionary descriptors")
-    return result
+    return [
+        value if isinstance(value, LoadedDictionary) else _dictionary(value)
+        for value in tuple(values)
+    ]
 
 
 def _stop(value: StopStyle) -> dict[str, _Json]:
@@ -486,7 +501,7 @@ class Converter:
         collapse_redundant_parens: bool = True,
         recovery: Recovery = Recovery.STRICT,
         punctuation: PunctuationPreset | CustomPunctuationProfile = PunctuationPreset.PRESERVE,
-        dictionaries: Sequence[_Dictionary] = (),
+        dictionaries: Sequence[_Dictionary | LoadedDictionary] = (),
         directives: Directives | None = None,
         html: HtmlOptions | None = None,
     ) -> None:

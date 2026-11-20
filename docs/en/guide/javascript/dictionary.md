@@ -36,6 +36,35 @@ const g = await load({ dictionaries: [await stdictCdb()] });
 Both `stdictFst()` and `stdictCdb()` return a `Promise<FileDictionarySource>`.
 
 
+Reuse a loaded dictionary
+-------------------------
+
+Call `loadDictionary()` once when several converters use the same dictionary.
+Import it from the same package as `load()`: either `@gukhanmun/wasm` or
+`@gukhanmun/napi`.
+
+~~~~ ts twoslash
+import { load, loadDictionary } from "@gukhanmun/wasm";
+import { stdictFst } from "@gukhanmun/stdict-fst";
+
+const reference = await loadDictionary(await stdictFst());
+const overrides = { entries: [{ hanja: "東京", reading: "도쿄" }] };
+const plain = await load({ dictionaries: [overrides, reference] });
+const ruby = await load({
+  dictionaries: [overrides, reference],
+  rendering: "ruby-on-hangul",
+});
+~~~~
+
+The handle captures the source's contents and role. Each converter retains its
+own reference and applies its own source order and options. Load a new handle
+to pick up source changes. Handles cannot be moved between backend instances;
+there is no process-wide dictionary cache.
+
+Use `GukhanmunLoadOptions` to annotate options containing handles.
+`GukhanmunOptions` and `GukhanmunFactory` still describe raw-source inputs.
+
+
 Open Korean Dictionary packages
 -------------------------------
 

@@ -15,7 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from gukhanmun import (
-    Converter, CustomPunctuationProfile, DictionaryEntry, DictionaryFormat, ErrorCode, GukhanmunError, Preset, RenderMode,
+    Converter, CustomPunctuationProfile, DictionaryEntry, DictionaryFormat, ErrorCode, GukhanmunError,
+    LoadedDictionary, Preset, RenderMode, load_dictionary,
 )
 from gukhanmun.dictionaries import stdict, stdict_bytes
 
@@ -40,3 +41,5 @@ error.code = ErrorCode.IO  # expected: immutable
 stdict(format="cdb")  # expected: enum
 stdict_bytes(format=Preset.KO_KR)  # expected: enum
 stdict(DictionaryFormat.FST)  # expected: keyword
+LoadedDictionary(object())  # expected: enum
+load_dictionary(load_dictionary(stdict()))  # expected: enum

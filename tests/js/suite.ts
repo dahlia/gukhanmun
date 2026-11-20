@@ -27,9 +27,13 @@ import { opendictGeneralFst, opendictNorthKoreanFst } from "../../packages/opend
 import { opendictGeneralCdb, opendictNorthKoreanCdb } from "../../packages/opendict-cdb/index.ts";
 import { stdictCdb } from "../../packages/stdict-cdb/index.ts";
 import type {
+  DictionarySource,
   FileDictionarySource,
   Gukhanmun,
+  GukhanmunFactory,
+  GukhanmunLoadOptions,
   GukhanmunOptions,
+  LoadedDictionary,
 } from "../../packages/types/index.ts";
 
 // ── Injected binding ─────────────────────────────────────────────────────────
@@ -37,7 +41,9 @@ import type {
 /** The two values each binding package exports that the suite exercises. */
 export interface Binding {
   /** The package's `load` factory. */
-  load: (options?: GukhanmunOptions) => Promise<Gukhanmun>;
+  load: (options?: GukhanmunLoadOptions) => Promise<Gukhanmun>;
+  loadDictionary: (source: DictionarySource) => Promise<LoadedDictionary>;
+  foreignLoad?: (source: DictionarySource) => Promise<LoadedDictionary>;
   /**
    * The package's `GukhanmunError` class.  Typed as a loose error constructor
    * so both bindings' concrete classes (whose constructors take
@@ -104,22 +110,131 @@ const dictionaryBackends: readonly (readonly [
  * file.  `name` only labels the test output (e.g. `"wasm"`, `"napi"`).
  */
 export function registerSuite(name: string, binding: Binding): void {
-  const { load, GukhanmunError } = binding;
+  const { load, loadDictionary, foreignLoad, GukhanmunError } = binding;
+
+  describe(`${name}: reusable dictionaries`, () => {
+    for (const [format, getSource] of dictionaryBackends) {
+      test(`${format}: retained converters keep independent settings`, async () => {
+        const options = { homophoneWindow: "off" } as const;
+        const makeConverters = async () => {
+          const reference = await loadDictionary(await getSource());
+          assert(Object.isFrozen(reference));
+          const plain = await load({
+            ...options,
+            dictionaries: [
+              reference,
+              { entries: [{ hanja: "東京", reading: "도쿄" }] },
+              reference,
+            ],
+          });
+          const ruby = await load({
+            ...options,
+            rendering: "ruby-on-hangul",
+            dictionaries: [
+              { entries: [{ hanja: "東京", reading: "동경" }] },
+              reference,
+            ],
+          });
+          return { plain, ruby };
+        };
+        const { plain, ruby } = await makeConverters();
+        const legacyFactory: GukhanmunFactory = { load };
+        const legacyOptions: GukhanmunOptions = options;
+        const rawSources: readonly DictionarySource[] = legacyOptions.dictionaries ?? [];
+        const withoutReference = await legacyFactory.load({
+          ...legacyOptions,
+          dictionaries: rawSources,
+        });
+        assert.notEqual(withoutReference.convert("無條件降服"), "무조건항복");
+        assert.equal(plain.convert("東京"), "도쿄");
+        assert.equal(
+          ruby.convert("東京", "html"),
+          "<ruby>동경<rp>(</rp><rt>東京</rt><rp>)</rp></ruby>",
+        );
+        assert.equal(plain.convert("無條件降服"), "무조건항복");
+        assert.equal(
+          await streamAll(plain.stream(), ["無條件", "降服"]),
+          "무조건항복",
+        );
+        assert.match(ruby.convert("無條件降服", "html"), /항복/);
+      });
+
+      test(`${format}: loaded roles preserve embedded and explicit precedence`, async () => {
+        const { data, format } = await getSource();
+        const override = { entries: [{ hanja: "學校", reading: "새이름" }] };
+        for (const role of [undefined, "override"] as const) {
+          const reference = await loadDictionary({ data, format, role });
+          const converter = await load({
+            dictionaries: [reference, override],
+            homophoneWindow: "off",
+          });
+          assert.equal(
+            converter.convert("學校"),
+            role === "override" ? "학교" : "새이름",
+          );
+        }
+      });
+    }
+
+    test("snapshots mutable entries and rejects foreign handles", async () => {
+      const source = { entries: [{ hanja: "東京", reading: "도쿄" }] };
+      const loaded = await loadDictionary(source);
+      await assert.rejects(() => loadDictionary(loaded as never), {
+        code: "invalid-input",
+      });
+      source.entries[0].reading = "동경";
+      assert.equal(
+        (await load({ dictionaries: [loaded] })).convert("東京"),
+        "도쿄",
+      );
+      assert.equal(
+        (await load({ dictionaries: [await loadDictionary(source)] })).convert(
+          "東京",
+        ),
+        "동경",
+      );
+      if (foreignLoad) {
+        const foreign = await foreignLoad(source);
+        await assert.rejects(() => load({ dictionaries: [foreign] }), {
+          code: "invalid-input",
+        });
+      }
+      await assert.rejects(
+        () => loadDictionary({ format: "fst", data: new Uint8Array() }),
+        { code: "dictionary-load" },
+      );
+    });
+  });
 
   describe(`${name}: punctuation profiles`, () => {
     test("universal inputs, HTML references, and streamed chunks", async () => {
-      for (const punctuation of ["modern", "traditional", "traditional-vertical"] as const) {
+      for (
+        const punctuation of [
+          "modern",
+          "traditional",
+          "traditional-vertical",
+        ] as const
+      ) {
         const g = await load({ punctuation });
         const western = "café, world IMF, école cafe\u0301, world";
         assert.equal(g.convert(western), western);
         const source = "가&#12290;  나、「다」";
         const expected = g.convert(source, "html");
-        assert.equal(await streamAll(g.stream("html"), Array.from(source)), expected);
-        assert.equal(g.convert(g.convert("가。 나、〈다〉")), g.convert("가。 나、〈다〉"));
+        assert.equal(
+          await streamAll(g.stream("html"), Array.from(source)),
+          expected,
+        );
+        assert.equal(
+          g.convert(g.convert("가。 나、〈다〉")),
+          g.convert("가。 나、〈다〉"),
+        );
       }
       const g = await load({ punctuation: "modern" });
       assert.equal(g.convert("가&#12290;나", "html"), "가. 나");
-      assert.equal(g.convert("가。 <form>나</form>", "html"), "가.<form>나</form>");
+      assert.equal(
+        g.convert("가。 <form>나</form>", "html"),
+        "가.<form>나</form>",
+      );
       assert.equal(g.convert("가。\uFE0F나"), "가.\uFE0F나");
       assert.equal(g.convert("가。&#xFE0F;나", "html"), "가.&#xFE0F;나");
       assert.equal(g.convert("가&#12290;나"), "가&#12290;나");
@@ -130,9 +245,15 @@ export function registerSuite(name: string, binding: Binding): void {
     });
     test("normalized Markdown keeps emphasis, breaks and inline HTML boundaries", async () => {
       const g = await load({ punctuation: "modern" });
-      assert.ok(g.convert("*끝。* 다음", "markdown").includes("<em>끝&#46;</em> 다음"));
-      assert.ok(g.convert("**\\\n끝** 다음", "markdown").includes("<strong><br />"));
-      assert.ok(g.convert("앞 <em>가。</em>나", "markdown").includes("</em> 나"));
+      assert.ok(
+        g.convert("*끝。* 다음", "markdown").includes("<em>끝&#46;</em> 다음"),
+      );
+      assert.ok(
+        g.convert("**\\\n끝** 다음", "markdown").includes("<strong><br />"),
+      );
+      assert.ok(
+        g.convert("앞 <em>가。</em>나", "markdown").includes("</em> 나"),
+      );
       assert.ok(
         g.convert("~~끝。~~ 다음", { format: "markdown", gfm: true }).includes(
           "<del>끝&#46;</del> 다음",
@@ -146,19 +267,31 @@ export function registerSuite(name: string, binding: Binding): void {
         "<div lang=en><span lang=ko>한국. 문화</span></div>",
       );
       assert.equal(
-        g.convert("<span lang=en>keep<span lang=ko>가。  </span> tail。</span>", "html"),
+        g.convert(
+          "<span lang=en>keep<span lang=ko>가。  </span> tail。</span>",
+          "html",
+        ),
         "<span lang=en>keep<span lang=ko>가.  </span> tail。</span>",
       );
-      for (const [mark, entity] of [["!", "&#33;"], ["?", "&#63;"], ["/", "&#47;"]] as const) {
+      for (
+        const [mark, entity] of [["!", "&#33;"], ["?", "&#63;"], [
+          "/",
+          "&#47;",
+        ]] as const
+      ) {
         const custom = await load({
           punctuation: { period: { mark, after: "remove" } },
           recovery: "lenient",
         });
-        assert.equal(custom.convert("<。--hello-->VISIBLE", "html"), `<${entity}--hello-->VISIBLE`);
+        assert.equal(
+          custom.convert("<。--hello-->VISIBLE", "html"),
+          `<${entity}--hello-->VISIBLE`,
+        );
       }
     });
     test("Markdown serialization respects preserved inline HTML text", async () => {
-      const modern = await load({ punctuation: "modern" }), preserve = await load();
+      const modern = await load({ punctuation: "modern" }),
+        preserve = await load();
       for (
         const source of [
           "앞 <script>alert(1);</script> 뒤",
@@ -167,7 +300,10 @@ export function registerSuite(name: string, binding: Binding): void {
           "앞 <code>a&b</code> 뒤",
         ]
       ) {
-        assert.equal(modern.convert(source, "markdown"), preserve.convert(source, "markdown"));
+        assert.equal(
+          modern.convert(source, "markdown"),
+          preserve.convert(source, "markdown"),
+        );
       }
     });
     test("decoded Markdown entity line endings remain text", async () => {
@@ -179,11 +315,18 @@ export function registerSuite(name: string, binding: Binding): void {
       );
     });
     test("inheritance, null, undefined and detached frozen resolved styles", async () => {
-      const custom = { base: "modern" as const, comma: undefined, period: null };
+      const custom = {
+        base: "modern" as const,
+        comma: undefined,
+        period: null,
+      };
       const g = await load({ punctuation: custom });
       assert.equal(g.convert("가、나。 다"), "가, 나。 다");
       assert.equal(g.options.punctuation.period, null);
-      assert.deepEqual(g.options.punctuation.comma, { mark: ",", after: "single" });
+      assert.deepEqual(g.options.punctuation.comma, {
+        mark: ",",
+        after: "single",
+      });
       assert.ok(Object.isFrozen(g.options.punctuation));
       assert.ok(Object.isFrozen(g.options.punctuation.comma));
       assert.deepEqual((await load()).options.punctuation, {
@@ -194,7 +337,9 @@ export function registerSuite(name: string, binding: Binding): void {
       });
     });
     test("custom Unicode scalar marks and invalid options", async () => {
-      const g = await load({ punctuation: { period: { mark: "💬", after: "remove" } } });
+      const g = await load({
+        punctuation: { period: { mark: "💬", after: "remove" } },
+      });
       assert.equal(g.convert("가。 나"), "가💬나");
       for (
         const punctuation of [
@@ -267,7 +412,10 @@ export function registerSuite(name: string, binding: Binding): void {
   describe(`${name}: dictionary-backed conversion`, () => {
     for (const [backend, loadDict] of dictionaryBackends) {
       test(`${backend}: candidate defaults and positional readings agree`, async () => {
-        const g = await load({ dictionaries: [await loadDict()], homophoneWindow: "off" });
+        const g = await load({
+          dictionaries: [await loadDict()],
+          homophoneWindow: "off",
+        });
         assert.equal(
           g.convert("北京 數字 1990年代 1998年度 비率"),
           "베이징 숫자 1990년대 1998년도 비율",
@@ -275,7 +423,9 @@ export function registerSuite(name: string, binding: Binding): void {
       });
       test(`${backend}: particle evidence uses bundled candidates in conversion and streams`, async () => {
         for (const segmentation of ["eager", "lattice"] as const) {
-          for (const rendering of ["hangul-only", "hangul-hanja-parens"] as const) {
+          for (
+            const rendering of ["hangul-only", "hangul-hanja-parens"] as const
+          ) {
             const g = await load({
               dictionaries: [await loadDict()],
               homophoneWindow: "off",
@@ -283,7 +433,10 @@ export function registerSuite(name: string, binding: Binding): void {
               rendering,
             });
             if (rendering === "hangul-only") {
-              assert.equal(g.convert("東京을 東京를 東京이다"), "동경을 도쿄를 동경이다");
+              assert.equal(
+                g.convert("東京을 東京를 東京이다"),
+                "동경을 도쿄를 동경이다",
+              );
               assert.equal(g.convert("東京으로는 간다"), "동경으로는 간다");
             }
             for (
@@ -295,7 +448,10 @@ export function registerSuite(name: string, binding: Binding): void {
               ]
             ) {
               const expected = g.convert(input);
-              assert.equal(await streamAll(g.stream("text"), [...input]), expected);
+              assert.equal(
+                await streamAll(g.stream("text"), [...input]),
+                expected,
+              );
               const chars = [...input];
               for (let split = 0; split <= chars.length; split++) {
                 assert.equal(
@@ -352,8 +508,15 @@ export function registerSuite(name: string, binding: Binding): void {
             html: { preserveAttributes: [{ name: "translate", value: "no" }] },
           });
           for (const [input, expected] of [...positive, ...negative]) {
-            assert.equal(g.convert(input), expected, `${segmentation}: ${input}`);
-            assert.equal(await streamAll(g.stream("text"), Array.from(input)), expected);
+            assert.equal(
+              g.convert(input),
+              expected,
+              `${segmentation}: ${input}`,
+            );
+            assert.equal(
+              await streamAll(g.stream("text"), Array.from(input)),
+              expected,
+            );
             const chars = Array.from(input);
             for (let split = 0; split <= chars.length; split++) {
               assert.equal(
@@ -365,7 +528,10 @@ export function registerSuite(name: string, binding: Binding): void {
               );
             }
           }
-          assert.equal(g.convert("<p>무조건</p><p>降服</p>", "html"), "<p>무조건</p><p>강복</p>");
+          assert.equal(
+            g.convert("<p>무조건</p><p>降服</p>", "html"),
+            "<p>무조건</p><p>강복</p>",
+          );
           assert.equal(
             g.convert('<span translate="no">무조건</span>降服', "html"),
             '<span translate="no">무조건</span>강복',
@@ -384,7 +550,10 @@ export function registerSuite(name: string, binding: Binding): void {
             homophoneWindow: "off",
             segmentation,
           });
-          assert.equal(override.convert("無條件降服 無條件降服하다"), "무조건강복 무조건강복하다");
+          assert.equal(
+            override.convert("無條件降服 無條件降服하다"),
+            "무조건강복 무조건강복하다",
+          );
         }
       });
       test(`${backend}: 漢字를 한글로 → 한자를 한글로`, async () => {
@@ -402,7 +571,10 @@ export function registerSuite(name: string, binding: Binding): void {
       ] as const
     ) {
       test(`${backend}: pinned competing reading survives package bytes`, async () => {
-        const g = await load({ dictionaries: [await generalLoader()], homophoneWindow: "off" });
+        const g = await load({
+          dictionaries: [await generalLoader()],
+          homophoneWindow: "off",
+        });
         assert.equal(g.convert("俳句"), "하이쿠");
       });
       test(`${backend}: category priority replaces the whole candidate set`, async () => {
@@ -421,17 +593,28 @@ export function registerSuite(name: string, binding: Binding): void {
         assert.equal(nkFirst.convert("齘齒 歷史"), "계치 력사");
         assert.equal(generalFirst.convert("齘齒 歷史"), "해치 역사");
         const input = "俳句 齘齒 歷史 비率 1990年代";
-        assert.equal(await streamAll(nkFirst.stream("text"), [...input]), nkFirst.convert(input));
+        assert.equal(
+          await streamAll(nkFirst.stream("text"), [...input]),
+          nkFirst.convert(input),
+        );
       });
     }
   });
 
   describe(`${name}: source policies`, () => {
-    const reference = { role: "reference" as const, entries: [{ hanja: "宙名", reading: "가온" }] };
-    const loanword = { role: "loanword" as const, entries: [{ hanja: "宙名", reading: "누리" }] };
+    const reference = {
+      role: "reference" as const,
+      entries: [{ hanja: "宙名", reading: "가온" }],
+    };
+    const loanword = {
+      role: "loanword" as const,
+      entries: [{ hanja: "宙名", reading: "누리" }],
+    };
 
     test("role cooperation is independent of source array ordering", async () => {
-      for (const dictionaries of [[loanword, reference], [reference, loanword]]) {
+      for (
+        const dictionaries of [[loanword, reference], [reference, loanword]]
+      ) {
         const g = await load({ dictionaries, homophoneWindow: "off" });
         assert.equal(g.convert("宙名"), "가온");
         assert.equal(g.options.sourcePolicy, "reference-authorized");
@@ -456,7 +639,10 @@ export function registerSuite(name: string, binding: Binding): void {
         assert.equal(g.options.sourcePolicy, sourcePolicy);
         assert.equal(await streamAll(g.stream(), ["宙", "名"]), expected);
       }
-      const reversed = await load({ dictionaries: [reference, loanword], sourcePolicy: "ordered" });
+      const reversed = await load({
+        dictionaries: [reference, loanword],
+        sourcePolicy: "ordered",
+      });
       assert.equal(reversed.convert("宙名"), "가온");
     });
 
@@ -478,7 +664,9 @@ export function registerSuite(name: string, binding: Binding): void {
 
     test("anonymous entries remain exclusive authored overrides", async () => {
       const g = await load({
-        dictionaries: [loanword, reference, { entries: [{ hanja: "宙名", reading: "다솜" }] }],
+        dictionaries: [loanword, reference, {
+          entries: [{ hanja: "宙名", reading: "다솜" }],
+        }],
       });
       assert.equal(g.convert("宙名"), "다솜");
     });
@@ -490,12 +678,21 @@ export function registerSuite(name: string, binding: Binding): void {
         role: "reference" as const,
         entries: [{ hanja: "東京", reading: "다솜" }],
       };
-      const g = await load({ dictionaries: [reference, { ...compiled, role: "override" }] });
+      const g = await load({
+        dictionaries: [reference, { ...compiled, role: "override" }],
+      });
       assert.equal(g.convert("東京"), "도쿄");
       const typed = compiled.data as Uint8Array<ArrayBuffer>;
-      const buffer = typed.buffer.slice(typed.byteOffset, typed.byteOffset + typed.byteLength);
+      const buffer = typed.buffer.slice(
+        typed.byteOffset,
+        typed.byteOffset + typed.byteLength,
+      );
       const copied = await load({
-        dictionaries: [reference, { data: buffer, format: "fst", role: "override" }],
+        dictionaries: [reference, {
+          data: buffer,
+          format: "fst",
+          role: "override",
+        }],
       });
       assert.equal(copied.convert("東京"), "도쿄");
     });
@@ -533,17 +730,24 @@ export function registerSuite(name: string, binding: Binding): void {
     test("authored entries override cooperative references regardless of array position", async () => {
       const compiled = await stdictFst();
       const overridden = await load({
-        dictionaries: [{ entries: [{ hanja: "東京", reading: "동경" }] }, compiled],
+        dictionaries: [
+          { entries: [{ hanja: "東京", reading: "동경" }] },
+          compiled,
+        ],
       });
       assert.equal(overridden.convert("東京"), "동경");
       // stdict carries 東京 as 도쿄 (preference 30) and 동경 (preference 10).
       const original = await load({
-        dictionaries: [compiled, { entries: [{ hanja: "東京", reading: "동경" }] }],
+        dictionaries: [compiled, {
+          entries: [{ hanja: "東京", reading: "동경" }],
+        }],
       });
       assert.equal(original.convert("東京"), "동경");
       const ordered = await load({
         sourcePolicy: "ordered",
-        dictionaries: [compiled, { entries: [{ hanja: "東京", reading: "동경" }] }],
+        dictionaries: [compiled, {
+          entries: [{ hanja: "東京", reading: "동경" }],
+        }],
       });
       assert.equal(ordered.convert("東京"), "도쿄");
     });
@@ -564,7 +768,13 @@ export function registerSuite(name: string, binding: Binding): void {
     test("suffixReading supplies the non-word-initial form", async () => {
       const g = await load({
         dictionaries: [
-          { entries: [{ hanja: "年代", reading: "연대", suffixReading: "년대" }] },
+          {
+            entries: [{
+              hanja: "年代",
+              reading: "연대",
+              suffixReading: "년대",
+            }],
+          },
         ],
       });
       assert.equal(g.convert("1990年代"), "1990년대");
@@ -589,12 +799,16 @@ export function registerSuite(name: string, binding: Binding): void {
 
     test("entry marks drive glosses in every render mode", async () => {
       const hangulOnly = await load({
-        dictionaries: [{ entries: [{ hanja: "庫間", reading: "곳간", requireHanja: true }] }],
+        dictionaries: [{
+          entries: [{ hanja: "庫間", reading: "곳간", requireHanja: true }],
+        }],
         homophoneWindow: "off",
       });
       assert.equal(hangulOnly.convert("庫間"), "곳간(庫間)");
       const original = await load({
-        dictionaries: [{ entries: [{ hanja: "庫間", reading: "곳간", requireHangul: true }] }],
+        dictionaries: [{
+          entries: [{ hanja: "庫間", reading: "곳간", requireHangul: true }],
+        }],
         rendering: "original",
         homophoneWindow: "off",
       });
@@ -603,7 +817,9 @@ export function registerSuite(name: string, binding: Binding): void {
 
     test("an empty entry list contributes nothing", async () => {
       const compiled = await stdictFst();
-      const withEmpty = await load({ dictionaries: [{ entries: [] }, compiled] });
+      const withEmpty = await load({
+        dictionaries: [{ entries: [] }, compiled],
+      });
       const alone = await load({ dictionaries: [compiled] });
       const input = "漢字를 한글로 東京 1990年代";
       assert.equal(withEmpty.convert(input), alone.convert(input));

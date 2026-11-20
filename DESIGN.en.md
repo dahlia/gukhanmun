@@ -1433,6 +1433,14 @@ as the JavaScript bindings. Each official Python source helper returns one
 `FileDictionarySource`, supplied as an item in the converter's dictionary
 sequence. The corresponding `*_bytes()` helpers return dictionary bytes.
 
+Both JavaScript backends' `loadDictionary()` and Python's `load_dictionary()`
+return an opaque snapshot of a source's parsed data and resolved role. A
+converter owns a reference to each loaded dictionary in its source chain, so
+dropping the caller's handle does not invalidate the converter. Source order,
+override resolution, the merged `ordered` alias index, and dictionary-wide
+homophone detection remain converter- or document-specific. A new explicit
+load takes a new snapshot; no path- or URL-based cache is involved.
+
 ### Registry matrix
 
 | Package                    | crates.io | npm                     | JSR                | PyPI |
