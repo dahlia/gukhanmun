@@ -121,20 +121,27 @@ shell = "nu -c"
 depends = ["rust-init"]
 # cargo-release bumps the shared Cargo version, the intra-workspace dependency
 # requirements, and Cargo.lock, then writes a signed commit.  It knows nothing
-# about the package.json/deno.json manifests under packages/, so we sync those
-# to the same version and fold exactly them into that one signed commit; the
-# explicit pathspec keeps any unrelated working-tree change out of the bump.
+# about the JS manifests or changelog, so we sync them to the same version and
+# fold them into that one signed commit. The explicit pathspec keeps unrelated
+# changes out of the bump.
 # The JS version is read back from Cargo.toml after cargo-release runs, so it
 # tracks the version actually applied even when <version> is a bump level such
 # as "patch" or "minor".  Run this on a clean tree; cargo-release refuses to
 # bump when there are uncommitted changes.
 run = """
+let original_head = (git rev-parse HEAD | str trim)
 cargo release --workspace --no-publish --no-tag --no-push --execute $env.usage_version
+# Declining the cargo-release prompt exits successfully without committing.
+if (git rev-parse HEAD | str trim) == $original_head {
+  error make { msg: "cargo-release did not create a version bump commit; stopping before sync" }
+}
 $env.VERSION = (open Cargo.toml | get workspace.package.version)
 mise run js-sync-version
 sacho next $env.VERSION
 sacho sync --force
-git commit -S --amend --no-edit packages/*/package.json packages/*/deno.json changes.d/next CHANGES.md
+# The release may have removed this file, so git commit needs it in the index.
+git add -- changes.d/next
+git commit -S --amend --no-edit -- packages/*/package.json packages/*/deno.json changes.d/next CHANGES.md
 """
 
 [tasks.typecheck]

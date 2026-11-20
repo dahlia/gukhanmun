@@ -29,17 +29,21 @@ Format guide for contributors:
     ~~~~
 -->
 
-
 <!-- sacho:unreleased:begin -->
+
+<!-- sacho:unreleased:end -->
 
 
 Version 0.2.2
 -------------
 
-To be released.
+Released on November 20, 2026.
 
 ### gukhanmun
 
+ -  Fixed `mise run bump-execute` to stop if `cargo-release` does not create a
+    version bump commit and to include the newly created *changes.d/next* in
+    the signed bump commit after a release.
  -  Updated the bundled *Open Korean Dictionary* (우리말샘) snapshot to
     2026-11-04. [[#29]]
  -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
@@ -83,8 +87,6 @@ To be released.
 
  -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
     to 2026-11-06. [[#29]]
-
-<!-- sacho:unreleased:end -->
 
 
 Version 0.2.1
