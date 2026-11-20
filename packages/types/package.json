@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/types",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "TypeScript API contract for Gukhanmun (type declarations only, no runtime code).",
   "type": "module",
   "exports": {

@@ -1,6 +1,6 @@
 {
   "name": "@gukhanmun/wasm",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "WebAssembly implementation of the Gukhanmun hanja-to-hangul converter.",
   "type": "module",
   "exports": {
