@@ -129,6 +129,12 @@ thread_local! {
 }
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
+/// Keeps a parsed dictionary and its private lookup ID alive while the
+/// JavaScript handle is reachable.
+///
+/// The Node-API finalizer drops the lease and removes its weak registry entry.
+/// Converters that already acquired a reference keep the dictionary alive
+/// independently of the lease.
 pub struct DictionaryLease(u32, #[allow(dead_code)] Arc<LoadedDictionary>);
 
 impl Drop for DictionaryLease {
