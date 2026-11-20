@@ -13,11 +13,13 @@ See CONTRIBUTING.md for the changelog and release workflow.
 
 <!-- sacho:unreleased:begin -->
 
+<!-- sacho:unreleased:end -->
+
 
 Version 0.3.2
 -------------
 
-To be released.
+Released on November 20, 2026.
 
 ### gukhanmun
 
@@ -84,8 +86,6 @@ To be released.
 
  -  Updated the bundled *Standard Korean Dictionary* (標準國語大辭典) snapshot
     to 2026-11-06. [[#29]]
-
-<!-- sacho:unreleased:end -->
 
 
 Version 0.3.1
