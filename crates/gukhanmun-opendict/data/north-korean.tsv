@@ -33589,13 +33589,12 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 콩팥硬化症	콩팥경화증	false	false			301537
 콩팥웃線	콩팥웃선	false	false			584746
 콩팥잔管	콩팥잔관	false	false			584747
-콩팥피줄造映法	콩팥피줄조영법	false	false			301544
+콩팥피줄造影法	콩팥피줄조영법	false	false			301544
 콩풀漆	콩풀칠	false	false			400720
 콩풀漆하다	콩풀칠하다	false	false			301730
 콩흰줄螟밤나비	콩흰줄명밤나비	false	false			400721
 큰姓	큰성	false	false			26363,57548
 큰姓받이	큰성받이	false	false			511076
-큰密花부리	큰밀화부리	false	false			301591
 큰山萬年이끼	큰산만년이끼	false	false			299579
 큰山金발이끼	큰산금발이끼	false	false			299362
 큰山뱀눈나비	큰산뱀눈나비	false	false			299580
@@ -33613,6 +33612,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 큰穀稻蟲	큰곡도충	false	false			437568
 큰藤말굴레	큰등말굴레	false	false			300758
 큰藤말굴레풀	큰등말굴레풀	false	false			300759
+큰蜜花부리	큰밀화부리	false	false			301591
 큰豹文나비	큰표문나비	false	false			301990
 큰銀줄豹紋나비	큰은줄표문나비	false	false			511183
 큰雲母조개	큰운모조개	false	false			363986

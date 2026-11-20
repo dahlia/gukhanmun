@@ -44668,9 +44668,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 合席하다	합석하다	false	false			503367
 合幅	합폭	false	false			364550
 合從	합종	false	false			366144
-合從策	합종책	false	false			366473
-合從說	합종설	false	false			366465
-合從連橫	합종연횡	false	false			366466
 合從하다	합종하다	false	false			366464
 合德	합덕	false	false			359918
 合心	합심	false	false			502448
@@ -44897,6 +44894,9 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 合編萼	합편악	false	false			368659
 合編하다	합편하다	false	false			368658
 合縱	합종	false	false			366144
+合縱策	합종책	false	false			366473
+合縱說	합종설	false	false			366465
+合縱連橫	합종연횡	false	false			366466
 合縱하다	합종하다	false	false			366464
 合纖	합섬	false	false			368657
 合纖綿	합섬면	false	false			503369
@@ -70751,7 +70751,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 密訴하다	밀소하다	false	false			125520
 密詔	밀조	false	false			130769
 密話	밀화	false	false			125505
-密話부리	밀화부리	false	false			428058
 密話하다	밀화하다	false	false			125506
 密語	밀어	false	false			127483
 密語相通	밀어상통	false	false			130460
@@ -118770,7 +118769,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 柩車	구차	false	false	10		38307
 柯亭	가정	false	false			3686
 柯亭竹	가정죽	false	false			4116
-柯仁峯	가인봉	false	false			3838
 柯葉	가엽	false	false			3793
 柱	주	false	false			303694,483975
 柱三包	주삼포	false	false			304821
@@ -140188,6 +140186,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 濟州山버들	제주산버들	false	false			485115
 濟州島	제주도	false	false			296689
 濟州特別自治道	제주특별자치도	false	false			513585
+濟州蜜花부리	제주밀화부리	false	false			484956
 濟州道	제주도	false	false			301707
 濟州陽地꽃	제주양지꽃	false	false			485129
 濟州馬	제주마	false	false			511483
@@ -140201,7 +140200,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 濟州뒤쥐	제주뒤쥐	false	false			301709
 濟州땃쥐	제주땃쥐	false	false			484945
 濟州말	제주말	false	false			301961
-濟州밀화부리	제주밀화부리	false	false			484956
 濟州벚나무	제주벚나무	false	false			301965
 濟州아그배나무	제주아그배나무	false	false			301968
 濟州오목눈이	제주오목눈이	false	false			301982
@@ -191066,6 +191064,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 菜毒	채독	false	false			324490
 菜毒症	채독증	false	false			493430
 菜毒벌레	채독벌레	false	false			324491
+菜水	채수	false	false			536224
 菜油	채유	false	false			488169
 菜田	채전	false	false			491707
 菜疸	채달	false	false			319653
@@ -195819,6 +195818,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 蜜花貝纓	밀화패영	false	false			129720
 蜜花갓끈	밀화갓끈	false	false			428057
 蜜花단추	밀화단추	false	false			125508
+蜜花부리	밀화부리	false	false			428058
 蜜菓	밀과	false	false			128235
 蜜蜂	밀봉	false	false			126873
 蜜蠟	밀랍	false	false			431576
@@ -200425,7 +200425,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 親傳하다	친전하다	false	false			491526
 親兄	친형	false	false			492125
 親兄弟	친형제	false	false			339714
-親兄弟姉妹	친형제자매	false	false			534109
+親兄弟姊妹	친형제자매	false	false			534109
 親兵	친병	false	false			333697
 親分	오야붕	false	false	0		238986
 親分	친분	false	false	10		490974
@@ -200472,7 +200472,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 親女	친녀	false	false			332431
 親好	친호	false	false			339715
 親好하다	친호하다	false	false			492140
-親姉妹	친자매	false	false			534108
+親姊妹	친자매	false	false			534108
 親姪	친질	false	false			339186
 親姻	친인	false	false			494852
 親姻戚	친인척	false	false			535494
@@ -214329,8 +214329,8 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 轉傳하다	전전하다	false	false			286353
 轉免	전면	false	false			292574
 轉入	전입	false	false			288102
-轉入學	전입학	false	false			288106
-轉入學하다	전입학하다	false	false			517124
+轉入學	전입학	false	false			288106,536227
+轉入學하다	전입학하다	false	false			517124,536228
 轉入生	전입생	false	false			288104
 轉入者	전입자	false	false			288105
 轉入되다	전입되다	false	false			478438
@@ -261171,6 +261171,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	source_ids
 큰방울새蘭	큰방울새난	false	false			344770
 큰방울새蘭草	큰방울새난초	false	false			496469
 큰볼기筋	큰볼기근	false	false			511127
+큰부리蜜花부리	큰부리밀화부리	false	false			514030
 큰붉은點	큰붉은점	false	false			345064
 큰뿔野生羊	큰뿔야생양	false	false			511013
 큰손症	큰손증	false	false			514042

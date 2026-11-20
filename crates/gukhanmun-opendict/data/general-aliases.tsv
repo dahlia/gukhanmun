@@ -377,7 +377,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 幫助犯	방조범	false	false	10		幇助犯	recognition	幇助>幫助
 幫助罪	방조죄	false	false	10		幇助罪	recognition	幇助>幫助
 幫助者	방조자	false	false	10		幇助者	recognition	幇助>幫助
-平原廣野	평원광야	false	false	10		平原曠野	recognition	曠野>廣野
 平和裏	평화리	false	false	10		平和裡	recognition	裡>裏
 平女墻	평여장	false	false	10		平女牆	recognition	女牆>女墻
 平欄杆	평난간	false	false	10		平欄干	recognition	欄干>欄杆
@@ -726,7 +725,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 無端缺席	무단결석	false	false	10		無斷缺席	recognition	無斷>無端
 無端離脫	무단이탈	false	false	10		無斷離脫	recognition	無斷>無端
 無計畫	무계획	false	false	10		無計劃	recognition	計劃>計畫
-無邊廣野	무변광야	false	false	10		無邊曠野	recognition	曠野>廣野
 無面나다	무면나다	false	false	10		無麪나다	recognition	無麪>無面
 無面지다	무면지다	false	false	10		無麪지다	recognition	無麪>無面
 煖冬害	난동해	false	false	10		暖冬害	recognition	暖冬>煖冬
@@ -899,6 +897,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 砂漠毒蛇	사막독사	false	false	10		沙漠毒蛇	recognition	沙漠>砂漠
 砂漠漆	사막칠	false	false	10		沙漠漆	recognition	沙漠>砂漠
 砂漠熱	사막열	false	false	10		沙漠熱	recognition	沙漠>砂漠
+砂漠王도마뱀	사막왕도마뱀	false	false	10		沙漠王도마뱀	recognition	沙漠>砂漠
 砂漠雷	사막뢰	false	false	10		沙漠雷	recognition	沙漠>砂漠
 砂漠고슴도치	사막고슴도치	false	false	10		沙漠고슴도치	recognition	沙漠>砂漠
 砂漠꿩	사막꿩	false	false	10		沙漠꿩	recognition	沙漠>砂漠
@@ -985,6 +984,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 納附額	납부액	false	false	10		納付額	recognition	納付>納附
 純白磁	순백자	false	false	10		純白瓷	recognition	白瓷>白磁
 純靑磁	순청자	false	false	10		純靑瓷	recognition	靑瓷>靑磁
+紫胡蝶	자호접	false	false	10		紫蝴蝶	recognition	蝴蝶>胡蝶
 累代緣戚	누대연척	false	false	10		累代連戚	recognition	連戚>緣戚
 累鉅萬	누거만	false	false	10		累巨萬	recognition	巨萬>鉅萬
 細篳篥	세필률	false	false	10		細觱篥	recognition	觱篥>篳篥
@@ -1206,7 +1206,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 起原說	기원설	false	false	10		起源說	recognition	起源>起原
 起原論	기원론	false	false	10		起源論	recognition	起源>起原
 起原點	기원점	false	false	10		起源點	recognition	起源>起原
-足痕迹	족흔적	false	false	10		足痕跡	recognition	痕跡>痕迹
 跌蕩	질탕	false	false	10		跌宕	recognition	grid>跌蕩
 跌蕩거리다	질탕거리다	false	false	10		跌宕거리다	recognition	grid>跌蕩거리다
 跌蕩대다	질탕대다	false	false	10		跌宕대다	recognition	grid>跌蕩대다
@@ -1293,6 +1292,7 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 鍊習靴	연습화	false	false	10		練習靴	recognition	練習>鍊習
 鏹屬不絕	강속부절	false	false	10		繈屬不絕	recognition	grid>鏹屬不絕
 鏹屬不絕하다	강속부절하다	false	false	10		繈屬不絕하다	recognition	grid>鏹屬不絕하다
+鐘路에서	종로에서	false	false	10		鍾路에서	recognition	鍾路>鐘路
 鐘路제기	종로제기	false	false	10		鍾路제기	recognition	鍾路>鐘路
 鐵砂釉	철사유	false	false	10		鐵沙釉	recognition	鐵沙>鐵砂
 鐵窓身世	철창신세	false	false	10		鐵窓身勢	recognition	身勢>身世
@@ -1489,7 +1489,6 @@ hanja	hangul	require_hanja	require_hangul	preference	suffix_reading	canonical	al
 꾸민欄杆	꾸민난간	false	false	10		꾸민欄干	recognition	欄干>欄杆
 날鴉片	날아편	false	false	10		날阿片	recognition	阿片>鴉片
 놋唾口	놋타구	false	false	10		놋唾具	recognition	唾具>唾口
-눌림痕迹	눌림흔적	false	false	10		눌림痕跡	recognition	痕跡>痕迹
 다시마糤子	다시마산자	false	false	10		다시마饊子	recognition	饊子>糤子
 대封筩	대봉통	false	false	10		대封筒	recognition	封筒>封筩
 덧掌甲	덧장갑	false	false	10		덧掌匣	recognition	掌匣>掌甲

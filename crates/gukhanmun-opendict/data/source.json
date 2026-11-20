@@ -1,48 +1,144 @@
 {
-  "archive_bytes": 195571002,
-  "archive_date": "2026-10-04",
-  "archive_filename": "전체 내려받기_우리말샘_json_20261004.zip",
-  "archive_member_key": "1606531",
-  "archive_sha256": "6d85335eb7c31b3b242860aeab2b8e27f004e999218810c00637e210943964c1",
-  "dictionary": "opendict",
-  "duplicate_record_count": 32,
-  "link_key": "1606531",
-  "record_count": 1229530,
-  "shard_count": 25,
-  "source_url": "https://opendict.korean.go.kr/member/fileDownload",
-  "terminal_endpoint": 1229471,
-  "unique_record_count": 1229498,
   "version": 1,
-  "inputs_sha256": "4c440d2a69da42f3b8d36f283134497945795ad1e6fc7ac54339d36d3fcd42da",
+  "dictionary": "opendict",
+  "source_url": "https://opendict.korean.go.kr/member/fileDownload",
+  "link_key": "1621592",
+  "archive_filename": "전체 내려받기_우리말샘_json_20261104.zip",
+  "archive_date": "2026-11-04",
+  "archive_sha256": "fabe06cdc30ffdde99f3b58f3525c23d3468f100d5ef5642cc84083cd73795a7",
+  "archive_bytes": 197601983,
+  "record_count": 1246000,
+  "unique_record_count": 1245740,
+  "duplicate_record_count": 260,
+  "shard_count": 25,
+  "terminal_endpoint": 1245609,
+  "archive_member_key": "1621592",
+  "inputs_sha256": "09394cf21e5880a420d93da5cb0d64e23064a387b80f35888afb3fe874b957f5",
   "outputs": {
     "general.tsv": {
-      "sha256": "a6e01a176592226ad4d249d35175786ff1ac85bcd9351e1925f8ec16ff74ac3a",
-      "rows": 356726,
-      "keys": 354568,
-      "added": 4333,
-      "removed": 95,
-      "changed": 2175
+      "sha256": "ed8f03797ce2da4d27be152871bcc249dc8c4430061f79d503541181e4edf598",
+      "rows": 358542,
+      "keys": 356333,
+      "added": 1774,
+      "removed": 9,
+      "changed": 948
     },
     "north-korean.tsv": {
-      "sha256": "18b907e68013bfd6da7ee560f4ceb4fa58ffb7bb30e15014c1d0aa26c447c5c8",
+      "sha256": "1c15ad9a81c83901d3212e79bdbecbceaffbe85318214556c1612bddf99ddf53",
       "rows": 34115,
       "keys": 34096,
-      "added": 3,
-      "removed": 0,
+      "added": 2,
+      "removed": 2,
       "changed": 0
     },
     "dialect.tsv": {
       "sha256": "43c924519beb6b55143b1c4d261ec50f736d36f1817fcb279ac0cb68a1fa6a6c",
       "rows": 5726,
       "keys": 5714,
-      "added": 1,
-      "removed": 1,
+      "added": 0,
+      "removed": 0,
       "changed": 0
     },
     "archaic.tsv": {
       "sha256": "637713ceeaa69ce122f65eba5d89c42bbcdc34de7b6c58066dff029dc33e4549",
       "rows": 16,
       "keys": 16,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    },
+    "general-aliases.tsv": {
+      "sha256": "fb0e7f590683008ced3b9611a807e7cd3bd068ed219a9f488f66bf278f09a340",
+      "rows": 1560,
+      "keys": 1558,
+      "added": 3,
+      "removed": 4,
+      "changed": 0
+    },
+    "north-korean-aliases.tsv": {
+      "sha256": "f63bb3eca17eff1a5d7d41cd530a36ab526979b415b8fafda9169c092d3220f4",
+      "rows": 10,
+      "keys": 10,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    },
+    "dialect-aliases.tsv": {
+      "sha256": "09129435d6d9525cc6e04a1c30d254fbc4489beb51c59acab67878ec4fbe33ba",
+      "rows": 0,
+      "keys": 0,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    },
+    "archaic-aliases.tsv": {
+      "sha256": "09129435d6d9525cc6e04a1c30d254fbc4489beb51c59acab67878ec4fbe33ba",
+      "rows": 0,
+      "keys": 0,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    },
+    "general-relations.tsv": {
+      "sha256": "012c8616ac58e800f2614ff5b780f3884129b7eb7c1327c9cf5a1b6426eed6b0",
+      "rows": 2343,
+      "keys": 2335,
+      "added": 3,
+      "removed": 3,
+      "changed": 0
+    },
+    "north-korean-relations.tsv": {
+      "sha256": "e54be37ef5b9e52a7a78e93e1a87590b636011127a77896f39b91b3882091336",
+      "rows": 103,
+      "keys": 103,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    },
+    "dialect-relations.tsv": {
+      "sha256": "c6a5a741fd89fd002ef8e333068eb2f2384860fd4327d403107e74ffbc6cd24e",
+      "rows": 0,
+      "keys": 0,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    },
+    "archaic-relations.tsv": {
+      "sha256": "c6a5a741fd89fd002ef8e333068eb2f2384860fd4327d403107e74ffbc6cd24e",
+      "rows": 0,
+      "keys": 0,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    },
+    "general-manifest.jsonl": {
+      "sha256": "ee562cb35bdb800054573621bcb9f164881a63a62b593bd91c1e797808abee9a",
+      "rows": 1560,
+      "keys": 1560,
+      "added": 3,
+      "removed": 4,
+      "changed": 0
+    },
+    "north-korean-manifest.jsonl": {
+      "sha256": "93c767702b2ffc33b20ac6ca3e79f6b434da3c10147a212bdbe50118b83572bc",
+      "rows": 10,
+      "keys": 10,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    },
+    "dialect-manifest.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": 0,
+      "keys": 0,
+      "added": 0,
+      "removed": 0,
+      "changed": 0
+    },
+    "archaic-manifest.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": 0,
+      "keys": 0,
       "added": 0,
       "removed": 0,
       "changed": 0

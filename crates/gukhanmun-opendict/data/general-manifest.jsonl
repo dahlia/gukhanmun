@@ -376,7 +376,6 @@
 {"alias":"幫助犯","compound_ids":[162426],"donor_ids":[162205],"kind":"recognition","reading":"방조범","schema":1,"target":"幇助犯","via":{"from":"幇助","to":"幫助"}}
 {"alias":"幫助罪","compound_ids":[532474],"donor_ids":[162205],"kind":"recognition","reading":"방조죄","schema":1,"target":"幇助罪","via":{"from":"幇助","to":"幫助"}}
 {"alias":"幫助者","compound_ids":[532472],"donor_ids":[162205],"kind":"recognition","reading":"방조자","schema":1,"target":"幇助者","via":{"from":"幇助","to":"幫助"}}
-{"alias":"平原廣野","compound_ids":[549087],"donor_ids":[95300],"kind":"recognition","reading":"평원광야","schema":1,"target":"平原曠野","via":{"from":"曠野","to":"廣野"}}
 {"alias":"平和裏","compound_ids":[475556],"donor_ids":[456686],"kind":"recognition","reading":"평화리","schema":1,"target":"平和裡","via":{"from":"裡","to":"裏"}}
 {"alias":"平女墻","compound_ids":[365267],"donor_ids":[226241],"kind":"recognition","reading":"평여장","schema":1,"target":"平女牆","via":{"from":"女牆","to":"女墻"}}
 {"alias":"平欄杆","compound_ids":[311748],"donor_ids":[111502],"kind":"recognition","reading":"평난간","schema":1,"target":"平欄干","via":{"from":"欄干","to":"欄杆"}}
@@ -725,7 +724,6 @@
 {"alias":"無端缺席","compound_ids":[152182],"donor_ids":[420864],"kind":"recognition","reading":"무단결석","schema":1,"target":"無斷缺席","via":{"from":"無斷","to":"無端"}}
 {"alias":"無端離脫","compound_ids":[152185],"donor_ids":[420864],"kind":"recognition","reading":"무단이탈","schema":1,"target":"無斷離脫","via":{"from":"無斷","to":"無端"}}
 {"alias":"無計畫","compound_ids":[457685],"donor_ids":[560871],"kind":"recognition","reading":"무계획","schema":1,"target":"無計劃","via":{"from":"計劃","to":"計畫"}}
-{"alias":"無邊廣野","compound_ids":[152196],"donor_ids":[95300],"kind":"recognition","reading":"무변광야","schema":1,"target":"無邊曠野","via":{"from":"曠野","to":"廣野"}}
 {"alias":"無面나다","compound_ids":[154434],"donor_ids":[347900],"kind":"recognition","reading":"무면나다","schema":1,"target":"無麪나다","via":{"from":"無麪","to":"無面"}}
 {"alias":"無面지다","compound_ids":[154436],"donor_ids":[347900],"kind":"recognition","reading":"무면지다","schema":1,"target":"無麪지다","via":{"from":"無麪","to":"無面"}}
 {"alias":"煖冬害","compound_ids":[1066439],"donor_ids":[112318],"kind":"recognition","reading":"난동해","schema":1,"target":"暖冬害","via":{"from":"暖冬","to":"煖冬"}}
@@ -898,6 +896,7 @@
 {"alias":"砂漠毒蛇","compound_ids":[1434361],"donor_ids":[351088],"kind":"recognition","reading":"사막독사","schema":1,"target":"沙漠毒蛇","via":{"from":"沙漠","to":"砂漠"}}
 {"alias":"砂漠漆","compound_ids":[183405],"donor_ids":[351088],"kind":"recognition","reading":"사막칠","schema":1,"target":"沙漠漆","via":{"from":"沙漠","to":"砂漠"}}
 {"alias":"砂漠熱","compound_ids":[855813],"donor_ids":[351088],"kind":"recognition","reading":"사막열","schema":1,"target":"沙漠熱","via":{"from":"沙漠","to":"砂漠"}}
+{"alias":"砂漠王도마뱀","compound_ids":[1590752],"donor_ids":[351088],"kind":"recognition","reading":"사막왕도마뱀","schema":1,"target":"沙漠王도마뱀","via":{"from":"沙漠","to":"砂漠"}}
 {"alias":"砂漠雷","compound_ids":[183178],"donor_ids":[351088],"kind":"recognition","reading":"사막뢰","schema":1,"target":"沙漠雷","via":{"from":"沙漠","to":"砂漠"}}
 {"alias":"砂漠고슴도치","compound_ids":[1435117],"donor_ids":[351088],"kind":"recognition","reading":"사막고슴도치","schema":1,"target":"沙漠고슴도치","via":{"from":"沙漠","to":"砂漠"}}
 {"alias":"砂漠꿩","compound_ids":[183175],"donor_ids":[351088],"kind":"recognition","reading":"사막꿩","schema":1,"target":"沙漠꿩","via":{"from":"沙漠","to":"砂漠"}}
@@ -984,6 +983,7 @@
 {"alias":"納附額","compound_ids":[646191],"donor_ids":[343503],"kind":"recognition","reading":"납부액","schema":1,"target":"納付額","via":{"from":"納付","to":"納附"}}
 {"alias":"純白磁","compound_ids":[203644],"donor_ids":[165750],"kind":"recognition","reading":"순백자","schema":1,"target":"純白瓷","via":{"from":"白瓷","to":"白磁"}}
 {"alias":"純靑磁","compound_ids":[207577],"donor_ids":[289164],"kind":"recognition","reading":"순청자","schema":1,"target":"純靑瓷","via":{"from":"靑瓷","to":"靑磁"}}
+{"alias":"紫胡蝶","compound_ids":[1680806],"donor_ids":[320430],"kind":"recognition","reading":"자호접","schema":1,"target":"紫蝴蝶","via":{"from":"蝴蝶","to":"胡蝶"}}
 {"alias":"累代緣戚","compound_ids":[380405],"donor_ids":[540149],"kind":"recognition","reading":"누대연척","schema":1,"target":"累代連戚","via":{"from":"連戚","to":"緣戚"}}
 {"alias":"累鉅萬","compound_ids":[118283],"donor_ids":[412917],"kind":"recognition","reading":"누거만","schema":1,"target":"累巨萬","via":{"from":"巨萬","to":"鉅萬"}}
 {"alias":"細篳篥","compound_ids":[196028],"donor_ids":[315258],"kind":"recognition","reading":"세필률","schema":1,"target":"細觱篥","via":{"from":"觱篥","to":"篳篥"}}
@@ -1205,7 +1205,6 @@
 {"alias":"起原說","compound_ids":[621641],"donor_ids":[105432],"kind":"recognition","reading":"기원설","schema":1,"target":"起源說","via":{"from":"起源","to":"起原"}}
 {"alias":"起原論","compound_ids":[621640],"donor_ids":[105432],"kind":"recognition","reading":"기원론","schema":1,"target":"起源論","via":{"from":"起源","to":"起原"}}
 {"alias":"起原點","compound_ids":[976314],"donor_ids":[105432],"kind":"recognition","reading":"기원점","schema":1,"target":"起源點","via":{"from":"起源","to":"起原"}}
-{"alias":"足痕迹","compound_ids":[1185500],"donor_ids":[330100],"kind":"recognition","reading":"족흔적","schema":1,"target":"足痕跡","via":{"from":"痕跡","to":"痕迹"}}
 {"alias":"跌蕩","compound_ids":[398663],"donor_ids":[398663],"kind":"recognition","reading":"질탕","schema":1,"target":"跌宕","via":{"from":"grid","to":"跌蕩"}}
 {"alias":"跌蕩거리다","compound_ids":[545947],"donor_ids":[545947],"kind":"recognition","reading":"질탕거리다","schema":1,"target":"跌宕거리다","via":{"from":"grid","to":"跌蕩거리다"}}
 {"alias":"跌蕩대다","compound_ids":[283383],"donor_ids":[283383],"kind":"recognition","reading":"질탕대다","schema":1,"target":"跌宕대다","via":{"from":"grid","to":"跌蕩대다"}}
@@ -1292,6 +1291,7 @@
 {"alias":"鍊習靴","compound_ids":[1130415],"donor_ids":[228035],"kind":"recognition","reading":"연습화","schema":1,"target":"練習靴","via":{"from":"練習","to":"鍊習"}}
 {"alias":"鏹屬不絕","compound_ids":[412679],"donor_ids":[412679],"kind":"recognition","reading":"강속부절","schema":1,"target":"繈屬不絕","via":{"from":"grid","to":"鏹屬不絕"}}
 {"alias":"鏹屬不絕하다","compound_ids":[412680],"donor_ids":[412680],"kind":"recognition","reading":"강속부절하다","schema":1,"target":"繈屬不絕하다","via":{"from":"grid","to":"鏹屬不絕하다"}}
+{"alias":"鐘路에서","compound_ids":[1546328],"donor_ids":[272579],"kind":"recognition","reading":"종로에서","schema":1,"target":"鍾路에서","via":{"from":"鍾路","to":"鐘路"}}
 {"alias":"鐘路제기","compound_ids":[272581],"donor_ids":[272579],"kind":"recognition","reading":"종로제기","schema":1,"target":"鍾路제기","via":{"from":"鍾路","to":"鐘路"}}
 {"alias":"鐵砂釉","compound_ids":[289779],"donor_ids":[289776],"kind":"recognition","reading":"철사유","schema":1,"target":"鐵沙釉","via":{"from":"鐵沙","to":"鐵砂"}}
 {"alias":"鐵窓身世","compound_ids":[291656],"donor_ids":[390687],"kind":"recognition","reading":"철창신세","schema":1,"target":"鐵窓身勢","via":{"from":"身勢","to":"身世"}}
@@ -1488,7 +1488,6 @@
 {"alias":"꾸민欄杆","compound_ids":[111576],"donor_ids":[111502],"kind":"recognition","reading":"꾸민난간","schema":1,"target":"꾸민欄干","via":{"from":"欄干","to":"欄杆"}}
 {"alias":"날鴉片","compound_ids":[110460],"donor_ids":[538821],"kind":"recognition","reading":"날아편","schema":1,"target":"날阿片","via":{"from":"阿片","to":"鴉片"}}
 {"alias":"놋唾口","compound_ids":[116989],"donor_ids":[299822],"kind":"recognition","reading":"놋타구","schema":1,"target":"놋唾具","via":{"from":"唾具","to":"唾口"}}
-{"alias":"눌림痕迹","compound_ids":[117908],"donor_ids":[330100],"kind":"recognition","reading":"눌림흔적","schema":1,"target":"눌림痕跡","via":{"from":"痕跡","to":"痕迹"}}
 {"alias":"다시마糤子","compound_ids":[454494],"donor_ids":[535336],"kind":"recognition","reading":"다시마산자","schema":1,"target":"다시마饊子","via":{"from":"饊子","to":"糤子"}}
 {"alias":"대封筩","compound_ids":[417821],"donor_ids":[173187],"kind":"recognition","reading":"대봉통","schema":1,"target":"대封筒","via":{"from":"封筒","to":"封筩"}}
 {"alias":"덧掌甲","compound_ids":[782425],"donor_ids":[259930],"kind":"recognition","reading":"덧장갑","schema":1,"target":"덧掌匣","via":{"from":"掌匣","to":"掌甲"}}

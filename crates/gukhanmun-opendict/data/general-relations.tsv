@@ -361,9 +361,9 @@ hanja	hangul	canonical	alias_kind
 右袵	우임	右衽	sibling
 吁吁嘆嘆	우우탄탄	吁吁歎歎	sibling
 吁吁嘆嘆하다	우우탄탄하다	吁吁歎歎하다	sibling
+合從하다	합종하다	合縱하다	sibling
 合砂	합사	合沙	sibling
 合砂하다	합사하다	合沙하다	sibling
-合縱하다	합종하다	合從하다	sibling
 吉更	길경	桔梗	sibling
 名苑	명원	名園	sibling
 名蹟	명적	名跡	sibling
@@ -495,6 +495,7 @@ hanja	hangul	canonical	alias_kind
 壓伏하다	압복하다	壓服하다	sibling
 壓筩	압통	壓筒	sibling
 壓紙	압지	押紙	sibling
+壽巖山	수암산	水巖山	sibling
 壽筵	수연	壽宴	sibling
 外率	외율	外律	sibling
 夙心	숙심	宿心	sibling
@@ -651,7 +652,6 @@ hanja	hangul	canonical	alias_kind
 庭鞫	정국	庭鞠	sibling
 庭鞫하다	정국하다	庭鞠하다	sibling
 廢苑	폐원	廢園	sibling
-廣野	광야	曠野	sibling
 延耕	연경	軟耕	sibling
 廻向하다	회향하다	回向하다	sibling
 廻轉시키다	회전시키다	回轉시키다	sibling
@@ -925,6 +925,7 @@ hanja	hangul	canonical	alias_kind
 旄牛	모우	牦牛	sibling
 日食하다	일식하다	日蝕하다	sibling
 早智	조지	早知	sibling
+昆眉	곤미	昆湄	sibling
 明砂	명사	明沙	sibling
 春丈	춘장	椿丈	sibling
 春府	춘부	椿府	sibling
@@ -1313,7 +1314,6 @@ hanja	hangul	canonical	alias_kind
 病沒	병몰	病歿	sibling
 病沒하다	병몰하다	病歿하다	sibling
 痔瘻	치루	痔漏	sibling
-痕迹	흔적	痕跡	sibling
 痛嘆	통탄	痛歎	sibling
 痛嘆하다	통탄하다	痛歎하다	sibling
 痳疾	임질	淋疾	sibling
