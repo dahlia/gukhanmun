@@ -21,6 +21,23 @@ converter = Converter(dictionaries=[stdict()])
 assert converter.convert("無條件降服") == "무조건항복"
 ~~~~
 
+Use `load_dictionary()` to parse a source once and share it across converters.
+You can mix the returned `LoadedDictionary` with ordinary dictionary sources.
+
+~~~~ python
+from gukhanmun import Converter, DictionaryEntry, MapDictionarySource, RenderMode, load_dictionary
+from gukhanmun.dictionaries import stdict
+
+reference = load_dictionary(stdict())
+overrides = MapDictionarySource([DictionaryEntry("東京", "도쿄")])
+plain = Converter(dictionaries=[overrides, reference])
+ruby = Converter(dictionaries=[overrides, reference], rendering=RenderMode.RUBY_ON_HANGUL)
+~~~~
+
+The handle captures the dictionary's contents and source role. These converters
+retain the dictionary even after you drop `reference`. Load a new handle to pick
+up changes to a file or URL.
+
 
 Install the data
 ----------------

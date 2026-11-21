@@ -30,6 +30,10 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use serde::Deserialize;
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Weak};
 
 use gukhanmun::fst::FstDictionary;
 use gukhanmun::html::HtmlElementInfo;
@@ -109,6 +113,114 @@ pub struct RawDictInput {
     pub bytes: Option<Buffer>,
     /// JSON-encoded entry list for a runtime-built dictionary.
     pub entries_json: Option<String>,
+    /// Private identity of an already-loaded dictionary.
+    pub loaded_id: Option<u32>,
+}
+
+struct LoadedDictionary {
+    dictionary: Arc<dyn HanjaDictionary + Send + Sync>,
+    role: SourceRole,
+}
+
+thread_local! {
+    // A lease keeps the payload alive; this registry only indexes live leases.
+    static LOADED: RefCell<BTreeMap<u32, Weak<LoadedDictionary>>> =
+        const { RefCell::new(BTreeMap::new()) };
+}
+static NEXT_ID: AtomicU32 = AtomicU32::new(1);
+
+/// Keeps a parsed dictionary and its private lookup ID alive while the
+/// JavaScript handle is reachable.
+///
+/// The Node-API finalizer drops the lease and removes its weak registry entry.
+/// Converters that already acquired a reference keep the dictionary alive
+/// independently of the lease.
+pub struct DictionaryLease(u32, #[allow(dead_code)] Arc<LoadedDictionary>);
+
+impl Drop for DictionaryLease {
+    fn drop(&mut self) {
+        // Node-API runs external finalizers on the environment's thread.
+        let _ = LOADED.try_with(|registry| registry.borrow_mut().remove(&self.0));
+    }
+}
+
+/// Native carrier kept private by the JavaScript facade.
+#[napi(object, object_from_js = false)]
+pub struct LoadedDictionaryLease {
+    /// Private registry lookup ID. Keeping the number alone does not keep the
+    /// registry entry alive.
+    pub id: u32,
+    /// Strong owner of the registry entry's dictionary. Keep this reachable
+    /// until the converter has acquired its own reference.
+    pub lease: External<DictionaryLease>,
+}
+
+/// Parses a source once and gives its caller a native lease.
+#[napi]
+pub fn load_dictionary(source: RawDictInput) -> napi::Result<LoadedDictionaryLease> {
+    let loaded = Arc::new(decode_dictionary(&source)?);
+    let id = NEXT_ID
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+        .map_err(|_| napi_err("internal", "dictionary handle IDs exhausted"))?;
+    LOADED.with(|registry| registry.borrow_mut().insert(id, Arc::downgrade(&loaded)));
+    Ok(LoadedDictionaryLease {
+        id,
+        lease: External::new(DictionaryLease(id, loaded)),
+    })
+}
+
+fn dictionary_for_input(source: &RawDictInput) -> napi::Result<LoadedDictionary> {
+    let Some(id) = source.loaded_id else {
+        return decode_dictionary(source);
+    };
+    let loaded = LOADED.with(|registry| registry.borrow().get(&id).and_then(Weak::upgrade));
+    let loaded = loaded.ok_or_else(|| napi_err("invalid-input", "unknown loaded dictionary"))?;
+    Ok(LoadedDictionary {
+        dictionary: Arc::clone(&loaded.dictionary),
+        role: loaded.role,
+    })
+}
+
+fn decode_dictionary(source: &RawDictInput) -> napi::Result<LoadedDictionary> {
+    let role = source.role.as_deref().map(parse_source_role).transpose()?;
+    let dictionary: Arc<dyn HanjaDictionary + Send + Sync> =
+        if let Some(json) = source.entries_json.as_deref() {
+            if source.format.is_some() || source.bytes.is_some() {
+                return Err(napi_err(
+                    "invalid-input",
+                    "a dictionary must not combine `entries` with `format` or `bytes`",
+                ));
+            }
+            Arc::new(entry_dictionary(json)?)
+        } else {
+            let (Some(format), Some(bytes)) = (source.format.as_deref(), source.bytes.as_deref())
+            else {
+                return Err(napi_err(
+                    "invalid-input",
+                    "a dictionary must provide either `entries` or `format` with `bytes`",
+                ));
+            };
+            match format {
+                "fst" => Arc::new(
+                    FstDictionary::from_bytes(bytes)
+                        .map_err(|e| napi_err("dictionary-load", &e.to_string()))?,
+                ),
+                "cdb" => Arc::new(
+                    gukhanmun::cdb::CdbDictionary::from_bytes(bytes)
+                        .map_err(|e| napi_err("dictionary-load", &e.to_string()))?,
+                ),
+                other => {
+                    return Err(napi_err(
+                        "unsupported-content-type",
+                        &format!("unknown dictionary format: {other}"),
+                    ));
+                }
+            }
+        };
+    let role = role
+        .or_else(|| dictionary.source_evidence().map(|evidence| evidence.role))
+        .unwrap_or(SourceRole::Override);
+    Ok(LoadedDictionary { dictionary, role })
 }
 
 /// One entry of a runtime-built dictionary, as serialised by the wrapper.
@@ -277,52 +389,8 @@ impl NapiGukhanmun {
         }
 
         for dict in dictionaries.unwrap_or_default() {
-            let role = dict.role.as_deref().map(parse_source_role).transpose()?;
-            if let Some(json) = dict.entries_json.as_deref() {
-                if dict.format.is_some() || dict.bytes.is_some() {
-                    return Err(napi_err(
-                        "invalid-input",
-                        "a dictionary must not combine `entries` with `format` or `bytes`",
-                    ));
-                }
-                builder = builder.push_dictionary_with_role(
-                    entry_dictionary(json)?,
-                    role.unwrap_or(SourceRole::Override),
-                );
-                continue;
-            }
-            let (Some(format), Some(bytes)) = (dict.format.as_deref(), dict.bytes.as_deref())
-            else {
-                return Err(napi_err(
-                    "invalid-input",
-                    "a dictionary must provide either `entries` or `format` with `bytes`",
-                ));
-            };
-            match format {
-                "fst" => {
-                    let d = FstDictionary::from_bytes(bytes)
-                        .map_err(|e| napi_err("dictionary-load", &e.to_string()))?;
-                    let role = role
-                        .or_else(|| d.source_evidence().map(|evidence| evidence.role))
-                        .unwrap_or(SourceRole::Override);
-                    builder = builder.push_dictionary_with_role(d, role);
-                }
-                "cdb" => {
-                    use gukhanmun::cdb::CdbDictionary;
-                    let d = CdbDictionary::from_bytes(bytes)
-                        .map_err(|e| napi_err("dictionary-load", &e.to_string()))?;
-                    let role = role
-                        .or_else(|| d.source_evidence().map(|evidence| evidence.role))
-                        .unwrap_or(SourceRole::Override);
-                    builder = builder.push_dictionary_with_role(d, role);
-                }
-                other => {
-                    return Err(napi_err(
-                        "unsupported-content-type",
-                        &format!("unknown dictionary format: {other}"),
-                    ));
-                }
-            }
+            let loaded = dictionary_for_input(&dict)?;
+            builder = builder.push_dictionary_with_role(loaded.dictionary, loaded.role);
         }
 
         let converter = builder.build().map_err(|e| map_gukhanmun_error(&e))?;

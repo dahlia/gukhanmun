@@ -43,9 +43,11 @@ import type {
   ErrorCode,
   Format,
   Gukhanmun,
+  GukhanmunLoadOptions,
   GukhanmunOptions,
   HanjaVariantSet,
   HomophoneDetection,
+  LoadedDictionary,
   NumeralStrategy,
   Preset,
   Recovery,
@@ -68,10 +70,12 @@ export type {
   Format,
   Gukhanmun,
   GukhanmunFactory,
+  GukhanmunLoadOptions,
   GukhanmunOptions,
   HanjaVariantSet,
   HomophoneDetection,
   HtmlOptions,
+  LoadedDictionary,
   MapDictionarySource,
   NumeralStrategy,
   OriginalGloss,
@@ -110,6 +114,15 @@ interface WasmStreamInternal {
   free(): void;
 }
 
+interface WasmDictionaryInternal {
+  free(): void;
+}
+
+interface WasmDictionaryInputs {
+  insert(index: number, dictionary: WasmDictionaryInternal): void;
+  free(): void;
+}
+
 /** Shape of the wasm-bindgen generated glue module. */
 interface WasmGlue {
   /**
@@ -123,7 +136,10 @@ interface WasmGlue {
   WasmGukhanmun: new (
     options: unknown,
     dictionaries: unknown,
+    loaded: WasmDictionaryInputs,
   ) => WasmHandleInternal;
+  WasmLoadedInputs: new () => WasmDictionaryInputs;
+  load_dictionary(source: RawDictInput): WasmDictionaryInternal;
 }
 
 // ── Node.js detection ────────────────────────────────────────────────────────
@@ -279,6 +295,12 @@ interface RawEntryDictInput {
 /** One element of the ordered dictionary list sent to the WASM constructor. */
 type RawDictInput = RawBinaryDictInput | RawEntryDictInput;
 
+const loadedMarker = Symbol.for("gukhanmun.LoadedDictionary");
+const loadedDictionaries = new WeakMap<
+  LoadedDictionary,
+  WasmDictionaryInternal
+>();
+
 /** Rejects a source that is not an object before any property is read. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -348,8 +370,14 @@ async function resolveDictionary(
     );
   }
   const role = source.role;
-  if (role !== undefined && role !== "override" && role !== "reference" && role !== "loanword") {
-    throw new GukhanmunError("invalid-input", `Unknown dictionary source role: ${String(role)}`);
+  if (
+    role !== undefined && role !== "override" && role !== "reference" &&
+    role !== "loanword"
+  ) {
+    throw new GukhanmunError(
+      "invalid-input",
+      `Unknown dictionary source role: ${String(role)}`,
+    );
   }
   if ("entries" in source) {
     if ("format" in source || "data" in source) {
@@ -359,6 +387,12 @@ async function resolveDictionary(
       );
     }
     return { entriesJson: encodeEntries(source.entries), role };
+  }
+  if (source.data === undefined && Object.hasOwn(source, loadedMarker)) {
+    throw new GukhanmunError(
+      "invalid-input",
+      "Expected a local dictionary source",
+    );
   }
   if (source.data instanceof ArrayBuffer) {
     return { format: source.format, role, bytes: new Uint8Array(source.data) };
@@ -539,7 +573,7 @@ function liftError(raw: unknown): GukhanmunError {
 
 // ── Resolved options helpers ─────────────────────────────────────────────────
 
-function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
+function resolveOptions(opts: GukhanmunLoadOptions = {}): ResolvedOptions {
   const preset = opts.preset ?? "ko-kr";
   const koKp = preset === "ko-kp";
   return {
@@ -580,21 +614,35 @@ function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
  * @returns A `{@link Gukhanmun}` instance.
  * @throws {@link GukhanmunError} on invalid options or dictionary load failure.
  */
-export async function load(options: GukhanmunOptions = {}): Promise<Gukhanmun> {
+export async function load(
+  options: GukhanmunLoadOptions = {},
+): Promise<Gukhanmun> {
   const wasm = await ensureWasm();
   const resolved = resolveOptions(options);
 
+  const loaded: [number, WasmDictionaryInternal][] = [];
   const dicts = await Promise.all(
-    (options.dictionaries ?? []).map(resolveDictionary),
+    (options.dictionaries ?? []).map((source, i) => {
+      const native = loadedDictionaries.get(source as LoadedDictionary);
+      if (native !== undefined) {
+        loaded.push([i, native]);
+        return null;
+      }
+      return resolveDictionary(source as DictionarySource);
+    }),
   );
 
   const rawOpts = buildRawOptions(options, resolved);
 
   let handle: WasmHandleInternal;
+  const inputs = new wasm.WasmLoadedInputs();
   try {
-    handle = new wasm.WasmGukhanmun(rawOpts, dicts);
+    for (const [index, native] of loaded) inputs.insert(index, native);
+    handle = new wasm.WasmGukhanmun(rawOpts, dicts, inputs);
   } catch (e) {
     throw liftError(e);
+  } finally {
+    inputs.free();
   }
 
   const punctuation = JSON.parse(
@@ -607,11 +655,29 @@ export async function load(options: GukhanmunOptions = {}): Promise<Gukhanmun> {
   return new GukhanmunImpl(handle, { ...resolved, punctuation });
 }
 
+/** Loads one immutable dictionary snapshot for reuse by this backend. */
+export async function loadDictionary(
+  source: DictionarySource,
+): Promise<LoadedDictionary> {
+  const wasm = await ensureWasm();
+  const raw = await resolveDictionary(source);
+  try {
+    const native = wasm.load_dictionary(raw);
+    const handle = Object.freeze({
+      [loadedMarker]: true,
+    }) as unknown as LoadedDictionary;
+    loadedDictionaries.set(handle, native);
+    return handle;
+  } catch (e) {
+    throw liftError(e);
+  }
+}
+
 // ── Options serialisation ────────────────────────────────────────────────────
 
 /** Builds the plain-object options passed across the WASM boundary. */
 function buildRawOptions(
-  opts: GukhanmunOptions,
+  opts: GukhanmunLoadOptions,
   resolved: ResolvedOptions,
 ): Record<string, unknown> {
   const raw: Record<string, unknown> = {

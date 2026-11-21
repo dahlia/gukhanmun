@@ -357,6 +357,8 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Added `load_dictionary()` to share a parsed dictionary across converters
+    without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added source-attested phrase resolution in conversion and streaming,
     including licensed complete verb forms and strict phrase spacing, while
     preserving complete candidate metadata and source-policy eligibility. Load
@@ -393,6 +395,9 @@ To be released.
  -  Native converters now default to reference-authorized source cooperation
     and expose policy, reference-only eligibility and explicit dictionary roles
     through their JavaScript options. [[#42], [#44]]
+
+[#80]: https://github.com/dahlia/gukhanmun/issues/80
+[#83]: https://github.com/dahlia/gukhanmun/pull/83
 
 ### gukhanmun-opendict (Rust)
 
@@ -436,6 +441,8 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Added `load_dictionary()` to share a parsed dictionary across converters
+    without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added source-attested phrase resolution in conversion and streaming,
     including licensed complete verb forms and strict phrase spacing, while
     preserving complete candidate metadata and source-policy eligibility. Load
@@ -576,6 +583,8 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Added `loadDictionary()` to share a parsed dictionary across converters
+    without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
     homophone identity and count as one lexeme for first-occurrence filtering.
     [[#38], [#39]]
@@ -808,6 +817,9 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Ftypes%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Added `LoadedDictionary` and `GukhanmunLoadOptions` for mixing loaded
+    dictionaries with existing sources without changing `GukhanmunOptions`.
+    [[#80], [#83]]
  -  Added `sourcePolicy`, `referenceOnly` and explicit dictionary `role`
     options. File descriptors can inherit roles from embedded evidence; entry
     descriptors and untagged legacy files default to authored overrides.
@@ -825,6 +837,8 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Added `loadDictionary()` to share a parsed dictionary across converters
+    without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
     homophone identity and count as one lexeme for first-occurrence filtering.
     [[#38], [#39]]
@@ -882,7 +896,7 @@ To be released.
     control reference-authorized cooperation; authored overrides remain
     authoritative. Compiled dictionaries support compound aliases, source
     evidence and phrase constraints, including version 4 data.
-    [[#48], [#15], [#55]]
+    [[#48], [#15], [#55], [#80], [#83]]
  -  Added `UrlDictionarySource` for HTTP(S) dictionaries with configurable
     `max_bytes` (64 MiB by default), a response-reading `total_timeout`
     (30 seconds by default) shared across redirects, and a per-operation

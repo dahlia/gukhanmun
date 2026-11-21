@@ -50,9 +50,11 @@ import type {
   ErrorCode,
   Format,
   Gukhanmun,
+  GukhanmunLoadOptions,
   GukhanmunOptions,
   HanjaVariantSet,
   HomophoneDetection,
+  LoadedDictionary,
   NumeralStrategy,
   Preset,
   Recovery,
@@ -75,10 +77,12 @@ export type {
   Format,
   Gukhanmun,
   GukhanmunFactory,
+  GukhanmunLoadOptions,
   GukhanmunOptions,
   HanjaVariantSet,
   HomophoneDetection,
   HtmlOptions,
+  LoadedDictionary,
   MapDictionarySource,
   NumeralStrategy,
   OriginalGloss,
@@ -119,6 +123,17 @@ interface RawEntryDictInput {
 /** One element of the ordered dictionary list sent to the native addon. */
 type RawDictInput = RawBinaryDictInput | RawEntryDictInput;
 
+interface NativeDictionaryLease {
+  id: number;
+  lease: unknown;
+}
+
+interface NativeLoadedInput {
+  loadedId: number;
+  // Keep the native lease rooted until Rust has cloned its own reference.
+  lease: unknown;
+}
+
 /**
  * Opaque stream handle (`External<StreamState>` on the Rust side) returned by
  * `openStream` and passed back to `streamPush` / `streamFinish`.
@@ -138,8 +153,12 @@ interface NapiHandle {
 /** Shape of the napi-rs generated module (`gukhanmun_napi.node`). */
 interface NapiAddon {
   NapiGukhanmun: {
-    load(optionsJson: string | null, dicts: RawDictInput[]): NapiHandle;
+    load(
+      optionsJson: string | null,
+      dicts: (RawDictInput | NativeLoadedInput)[],
+    ): NapiHandle;
   };
+  loadDictionary(source: RawDictInput): NativeDictionaryLease;
 }
 
 // ── Native addon loading ──────────────────────────────────────────────────────
@@ -332,8 +351,14 @@ async function resolveDictionary(
     );
   }
   const role = source.role;
-  if (role !== undefined && role !== "override" && role !== "reference" && role !== "loanword") {
-    throw new GukhanmunError("invalid-input", `Unknown dictionary source role: ${String(role)}`);
+  if (
+    role !== undefined && role !== "override" && role !== "reference" &&
+    role !== "loanword"
+  ) {
+    throw new GukhanmunError(
+      "invalid-input",
+      `Unknown dictionary source role: ${String(role)}`,
+    );
   }
   if ("entries" in source) {
     if ("format" in source || "data" in source) {
@@ -343,6 +368,12 @@ async function resolveDictionary(
       );
     }
     return { entriesJson: encodeEntries(source.entries), role };
+  }
+  if (source.data === undefined && Object.hasOwn(source, loadedMarker)) {
+    throw new GukhanmunError(
+      "invalid-input",
+      "Expected a local dictionary source",
+    );
   }
   let bytes: Buffer;
   if (source.data instanceof ArrayBuffer) {
@@ -393,6 +424,29 @@ async function resolveDictionary(
   return { format: source.format, bytes, role };
 }
 
+const loadedMarker = Symbol.for("gukhanmun.LoadedDictionary");
+const loadedDictionaries = new WeakMap<
+  LoadedDictionary,
+  NativeDictionaryLease
+>();
+
+/** Loads one immutable dictionary snapshot for reuse by this backend. */
+export async function loadDictionary(
+  source: DictionarySource,
+): Promise<LoadedDictionary> {
+  const raw = await resolveDictionary(source);
+  try {
+    const lease = nativeAddon.loadDictionary(raw);
+    const handle = Object.freeze({
+      [loadedMarker]: true,
+    }) as unknown as LoadedDictionary;
+    loadedDictionaries.set(handle, lease);
+    return handle;
+  } catch (e) {
+    throw liftNapiError(e);
+  }
+}
+
 // ── Resolved options ──────────────────────────────────────────────────────────
 
 /** Resolved default options stored on the `Gukhanmun` instance. */
@@ -413,7 +467,7 @@ interface ResolvedOptions {
   readonly recovery: Recovery;
 }
 
-function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
+function resolveOptions(opts: GukhanmunLoadOptions = {}): ResolvedOptions {
   const preset = opts.preset ?? "ko-kr";
   const koKp = preset === "ko-kp";
   return {
@@ -437,7 +491,7 @@ function resolveOptions(opts: GukhanmunOptions = {}): ResolvedOptions {
 // ── Options serialisation ─────────────────────────────────────────────────────
 
 function buildRawOptions(
-  opts: GukhanmunOptions,
+  opts: GukhanmunLoadOptions,
   resolved: ResolvedOptions,
 ): Record<string, unknown> {
   const raw: Record<string, unknown> = {
@@ -562,10 +616,18 @@ class GukhanmunImpl implements Gukhanmun {
  * @returns A `{@link Gukhanmun}` instance.
  * @throws {@link GukhanmunError} on invalid options or dictionary load failure.
  */
-export async function load(options: GukhanmunOptions = {}): Promise<Gukhanmun> {
+export async function load(
+  options: GukhanmunLoadOptions = {},
+): Promise<Gukhanmun> {
   const resolved = resolveOptions(options);
   const dicts = await Promise.all(
-    (options.dictionaries ?? []).map(resolveDictionary),
+    (options.dictionaries ?? []).map((source) => {
+      const loaded = loadedDictionaries.get(source as LoadedDictionary);
+      if (loaded !== undefined) {
+        return { loadedId: loaded.id, lease: loaded.lease };
+      }
+      return resolveDictionary(source as DictionarySource);
+    }),
   );
   const optionsJson = JSON.stringify(buildRawOptions(options, resolved));
   let handle: NapiHandle;

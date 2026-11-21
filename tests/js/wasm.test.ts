@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { GukhanmunError, load } from "../../packages/wasm/index.ts";
+import { GukhanmunError, load, loadDictionary } from "../../packages/wasm/index.ts";
 import { registerSuite } from "./suite.ts";
 
-registerSuite("wasm", { load, GukhanmunError });
+registerSuite("wasm", { load, loadDictionary, GukhanmunError });

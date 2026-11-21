@@ -14,7 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { GukhanmunError, load } from "../../packages/napi/index.ts";
+import { GukhanmunError, load, loadDictionary } from "../../packages/napi/index.ts";
+import { loadDictionary as loadWasmDictionary } from "../../packages/wasm/index.ts";
 import { registerSuite } from "./suite.ts";
 
-registerSuite("napi", { load, GukhanmunError });
+registerSuite("napi", {
+  load,
+  loadDictionary,
+  foreignLoad: loadWasmDictionary,
+  GukhanmunError,
+});

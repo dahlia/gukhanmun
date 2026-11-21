@@ -47,6 +47,52 @@ def source(name: str, format: g.DictionaryFormat, role: g.SourceRole | None = No
 
 
 @pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
+def test_reusable_dictionary(format: g.DictionaryFormat, tmp_path: Path) -> None:
+    path = tmp_path / "dict"
+    path.write_bytes(binary("plain", format))
+    descriptor = g.FileDictionarySource(path, format, g.SourceRole.REFERENCE)
+    loaded = g.load_dictionary(descriptor)
+    assert isinstance(loaded, g.LoadedDictionary)
+    with pytest.raises(TypeError):
+        g.LoadedDictionary()
+    with pytest.raises(TypeError):
+        g.load_dictionary(loaded)
+    path.write_bytes(b"changed")
+    with pytest.raises(g.GukhanmunError) as error:
+        g.load_dictionary(descriptor)
+    assert error.value.code is g.ErrorCode.DICTIONARY_LOAD
+
+    def converter(reading: str, rendering: g.RenderMode) -> g.Converter:
+        return g.Converter(
+            dictionaries=[loaded, g.MapDictionarySource([g.DictionaryEntry("東京", reading)])],
+            rendering=rendering,
+            homophone_window=g.ContextWindow.OFF,
+        )
+
+    plain = converter("도쿄", g.RenderMode.HANGUL_ONLY)
+    ruby = converter("동경", g.RenderMode.RUBY_ON_HANGUL)
+    del loaded
+    assert plain.convert("東京") == "도쿄"
+    assert ruby.convert("東京", format=g.InputFormat.HTML) == "<ruby>동경<rp>(</rp><rt>東京</rt><rp>)</rp></ruby>"
+    # "漢字" is marked in the compiled dictionary, unlike plain fallback.
+    assert g.Converter(homophone_window=g.ContextWindow.OFF).convert("漢字") == "한자"
+    assert plain.convert("漢字") == "한자(漢字)"
+    assert "<rt>漢字</rt>" in ruby.convert("漢字", format=g.InputFormat.HTML)
+
+
+@pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
+def test_loaded_dictionary_role_precedence(format: g.DictionaryFormat) -> None:
+    override = g.MapDictionarySource([g.DictionaryEntry("宙名", "새이름")])
+    for role, expected in [(None, "새이름"), (g.SourceRole.OVERRIDE, "가온")]:
+        loaded = g.load_dictionary(source("reference", format, role))
+        converter = g.Converter(
+            dictionaries=[loaded, override],
+            homophone_window=g.ContextWindow.OFF,
+        )
+        assert converter.convert("宙名") == expected
+
+
+@pytest.mark.parametrize("format", tuple(g.DictionaryFormat))
 def test_binary_candidates_positional_readings_and_marks(format: g.DictionaryFormat) -> None:
     converter = g.Converter(dictionaries=[source("plain", format)], homophone_window=g.ContextWindow.OFF)
     assert converter.convert("東京를 東京을 1990年代 漢字") == "도쿄를 동경을 1990년대 한자(漢字)"

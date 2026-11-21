@@ -380,6 +380,10 @@ match $nu.os-info.name {
 }
 """
 
+[tasks.bench-loaded-dictionaries]
+description = "Measure Node-API converter construction time and retained RSS"
+run = "node --expose-gc scripts/benchmarks/loaded-dictionaries.mjs"
+
 [tasks.stdict-cdb-data]
 description = "Build gukhanmun-mkdict (release) and generate CDB binary to packages/stdict-cdb/"
 extends = "nu"

@@ -5,6 +5,8 @@ links:
   '#49': https://github.com/dahlia/gukhanmun/issues/49
   '#55': https://github.com/dahlia/gukhanmun/pull/55
   '#57': https://github.com/dahlia/gukhanmun/pull/57
+  '#80': https://github.com/dahlia/gukhanmun/issues/80
+  '#83': https://github.com/dahlia/gukhanmun/pull/83
 ---
  -  Added a Python 3.11+ `Converter` API for plain text, HTML and Markdown,
     with reusable immutable settings, standard-library enums, punctuation
@@ -21,7 +23,7 @@ links:
     control reference-authorized cooperation; authored overrides remain
     authoritative. Compiled dictionaries support compound aliases, source
     evidence and phrase constraints, including version 4 data.
-    [[#48], [#15], [#55]]
+    [[#48], [#15], [#55], [#80], [#83]]
 
  -  Added `UrlDictionarySource` for HTTP(S) dictionaries with configurable
     `max_bytes` (64 MiB by default), a response-reading `total_timeout`

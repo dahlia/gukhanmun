@@ -19,6 +19,7 @@
 mod html;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
 
 use gukhanmun::cdb::CdbDictionary;
 use gukhanmun::fst::FstDictionary;
@@ -40,12 +41,36 @@ pyo3::create_exception!(
 );
 
 type Result<T> = std::result::Result<T, Failure>;
-type DictionaryInput = (
+type RawDictionary = (
     Option<String>,
     Option<String>,
     Option<Vec<u8>>,
     Option<String>,
 );
+
+#[derive(Clone)]
+#[pyclass(module = "gukhanmun._native", frozen)]
+/// Immutable dictionary snapshot; create it with `gukhanmun.load_dictionary`.
+struct LoadedDictionary {
+    dictionary: Arc<dyn HanjaDictionary + Send + Sync>,
+    role: SourceRole,
+}
+
+#[derive(FromPyObject)]
+enum HostDictionary<'py> {
+    Loaded(PyRef<'py, LoadedDictionary>),
+    Raw(RawDictionary),
+}
+
+enum DictionaryInput {
+    Loaded(LoadedDictionary),
+    Raw(RawDictionary),
+}
+
+#[pyfunction]
+fn load_dictionary(py: Python<'_>, source: RawDictionary) -> PyResult<LoadedDictionary> {
+    detached(py, move || decode_dictionary(source))
+}
 
 #[derive(Debug, Serialize)]
 struct Cause {
@@ -182,8 +207,15 @@ impl NativeConverter {
     fn new(
         py: Python<'_>,
         options_json: String,
-        dictionaries: Vec<DictionaryInput>,
+        dictionaries: Vec<HostDictionary<'_>>,
     ) -> PyResult<Self> {
+        let dictionaries = dictionaries
+            .into_iter()
+            .map(|source| match source {
+                HostDictionary::Loaded(handle) => DictionaryInput::Loaded((*handle).clone()),
+                HostDictionary::Raw(raw) => DictionaryInput::Raw(raw),
+            })
+            .collect();
         detached(py, move || build(&options_json, dictionaries))
     }
 
@@ -283,31 +315,32 @@ fn build(json: &str, dictionaries: Vec<DictionaryInput>) -> Result<NativeConvert
     if let Some(rules) = opts.html {
         builder = builder.html_preserve_when(move |info| rules.matches(info.raw_attributes));
     }
-    for (role, format, bytes, entries) in dictionaries {
-        let role = role.as_deref().map(parse_source_role).transpose()?;
+    for source in dictionaries {
+        let loaded = match source {
+            DictionaryInput::Raw(raw) => decode_dictionary(raw)?,
+            DictionaryInput::Loaded(loaded) => loaded,
+        };
+        builder = builder.push_dictionary_with_role(loaded.dictionary, loaded.role);
+    }
+    let converter = builder.build().map_err(map_error)?;
+    let resolved = resolved_options(&converter, preset_name)?;
+    Ok(NativeConverter {
+        converter,
+        resolved,
+    })
+}
+
+fn decode_dictionary((role, format, bytes, entries): RawDictionary) -> Result<LoadedDictionary> {
+    let role = role.as_deref().map(parse_source_role).transpose()?;
+    // The umbrella error keeps the parser's source() chain for Python.
+    let dictionary: Arc<dyn HanjaDictionary + Send + Sync> =
         match (format.as_deref(), bytes, entries) {
-            (None, None, Some(entries)) => {
-                builder = builder.push_dictionary_with_role(
-                    entry_dictionary(&entries)?,
-                    role.unwrap_or(SourceRole::Override),
-                );
-            }
+            (None, None, Some(entries)) => Arc::new(entry_dictionary(&entries)?),
             (Some("fst"), Some(bytes), None) => {
-                // The umbrella error keeps the parser's source() chain for Python.
-                let dictionary =
-                    FstDictionary::from_bytes(&bytes).map_err(|e| map_error(e.into()))?;
-                let role = role
-                    .or_else(|| dictionary.source_evidence().map(|e| e.role))
-                    .unwrap_or(SourceRole::Override);
-                builder = builder.push_dictionary_with_role(dictionary, role);
+                Arc::new(FstDictionary::from_bytes(&bytes).map_err(|e| map_error(e.into()))?)
             }
             (Some("cdb"), Some(bytes), None) => {
-                let dictionary =
-                    CdbDictionary::from_bytes(&bytes).map_err(|e| map_error(e.into()))?;
-                let role = role
-                    .or_else(|| dictionary.source_evidence().map(|e| e.role))
-                    .unwrap_or(SourceRole::Override);
-                builder = builder.push_dictionary_with_role(dictionary, role);
+                Arc::new(CdbDictionary::from_bytes(&bytes).map_err(|e| map_error(e.into()))?)
             }
             (Some(other), Some(_), None) => {
                 return Err(Failure::new(
@@ -320,14 +353,11 @@ fn build(json: &str, dictionaries: Vec<DictionaryInput>) -> Result<NativeConvert
                     "dictionary must contain either entries or a format and bytes",
                 ));
             }
-        }
-    }
-    let converter = builder.build().map_err(map_error)?;
-    let resolved = resolved_options(&converter, preset_name)?;
-    Ok(NativeConverter {
-        converter,
-        resolved,
-    })
+        };
+    let role = role
+        .or_else(|| dictionary.source_evidence().map(|e| e.role))
+        .unwrap_or(SourceRole::Override);
+    Ok(LoadedDictionary { dictionary, role })
 }
 
 fn entry_dictionary(json: &str) -> Result<MapDictionary> {
@@ -529,12 +559,45 @@ fn context_name(value: ContextWindow) -> &'static str {
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<NativeConverter>()?;
+    module.add_class::<LoadedDictionary>()?;
+    module.add_function(wrap_pyfunction!(load_dictionary, module)?)?;
     module.add("NativeError", module.py().get_type::<NativeError>())?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn loaded_dictionary_allocation_outlives_caller() {
+        use super::*;
+
+        let loaded = decode_dictionary((
+            None,
+            None,
+            None,
+            Some(r#"[{"hanja":"東京","reading":"도쿄"}]"#.into()),
+        ))
+        .unwrap();
+        let allocation = Arc::downgrade(&loaded.dictionary);
+        let make_converter = || build("{}", vec![DictionaryInput::Loaded(loaded.clone())]).unwrap();
+        let first = make_converter();
+        let second = make_converter();
+        assert_eq!(Arc::strong_count(&loaded.dictionary), 3);
+        drop(loaded);
+        assert_eq!(
+            first.converter.convert_text_to_string("東京").unwrap(),
+            "도쿄"
+        );
+        assert_eq!(
+            second.converter.convert_text_to_string("東京").unwrap(),
+            "도쿄"
+        );
+        drop(first);
+        assert_eq!(allocation.strong_count(), 1);
+        drop(second);
+        assert!(allocation.upgrade().is_none());
+    }
+
     use super::*;
     use std::sync::mpsc;
     use std::time::Duration;
@@ -614,7 +677,10 @@ mod tests {
             (None, Some("fst".into()), None, None),
         ] {
             assert_eq!(
-                build("{}", vec![input]).err().unwrap().code,
+                build("{}", vec![DictionaryInput::Raw(input)])
+                    .err()
+                    .unwrap()
+                    .code,
                 "invalid-input"
             );
         }
@@ -641,7 +707,12 @@ mod tests {
         ]"#;
         let converter = build(
             r#"{"homophone_window":"off"}"#,
-            vec![(None, None, None, Some(entries.into()))],
+            vec![DictionaryInput::Raw((
+                None,
+                None,
+                None,
+                Some(entries.into()),
+            ))],
         )
         .unwrap();
         assert_eq!(

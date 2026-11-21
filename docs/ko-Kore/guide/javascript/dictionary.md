@@ -36,6 +36,27 @@ const g = await load({ dictionaries: [await stdictCdb()] });
 `stdictFst()`와 `stdictCdb()`는 모두 `Promise<FileDictionarySource>`를
 返還합니다.
 
+같은 辭典을 여러 變換器에서 使用하려면 `loadDictionary()`로 한 번만
+불러옵니다. `load()`와 같은 패키지에서 가져온 函數를 使用합니다.
+
+~~~~ ts twoslash
+import { load, loadDictionary } from "@gukhanmun/wasm";
+import { stdictFst } from "@gukhanmun/stdict-fst";
+
+const reference = await loadDictionary(await stdictFst());
+const overrides = { entries: [{ hanja: "東京", reading: "도쿄" }] };
+const plain = await load({ dictionaries: [overrides, reference] });
+const ruby = await load({
+  dictionaries: [overrides, reference],
+  rendering: "ruby-on-hangul",
+});
+~~~~
+
+`LoadedDictionary`는 불러온 時點의 內容과 出處 役割을 保持합니다. 辭典
+데이터는 共有하지만, 出處 順序와 變換 옵션은 變換器마다 따로 適用합니다.
+다른 백엔드에서 使用하거나 바뀐 內容을 反映하려면 다시 불러옵니다.
+핸들이 든 옵션의 타입은 `GukhanmunLoadOptions`입니다.
+
 
 《우리말샘》 패키지
 -------------------
