@@ -3746,14 +3746,36 @@ impl<'a> UserDirectives<'a> {
         token: OutputToken<S>,
         lexemes: Option<&LexemeIndex>,
     ) -> OutputToken<S> {
+        self.apply_with_render_policy(token, lexemes, false)
+    }
+
+    /// Applies directives, then optionally clears dictionary-only hanja requirements.
+    ///
+    /// Pass `true` only for a renderer that should omit hanja requested solely
+    /// by a dictionary mark. Predicates see the original marks and the effects
+    /// of preceding directives. Explicit source glosses and matched
+    /// [`DirectiveAction::RequireHanja`] rules retain their requirements.
+    ///
+    /// Use this once per token, after source gloss, homophone, and
+    /// first-occurrence processing. When ignoring dictionary requirements, the
+    /// input must not already carry `require_hanja` flags set by directives or
+    /// other custom middleware.
+    pub fn apply_with_render_policy<S>(
+        &self,
+        token: OutputToken<S>,
+        lexemes: Option<&LexemeIndex>,
+        ignore_dictionary_required_hanja: bool,
+    ) -> OutputToken<S> {
         match token {
             OutputToken::Annotated(mut annotation) => {
+                let mut explicit_require_hanja = false;
                 for rule in &self.rules {
                     if !rule.predicate.matches(&annotation, lexemes) {
                         continue;
                     }
                     match rule.action {
                         DirectiveAction::RequireHanja => {
+                            explicit_require_hanja = true;
                             annotation.require_hanja = true;
                             if let Some(selected) = &mut annotation.selection {
                                 selected.directive_mark.require_hanja = true;
@@ -3767,6 +3789,13 @@ impl<'a> UserDirectives<'a> {
                         }
                         DirectiveAction::SkipAnnotation => annotation.skip_annotation = true,
                     }
+                }
+                if ignore_dictionary_required_hanja
+                    && annotation.from_dictionary
+                    && !annotation.from_source_gloss
+                    && !explicit_require_hanja
+                {
+                    annotation.require_hanja = false;
                 }
                 OutputToken::Annotated(annotation)
             }

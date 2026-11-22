@@ -236,6 +236,9 @@ To be released.
  -  Changed `MapDictionary::max_word_chars()` to report `Some(0)` while the map
     is empty, so an empty user dictionary no longer hides the word bound of the
     dictionaries chained after it while streaming.  [[#33], [#34]]
+ -  Added `UserDirectives::apply_with_render_policy()` for conversion pipelines
+    that omit hanja glosses required only by dictionary entries. It keeps
+    explicit source glosses and requests made by directives. [[#81], [#86]]
  -  Added candidate-level alias metadata (`AliasKind`, `AliasTarget`,
     `ReadingCandidate::alias`) and `LexemeIndex` for canonical lexeme lookup.
     Homophone marking shares one identity across alias kinds through
