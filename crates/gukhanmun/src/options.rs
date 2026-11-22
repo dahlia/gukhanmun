@@ -61,6 +61,7 @@ impl Preset {
             Preset::KoKr => ConversionOptions {
                 punctuation: gukhanmun_core::PunctuationProfile::preserve(),
                 rendering: RenderOptions::default(),
+                ignore_dictionary_required_hanja: false,
                 annotation_granularity: AnnotationGranularity::Word,
                 engine: EngineOptions {
                     segmentation: SegmentationStrategy::default(),
@@ -78,6 +79,7 @@ impl Preset {
             Preset::KoKp => ConversionOptions {
                 punctuation: gukhanmun_core::PunctuationProfile::preserve(),
                 rendering: RenderOptions::default(),
+                ignore_dictionary_required_hanja: false,
                 annotation_granularity: AnnotationGranularity::Word,
                 engine: EngineOptions {
                     segmentation: SegmentationStrategy::default(),
@@ -137,6 +139,12 @@ pub struct ConversionOptions {
     /// How annotations are turned into concrete text or markup.
     pub rendering: RenderOptions,
 
+    /// Whether to omit hanja glosses required only by a dictionary entry.
+    ///
+    /// Defaults to `false`. Only applies in
+    /// [`RenderMode::HangulOnly`](gukhanmun_core::RenderMode::HangulOnly).
+    pub ignore_dictionary_required_hanja: bool,
+
     /// Span to annotate when the renderer shows both scripts.
     pub annotation_granularity: AnnotationGranularity,
 
@@ -175,6 +183,16 @@ pub struct ConversionOptions {
 
     /// How the engine handles reader-level errors.
     pub recovery: Recovery,
+}
+
+impl ConversionOptions {
+    /// Returns whether the configured policy applies in the selected rendering mode.
+    ///
+    /// Unlike the stored flag, this returns `false` outside of `HangulOnly`.
+    pub fn ignores_dictionary_required_hanja(self) -> bool {
+        self.ignore_dictionary_required_hanja
+            && self.rendering.mode == gukhanmun_core::RenderMode::HangulOnly
+    }
 }
 
 impl Default for ConversionOptions {

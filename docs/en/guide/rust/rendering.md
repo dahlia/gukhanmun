@@ -47,6 +47,21 @@ as a parenthesized gloss (`한자(漢字)`) rather than running it into the base
 text.
 
 
+Omitting dictionary-required hanja
+----------------------------------
+
+Call `.ignore_dictionary_required_hanja(true)` on `Builder` or `SharedBuilder`
+to skip hanja glosses requested only by a dictionary entry in
+`RenderMode::HangulOnly`. This applies to bundled and custom dictionaries. It
+leaves homophone glosses, explicit directives, and recognized source glosses
+unchanged. The default is `false`.
+
+`options().ignore_dictionary_required_hanja` reports the configured value.
+For example, with `RenderMode::Original` this value can be `true` even though
+`options().ignores_dictionary_required_hanja()` returns `false` and the output
+is unaffected.
+
+
 `Original` mode with a gloss style
 ----------------------------------
 

@@ -27,6 +27,10 @@ To be released.
     converter builders. It shows `汽車길` as `기찻(汽車)길` in hangul-first
     parentheses and omits repeated hangul in ruby as well. Whole-word
     annotations remain the default. [[#84], [#85]]
+ -  Added `.ignore_dictionary_required_hanja(true)` to `Builder` and
+    `SharedBuilder` to omit hanja glosses required only by dictionary entries
+    in `RenderMode::HangulOnly`. Homophone glosses and explicit annotations
+    remain visible. [[#81], [#86]]
  -  Added `MapDictionary::from_candidates()` and `CandidateError::EmptyKey`
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it
@@ -112,8 +116,10 @@ To be released.
 [#53]: https://github.com/dahlia/gukhanmun/pull/53
 [#54]: https://github.com/dahlia/gukhanmun/pull/54
 [#55]: https://github.com/dahlia/gukhanmun/pull/55
+[#81]: https://github.com/dahlia/gukhanmun/issues/81
 [#84]: https://github.com/dahlia/gukhanmun/issues/84
 [#85]: https://github.com/dahlia/gukhanmun/pull/85
+[#86]: https://github.com/dahlia/gukhanmun/pull/86
 
 ### gukhanmun-cdb (Rust)
 

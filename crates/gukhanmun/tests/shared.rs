@@ -54,6 +54,37 @@ macro_rules! pair {
 }
 
 #[test]
+fn dictionary_required_hanja_option_is_independent_of_rendering() {
+    for preset in [Preset::KoKr, Preset::KoKp] {
+        assert!(!preset.options().ignore_dictionary_required_hanja);
+        assert!(!preset.options().ignores_dictionary_required_hanja());
+    }
+
+    let (local, shared) = pair!(
+        .ignore_dictionary_required_hanja(true)
+        .rendering(RenderOptions::from(RenderMode::Original))
+    );
+    for options in [local.options(), shared.options()] {
+        assert!(options.ignore_dictionary_required_hanja);
+        assert!(!options.ignores_dictionary_required_hanja());
+    }
+
+    let (local, shared) = pair!(
+        .rendering(RenderMode::HangulOnly)
+        .ignore_dictionary_required_hanja(true)
+    );
+    assert!(local.options().ignores_dictionary_required_hanja());
+    assert!(shared.options().ignores_dictionary_required_hanja());
+
+    let (local, shared) = pair!(
+        .ignore_dictionary_required_hanja(true)
+        .ignore_dictionary_required_hanja(false)
+    );
+    assert!(!local.options().ignore_dictionary_required_hanja);
+    assert!(!shared.options().ignore_dictionary_required_hanja);
+}
+
+#[test]
 fn hanja_run_annotation_is_independent_of_rendering() {
     let dictionary = || {
         let mut dictionary = MapDictionary::new();
