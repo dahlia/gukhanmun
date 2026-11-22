@@ -143,6 +143,9 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%2Dcli%20%28Rust%29 -->
 
+ -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
+    mixed-script words. Whole-word glosses remain the default and are used when
+    a reading cannot be split uniquely. [[#84], [#85]]
  -  Added `--generate-completion` for Bash, zsh, fish, PowerShell and Nushell,
     with option, value and file candidates derived from the CLI definition.
     Platform binary archives now include matching completion scripts and their
@@ -500,6 +503,8 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fcli%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
+    mixed-script words when their readings can be split uniquely. [[#84], [#85]]
  -  Added the dictionary-bundled `gukhanmun` converter and the
     `gukhanmun-mkdict` FST/CDB dictionary builder through
     `npm install -g @gukhanmun/cli`, without Rust or installation
@@ -1006,6 +1011,8 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%2Dcli%20%28Python%29 -->
 
+ -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
+    mixed-script words when their readings can be split uniquely. [[#84], [#85]]
  -  Added standalone CLI wheels for Python 3.11 or later on Linux with
     glibc 2.28 or musl 1.2 or later, macOS 11 or later, and Windows,
     on x86\_64 and aarch64. Install with `pipx install gukhanmun-cli`

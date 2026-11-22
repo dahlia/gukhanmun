@@ -11,6 +11,25 @@ Rendering modes
 output.  The default is `hangul-only`.
 
 
+Annotating only hanja runs
+--------------------------
+
+Pass `--annotation-granularity hanja-run` to attach each gloss to its
+contiguous hanja run rather than to the whole word:
+
+~~~~ sh
+printf '%s\n' '汽車길' |
+  gukhanmun -r hangul-hanja-parens --annotation-granularity hanja-run
+# → 기찻(汽車)길
+~~~~
+
+`word` is the default. The renderer also keeps the whole-word gloss if
+the reading cannot be split uniquely. The option does not turn on glosses
+that `--rendering` would otherwise omit. Ruby also uses run boundaries,
+with parentheses where inline markup is unavailable. The CLI's Markdown
+formatter can still strip inline HTML, including ruby, from headings.
+
+
 Available modes
 ---------------
 
