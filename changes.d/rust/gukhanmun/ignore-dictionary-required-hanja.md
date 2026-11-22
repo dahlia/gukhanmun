@@ -5,5 +5,5 @@ links:
 ---
  -  Added `.ignore_dictionary_required_hanja(true)` to `Builder` and
     `SharedBuilder` to omit hanja glosses required only by dictionary entries
-    in `RenderMode::HangulOnly`. Homophone glosses and explicit annotations
-    remain visible. [[#81], [#86]]
+    in `RenderMode::HangulOnly` across text, HTML, and Markdown. Homophone
+    glosses and explicit annotations remain visible. [[#81], [#86]]

@@ -20,8 +20,7 @@ use crate::{ConversionOptions, Result};
 use gukhanmun_core::{
     Engine, FirstOccurrenceFilter, HanjaDictionary, HomophoneMarker, InputToken, LexemeIndex,
     OutputToken, RedundantParenCollapser, RenderedToken, ScopeData, UserDirectives,
-    apply_user_directives_iter_with_lexemes, read_plain_text, render_tokens_iter_with_granularity,
-    write_plain_text,
+    read_plain_text, render_tokens_iter_with_granularity, write_plain_text,
 };
 #[cfg(feature = "html")]
 use gukhanmun_html::HtmlReaderOptions;
@@ -117,8 +116,10 @@ where
         FirstOccurrenceFilter::push_token,
         FirstOccurrenceFilter::finish,
     );
-    let directives_iter =
-        apply_user_directives_iter_with_lexemes(first_occurrence_iter, directives, lexemes.clone());
+    let ignore_dictionary_required_hanja = options.ignores_dictionary_required_hanja();
+    let directives_iter = first_occurrence_iter.map(move |token| {
+        directives.apply_with_render_policy(token, Some(lexemes), ignore_dictionary_required_hanja)
+    });
     let punctuation_iter = MiddlewareIter::new(
         directives_iter,
         gukhanmun_core::PunctuationNormalizer::with_codec(options.punctuation, codec),

@@ -29,8 +29,8 @@ To be released.
     annotations remain the default. [[#84], [#85]]
  -  Added `.ignore_dictionary_required_hanja(true)` to `Builder` and
     `SharedBuilder` to omit hanja glosses required only by dictionary entries
-    in `RenderMode::HangulOnly`. Homophone glosses and explicit annotations
-    remain visible. [[#81], [#86]]
+    in `RenderMode::HangulOnly` across text, HTML, and Markdown. Homophone
+    glosses and explicit annotations remain visible. [[#81], [#86]]
  -  Added `MapDictionary::from_candidates()` and `CandidateError::EmptyKey`
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it

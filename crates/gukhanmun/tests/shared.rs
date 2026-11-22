@@ -85,6 +85,125 @@ fn dictionary_required_hanja_option_is_independent_of_rendering() {
 }
 
 #[test]
+fn hangul_only_can_omit_dictionary_glosses_without_hiding_explicit_annotations() {
+    let dictionary = || {
+        let mut dictionary = MapDictionary::new();
+        dictionary.insert_marked(
+            "憂鬱症",
+            "우울증",
+            MatchMark {
+                require_hanja: true,
+                require_hangul: true,
+            },
+        );
+        dictionary.insert("偶鬱症", "우울증");
+        dictionary
+    };
+    let (local, shared) = pair!(.push_dictionary(dictionary()));
+    assert_text(&local, &shared, "憂鬱症", "우울증(憂鬱症)");
+    let (local, shared) = pair!(
+        .push_dictionary(dictionary())
+        .ignore_dictionary_required_hanja(false)
+    );
+    assert_text(&local, &shared, "憂鬱症", "우울증(憂鬱症)");
+
+    for policy in [SourcePolicy::Ordered, SourcePolicy::ReferenceAuthorized] {
+        let (local, shared) = pair!(
+            .push_dictionary(dictionary())
+            .source_policy(policy)
+            .ignore_dictionary_required_hanja(true)
+        );
+        for (input, expected) in [
+            ("憂鬱症", "우울증"),
+            ("憂鬱症(우울증) 憂鬱症", "우울증(憂鬱症) 우울증"),
+            ("우울증(憂鬱症)", "우울증(憂鬱症)"),
+            ("憂鬱症(질병)", "우울증(질병)"),
+        ] {
+            assert_text(&local, &shared, input, expected);
+        }
+        #[cfg(feature = "html")]
+        {
+            let input = "<p>憂鬱症 <span lang=\"zh\">憂鬱症</span> <code>憂鬱症</code></p>";
+            let expected = "<p>우울증 <span lang=\"zh\">憂鬱症</span> <code>憂鬱症</code></p>";
+            assert_eq!(
+                local.convert_html_fragment_to_string(input).unwrap(),
+                expected
+            );
+            assert_eq!(
+                shared.convert_html_fragment_to_string(input).unwrap(),
+                expected
+            );
+        }
+        #[cfg(feature = "markdown")]
+        {
+            let input = "憂鬱症 `憂鬱症`\n";
+            let expected = "우울증 `憂鬱症`";
+            let format = gukhanmun::markdown::MarkdownVariant::CommonMark;
+            assert_eq!(
+                local.convert_markdown_to_string(input, format).unwrap(),
+                expected
+            );
+            assert_eq!(
+                shared.convert_markdown_to_string(input, format).unwrap(),
+                expected
+            );
+        }
+    }
+
+    let (local, shared) = pair!(
+        .push_dictionary(dictionary())
+        .ignore_dictionary_required_hanja(true)
+        .directive("憂鬱症", DirectiveAction::RequireHanja)
+    );
+    assert_text(&local, &shared, "憂鬱症", "우울증(憂鬱症)");
+
+    let (local, shared) = pair!(
+        .push_dictionary(dictionary())
+        .ignore_dictionary_required_hanja(true)
+        .first_occurrence_window(ContextWindow::PerDocument)
+    );
+    assert_text(
+        &local,
+        &shared,
+        "憂鬱症 憂鬱症(우울증)",
+        "우울증 우울증(憂鬱症)",
+    );
+
+    let (local, shared) = pair!(
+        .push_dictionary(dictionary())
+        .ignore_dictionary_required_hanja(true)
+        .homophone_window(ContextWindow::PerDocument)
+    );
+    assert_text(
+        &local,
+        &shared,
+        "憂鬱症 偶鬱症",
+        "우울증(憂鬱症) 우울증(偶鬱症)",
+    );
+
+    for mode in [
+        RenderMode::Original,
+        RenderMode::HangulHanjaParens,
+        RenderMode::HanjaHangulParens,
+        RenderMode::Ruby(RubyBase::OnHangul),
+        RenderMode::Ruby(RubyBase::OnHanja),
+    ] {
+        let (default, _) = pair!(.push_dictionary(dictionary()).rendering(mode));
+        let (local, shared) = pair!(
+            .push_dictionary(dictionary())
+            .rendering(mode)
+            .ignore_dictionary_required_hanja(true)
+        );
+        assert_text(
+            &local,
+            &shared,
+            "憂鬱症",
+            &default.convert_text_to_string("憂鬱症").unwrap(),
+        );
+    }
+}
+
+#[test]
 fn hanja_run_annotation_is_independent_of_rendering() {
     let dictionary = || {
         let mut dictionary = MapDictionary::new();
