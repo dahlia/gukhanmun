@@ -102,7 +102,8 @@ def test_standard_enum_contract() -> None:
 
 def test_defaults_are_actual_native_options() -> None:
     options = g.Converter().options
-    assert len(fields(options)) == 15
+    assert len(fields(options)) == 16
+    assert options.ignore_dictionary_required_hanja is False
     assert options.annotation_granularity is g.AnnotationGranularity.WORD
     assert options == g.ResolvedOptions(
         preset=g.Preset.KO_KR,
@@ -149,6 +150,27 @@ def test_hanja_run_annotation_is_resolved_and_used() -> None:
         "<p><ruby>半<rp>(</rp><rt>반</rt><rp>)</rp></ruby>달"
         "<ruby>形<rp>(</rp><rt>형</rt><rp>)</rp></ruby></p>"
     )
+
+
+def test_ignoring_dictionary_required_hanja_is_local_to_the_converter() -> None:
+    marked = g.load_dictionary(g.MapDictionarySource([
+        g.DictionaryEntry("憂鬱症", "우울증", require_hanja=True),
+    ]))
+    normal = g.Converter(dictionaries=[marked], homophone_window=g.ContextWindow.OFF)
+    plain = g.Converter(
+        dictionaries=[marked],
+        homophone_window=g.ContextWindow.OFF,
+        ignore_dictionary_required_hanja=True,
+    )
+    assert plain.options.ignore_dictionary_required_hanja is True
+    assert plain.convert("憂鬱症") == "우울증"
+    assert normal.convert("憂鬱症") == "우울증(憂鬱症)"
+    assert "".join(plain.convert_iter(["憂鬱症(우", "울증) 憂鬱症"])) == "우울증(憂鬱症) 우울증"
+
+
+def test_ignoring_dictionary_required_hanja_requires_a_bool() -> None:
+    with pytest.raises(TypeError, match="ignore_dictionary_required_hanja"):
+        g.Converter(ignore_dictionary_required_hanja=1)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("value", ["hanja-run", g.RenderMode.RUBY_ON_HANJA])

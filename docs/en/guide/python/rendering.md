@@ -65,6 +65,16 @@ the selected reading cannot be split uniquely. The resolved choice is
 available at `converter.options.annotation_granularity`.
 
 
+Omitting dictionary-required hanja
+----------------------------------
+
+Pass `ignore_dictionary_required_hanja=True` to `Converter()` to omit hanja
+glosses required only by dictionary entries in `RenderMode.HANGUL_ONLY`.
+The default is `False`. Homophone glosses, explicit directives, and recognized
+source glosses are unchanged. Read the configured value from
+`converter.options.ignore_dictionary_required_hanja`.
+
+
 Original text with a gloss
 --------------------------
 

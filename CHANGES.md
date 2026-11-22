@@ -947,7 +947,8 @@ To be released.
     `MarkdownOptions(gfm=True)` enables GFM. Conversion releases the GIL, and a
     single `Converter` can be reused from multiple threads at once. Python
     signals are checked after native conversion returns, so long conversions
-    can delay `KeyboardInterrupt`. [[#48], [#15], [#55], [#84], [#85]]
+    can delay `KeyboardInterrupt`.
+    [[#48], [#15], [#55], [#84], [#85], [#81], [#86]]
  -  Added `MapDictionarySource` for competing in-memory readings and
     `FileDictionarySource` for FST/CDB bytes or filesystem paths. Dictionaries
     load once at converter construction; conversion performs no dictionary

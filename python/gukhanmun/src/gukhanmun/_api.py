@@ -459,6 +459,9 @@ def _resolved(payload: str) -> ResolvedOptions:
         homophone_detection=HomophoneDetection(_string(options["homophone_detection"])),
         first_occurrence_window=ContextWindow(_string(options["first_occurrence_window"])),
         collapse_redundant_parens=_boolean(options["collapse_redundant_parens"], "collapse_redundant_parens"),
+        ignore_dictionary_required_hanja=_boolean(
+            options["ignore_dictionary_required_hanja"], "ignore_dictionary_required_hanja"
+        ),
         recovery=Recovery(_string(options["recovery"])),
         punctuation=ResolvedPunctuationProfile(
             _resolved_stop(profile["comma"]), _resolved_stop(profile["period"]),
@@ -502,6 +505,7 @@ class Converter:
         homophone_detection: HomophoneDetection = HomophoneDetection.CONTEXT_LOCAL,
         first_occurrence_window: ContextWindow = ContextWindow.OFF,
         collapse_redundant_parens: bool = True,
+        ignore_dictionary_required_hanja: bool = False,
         recovery: Recovery = Recovery.STRICT,
         punctuation: PunctuationPreset | CustomPunctuationProfile = PunctuationPreset.PRESERVE,
         dictionaries: Sequence[_Dictionary | LoadedDictionary] = (),
@@ -527,6 +531,9 @@ class Converter:
             "homophone_detection": _require(homophone_detection, HomophoneDetection, "homophone_detection").value,
             "first_occurrence_window": _require(first_occurrence_window, ContextWindow, "first_occurrence_window").value,
             "collapse_redundant_parens": _boolean(collapse_redundant_parens, "collapse_redundant_parens"),
+            "ignore_dictionary_required_hanja": _boolean(
+                ignore_dictionary_required_hanja, "ignore_dictionary_required_hanja"
+            ),
             "recovery": _require(recovery, Recovery, "recovery").value,
             "punctuation": _punctuation(punctuation),
             "directives": _directives(directives),

@@ -67,8 +67,6 @@ def test_dictionary_and_input_format_values_cover_typescript_shapes() -> None:
 
 def test_constructor_keywords_and_resolved_fields_cover_all_ts_options() -> None:
     ts_names = {snake(name) for name in re.findall(r"readonly (\w+)\??:", interface("GukhanmunOptions"))}
-    # The next commit adds this option to Python and restores exact parity.
-    ts_names.remove("ignore_dictionary_required_hanja")
     signature = inspect.signature(g.Converter)
     assert set(signature.parameters) == ts_names
     assert all(parameter.kind is inspect.Parameter.KEYWORD_ONLY for parameter in signature.parameters.values())
