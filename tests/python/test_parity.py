@@ -45,7 +45,7 @@ def interface(name: str) -> str:
 
 
 @pytest.mark.parametrize("name", [
-    "Preset", "RenderMode", "OriginalGloss", "HanjaVariantSet", "Segmentation",
+    "Preset", "RenderMode", "OriginalGloss", "HanjaVariantSet", "AnnotationGranularity", "Segmentation",
     "SourcePolicy", "SourceRole", "NumeralStrategy", "ContextWindow",
     "HomophoneDetection", "Recovery", "PunctuationPreset", "SpaceAfter", "ErrorCode",
 ])

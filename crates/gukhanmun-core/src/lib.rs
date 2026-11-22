@@ -38,6 +38,7 @@ pub use evidence::{deserialize_dictionary_evidence, serialize_dictionary_evidenc
 pub use phrase_evidence::*;
 pub use phrase_index::PhraseIndex;
 mod fallback;
+mod mixed_annotation;
 mod particles;
 mod punctuation;
 mod punctuation_categories;
@@ -2118,7 +2119,7 @@ pub fn write_plain_text<S>(tokens: impl IntoIterator<Item = RenderedToken<S>>) -
             | RenderedToken::Verbatim(text)
             | RenderedToken::Annotated(text) => output.push_str(&text),
             RenderedToken::Ruby { base, rt } => {
-                output.push_str(&parens(&base, &rt));
+                append_parens(&mut output, &base, &rt);
             }
         }
     }
@@ -3498,6 +3499,19 @@ pub enum RenderMode {
 
     /// Emits original hanja, adding a hangul gloss only when requested.
     Original,
+}
+
+/// Selects the span to annotate when both scripts are shown.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum AnnotationGranularity {
+    /// Annotates the entire matched word.
+    #[default]
+    Word,
+
+    /// Annotates contiguous hanja runs in dictionary-backed mixed-script
+    /// words. If unchanged hangul does not determine a unique split, the
+    /// entire word is annotated instead.
+    HanjaRun,
 }
 
 /// Selects the hanja variant set used wherever a renderer emits hanja.
@@ -5026,93 +5040,198 @@ where
     }
 }
 
+/// Renders tokens using the selected annotation granularity.
+///
+/// Unlike [`render_tokens_iter`], one annotation can yield several tokens.
+/// All tokens for an annotation are emitted before the next input is read.
+pub fn render_tokens_iter_with_granularity<S, O>(
+    tokens: impl IntoIterator<Item = OutputToken<S>>,
+    options: O,
+    granularity: AnnotationGranularity,
+) -> impl Iterator<Item = RenderedToken<S>>
+where
+    S: ScopeData,
+    O: Into<RenderOptions>,
+{
+    let mut renderer = ExpandingRenderer::new(options, granularity);
+    tokens
+        .into_iter()
+        .flat_map(move |token| renderer.push_token(token))
+}
+
+/// Stateful renderer that can emit several tokens for one input annotation.
+///
+/// Use this push-based counterpart to [`render_tokens_iter_with_granularity`]
+/// when the producer supplies batches. Keep it across batches so open scopes
+/// continue to govern whether ruby markup is allowed.
+pub struct ExpandingRenderer<S: ScopeData> {
+    renderer: Renderer<S>,
+    granularity: AnnotationGranularity,
+}
+
+impl<S: ScopeData> ExpandingRenderer<S> {
+    /// Creates a renderer with independent rendering and granularity options.
+    pub fn new(options: impl Into<RenderOptions>, granularity: AnnotationGranularity) -> Self {
+        Self {
+            renderer: Renderer::new(options),
+            granularity,
+        }
+    }
+
+    /// Pushes one token and returns all resulting tokens in output order.
+    ///
+    /// The iterator owns its tokens and does not borrow this renderer. Drain
+    /// the results in order before writing the next input's output.
+    pub fn push_token(
+        &mut self,
+        token: OutputToken<S>,
+    ) -> impl Iterator<Item = RenderedToken<S>> + use<S> {
+        let expanded = if self.granularity == AnnotationGranularity::HanjaRun
+            && let OutputToken::Annotated(annotation) = &token
+        {
+            render_split_annotation(
+                annotation,
+                &self.renderer.options,
+                self.renderer.disallowing_ancestors == 0,
+            )
+        } else {
+            None
+        };
+        let (one, many) = match expanded {
+            Some(result) => result,
+            None => (Some(self.renderer.push_token(token)), Vec::new()),
+        };
+        one.into_iter().chain(many)
+    }
+}
+
+enum AnnotationStyle {
+    Plain(RubyBase),
+    Gloss { base: RubyBase, ruby: bool },
+}
+
+fn annotation_style(annotation: &Annotation, options: &RenderOptions) -> AnnotationStyle {
+    use AnnotationStyle::{Gloss, Plain};
+    use RubyBase::{OnHangul, OnHanja};
+
+    if annotation.skip_annotation {
+        return Plain(match options.mode {
+            RenderMode::HangulOnly | RenderMode::HangulHanjaParens | RenderMode::Ruby(OnHangul) => {
+                OnHangul
+            }
+            _ => OnHanja,
+        });
+    }
+    match options.mode {
+        RenderMode::HangulOnly if !annotation.require_hanja && !annotation.homophone => {
+            Plain(OnHangul)
+        }
+        RenderMode::HangulOnly | RenderMode::HangulHanjaParens => Gloss {
+            base: OnHangul,
+            ruby: false,
+        },
+        RenderMode::HanjaHangulParens => Gloss {
+            base: OnHanja,
+            ruby: false,
+        },
+        RenderMode::Ruby(base) => Gloss { base, ruby: true },
+        RenderMode::Original if annotation.require_hangul => Gloss {
+            base: OnHanja,
+            ruby: options.original_gloss == OriginalGloss::Ruby,
+        },
+        RenderMode::Original => Plain(OnHanja),
+    }
+}
+
 fn render_annotation<S>(
     annotation: &Annotation,
     options: &RenderOptions,
     allows_inline_markup: bool,
 ) -> RenderedToken<S> {
-    if annotation.skip_annotation
-        && matches!(
-            options.mode,
-            RenderMode::HangulOnly
-                | RenderMode::HangulHanjaParens
-                | RenderMode::Ruby(RubyBase::OnHangul)
-        )
-    {
+    let style = annotation_style(annotation, options);
+    if matches!(style, AnnotationStyle::Plain(RubyBase::OnHangul)) {
         return RenderedToken::Annotated(annotation.reading.clone());
     }
-    if !annotation.skip_annotation
-        && options.mode == RenderMode::HangulOnly
-        && !annotation.require_hanja
-        && !annotation.homophone
-    {
-        return RenderedToken::Annotated(annotation.reading.clone());
-    }
-    let dictionary_hanja = annotation.canonical_hanja();
-    let rendered_hanja = variants::render_hanja(dictionary_hanja, options.hanja_variant_set);
-    if annotation.skip_annotation {
-        return RenderedToken::Annotated(rendered_hanja.into_owned());
-    }
-
-    match options.mode {
-        RenderMode::HangulOnly => {
-            RenderedToken::Annotated(parens(&annotation.reading, rendered_hanja.as_ref()))
-        }
-        RenderMode::HangulHanjaParens => {
-            RenderedToken::Annotated(parens(&annotation.reading, rendered_hanja.as_ref()))
-        }
-        RenderMode::HanjaHangulParens => {
-            RenderedToken::Annotated(parens(rendered_hanja.as_ref(), &annotation.reading))
-        }
-        RenderMode::Ruby(base) => render_ruby(
-            annotation,
-            rendered_hanja.as_ref(),
-            base,
-            allows_inline_markup,
-        ),
-        RenderMode::Original if annotation.require_hangul => match options.original_gloss {
-            OriginalGloss::Parens => {
-                RenderedToken::Annotated(parens(rendered_hanja.as_ref(), &annotation.reading))
+    let hanja = variants::render_hanja(annotation.canonical_hanja(), options.hanja_variant_set);
+    match style {
+        AnnotationStyle::Plain(_) => RenderedToken::Annotated(hanja.into_owned()),
+        AnnotationStyle::Gloss { base, ruby } => {
+            let (base, gloss) = order_gloss(base, &hanja, &annotation.reading);
+            if ruby && allows_inline_markup {
+                RenderedToken::Ruby {
+                    base: base.into(),
+                    rt: gloss.into(),
+                }
+            } else {
+                let mut output = String::new();
+                append_parens(&mut output, base, gloss);
+                RenderedToken::Annotated(output)
             }
-            // `Original` keeps hanja as the primary text, so its ruby form
-            // always uses hanja as the base regardless of any other setting.
-            OriginalGloss::Ruby => render_ruby(
-                annotation,
-                rendered_hanja.as_ref(),
-                RubyBase::OnHanja,
-                allows_inline_markup,
-            ),
-        },
-        RenderMode::Original => RenderedToken::Annotated(rendered_hanja.into_owned()),
+        }
     }
 }
 
-fn render_ruby<S>(
+type SplitAnnotation<S> = (Option<RenderedToken<S>>, Vec<RenderedToken<S>>);
+
+fn render_split_annotation<S>(
     annotation: &Annotation,
-    hanja: &str,
-    base: RubyBase,
+    options: &RenderOptions,
     allows_inline_markup: bool,
-) -> RenderedToken<S> {
-    let (base_text, rt_text) = match base {
-        RubyBase::OnHangul => (annotation.reading.as_str(), hanja),
-        RubyBase::OnHanja => (hanja, annotation.reading.as_str()),
-    };
-    if !allows_inline_markup {
-        return RenderedToken::Annotated(parens(base_text, rt_text));
+) -> Option<SplitAnnotation<S>> {
+    if !annotation.from_dictionary {
+        return None;
     }
-    RenderedToken::Ruby {
-        base: String::from(base_text),
-        rt: String::from(rt_text),
+    let AnnotationStyle::Gloss { base, ruby } = annotation_style(annotation, options) else {
+        return None;
+    };
+    let canonical = annotation.canonical_hanja();
+    if !canonical.chars().any(is_hangul_syllable) {
+        return None;
+    }
+    let hanja = variants::render_hanja(canonical, options.hanja_variant_set);
+    let alignment =
+        mixed_annotation::align(&annotation.hanja, canonical, &hanja, &annotation.reading)?;
+    if ruby && allows_inline_markup {
+        let tokens = alignment
+            .parts()
+            .map(|(hanja, spelling, reading)| {
+                if hanja {
+                    let (base, gloss) = order_gloss(base, spelling, reading);
+                    RenderedToken::Ruby {
+                        base: base.into(),
+                        rt: gloss.into(),
+                    }
+                } else {
+                    RenderedToken::Annotated(spelling.into())
+                }
+            })
+            .collect();
+        return Some((None, tokens));
+    }
+    let mut output = String::new();
+    for (hanja, spelling, reading) in alignment.parts() {
+        if hanja {
+            let (base, gloss) = order_gloss(base, spelling, reading);
+            append_parens(&mut output, base, gloss);
+        } else {
+            output.push_str(spelling);
+        }
+    }
+    Some((Some(RenderedToken::Annotated(output)), Vec::new()))
+}
+
+fn order_gloss<'a>(base: RubyBase, hanja: &'a str, reading: &'a str) -> (&'a str, &'a str) {
+    match base {
+        RubyBase::OnHangul => (reading, hanja),
+        RubyBase::OnHanja => (hanja, reading),
     }
 }
 
-fn parens(reading: &str, hanja: &str) -> String {
-    let mut output = String::new();
-    output.push_str(reading);
+fn append_parens(output: &mut String, base: &str, gloss: &str) {
+    output.push_str(base);
     output.push('(');
-    output.push_str(hanja);
+    output.push_str(gloss);
     output.push(')');
-    output
 }
 
 /// Converts plain text through reader, engine, renderer, and writer stages.

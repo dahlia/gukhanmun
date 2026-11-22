@@ -50,6 +50,8 @@ fn generation_is_deterministic_and_completes_its_own_interface() {
         for candidate in [
             "gukhanmun",
             "generate-completion",
+            "annotation-granularity",
+            "hanja-run",
             "ko-kr",
             "ko-kp",
             "nushell",

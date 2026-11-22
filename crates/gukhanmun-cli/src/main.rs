@@ -26,12 +26,13 @@ use gukhanmun::fst::FstDictionary;
 use gukhanmun::html::{HtmlElementInfo, HtmlFragmentReader, HtmlFragmentWriter, HtmlScopeData};
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
-    Builder, ContextWindow, DirectiveAction, Engine, FirstOccurrenceFilter, HanjaDictionary,
-    HanjaVariantSet, HomophoneDetection, HomophoneMarker, InputToken, LexemeIndex, NumeralStrategy,
-    OriginalGloss, OutputToken, PlainScopeData, Preset as UmbrellaPreset, RecoverableInputError,
-    Recovery, RedundantParenCollapser, RenderMode, RenderOptions, RenderedToken, Renderer,
-    RubyBase, ScopeData, SegmentationStrategy, SourcePolicy, SourceRole, UserDirectives,
-    recover_input_token, render_tokens_iter, write_plain_text,
+    AnnotationGranularity, Builder, ContextWindow, DirectiveAction, Engine, ExpandingRenderer,
+    FirstOccurrenceFilter, HanjaDictionary, HanjaVariantSet, HomophoneDetection, HomophoneMarker,
+    InputToken, LexemeIndex, NumeralStrategy, OriginalGloss, OutputToken, PlainScopeData,
+    Preset as UmbrellaPreset, RecoverableInputError, Recovery, RedundantParenCollapser, RenderMode,
+    RenderOptions, RenderedToken, RubyBase, Scope, ScopeData, SegmentationStrategy, SourcePolicy,
+    SourceRole, UserDirectives, recover_input_token, render_tokens_iter_with_granularity,
+    write_plain_text,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -232,6 +233,11 @@ struct RenderingPolicyArgs {
     #[arg(short, long, value_enum)]
     rendering: Option<Rendering>,
 
+    /// Span to annotate when both scripts are shown. hanja-run glosses only
+    /// the hanja runs of a mixed-script word when its reading splits uniquely.
+    #[arg(long, value_enum, default_value_t = AnnotationGranularityArg::Word)]
+    annotation_granularity: AnnotationGranularityArg,
+
     /// Variant set used wherever output keeps hanja.
     #[arg(long = "hanja-variant-set", value_enum, default_value_t = HanjaVariantSetArg::AsDictionary)]
     hanja_variant_set: HanjaVariantSetArg,
@@ -259,6 +265,21 @@ struct RenderingPolicyArgs {
     /// off leaves every occurrence as marked by dictionaries and directives.
     #[arg(long, value_enum)]
     first_occurrence: Option<CliContextWindow>,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AnnotationGranularityArg {
+    Word,
+    HanjaRun,
+}
+
+impl From<AnnotationGranularityArg> for AnnotationGranularity {
+    fn from(value: AnnotationGranularityArg) -> Self {
+        match value {
+            AnnotationGranularityArg::Word => Self::Word,
+            AnnotationGranularityArg::HanjaRun => Self::HanjaRun,
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -616,7 +637,9 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
     } else if cli.rendering.original_gloss.is_some() {
         bail!("--original-gloss is only valid with --rendering original");
     }
-    builder = builder.hanja_variant_set(cli.rendering.hanja_variant_set.into());
+    builder = builder
+        .hanja_variant_set(cli.rendering.hanja_variant_set.into())
+        .annotation_granularity(cli.rendering.annotation_granularity.into());
 
     if let Some(disambiguation) = cli.rendering.disambiguation {
         builder = builder.homophone_window(disambiguation.into());
@@ -1127,13 +1150,11 @@ fn convert_plain_document(
             input,
             output,
             engine,
-            options.rendering,
+            options,
             Identity {
                 directives: converter.directives(),
                 lexemes: Some(&lexemes),
             },
-            options.collapse_redundant_parens,
-            options.punctuation,
         );
     }
     // Plain text has no block or section scopes.  For homophone correctness,
@@ -1176,10 +1197,8 @@ fn convert_plain_stream_without_homophone_lookahead<D>(
     mut input: impl BufRead,
     mut output: impl Write,
     mut engine: Engine<PlainScopeData, D>,
-    rendering: RenderOptions,
+    options: gukhanmun::ConversionOptions,
     identity: Identity<'_, '_>,
-    collapse_parens: bool,
-    punctuation: gukhanmun::PunctuationProfile,
 ) -> Result<()>
 where
     D: HanjaDictionary + ?Sized,
@@ -1188,9 +1207,10 @@ where
     // pipeline order; with no homophone/first-occurrence lookahead it is the
     // only middleware between the engine and the renderer.  When disabled it is
     // bypassed entirely rather than driven as a per-token pass-through.
-    let mut collapser =
-        collapse_parens.then(|| RedundantParenCollapser::<PlainScopeData>::new(true));
-    let mut normalizer = gukhanmun::PunctuationNormalizer::new(punctuation);
+    let mut collapser = options
+        .collapse_redundant_parens
+        .then(|| RedundantParenCollapser::<PlainScopeData>::new(true));
+    let mut normalizer = gukhanmun::PunctuationNormalizer::new(options.punctuation);
     let mut bytes = [0; 8192];
     let mut pending = Vec::new();
 
@@ -1225,7 +1245,7 @@ where
             .into_iter()
             .flat_map(|t| normalizer.push_token(t))
             .collect();
-        write_plain_stream_chunk(&mut output, normalized, rendering)?;
+        write_plain_stream_chunk(&mut output, normalized, options)?;
     }
     let mut output_tokens = Vec::new();
     flush_utf8_tail_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| Ok(()))?;
@@ -1252,7 +1272,7 @@ where
         .flat_map(|t| normalizer.push_token(t))
         .collect();
     normalized.extend(normalizer.finish());
-    write_plain_stream_chunk(&mut output, normalized, rendering)?;
+    write_plain_stream_chunk(&mut output, normalized, options)?;
     output.flush().context("failed to flush output")
 }
 
@@ -1276,17 +1296,33 @@ where
 fn write_plain_stream_chunk(
     output: &mut impl Write,
     output_tokens: Vec<OutputToken<PlainScopeData>>,
-    rendering: RenderOptions,
+    options: gukhanmun::ConversionOptions,
 ) -> Result<()> {
     if output_tokens.is_empty() {
         return Ok(());
     }
 
-    let converted = write_plain_text(render_tokens_iter(output_tokens, rendering));
+    let converted = write_plain_text(render_plain_stream_chunk(output_tokens, options));
     output
         .write_all(converted.as_bytes())
         .context("failed to write output")?;
     output.flush().context("failed to flush output")
+}
+
+fn render_plain_stream_chunk(
+    tokens: Vec<OutputToken<PlainScopeData>>,
+    options: gukhanmun::ConversionOptions,
+) -> impl Iterator<Item = RenderedToken<PlainScopeData>> {
+    // stdin batches have no reader-provided scope. Add one for the expanding
+    // path so that a split ruby is lowered to one parenthesized text token.
+    let scope = (options.annotation_granularity == AnnotationGranularity::HanjaRun)
+        .then_some(OutputToken::Open(Scope::new(PlainScopeData)));
+    let end = scope.as_ref().map(|_| OutputToken::Close);
+    render_tokens_iter_with_granularity(
+        scope.into_iter().chain(tokens).chain(end),
+        options.rendering,
+        options.annotation_granularity,
+    )
 }
 
 fn process_utf8_prefix_flushing_lines<D>(
@@ -1402,7 +1438,7 @@ fn convert_html_document(
         options.punctuation,
         gukhanmun::html::HtmlPunctuationTextCodec::new(),
     );
-    let mut renderer = Renderer::new(options.rendering);
+    let mut renderer = ExpandingRenderer::new(options.rendering, options.annotation_granularity);
     let mut writer = HtmlFragmentWriter::new(output);
     let mut bytes = [0; 8192];
     let mut pending = Vec::new();
@@ -1523,9 +1559,11 @@ fn convert_html_document(
         &mut writer,
     )?;
     for token in normalizer.finish() {
-        writer
-            .write_token(renderer.push_token(token))
-            .context("failed to write output")?;
+        for rendered in renderer.push_token(token) {
+            writer
+                .write_token(rendered)
+                .context("failed to write output")?;
+        }
     }
     writer.finish().context("failed to flush output")?;
     Ok(())
@@ -1546,7 +1584,7 @@ where
         HtmlScopeData,
         gukhanmun::html::HtmlPunctuationTextCodec,
     >,
-    renderer: &'p mut Renderer<HtmlScopeData>,
+    renderer: &'p mut ExpandingRenderer<HtmlScopeData>,
     writer: &'p mut HtmlFragmentWriter<W>,
     recovery: Recovery,
 }
@@ -1608,7 +1646,7 @@ fn process_html_output_tokens<W>(
         HtmlScopeData,
         gukhanmun::html::HtmlPunctuationTextCodec,
     >,
-    renderer: &mut Renderer<HtmlScopeData>,
+    renderer: &mut ExpandingRenderer<HtmlScopeData>,
     writer: &mut HtmlFragmentWriter<W>,
 ) -> Result<()>
 where
@@ -1636,7 +1674,7 @@ fn process_html_first_occurrence_tokens<W>(
         HtmlScopeData,
         gukhanmun::html::HtmlPunctuationTextCodec,
     >,
-    renderer: &mut Renderer<HtmlScopeData>,
+    renderer: &mut ExpandingRenderer<HtmlScopeData>,
     writer: &mut HtmlFragmentWriter<W>,
 ) -> Result<()>
 where
@@ -1656,7 +1694,7 @@ fn write_html_rendered_tokens<W>(
         HtmlScopeData,
         gukhanmun::html::HtmlPunctuationTextCodec,
     >,
-    renderer: &mut Renderer<HtmlScopeData>,
+    renderer: &mut ExpandingRenderer<HtmlScopeData>,
     writer: &mut HtmlFragmentWriter<W>,
 ) -> Result<()>
 where
@@ -1668,10 +1706,11 @@ where
                 .directives
                 .apply_with_lexemes(token, identity.lexemes),
         ) {
-            let rendered: RenderedToken<_> = renderer.push_token(normalized);
-            writer
-                .write_token(rendered)
-                .context("failed to write output")?;
+            for rendered in renderer.push_token(normalized) {
+                writer
+                    .write_token(rendered)
+                    .context("failed to write output")?;
+            }
         }
     }
     Ok(())
@@ -2077,6 +2116,24 @@ fn has_fst_magic(path: &Path) -> Result<bool> {
 mod pipeline_tests {
     use super::*;
     use gukhanmun::{CandidateMatch, CandidateRecord, MapDictionary, Match};
+
+    #[test]
+    fn plain_fast_path_lowers_split_ruby_to_one_annotated_token() {
+        let mut options = UmbrellaPreset::KoKr.options();
+        options.annotation_granularity = AnnotationGranularity::HanjaRun;
+        options.rendering = RenderMode::Ruby(RubyBase::OnHanja).into();
+        let mut annotation = gukhanmun::Annotation::default();
+        annotation.hanja = "半달形".into();
+        annotation.reading = "반달형".into();
+        annotation.from_dictionary = true;
+        let tokens = render_plain_stream_chunk(vec![OutputToken::Annotated(annotation)], options)
+            .collect::<Vec<_>>();
+        assert!(matches!(tokens.as_slice(), [
+            RenderedToken::Open(_),
+            RenderedToken::Annotated(text),
+            RenderedToken::Close,
+        ] if text == "半(반)달形(형)"));
+    }
 
     struct LookupOnly(MapDictionary);
 

@@ -39,9 +39,9 @@ use gukhanmun::fst::FstDictionary;
 use gukhanmun::html::HtmlElementInfo;
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
-    Builder, ContextWindow, Converter, DirectiveAction, HanjaDictionary, HanjaVariantSet,
-    HomophoneDetection, MapDictionary, MatchMark, NumeralStrategy, OriginalGloss, Preset,
-    ReadingCandidate, Recovery, RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
+    AnnotationGranularity, Builder, ContextWindow, Converter, DirectiveAction, HanjaDictionary,
+    HanjaVariantSet, HomophoneDetection, MapDictionary, MatchMark, NumeralStrategy, OriginalGloss,
+    Preset, ReadingCandidate, Recovery, RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
     SourcePolicy, SourceRole,
 };
 
@@ -55,6 +55,7 @@ struct JsOptions {
     rendering: Option<String>,
     original_gloss: Option<String>,
     hanja_variant_set: Option<String>,
+    annotation_granularity: Option<String>,
     segmentation: Option<String>,
     source_policy: Option<String>,
     reference_only: Option<bool>,
@@ -317,6 +318,18 @@ impl NapiGukhanmun {
         }
         if let Some(variant_set) = &opts.hanja_variant_set {
             builder = builder.hanja_variant_set(parse_hanja_variant_set(variant_set)?);
+        }
+        if let Some(granularity) = &opts.annotation_granularity {
+            builder = builder.annotation_granularity(match granularity.as_str() {
+                "word" => AnnotationGranularity::Word,
+                "hanja-run" => AnnotationGranularity::HanjaRun,
+                other => {
+                    return Err(napi_err(
+                        "invalid-input",
+                        &format!("unknown annotationGranularity: {other}"),
+                    ));
+                }
+            });
         }
         if let Some(policy) = &opts.source_policy {
             builder = builder.source_policy(parse_source_policy(policy)?);

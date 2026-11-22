@@ -25,10 +25,10 @@ use gukhanmun::cdb::CdbDictionary;
 use gukhanmun::fst::FstDictionary;
 use gukhanmun::markdown::MarkdownVariant;
 use gukhanmun::{
-    ContextWindow, DirectiveAction, HanjaDictionary, HanjaVariantSet, HomophoneDetection,
-    MapDictionary, MatchMark, NumeralStrategy, OriginalGloss, Preset, ReadingCandidate, Recovery,
-    RenderMode, RenderOptions, RubyBase, SegmentationStrategy, SharedBuilder, SharedConverter,
-    SourcePolicy, SourceRole,
+    AnnotationGranularity, ContextWindow, DirectiveAction, HanjaDictionary, HanjaVariantSet,
+    HomophoneDetection, MapDictionary, MatchMark, NumeralStrategy, OriginalGloss, Preset,
+    ReadingCandidate, Recovery, RenderMode, RenderOptions, RubyBase, SegmentationStrategy,
+    SharedBuilder, SharedConverter, SourcePolicy, SourceRole,
 };
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -152,6 +152,7 @@ struct Options {
     preset: Option<String>,
     rendering: Option<String>,
     original_gloss: Option<String>,
+    annotation_granularity: Option<String>,
     hanja_variant_set: Option<String>,
     segmentation: Option<String>,
     source_policy: Option<String>,
@@ -270,6 +271,13 @@ fn build(json: &str, dictionaries: Vec<DictionaryInput>) -> Result<NativeConvert
     // Rendering initializes its variant field; the explicit override follows it.
     if let Some(value) = &opts.hanja_variant_set {
         builder = builder.hanja_variant_set(parse_hanja_variant_set(value)?);
+    }
+    if let Some(value) = &opts.annotation_granularity {
+        builder = builder.annotation_granularity(match value.as_str() {
+            "word" => AnnotationGranularity::Word,
+            "hanja-run" => AnnotationGranularity::HanjaRun,
+            _ => return Err(invalid(format!("unknown annotation_granularity: {value}"))),
+        });
     }
     if let Some(value) = &opts.source_policy {
         builder = builder.source_policy(parse_source_policy(value)?);
@@ -522,6 +530,9 @@ fn resolved_options(converter: &SharedConverter, preset: &str) -> Result<String>
     Ok(serde_json::json!({
         "preset": preset,
         "rendering": rendering,
+        "annotation_granularity": name!(options.annotation_granularity, {
+            AnnotationGranularity::Word => "word", AnnotationGranularity::HanjaRun => "hanja-run"
+        }),
         "hanja_variant_set": name!(options.rendering.hanja_variant_set, {
             HanjaVariantSet::AsDictionary => "as-dictionary", HanjaVariantSet::Shinjitai => "shinjitai",
             HanjaVariantSet::Kanxi => "kanxi", HanjaVariantSet::Simplified => "simplified", HanjaVariantSet::Asahimoji => "asahimoji"
@@ -652,7 +663,8 @@ mod tests {
         .unwrap();
         for (converter, sound, window) in [(south, true, "per-block"), (north, false, "off")] {
             let options: serde_json::Value = serde_json::from_str(&converter.resolved).unwrap();
-            assert_eq!(options.as_object().unwrap().len(), 14);
+            assert_eq!(options.as_object().unwrap().len(), 15);
+            assert_eq!(options["annotation_granularity"], "word");
             assert_eq!(options["initial_sound_law"], sound);
             assert_eq!(options["homophone_window"], window);
             assert_eq!(options["punctuation"]["comma"], serde_json::Value::Null);

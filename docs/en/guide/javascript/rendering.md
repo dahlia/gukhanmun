@@ -59,6 +59,16 @@ console.log(g.convert("<p>漢字</p>", "html"));
 ~~~~
 
 
+Annotating only hanja runs
+--------------------------
+
+Set `annotationGranularity: "hanja-run"` in `load()` for either Node.js or
+Wasm. With `rendering: "ruby-on-hanja"`, `半달形` gets separate readings
+on `半` and `形`. With `rendering: "hangul-hanja-parens"`, `汽車길` is
+written as `기찻(汽車)길`. `"word"` is the default and is also used for
+words whose readings cannot be split uniquely.
+
+
 Original mode with a gloss
 --------------------------
 

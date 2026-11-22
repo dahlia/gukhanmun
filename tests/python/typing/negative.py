@@ -22,6 +22,8 @@ from gukhanmun.dictionaries import stdict, stdict_bytes
 
 Converter(preset="ko-kr")  # expected: enum
 Converter(preset=RenderMode.HANGUL_ONLY)  # expected: enum
+Converter(annotation_granularity="hanja-run")  # expected: enum
+Converter(annotation_granularity=RenderMode.RUBY_ON_HANJA)  # expected: enum
 DictionaryEntry(reading="한자")  # expected: required
 DictionaryEntry(hanja="漢字")  # expected: required
 Converter().convert("漢字", format=Preset.KO_KR)  # expected: enum

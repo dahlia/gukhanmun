@@ -54,6 +54,17 @@ assert converter.convert("<p>漢字</p>", format=InputFormat.HTML) == (
 The `<rp>` elements provide parentheses for browsers without ruby support.
 
 
+Annotating only hanja runs
+--------------------------
+
+Pass `annotation_granularity=AnnotationGranularity.HANJA_RUN` to
+`Converter()` independently of `rendering`. For example, in
+`RenderMode.HANGUL_HANJA_PARENS` mode, `汽車길` becomes `기찻(汽車)길`.
+`AnnotationGranularity.WORD` is the default and remains the fallback when
+the selected reading cannot be split uniquely. The resolved choice is
+available at `converter.options.annotation_granularity`.
+
+
 Original text with a gloss
 --------------------------
 

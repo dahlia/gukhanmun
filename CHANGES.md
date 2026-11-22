@@ -23,6 +23,10 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%20%28Rust%29 -->
 
+ -  Added `.annotation_granularity(AnnotationGranularity::HanjaRun)` to the
+    converter builders. It shows `汽車길` as `기찻(汽車)길` in hangul-first
+    parentheses and omits repeated hangul in ruby as well. Whole-word
+    annotations remain the default. [[#84], [#85]]
  -  Added `MapDictionary::from_candidates()` and `CandidateError::EmptyKey`
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it
@@ -108,6 +112,8 @@ To be released.
 [#53]: https://github.com/dahlia/gukhanmun/pull/53
 [#54]: https://github.com/dahlia/gukhanmun/pull/54
 [#55]: https://github.com/dahlia/gukhanmun/pull/55
+[#84]: https://github.com/dahlia/gukhanmun/issues/84
+[#85]: https://github.com/dahlia/gukhanmun/pull/85
 
 ### gukhanmun-cdb (Rust)
 
@@ -137,6 +143,9 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%2Dcli%20%28Rust%29 -->
 
+ -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
+    mixed-script words. Whole-word glosses remain the default and are used when
+    a reading cannot be split uniquely. [[#84], [#85]]
  -  Added `--generate-completion` for Bash, zsh, fish, PowerShell and Nushell,
     with option, value and file candidates derived from the CLI definition.
     Platform binary archives now include matching completion scripts and their
@@ -208,6 +217,10 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%2Dcore%20%28Rust%29 -->
 
+ -  Added `AnnotationGranularity::HanjaRun` and an expanding renderer to gloss
+    only the hanja runs in mixed-script dictionary matches. The renderer keeps
+    the whole-word gloss when the selected reading cannot be split uniquely.
+    [[#84], [#85]]
  -  Added `MapDictionary::from_candidates()` for building a dictionary from
     per-reading entries: repeated keys are grouped into one candidate set
     instead of replacing earlier readings, and preferences are normalised as
@@ -370,6 +383,10 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Added the `annotationGranularity` setting to the Node-API bridge. Use
+    `"hanja-run"` to gloss only the hanja runs of a mixed-script word when
+    the reading can be split uniquely. Otherwise, the gloss covers the
+    whole word. [[#84], [#85]]
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
@@ -454,6 +471,10 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Added the `annotationGranularity` setting to the Wasm bridge. Use
+    `"hanja-run"` to gloss only the hanja runs of a mixed-script word when
+    the reading can be split uniquely. Otherwise, the gloss covers the
+    whole word. [[#84], [#85]]
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
@@ -484,6 +505,8 @@ To be released.
 
 <!-- sacho:section:v1 id=%40gukhanmun%2Fcli%20%28JavaScript%2FTypeScript%29 -->
 
+ -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
+    mixed-script words when their readings can be split uniquely. [[#84], [#85]]
  -  Added the dictionary-bundled `gukhanmun` converter and the
     `gukhanmun-mkdict` FST/CDB dictionary builder through
     `npm install -g @gukhanmun/cli`, without Rust or installation
@@ -583,6 +606,10 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Added `annotationGranularity: "hanja-run"` to `load()` to gloss only the
+    hanja runs of a mixed-script word when the reading can be split uniquely.
+    Whole-word glosses remain the default and are used when no unique split
+    is available. [[#84], [#85]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
@@ -824,6 +851,8 @@ To be released.
     options. File descriptors can inherit roles from embedded evidence; entry
     descriptors and untagged legacy files default to authored overrides.
     [[#42], [#44]]
+ -  Added the `AnnotationGranularity` type and the `annotationGranularity`
+    option for selecting whole-word or hanja-run glosses. [[#84], [#85]]
  -  Added the `MapDictionarySource` dictionary variant for entries computed at
     runtime, and added the `suffixReading` and `preference` fields to
     `DictionaryEntry`. `DictionarySource` now accepts either the file or the
@@ -837,6 +866,10 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Added `annotationGranularity: "hanja-run"` to `load()` to gloss only the
+    hanja runs of a mixed-script word when the reading can be split uniquely.
+    Whole-word glosses remain the default and are used when no unique split
+    is available. [[#84], [#85]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
@@ -885,10 +918,13 @@ To be released.
  -  Added a Python 3.11+ `Converter` API for plain text, HTML and Markdown,
     with reusable immutable settings, standard-library enums, punctuation
     profiles, literal directives, HTML preservation rules and type annotations.
+    Set `annotation_granularity=AnnotationGranularity.HANJA_RUN` to gloss
+    only the hanja runs of mixed-script words when the reading can be split
+    uniquely. Whole-word glosses remain the default.
     `MarkdownOptions(gfm=True)` enables GFM. Conversion releases the GIL, and a
     single `Converter` can be reused from multiple threads at once. Python
     signals are checked after native conversion returns, so long conversions
-    can delay `KeyboardInterrupt`. [[#48], [#15], [#55]]
+    can delay `KeyboardInterrupt`. [[#48], [#15], [#55], [#84], [#85]]
  -  Added `MapDictionarySource` for competing in-memory readings and
     `FileDictionarySource` for FST/CDB bytes or filesystem paths. Dictionaries
     load once at converter construction; conversion performs no dictionary
@@ -979,6 +1015,8 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%2Dcli%20%28Python%29 -->
 
+ -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
+    mixed-script words when their readings can be split uniquely. [[#84], [#85]]
  -  Added standalone CLI wheels for Python 3.11 or later on Linux with
     glibc 2.28 or musl 1.2 or later, macOS 11 or later, and Windows,
     on x86\_64 and aarch64. Install with `pipx install gukhanmun-cli`

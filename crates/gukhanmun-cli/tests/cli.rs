@@ -1044,6 +1044,85 @@ fn stdin_streaming_preserves_dictionary_matches_across_chunk_boundaries() {
 }
 
 #[test]
+fn annotation_granularity_survives_plain_stream_chunks_and_eof() {
+    const FLAGS: [&str; 4] = [
+        "--annotation-granularity",
+        "hanja-run",
+        "-r",
+        "ruby-on-hanja",
+    ];
+    let prefix = "a".repeat(8189) + " ";
+    let input = format!("{prefix}半달形\n汽車길");
+    let expected = format!("{prefix}半(반)달形(형)\n汽車(기찻)길");
+    for window in ["off", "per-document"] {
+        Command::cargo_bin("gukhanmun")
+            .unwrap()
+            .args(FLAGS)
+            .args(["--disambiguation", window])
+            .write_stdin(input.as_bytes())
+            .assert()
+            .success()
+            .stdout(expected.clone());
+    }
+}
+
+#[test]
+fn annotation_granularity_in_html_and_markdown() {
+    const SPLIT: &str = concat!(
+        "<ruby>半<rp>(</rp><rt>반</rt><rp>)</rp></ruby>달",
+        "<ruby>形<rp>(</rp><rt>형</rt><rp>)</rp></ruby>"
+    );
+    const FLAGS: [&str; 4] = [
+        "--annotation-granularity",
+        "hanja-run",
+        "-r",
+        "ruby-on-hanja",
+    ];
+    for tag in ["title", "option"] {
+        let restricted = format!("<{tag}>半달形</{tag}>");
+        let fallback = format!("<{tag}>半(반)달形(형)</{tag}>");
+        for tail in ["", "<p>半달形</p>"] {
+            Command::cargo_bin("gukhanmun")
+                .unwrap()
+                .args(FLAGS)
+                .args(["-f", "text/html", "--disambiguation", "off"])
+                .write_stdin(format!("{restricted}{tail}"))
+                .assert()
+                .success()
+                .stdout(format!("{fallback}{}", tail.replace("半달形", SPLIT)));
+        }
+    }
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(FLAGS)
+        .args(["-f", "text/markdown"])
+        .write_stdin("半달形\n")
+        .assert()
+        .success()
+        .stdout(format!("{SPLIT}\n"));
+}
+
+#[test]
+fn annotation_granularity_keeps_word_default_and_rejects_unknown_values() {
+    for args in [vec![], vec!["--annotation-granularity", "word"]] {
+        Command::cargo_bin("gukhanmun")
+            .unwrap()
+            .args(["-r", "hangul-hanja-parens"])
+            .args(args)
+            .write_stdin("汽車길")
+            .assert()
+            .success()
+            .stdout("기찻길(汽車길)");
+    }
+    Command::cargo_bin("gukhanmun")
+        .unwrap()
+        .args(["--annotation-granularity", "character"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("hanja-run"));
+}
+
+#[test]
 fn stdin_reports_invalid_utf8() {
     Command::cargo_bin("gukhanmun")
         .unwrap()
