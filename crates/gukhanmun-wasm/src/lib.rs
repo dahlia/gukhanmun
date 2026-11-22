@@ -54,6 +54,7 @@ struct JsOptions {
     original_gloss: Option<String>,
     hanja_variant_set: Option<String>,
     annotation_granularity: Option<String>,
+    ignore_dictionary_required_hanja: Option<bool>,
     segmentation: Option<String>,
     source_policy: Option<String>,
     reference_only: Option<bool>,
@@ -203,6 +204,9 @@ impl WasmGukhanmun {
         }
         if let Some(enabled) = opts.reference_only {
             builder = builder.reference_only(enabled);
+        }
+        if let Some(enabled) = opts.ignore_dictionary_required_hanja {
+            builder = builder.ignore_dictionary_required_hanja(enabled);
         }
         if let Some(s) = &opts.segmentation {
             builder = builder.segmentation(parse_segmentation(s)?);

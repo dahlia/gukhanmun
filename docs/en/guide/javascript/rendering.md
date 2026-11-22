@@ -36,6 +36,16 @@ console.log(g.convert("漢字"));  // 한자(漢字)
 ~~~~
 
 
+Omitting dictionary-required hanja
+----------------------------------
+
+Set `ignoreDictionaryRequiredHanja: true` in `load()` to omit hanja glosses
+required only by dictionary entries in `"hangul-only"` mode. The option works
+in Node-API and Wasm and defaults to `false`. Homophone glosses, explicit
+directives, and recognized source glosses are unchanged. The configured
+value is available at `converter.options.ignoreDictionaryRequiredHanja`.
+
+
 Ruby markup
 -----------
 

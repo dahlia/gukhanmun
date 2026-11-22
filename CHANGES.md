@@ -379,6 +379,9 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Added `ignoreDictionaryRequiredHanja` to the Node-API converter options.
+    It omits hanja glosses required only by dictionary entries in
+    `"hangul-only"` mode when enabled. [[#81], [#86]]
  -  Added `load_dictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added source-attested phrase resolution in conversion and streaming,
@@ -467,6 +470,9 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Added `ignoreDictionaryRequiredHanja` to the WebAssembly converter options.
+    It omits hanja glosses required only by dictionary entries in
+    `"hangul-only"` mode when enabled. [[#81], [#86]]
  -  Added `load_dictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added source-attested phrase resolution in conversion and streaming,
@@ -619,6 +625,9 @@ To be released.
     hanja runs of a mixed-script word when the reading can be split uniquely.
     Whole-word glosses remain the default and are used when no unique split
     is available. [[#84], [#85]]
+ -  Added `ignoreDictionaryRequiredHanja: true` to `load()` to omit hanja
+    glosses required only by dictionary entries in `"hangul-only"` mode.
+    [[#81], [#86]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
@@ -856,6 +865,8 @@ To be released.
  -  Added `LoadedDictionary` and `GukhanmunLoadOptions` for mixing loaded
     dictionaries with existing sources without changing `GukhanmunOptions`.
     [[#80], [#83]]
+ -  Added `ignoreDictionaryRequiredHanja` to the shared converter options.
+    [[#81], [#86]]
  -  Added `sourcePolicy`, `referenceOnly` and explicit dictionary `role`
     options. File descriptors can inherit roles from embedded evidence; entry
     descriptors and untagged legacy files default to authored overrides.
@@ -879,6 +890,9 @@ To be released.
     hanja runs of a mixed-script word when the reading can be split uniquely.
     Whole-word glosses remain the default and are used when no unique split
     is available. [[#84], [#85]]
+ -  Added `ignoreDictionaryRequiredHanja: true` to `load()` to omit hanja
+    glosses required only by dictionary entries in `"hangul-only"` mode.
+    [[#81], [#86]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share

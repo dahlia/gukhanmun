@@ -458,6 +458,7 @@ interface ResolvedOptions {
   readonly rendering: RenderMode;
   readonly hanjaVariantSet: HanjaVariantSet;
   readonly annotationGranularity: AnnotationGranularity;
+  readonly ignoreDictionaryRequiredHanja: boolean;
   readonly segmentation: Segmentation;
   readonly sourcePolicy: SourcePolicy;
   readonly referenceOnly: boolean;
@@ -479,6 +480,7 @@ function resolveOptions(opts: GukhanmunLoadOptions = {}): ResolvedOptions {
     rendering: opts.rendering ?? "hangul-only",
     hanjaVariantSet: opts.hanjaVariantSet ?? "as-dictionary",
     annotationGranularity: opts.annotationGranularity ?? "word",
+    ignoreDictionaryRequiredHanja: opts.ignoreDictionaryRequiredHanja ?? false,
     segmentation: opts.segmentation ?? "lattice",
     sourcePolicy: opts.sourcePolicy ?? "reference-authorized",
     referenceOnly: opts.referenceOnly ?? false,
@@ -504,6 +506,7 @@ function buildRawOptions(
     rendering: resolved.rendering,
     hanjaVariantSet: resolved.hanjaVariantSet,
     annotationGranularity: resolved.annotationGranularity,
+    ignoreDictionaryRequiredHanja: resolved.ignoreDictionaryRequiredHanja,
     segmentation: resolved.segmentation,
     sourcePolicy: resolved.sourcePolicy,
     referenceOnly: resolved.referenceOnly,
