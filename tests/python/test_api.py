@@ -34,7 +34,7 @@ import gukhanmun as g
 
 
 ENUMS = (
-    g.Preset, g.RenderMode, g.OriginalGloss, g.HanjaVariantSet,
+    g.Preset, g.RenderMode, g.OriginalGloss, g.HanjaVariantSet, g.AnnotationGranularity,
     g.Segmentation, g.SourcePolicy, g.SourceRole, g.NumeralStrategy,
     g.ContextWindow, g.HomophoneDetection, g.Recovery, g.PunctuationPreset,
     g.SpaceAfter, g.DictionaryFormat, g.InputFormat, g.ErrorCode,
@@ -87,7 +87,7 @@ def test_conversion_error_crosses_process_boundary_without_breaking_pool() -> No
 
 
 def test_standard_enum_contract() -> None:
-    assert len(ENUMS) == 16
+    assert len(ENUMS) == 17
     for enum in ENUMS:
         assert issubclass(enum, Enum)
         for value in enum:
@@ -102,7 +102,8 @@ def test_standard_enum_contract() -> None:
 
 def test_defaults_are_actual_native_options() -> None:
     options = g.Converter().options
-    assert len(fields(options)) == 14
+    assert len(fields(options)) == 15
+    assert options.annotation_granularity is g.AnnotationGranularity.WORD
     assert options == g.ResolvedOptions(
         preset=g.Preset.KO_KR,
         rendering=g.RenderMode.HANGUL_ONLY,
@@ -130,6 +131,30 @@ def test_defaults_are_actual_native_options() -> None:
     assert overrides.homophone_window is g.ContextWindow.PER_DOCUMENT
     assert not hasattr(options, "original_gloss")
     assert not hasattr(options, "dictionaries")
+
+
+def test_hanja_run_annotation_is_resolved_and_used() -> None:
+    converter = g.Converter(
+        rendering=g.RenderMode.RUBY_ON_HANJA,
+        annotation_granularity=g.AnnotationGranularity.HANJA_RUN,
+        dictionaries=[g.MapDictionarySource([
+            g.DictionaryEntry("半달形", "반달형"),
+            g.DictionaryEntry("甲가乙", "나가가다"),
+        ])],
+    )
+    assert converter.options.annotation_granularity is g.AnnotationGranularity.HANJA_RUN
+    assert converter.convert("半달形") == "半(반)달形(형)"
+    assert converter.convert("甲가乙") == "甲가乙(나가가다)"
+    assert converter.convert("<p>半달形</p>", format=g.InputFormat.HTML) == (
+        "<p><ruby>半<rp>(</rp><rt>반</rt><rp>)</rp></ruby>달"
+        "<ruby>形<rp>(</rp><rt>형</rt><rp>)</rp></ruby></p>"
+    )
+
+
+@pytest.mark.parametrize("value", ["hanja-run", g.RenderMode.RUBY_ON_HANJA])
+def test_annotation_granularity_rejects_non_enum_options(value: object) -> None:
+    with pytest.raises(TypeError, match="annotation_granularity"):
+        g.Converter(annotation_granularity=value)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("mode, expected", [

@@ -909,10 +909,13 @@ To be released.
  -  Added a Python 3.11+ `Converter` API for plain text, HTML and Markdown,
     with reusable immutable settings, standard-library enums, punctuation
     profiles, literal directives, HTML preservation rules and type annotations.
+    Set `annotation_granularity=AnnotationGranularity.HANJA_RUN` to gloss
+    only the hanja runs of mixed-script words when the reading can be split
+    uniquely. Whole-word glosses remain the default.
     `MarkdownOptions(gfm=True)` enables GFM. Conversion releases the GIL, and a
     single `Converter` can be reused from multiple threads at once. Python
     signals are checked after native conversion returns, so long conversions
-    can delay `KeyboardInterrupt`. [[#48], [#15], [#55]]
+    can delay `KeyboardInterrupt`. [[#48], [#15], [#55], [#84], [#85]]
  -  Added `MapDictionarySource` for competing in-memory readings and
     `FileDictionarySource` for FST/CDB bytes or filesystem paths. Dictionaries
     load once at converter construction; conversion performs no dictionary

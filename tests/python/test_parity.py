@@ -45,7 +45,7 @@ def interface(name: str) -> str:
 
 
 @pytest.mark.parametrize("name", [
-    "Preset", "RenderMode", "OriginalGloss", "HanjaVariantSet", "Segmentation",
+    "Preset", "RenderMode", "OriginalGloss", "HanjaVariantSet", "AnnotationGranularity", "Segmentation",
     "SourcePolicy", "SourceRole", "NumeralStrategy", "ContextWindow",
     "HomophoneDetection", "Recovery", "PunctuationPreset", "SpaceAfter", "ErrorCode",
 ])
@@ -67,8 +67,6 @@ def test_dictionary_and_input_format_values_cover_typescript_shapes() -> None:
 
 def test_constructor_keywords_and_resolved_fields_cover_all_ts_options() -> None:
     ts_names = {snake(name) for name in re.findall(r"readonly (\w+)\??:", interface("GukhanmunOptions"))}
-    # The Python binding gains this option in the next commit of #84.
-    ts_names.remove("annotation_granularity")
     signature = inspect.signature(g.Converter)
     assert set(signature.parameters) == ts_names
     assert all(parameter.kind is inspect.Parameter.KEYWORD_ONLY for parameter in signature.parameters.values())

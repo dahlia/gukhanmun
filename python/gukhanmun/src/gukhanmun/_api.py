@@ -44,6 +44,7 @@ from ._types import (
     FileDictionarySource,
     GukhanmunError,
     HanjaVariantSet,
+    AnnotationGranularity,
     HomophoneDetection,
     HtmlOptions,
     InputFormat,
@@ -448,6 +449,7 @@ def _resolved(payload: str) -> ResolvedOptions:
         preset=Preset(_string(options["preset"])),
         rendering=RenderMode(_string(options["rendering"])),
         hanja_variant_set=HanjaVariantSet(_string(options["hanja_variant_set"])),
+        annotation_granularity=AnnotationGranularity(_string(options["annotation_granularity"])),
         segmentation=Segmentation(_string(options["segmentation"])),
         source_policy=SourcePolicy(_string(options["source_policy"])),
         reference_only=_boolean(options["reference_only"], "reference_only"),
@@ -490,6 +492,7 @@ class Converter:
         rendering: RenderMode = RenderMode.HANGUL_ONLY,
         original_gloss: OriginalGloss = OriginalGloss.PARENS,
         hanja_variant_set: HanjaVariantSet = HanjaVariantSet.AS_DICTIONARY,
+        annotation_granularity: AnnotationGranularity = AnnotationGranularity.WORD,
         segmentation: Segmentation = Segmentation.LATTICE,
         source_policy: SourcePolicy = SourcePolicy.REFERENCE_AUTHORIZED,
         reference_only: bool = False,
@@ -512,6 +515,9 @@ class Converter:
             "rendering": _require(rendering, RenderMode, "rendering").value,
             "original_gloss": _require(original_gloss, OriginalGloss, "original_gloss").value,
             "hanja_variant_set": _require(hanja_variant_set, HanjaVariantSet, "hanja_variant_set").value,
+            "annotation_granularity": _require(
+                annotation_granularity, AnnotationGranularity, "annotation_granularity"
+            ).value,
             "segmentation": _require(segmentation, Segmentation, "segmentation").value,
             "source_policy": _require(source_policy, SourcePolicy, "source_policy").value,
             "reference_only": _boolean(reference_only, "reference_only"),

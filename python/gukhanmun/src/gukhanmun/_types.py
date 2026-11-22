@@ -44,6 +44,13 @@ class OriginalGloss(Enum):
     RUBY = "ruby"
 
 
+class AnnotationGranularity(Enum):
+    """The span to annotate when both scripts are shown."""
+
+    WORD = "word"
+    HANJA_RUN = "hanja-run"
+
+
 class HanjaVariantSet(Enum):
     AS_DICTIONARY = "as-dictionary"
     SHINJITAI = "shinjitai"
@@ -448,7 +455,7 @@ class ResolvedPunctuationProfile:
 
 @dataclass(frozen=True, slots=True)
 class ResolvedOptions:
-    """The fourteen resolved scalar settings, including the preset identity."""
+    """The resolved converter settings, including the preset identity."""
 
     preset: Preset
     rendering: RenderMode
@@ -464,6 +471,7 @@ class ResolvedOptions:
     collapse_redundant_parens: bool
     recovery: Recovery
     punctuation: ResolvedPunctuationProfile
+    annotation_granularity: AnnotationGranularity = AnnotationGranularity.WORD
 
     def __post_init__(self) -> None:
         _require(self.preset, Preset, "preset")
@@ -480,6 +488,7 @@ class ResolvedOptions:
         _boolean(self.collapse_redundant_parens, "collapse_redundant_parens")
         _require(self.recovery, Recovery, "recovery")
         _require(self.punctuation, ResolvedPunctuationProfile, "punctuation")
+        _require(self.annotation_granularity, AnnotationGranularity, "annotation_granularity")
 
 
 @dataclass(frozen=True, slots=True)

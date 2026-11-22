@@ -18,6 +18,7 @@ from collections.abc import Iterator
 from typing import assert_type
 
 from gukhanmun import (
+    AnnotationGranularity,
     ConversionStream, Converter, CustomPunctuationProfile, DictionaryEntry, Directives, ErrorCause, ErrorCode,
     DictionaryFormat, GukhanmunError, HtmlOptions, InputFormat, LoadedDictionary, MapDictionarySource, UrlDictionarySource,
     MarkdownOptions, Preset, ResolvedOptions, SourceRole, StopStyle, UNSET, UnsetType, __version__, load_dictionary,
@@ -31,13 +32,15 @@ assert_type(dictionary.entries, tuple[DictionaryEntry, ...])
 assert_type(Directives(require_hanja=["漢字"]).require_hanja, tuple[str, ...])
 assert_type(HtmlOptions(preserve_classes=["keep"]).preserve_classes, tuple[str, ...])
 loaded = assert_type(load_dictionary(dictionary), LoadedDictionary)
-converter = Converter(preset=Preset.KO_KR, dictionaries=[loaded, dictionary])
+converter = Converter(preset=Preset.KO_KR, dictionaries=[loaded, dictionary],
+                      annotation_granularity=AnnotationGranularity.HANJA_RUN)
 assert_type(converter.convert("漢字"), str)
 assert_type(converter.convert("漢字", format=InputFormat.HTML), str)
 assert_type(converter.convert("漢字", format=MarkdownOptions(gfm=True)), str)
 assert_type(converter.options, ResolvedOptions)
 assert_type(converter.options.preset, Preset)
 assert_type(converter.options.initial_sound_law, bool)
+assert_type(converter.options.annotation_granularity, AnnotationGranularity)
 assert_type(converter.stream(), ConversionStream)
 assert_type(converter.stream(format=MarkdownOptions(gfm=True)).push("漢"), str)
 assert_type(converter.stream().finish(), str)
