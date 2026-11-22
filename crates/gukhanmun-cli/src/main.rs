@@ -238,6 +238,10 @@ struct RenderingPolicyArgs {
     #[arg(long, value_enum, default_value_t = AnnotationGranularityArg::Word)]
     annotation_granularity: AnnotationGranularityArg,
 
+    /// Omit hanja glosses required only by dictionary entries in hangul-only output.
+    #[arg(long)]
+    ignore_dictionary_required_hanja: bool,
+
     /// Variant set used wherever output keeps hanja.
     #[arg(long = "hanja-variant-set", value_enum, default_value_t = HanjaVariantSetArg::AsDictionary)]
     hanja_variant_set: HanjaVariantSetArg,
@@ -639,7 +643,8 @@ fn build_converter(cli: &Cli, format: Format) -> Result<gukhanmun::Converter<'st
     }
     builder = builder
         .hanja_variant_set(cli.rendering.hanja_variant_set.into())
-        .annotation_granularity(cli.rendering.annotation_granularity.into());
+        .annotation_granularity(cli.rendering.annotation_granularity.into())
+        .ignore_dictionary_required_hanja(cli.rendering.ignore_dictionary_required_hanja);
 
     if let Some(disambiguation) = cli.rendering.disambiguation {
         builder = builder.homophone_window(disambiguation.into());
@@ -1154,6 +1159,7 @@ fn convert_plain_document(
             Identity {
                 directives: converter.directives(),
                 lexemes: Some(&lexemes),
+                ignore_dictionary_required_hanja: options.ignores_dictionary_required_hanja(),
             },
         );
     }
@@ -1191,6 +1197,25 @@ fn convert_plain_document_buffered(
 struct Identity<'a, 'b> {
     directives: &'a UserDirectives<'b>,
     lexemes: Option<&'a LexemeIndex>,
+    ignore_dictionary_required_hanja: bool,
+}
+
+impl Identity<'_, '_> {
+    fn apply<S>(self, token: OutputToken<S>) -> OutputToken<S> {
+        self.directives.apply_with_render_policy(
+            token,
+            self.lexemes,
+            self.ignore_dictionary_required_hanja,
+        )
+    }
+
+    fn apply_batch<S>(self, tokens: Vec<OutputToken<S>>) -> Vec<OutputToken<S>> {
+        if self.ignore_dictionary_required_hanja || !self.directives.is_empty() {
+            tokens.into_iter().map(|token| self.apply(token)).collect()
+        } else {
+            tokens
+        }
+    }
 }
 
 fn convert_plain_stream_without_homophone_lookahead<D>(
@@ -1227,21 +1252,12 @@ where
         process_utf8_prefix_flushing_lines(&mut pending, &mut engine, &mut output_tokens, |_| {
             Ok(())
         })?;
-        let mut output_tokens = match collapser.as_mut() {
+        let output_tokens = match collapser.as_mut() {
             Some(collapser) => run_collapser(collapser, output_tokens),
             None => output_tokens,
         };
-        if !identity.directives.is_empty() {
-            output_tokens = output_tokens
-                .into_iter()
-                .map(|token| {
-                    identity
-                        .directives
-                        .apply_with_lexemes(token, identity.lexemes)
-                })
-                .collect();
-        }
-        let normalized = output_tokens
+        let normalized = identity
+            .apply_batch(output_tokens)
             .into_iter()
             .flat_map(|t| normalizer.push_token(t))
             .collect();
@@ -1257,17 +1273,8 @@ where
     if let Some(collapser) = collapser {
         output_tokens.extend(collapser.finish());
     }
-    if !identity.directives.is_empty() {
-        output_tokens = output_tokens
-            .into_iter()
-            .map(|token| {
-                identity
-                    .directives
-                    .apply_with_lexemes(token, identity.lexemes)
-            })
-            .collect();
-    }
-    let mut normalized: Vec<_> = output_tokens
+    let mut normalized: Vec<_> = identity
+        .apply_batch(output_tokens)
         .into_iter()
         .flat_map(|t| normalizer.push_token(t))
         .collect();
@@ -1426,6 +1433,11 @@ fn convert_html_document(
         .collapse_redundant_parens
         .then(|| RedundantParenCollapser::<HtmlScopeData>::new(true));
     let lexemes = pipeline_lexemes(converter);
+    let identity = Identity {
+        directives: converter.directives(),
+        lexemes: Some(&lexemes),
+        ignore_dictionary_required_hanja: options.ignores_dictionary_required_hanja(),
+    };
     let mut homophones = HomophoneMarker::with_detection_and_lexemes(
         converter.dictionary(),
         options.homophone_window,
@@ -1457,8 +1469,7 @@ fn convert_html_document(
                 collapser: collapser.as_mut(),
                 homophones: &mut homophones,
                 first_occurrences: &mut first_occurrences,
-                directives: converter.directives(),
-                lexemes: Some(&lexemes),
+                identity,
                 normalizer: &mut normalizer,
                 renderer: &mut renderer,
                 writer: &mut writer,
@@ -1477,8 +1488,7 @@ fn convert_html_document(
             collapser: collapser.as_mut(),
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
-            directives: converter.directives(),
-            lexemes: Some(&lexemes),
+            identity,
             normalizer: &mut normalizer,
             renderer: &mut renderer,
             writer: &mut writer,
@@ -1495,8 +1505,7 @@ fn convert_html_document(
             collapser: collapser.as_mut(),
             homophones: &mut homophones,
             first_occurrences: &mut first_occurrences,
-            directives: converter.directives(),
-            lexemes: Some(&lexemes),
+            identity,
             normalizer: &mut normalizer,
             renderer: &mut renderer,
             writer: &mut writer,
@@ -1513,10 +1522,7 @@ fn convert_html_document(
         collapsed_engine_tail,
         &mut homophones,
         &mut first_occurrences,
-        Identity {
-            directives: converter.directives(),
-            lexemes: Some(&lexemes),
-        },
+        identity,
         &mut normalizer,
         &mut renderer,
         &mut writer,
@@ -1526,10 +1532,7 @@ fn convert_html_document(
             collapser.finish(),
             &mut homophones,
             &mut first_occurrences,
-            Identity {
-                directives: converter.directives(),
-                lexemes: Some(&lexemes),
-            },
+            identity,
             &mut normalizer,
             &mut renderer,
             &mut writer,
@@ -1539,10 +1542,7 @@ fn convert_html_document(
     process_html_first_occurrence_tokens(
         homophone_tail,
         &mut first_occurrences,
-        Identity {
-            directives: converter.directives(),
-            lexemes: Some(&lexemes),
-        },
+        identity,
         &mut normalizer,
         &mut renderer,
         &mut writer,
@@ -1550,10 +1550,7 @@ fn convert_html_document(
     let first_occurrence_tail = first_occurrences.finish();
     write_html_rendered_tokens(
         first_occurrence_tail,
-        Identity {
-            directives: converter.directives(),
-            lexemes: Some(&lexemes),
-        },
+        identity,
         &mut normalizer,
         &mut renderer,
         &mut writer,
@@ -1578,8 +1575,7 @@ where
     collapser: Option<&'p mut RedundantParenCollapser<HtmlScopeData>>,
     homophones: &'p mut HomophoneMarker<'d, HtmlScopeData>,
     first_occurrences: &'p mut FirstOccurrenceFilter<HtmlScopeData>,
-    directives: &'p UserDirectives<'d>,
-    lexemes: Option<&'p LexemeIndex>,
+    identity: Identity<'p, 'd>,
     normalizer: &'p mut gukhanmun::PunctuationNormalizer<
         HtmlScopeData,
         gukhanmun::html::HtmlPunctuationTextCodec,
@@ -1610,10 +1606,7 @@ where
                 collapsed,
                 self.homophones,
                 self.first_occurrences,
-                Identity {
-                    directives: self.directives,
-                    lexemes: self.lexemes,
-                },
+                self.identity,
                 self.normalizer,
                 self.renderer,
                 self.writer,
@@ -1701,11 +1694,7 @@ where
     W: Write,
 {
     for token in output_tokens {
-        for normalized in normalizer.push_token(
-            identity
-                .directives
-                .apply_with_lexemes(token, identity.lexemes),
-        ) {
+        for normalized in normalizer.push_token(identity.apply(token)) {
             for rendered in renderer.push_token(normalized) {
                 writer
                     .write_token(rendered)

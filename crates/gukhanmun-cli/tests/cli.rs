@@ -1044,6 +1044,67 @@ fn stdin_streaming_preserves_dictionary_matches_across_chunk_boundaries() {
 }
 
 #[test]
+fn ignore_dictionary_required_hanja_applies_to_all_cli_formats() {
+    let temp = tempdir().unwrap();
+    let dictionary = build_dictionary_fixture(
+        temp.path().join("user.tsv"),
+        temp.path().join("user.gukfst"),
+        "hanja\thangul\trequire_hanja\n憂鬱症\t우울증\ttrue\n",
+    );
+    let command = |format, window| {
+        let mut command = Command::cargo_bin("gukhanmun").unwrap();
+        command.args([
+            "--no-bundled-dictionaries",
+            "--dictionary",
+            dictionary.to_str().unwrap(),
+            "-f",
+            format,
+            "--disambiguation",
+            window,
+        ]);
+        command
+    };
+    command("text/plain", "off")
+        .write_stdin("憂鬱症")
+        .assert()
+        .success()
+        .stdout("우울증(憂鬱症)");
+    for (format, window, input, expected) in [
+        (
+            "text/plain",
+            "off",
+            "憂鬱症\n憂鬱症(우울증) 憂鬱症",
+            "우울증\n우울증(憂鬱症) 우울증",
+        ),
+        ("text/plain", "per-document", "憂鬱症", "우울증"),
+        (
+            "text/html",
+            "off",
+            "<p>憂鬱症 <code>憂鬱症</code></p>憂鬱症",
+            "<p>우울증 <code>憂鬱症</code></p>우울증",
+        ),
+        ("text/markdown", "off", "憂鬱症\n", "우울증\n"),
+    ] {
+        command(format, window)
+            .arg("--ignore-dictionary-required-hanja")
+            .write_stdin(input)
+            .assert()
+            .success()
+            .stdout(expected);
+    }
+    command("text/plain", "off")
+        .args([
+            "--ignore-dictionary-required-hanja",
+            "-r",
+            "hangul-hanja-parens",
+        ])
+        .write_stdin("憂鬱症")
+        .assert()
+        .success()
+        .stdout("우울증(憂鬱症)");
+}
+
+#[test]
 fn annotation_granularity_survives_plain_stream_chunks_and_eof() {
     const FLAGS: [&str; 4] = [
         "--annotation-granularity",

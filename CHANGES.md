@@ -162,6 +162,8 @@ To be released.
     directories inside the checkout even when Git does not ignore them.
     PowerShell completion preserves unmatched non-path values without offering
     filenames. [[#61], [#75]]
+ -  Added `--ignore-dictionary-required-hanja` to omit hanja glosses required
+    only by dictionary entries in `hangul-only` output. [[#81], [#86]]
  -  Added source-attested phrase resolution for bundled and custom
     dictionaries. `無條件降服` now uses the bundled *Standard Korean
     Dictionary*'s attested `무조건항복` reading. When evidence conflicts or
@@ -522,6 +524,8 @@ To be released.
 
  -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
     mixed-script words when their readings can be split uniquely. [[#84], [#85]]
+ -  Added `--ignore-dictionary-required-hanja` to omit hanja glosses required
+    only by dictionary entries in `hangul-only` output. [[#81], [#86]]
  -  Added the dictionary-bundled `gukhanmun` converter and the
     `gukhanmun-mkdict` FST/CDB dictionary builder through
     `npm install -g @gukhanmun/cli`, without Rust or installation
@@ -1041,6 +1045,8 @@ To be released.
 
  -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
     mixed-script words when their readings can be split uniquely. [[#84], [#85]]
+ -  Added `--ignore-dictionary-required-hanja` to omit hanja glosses required
+    only by dictionary entries in `hangul-only` output. [[#81], [#86]]
  -  Added standalone CLI wheels for Python 3.11 or later on Linux with
     glibc 2.28 or musl 1.2 or later, macOS 11 or later, and Windows,
     on x86\_64 and aarch64. Install with `pipx install gukhanmun-cli`
