@@ -380,6 +380,9 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Added the `annotationGranularity` setting to the Node-API bridge. Use
+    `"hanja-run"` to gloss only the hanja runs of a mixed-script word.
+    [[#84], [#85]]
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
@@ -464,6 +467,9 @@ To be released.
  -  Added support for version 4 FST/CDB dictionaries carrying candidate-linked
     source evidence or phrase constraints, while retaining support for older
     files. [[#41], [#42], [#44], [#45]]
+ -  Added the `annotationGranularity` setting to the Wasm bridge. Use
+    `"hanja-run"` to gloss only the hanja runs of a mixed-script word.
+    [[#84], [#85]]
  -  Fixed CDB and FST dictionary loading to reject metadata that exceeds
     decoded-allocation admission budgets before expanding aliases or typed
     evidence. Small files with many alias rows can no longer bypass loading
@@ -593,6 +599,9 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Added `annotationGranularity: "hanja-run"` to `load()` to gloss only the
+    hanja runs of a mixed-script word. Whole-word glosses remain the default.
+    [[#84], [#85]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
@@ -834,6 +843,8 @@ To be released.
     options. File descriptors can inherit roles from embedded evidence; entry
     descriptors and untagged legacy files default to authored overrides.
     [[#42], [#44]]
+ -  Added the `AnnotationGranularity` type and the `annotationGranularity`
+    option for selecting whole-word or hanja-run glosses. [[#84], [#85]]
  -  Added the `MapDictionarySource` dictionary variant for entries computed at
     runtime, and added the `suffixReading` and `preference` fields to
     `DictionaryEntry`. `DictionarySource` now accepts either the file or the
@@ -847,6 +858,9 @@ To be released.
     as in-memory dictionaries without a compiled artifact or a
     `gukhanmun-mkdict` run. Malformed entry lists reject with `invalid-input`.
     [[#33], [#34]]
+ -  Added `annotationGranularity: "hanja-run"` to `load()` to gloss only the
+    hanja runs of a mixed-script word. Whole-word glosses remain the default.
+    [[#84], [#85]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share

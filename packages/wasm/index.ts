@@ -38,6 +38,7 @@
  */
 
 import type {
+  AnnotationGranularity,
   ContextWindow,
   DictionarySource,
   ErrorCode,
@@ -59,6 +60,7 @@ import type {
 } from "@gukhanmun/types";
 
 export type {
+  AnnotationGranularity,
   ContextWindow,
   CustomPunctuationProfile,
   DelimiterStyle,
@@ -477,6 +479,7 @@ interface ResolvedOptions {
   readonly preset: Preset;
   readonly rendering: RenderMode;
   readonly hanjaVariantSet: HanjaVariantSet;
+  readonly annotationGranularity: AnnotationGranularity;
   readonly segmentation: Segmentation;
   readonly sourcePolicy: SourcePolicy;
   readonly referenceOnly: boolean;
@@ -581,6 +584,7 @@ function resolveOptions(opts: GukhanmunLoadOptions = {}): ResolvedOptions {
     preset,
     rendering: opts.rendering ?? "hangul-only",
     hanjaVariantSet: opts.hanjaVariantSet ?? "as-dictionary",
+    annotationGranularity: opts.annotationGranularity ?? "word",
     segmentation: opts.segmentation ?? "lattice",
     sourcePolicy: opts.sourcePolicy ?? "reference-authorized",
     referenceOnly: opts.referenceOnly ?? false,
@@ -685,6 +689,7 @@ function buildRawOptions(
     preset: resolved.preset,
     rendering: resolved.rendering,
     hanjaVariantSet: resolved.hanjaVariantSet,
+    annotationGranularity: resolved.annotationGranularity,
     segmentation: resolved.segmentation,
     sourcePolicy: resolved.sourcePolicy,
     referenceOnly: resolved.referenceOnly,

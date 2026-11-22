@@ -193,7 +193,10 @@ export function registerSuite(name: string, binding: Binding): void {
           ...options,
           dictionaries: [override, reference],
         });
-        const raw = await load({ ...options, dictionaries: [override, source] });
+        const raw = await load({
+          ...options,
+          dictionaries: [override, source],
+        });
         return { reading, converter, raw };
       }));
 
@@ -923,6 +926,44 @@ export function registerSuite(name: string, binding: Binding): void {
         rendering: "hangul-hanja-parens",
       });
       assert.equal(g.convert("漢字"), "한자(漢字)");
+    });
+
+    test("annotation granularity applies to the native renderer", async () => {
+      const options = {
+        rendering: "ruby-on-hanja",
+        dictionaries: [{
+          entries: [
+            { hanja: "半달形", reading: "반달형" },
+            { hanja: "甲가乙", reading: "나가가다" },
+          ],
+        }],
+      } as const;
+      for (const annotationGranularity of [undefined, "word"] as const) {
+        const whole = await load(
+          annotationGranularity === undefined ? options : { ...options, annotationGranularity },
+        );
+        assert.equal(whole.options.annotationGranularity, "word");
+        assert.equal(whole.convert("半달形"), "半달形(반달형)");
+      }
+      const split = await load({
+        ...options,
+        annotationGranularity: "hanja-run",
+      });
+      assert.equal(split.options.annotationGranularity, "hanja-run");
+      assert.equal(split.convert("半달形"), "半(반)달形(형)");
+      assert.equal(split.convert("甲가乙"), "甲가乙(나가가다)");
+      const input = "<p>半달形</p>";
+      const expected = "<p><ruby>半<rp>(</rp><rt>반</rt><rp>)</rp></ruby>달" +
+        "<ruby>形<rp>(</rp><rt>형</rt><rp>)</rp></ruby></p>";
+      assert.equal(split.convert(input, "html"), expected);
+      assert.equal(await streamAll(split.stream("html"), [...input]), expected);
+      await assert.rejects(
+        () => load({ ...options, annotationGranularity: "character" as never }),
+        (error: unknown) =>
+          error instanceof GukhanmunError &&
+          error.code === "invalid-input" &&
+          error.message.includes("annotationGranularity"),
+      );
     });
 
     test("variant recognition and output sets are shared by every binding", async () => {

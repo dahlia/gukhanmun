@@ -78,6 +78,13 @@ export type RenderMode =
   | "ruby-on-hanja"
   | "original";
 
+/**
+ * The span to annotate when both scripts are shown. `"word"` keeps the
+ * whole-word gloss. `"hanja-run"` annotates contiguous hanja runs when the
+ * reading can be split uniquely, and otherwise keeps the whole-word gloss.
+ */
+export type AnnotationGranularity = "word" | "hanja-run";
+
 /** The hanja variant set applied after dictionary recognition. */
 export type HanjaVariantSet =
   | "as-dictionary"
@@ -554,6 +561,9 @@ export interface GukhanmunOptions {
   readonly originalGloss?: OriginalGloss;
   /** The hanja variant set. Defaults to `"as-dictionary"`. */
   readonly hanjaVariantSet?: HanjaVariantSet;
+
+  /** Where to attach glosses, independent of `rendering`. Defaults to `"word"`. */
+  readonly annotationGranularity?: AnnotationGranularity;
   /**
    * Hanja-span segmentation algorithm.  Defaults to `"lattice"`.
    *
