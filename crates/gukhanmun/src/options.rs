@@ -17,8 +17,8 @@
 //! Conversion presets and the consolidated option bag.
 
 use gukhanmun_core::{
-    ContextWindow, EngineOptions, HomophoneDetection, NumeralStrategy, Recovery, RenderOptions,
-    SegmentationStrategy, SourcePolicy,
+    AnnotationGranularity, ContextWindow, EngineOptions, HomophoneDetection, NumeralStrategy,
+    Recovery, RenderOptions, SegmentationStrategy, SourcePolicy,
 };
 
 /// Conversion preset that selects the orthographic conventions of a Korean
@@ -61,6 +61,7 @@ impl Preset {
             Preset::KoKr => ConversionOptions {
                 punctuation: gukhanmun_core::PunctuationProfile::preserve(),
                 rendering: RenderOptions::default(),
+                annotation_granularity: AnnotationGranularity::Word,
                 engine: EngineOptions {
                     segmentation: SegmentationStrategy::default(),
                     initial_sound_law: true,
@@ -77,6 +78,7 @@ impl Preset {
             Preset::KoKp => ConversionOptions {
                 punctuation: gukhanmun_core::PunctuationProfile::preserve(),
                 rendering: RenderOptions::default(),
+                annotation_granularity: AnnotationGranularity::Word,
                 engine: EngineOptions {
                     segmentation: SegmentationStrategy::default(),
                     initial_sound_law: false,
@@ -134,6 +136,9 @@ pub struct ConversionOptions {
 
     /// How annotations are turned into concrete text or markup.
     pub rendering: RenderOptions,
+
+    /// Span to annotate when the renderer shows both scripts.
+    pub annotation_granularity: AnnotationGranularity,
 
     /// Options forwarded to the conversion engine (segmentation, initial
     /// sound law, numeral strategy).

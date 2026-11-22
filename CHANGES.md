@@ -23,6 +23,10 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%20%28Rust%29 -->
 
+ -  Added `.annotation_granularity(AnnotationGranularity::HanjaRun)` to the
+    converter builders. It shows `汽車길` as `기찻(汽車)길` in hangul-first
+    parentheses and omits repeated hangul in ruby as well. Whole-word
+    annotations remain the default. [[#84], [#85]]
  -  Added `MapDictionary::from_candidates()` and `CandidateError::EmptyKey`
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it
@@ -108,6 +112,8 @@ To be released.
 [#53]: https://github.com/dahlia/gukhanmun/pull/53
 [#54]: https://github.com/dahlia/gukhanmun/pull/54
 [#55]: https://github.com/dahlia/gukhanmun/pull/55
+[#84]: https://github.com/dahlia/gukhanmun/issues/84
+[#85]: https://github.com/dahlia/gukhanmun/pull/85
 
 ### gukhanmun-cdb (Rust)
 
@@ -208,6 +214,10 @@ To be released.
 
 <!-- sacho:section:v1 id=gukhanmun%2Dcore%20%28Rust%29 -->
 
+ -  Added `AnnotationGranularity::HanjaRun` and an expanding renderer to gloss
+    only the hanja runs in mixed-script dictionary matches. The renderer keeps
+    the whole-word gloss when the selected reading cannot be split uniquely.
+    [[#84], [#85]]
  -  Added `MapDictionary::from_candidates()` for building a dictionary from
     per-reading entries: repeated keys are grouped into one candidate set
     instead of replacing earlier readings, and preferences are normalised as

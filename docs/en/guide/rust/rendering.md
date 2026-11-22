@@ -7,6 +7,20 @@ description: |-
 Rendering modes
 ===============
 
+Annotating only hanja runs
+--------------------------
+
+Both `Builder` and `SharedBuilder` accept
+`.annotation_granularity(AnnotationGranularity::HanjaRun)` independently of
+`.rendering()`. With hangul-first parentheses, this writes `汽車길` as
+`기찻(汽車)길`. In ruby mode, `半달形` puts separate glosses on `半` and `形`.
+The dictionary still supplies the reading for the whole word. If the unchanged
+hangul does not identify a unique split, the renderer keeps the whole-word
+gloss. `AnnotationGranularity::Word` is the default.
+
+Low-level callers can use `render_tokens_iter_with_granularity()` or
+`ExpandingRenderer` to receive multiple rendered tokens per annotation.
+
 `builder.rendering(mode)` sets how hanja and their hangul readings appear in
 the output.
 

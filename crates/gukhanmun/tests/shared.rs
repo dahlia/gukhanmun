@@ -30,6 +30,9 @@ use gukhanmun::{
     SharedBuilder, SharedConverter, SourceContribution, SourcePolicy, SourceReference, SourceRole,
     SpaceAfter, StopStyle, WordId, WordOrigin,
 };
+use gukhanmun::{
+    AnnotationGranularity, ExpandingRenderer, OutputToken, PlainScopeData, RenderedToken,
+};
 use gukhanmun_core::Match;
 
 macro_rules! pair {
@@ -48,6 +51,105 @@ macro_rules! pair {
             .expect("shared builder");
         (local, shared)
     }};
+}
+
+#[test]
+fn hanja_run_annotation_is_independent_of_rendering() {
+    let dictionary = || {
+        let mut dictionary = MapDictionary::new();
+        for (spelling, reading) in [
+            ("汽車길", "기찻길"),
+            ("半달形", "반달형"),
+            ("越南국수食堂", "베트남국수식당"),
+            ("甲가乙", "나가가다"),
+            ("통방아間", "통방앗간"),
+        ] {
+            dictionary.insert(spelling, reading);
+        }
+        dictionary
+    };
+    let (local, shared) = pair!(
+        .push_dictionary(dictionary())
+        .annotation_granularity(AnnotationGranularity::HanjaRun)
+        .rendering(RenderOptions::from(RenderMode::HangulHanjaParens))
+    );
+    assert_eq!(
+        local.options().annotation_granularity,
+        AnnotationGranularity::HanjaRun
+    );
+    assert_eq!(
+        shared.options().annotation_granularity,
+        AnnotationGranularity::HanjaRun
+    );
+    for (source, expected) in [
+        ("汽車길", "기찻(汽車)길"),
+        ("越南국수食堂", "베트남(越南)국수식당(食堂)"),
+        ("甲가乙", "나가가다(甲가乙)"),
+        ("통방아間", "통방앗간(통방아間)"),
+    ] {
+        assert_text(&local, &shared, source, expected);
+    }
+    let (local, shared) = pair!(
+        .push_dictionary(dictionary())
+        .rendering(RenderMode::Ruby(RubyBase::OnHanja))
+        .annotation_granularity(AnnotationGranularity::HanjaRun)
+    );
+    assert_text(&local, &shared, "半달形", "半(반)달形(형)");
+    #[cfg(feature = "html")]
+    {
+        let input = "<title>半달形</title><p>半달形</p>";
+        let expected = concat!(
+            "<title>半(반)달形(형)</title><p>",
+            "<ruby>半<rp>(</rp><rt>반</rt><rp>)</rp></ruby>달",
+            "<ruby>形<rp>(</rp><rt>형</rt><rp>)</rp></ruby></p>",
+        );
+        assert_eq!(
+            local.convert_html_fragment_to_string(input).unwrap(),
+            expected
+        );
+        assert_eq!(
+            shared.convert_html_fragment_to_string(input).unwrap(),
+            expected
+        );
+    }
+    let (local, shared) = pair!(
+        .push_dictionary(dictionary())
+        .rendering(RenderMode::HangulHanjaParens)
+    );
+    assert_text(&local, &shared, "汽車길", "기찻길(汽車길)");
+}
+
+#[test]
+fn expanding_renderer_returns_an_owning_iterator() {
+    let mut renderer = ExpandingRenderer::<PlainScopeData>::new(
+        RenderMode::Ruby(RubyBase::OnHangul),
+        AnnotationGranularity::HanjaRun,
+    );
+    let mut annotation = gukhanmun::Annotation::default();
+    annotation.hanja = "半달形".into();
+    annotation.reading = "반달형".into();
+    annotation.from_dictionary = true;
+    let first = renderer.push_token(OutputToken::Annotated(annotation));
+    let second = renderer.push_token(OutputToken::Text("!".into()));
+    drop(renderer);
+    assert_eq!(
+        first.collect::<Vec<_>>(),
+        [
+            RenderedToken::Ruby {
+                base: "반".into(),
+                rt: "半".into()
+            },
+            RenderedToken::Annotated("달".into()),
+            RenderedToken::Ruby {
+                base: "형".into(),
+                rt: "形".into()
+            },
+        ]
+    );
+    assert_eq!(
+        second.collect::<Vec<_>>(),
+        [RenderedToken::Text("!".into())]
+    );
 }
 
 fn assert_text(local: &Converter<'_>, shared: &SharedConverter, input: &str, expected: &str) {

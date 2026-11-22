@@ -20,7 +20,8 @@ use crate::{ConversionOptions, Result};
 use gukhanmun_core::{
     Engine, FirstOccurrenceFilter, HanjaDictionary, HomophoneMarker, InputToken, LexemeIndex,
     OutputToken, RedundantParenCollapser, RenderedToken, ScopeData, UserDirectives,
-    apply_user_directives_iter_with_lexemes, read_plain_text, render_tokens_iter, write_plain_text,
+    apply_user_directives_iter_with_lexemes, read_plain_text, render_tokens_iter_with_granularity,
+    write_plain_text,
 };
 #[cfg(feature = "html")]
 use gukhanmun_html::HtmlReaderOptions;
@@ -124,7 +125,11 @@ where
         gukhanmun_core::PunctuationNormalizer::push_token,
         gukhanmun_core::PunctuationNormalizer::finish,
     );
-    render_tokens_iter(punctuation_iter, options.rendering)
+    render_tokens_iter_with_granularity(
+        punctuation_iter,
+        options.rendering,
+        options.annotation_granularity,
+    )
 }
 
 pub(super) fn convert_text<D: HanjaDictionary + ?Sized>(

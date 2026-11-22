@@ -156,6 +156,18 @@ macro_rules! configuration_setters {
             self
         }
 
+        /// Selects the span to annotate when both scripts are shown.
+        ///
+        /// Independent of [`Self::rendering`], including fully specified
+        /// render options. Defaults to whole-word annotation.
+        pub fn annotation_granularity(
+            mut self,
+            granularity: gukhanmun_core::AnnotationGranularity,
+        ) -> Self {
+            self.config.options.annotation_granularity = granularity;
+            self
+        }
+
         /// Selects the hanja variant set used by every rendering mode.
         pub fn hanja_variant_set(mut self, variant_set: HanjaVariantSet) -> Self {
             self.config.hanja_variant_set_override = Some(variant_set);
