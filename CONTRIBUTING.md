@@ -227,6 +227,39 @@ Document every new public Rust API with rustdoc comments. Public documentation
 should explain the API's role, important invariants, and where it fits in the
 pipeline so that `mise run doc` stays useful as an API review gate.
 
+### Python API deprecation
+
+This policy applies to the public API of the `gukhanmun` Python binding
+starting with its first stable release. Before that release, APIs can change
+without a deprecation period, including in `.devN` builds.
+
+Before removing a public API or changing it incompatibly, follow the approach
+in [PEP 387]: keep the old behaviour and emit [`DeprecationWarning`] when users
+rely on it. Publish the warning in at least one stable release and give users
+time to migrate before making the change. Explain how to migrate in the
+warning, the API documentation and the `gukhanmun (Python)` changelog entry.
+Include the target version for the change if known.
+
+Use [`@warnings.deprecated()`] for functions, methods and
+classes where the decorator can warn on the affected use. It emits
+`DeprecationWarning` by default and marks the API for type checkers under
+[PEP 702]. The decorator was added in Python 3.13. While Python 3.11 and 3.12
+are supported, do not import it unconditionally in runtime code. Use
+`warnings.warn()` with `DeprecationWarning` where the decorator is unavailable
+or too broad, for example when only one keyword argument is deprecated. When
+runtime code warns directly, use a PEP 702 decorator in a type-checking-only
+declaration, such as a *.pyi* stub, where possible. Do not add a runtime
+dependency solely for the decorator.
+
+Attribute the warning to the user's call site, adjusting `stacklevel` if
+needed. Add an installed-wheel test that captures the warning and checks its
+category, message and location, as well as the preserved behaviour.
+
+[PEP 387]: https://peps.python.org/pep-0387/
+[`DeprecationWarning`]: https://docs.python.org/3/builtins/exceptions.html#DeprecationWarning
+[`@warnings.deprecated()`]: https://docs.python.org/3/library/warnings.html#warnings.deprecated
+[PEP 702]: https://peps.python.org/pep-0702/
+
 
 Writing docs
 ------------
