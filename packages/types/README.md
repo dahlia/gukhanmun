@@ -53,9 +53,9 @@ reference and loanword dictionaries.
 
 `MediaType` lists the four format strings for `convert()` and `stream()`:
 `"text/plain"` (the default), `"text/html"`, `"text/markdown"` (CommonMark),
-and `"text/markdown; variant=GFM"` (GitHub Flavored Markdown). `Format` also
-includes the legacy strings and Markdown objects for compatibility until
-Gukhanmun 1.0.
+and `"text/markdown; variant=GFM"` (GitHub Flavored Markdown). The legacy
+strings and Markdown objects are deprecated. `Format` includes them only for
+compatibility until their removal in Gukhanmun 1.0.
 
 All TSDoc comments live in this package as the single source of truth for the
 JavaScript API. Refer to the declarations in `index.ts` for the full details.

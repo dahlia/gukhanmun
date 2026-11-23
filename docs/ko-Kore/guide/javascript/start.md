@@ -62,19 +62,6 @@ TypeScript 宣言에서는 위 表記만 새 形式으로 받습니다. 實行 �
 CLI와 같은 規則으로 미디어 타입의 媒介變數를 解析하므로
 `text/markdown;variant=GFM`도 쓸 수 있습니다.
 
-### 以前 形式 바꾸기
-
-以前 文字列(`"text"`, `"html"`, `"markdown"`)과 Markdown 客體는 Gukhanmun 1.0
-前까지 쓸 수 있습니다. 앞으로는 위의 미디어 타입을 쓰십시오. Markdown 客體는
-`gfm`이 `true`이면 `"text/markdown; variant=GFM"`으로, 아니면
-`"text/markdown"`으로 바꾸십시오.
-
-以前 形式을 쓰는 呼出을 찾으려면 應用 프로그램에서 [LogTape]를 設定해
-`["gukhanmun", "format"]` 分類의 `warning` 記錄을 받으십시오. 警告마다 바꿔
-쓸 미디어 타입이 나옵니다. 로깅을 設定하지 않으면 아무것도 出力하지 않습니다.
-
-[LogTape]: https://logtape.org/manual/library.md#for-application-developers
-
 
 誤謬 處理
 ---------

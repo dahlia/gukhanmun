@@ -4,6 +4,7 @@ links:
   '#91': https://github.com/dahlia/gukhanmun/pull/91
 ---
  -  Added `MediaType` for the four canonical format strings that `convert()`
-    and `stream()` accept. `Format` still includes legacy selectors for
-    compatibility until 1.0; the overloads for those selectors are deprecated.
+    and `stream()` accept. The legacy format strings and Markdown objects
+    are deprecated. `Format` includes them only for compatibility until their
+    removal in 1.0.
     [[#87], [#91]]
