@@ -45,18 +45,22 @@ const g = await load({
 `convert()` 메서드
 ------------------
 
-`g.convert(source)`는 基本的으로 平文 텍스트를 變換합니다.  HTML이나 Markdown을
-爲해서는 두 番째 引數로 形式 文字列이나 客體를 넘깁니다:
+`g.convert(source)`는 基本的으로 平文 텍스트를 變換합니다. 두 番째 引數로
+미디어 타입을 넘겨 形式을 고를 수 있습니다:
 
 ~~~~ ts twoslash
 import type { Gukhanmun } from "@gukhanmun/types";
 const g: Gukhanmun = {} as unknown as Gukhanmun;
 // ---cut-before---
-g.convert("漢字를 한글로");             // 平文 텍스트 (基本)
-g.convert("<p>漢字</p>", "html");       // HTML 조각(fragment)
-g.convert("# 漢字", "markdown");        // CommonMark
-g.convert("# 漢字", { format: "markdown", gfm: true });  // GFM
+g.convert("漢字를 한글로", "text/plain");         // 平文 텍스트 (基本)
+g.convert("<p>漢字</p>", "text/html");           // HTML 조각(fragment)
+g.convert("# 漢字", "text/markdown");            // CommonMark
+g.convert("# 漢字", "text/markdown; variant=GFM"); // GFM
 ~~~~
+
+TypeScript 宣言에서는 위 表記만 새 形式으로 받습니다. 實行 時에는 두 바인딩 모두
+CLI와 같은 規則으로 미디어 타입의 媒介變數를 解析하므로
+`text/markdown;variant=GFM`도 쓸 수 있습니다.
 
 
 誤謬 處理
@@ -70,7 +74,7 @@ import { stdictFst } from "@gukhanmun/stdict-fst";
 
 try {
   const g = await load({ dictionaries: [await stdictFst()] });
-  g.convert("<invalid html>", "html");
+  g.convert("<invalid html>", "text/html");
 } catch (e) {
   if (e instanceof GukhanmunError) {
     console.error(e.code, e.message);

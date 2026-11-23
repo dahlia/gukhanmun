@@ -90,6 +90,14 @@ test("ko-kp examples leave loanwords off", () => {
   assert.doesNotMatch(examples.js, /loanwordsFst/);
 });
 
+test("JavaScript examples use media types for HTML and Markdown", () => {
+  const defaults = config([]);
+  assert.ok(generateExamples({ ...defaults, format: "html" }).js.includes(', "text/html")'));
+  assert.ok(
+    generateExamples({ ...defaults, format: "markdown" }).js.includes(', "text/markdown")'),
+  );
+});
+
 test("Python without dictionaries needs only the core package", () => {
   const python = generateExamples(config([])).python;
   assert.equal(

@@ -7,7 +7,7 @@ description: |-
 HTML 處理
 =========
 
-`convert()`에 形式으로 `"html"`을 넘깁니다:
+`convert()`에 形式으로 `"text/html"`을 넘깁니다:
 
 ~~~~ ts twoslash
 import { load } from "@gukhanmun/wasm";
@@ -15,7 +15,7 @@ import { stdictFst } from "@gukhanmun/stdict-fst";
 
 const g = await load({ dictionaries: [await stdictFst()] });
 
-console.log(g.convert("<p>漢字</p>", "html"));
+console.log(g.convert("<p>漢字</p>", "text/html"));
 // → <p>한자</p>
 ~~~~
 
@@ -55,7 +55,7 @@ const html = `
   <p>漢字</p>
   <span class="math">漢字</span>
 `;
-console.log(g.convert(html, "html"));
+console.log(g.convert(html, "text/html"));
 // → <p>한자</p>
 //   <span class="math">漢字</span>   ← 保存됨
 ~~~~
@@ -86,7 +86,7 @@ const g = await load({
 HTML에서의 루비(ruby) 마크업
 ----------------------------
 
-`"html"` 形式을 루비 렌더링 모드와 結合합니다:
+`"text/html"` 形式을 루비 렌더링 모드와 結合합니다:
 
 ~~~~ ts twoslash
 import { load } from "@gukhanmun/wasm";
@@ -97,7 +97,7 @@ const g = await load({
   dictionaries: [await stdictFst()],
 });
 
-console.log(g.convert("<p>漢字</p>", "html"));
+console.log(g.convert("<p>漢字</p>", "text/html"));
 // → <p><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby></p>
 ~~~~
 

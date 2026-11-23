@@ -50,7 +50,7 @@ Ruby markup
 -----------
 
 `"ruby-on-hangul"` and `"ruby-on-hanja"` produce `<ruby>` elements.  Use
-them with `"html"` or `"markdown"` format; in plain text they fall back to
+them with `"text/html"` or `"text/markdown"`; in plain text they fall back to
 parentheses.  The annotation is wrapped in `<rp>` (ruby parenthesis)
 elements, so browsers without `<ruby>` support still show the reading as a
 parenthesized gloss (`한자(漢字)`) instead of running it into the base text:
@@ -64,7 +64,7 @@ const g = await load({
   dictionaries: [await stdictFst()],
 });
 
-console.log(g.convert("<p>漢字</p>", "html"));
+console.log(g.convert("<p>漢字</p>", "text/html"));
 // → <p><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby></p>
 ~~~~
 

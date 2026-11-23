@@ -24,7 +24,7 @@ import { load } from "@gukhanmun/wasm";
 import { stdictFst } from "@gukhanmun/stdict-fst";
 
 const g = await load({ dictionaries: [await stdictFst()] });
-const stream = g.stream("html");
+const stream = g.stream("text/html");
 
 const writer = stream.writable.getWriter();
 const reader = stream.readable.getReader();
@@ -49,16 +49,16 @@ console.log(await output);  // <p>한자</p>
 形式 引數
 ---------
 
-`stream`의 形式 引數는 `convert()`와 같은 값을 받습니다:
+`stream()`의 形式 引數는 `convert()`와 같은 미디어 타입을 받습니다:
 
 ~~~~ ts twoslash
 import type { Gukhanmun } from "@gukhanmun/types";
 const g: Gukhanmun = {} as unknown as Gukhanmun;
 // ---cut-before---
-g.stream();                              // 平文 텍스트 (基本)
-g.stream("html");                        // HTML
-g.stream("markdown");                    // CommonMark
-g.stream({ format: "markdown", gfm: true });  // GFM
+g.stream();                             // 平文 텍스트 (基本)
+g.stream("text/html");                  // HTML
+g.stream("text/markdown");              // CommonMark
+g.stream("text/markdown; variant=GFM");  // GFM
 ~~~~
 
 
@@ -74,7 +74,7 @@ const g: Gukhanmun = {} as unknown as Gukhanmun;
 const response = await fetch("/large-document.html");
 const converted = response.body!
   .pipeThrough(new TextDecoderStream())
-  .pipeThrough(g.stream("html"))
+  .pipeThrough(g.stream("text/html"))
   .pipeThrough(new TextEncoderStream());
 ~~~~
 
@@ -93,10 +93,10 @@ const chunkB: string = "字";
 const chunkC: string = "</p>";
 // ---cut-before---
 // 다음은 恒常 同等하다:
-const result1 = g.convert(chunkA + chunkB + chunkC, "html");
+const result1 = g.convert(chunkA + chunkB + chunkC, "text/html");
 
 // 그리고
-const stream = g.stream("html");
+const stream = g.stream("text/html");
 const output = new Response(
   stream.readable.pipeThrough(new TextEncoderStream()),
 ).text();

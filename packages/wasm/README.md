@@ -47,7 +47,7 @@ console.log(g.convert("漢字를 한글로")); // "한자를 한글로"
 ### Streaming
 
 ~~~~ ts
-const stream = g.stream("html");
+const stream = g.stream("text/html");
 const writer = stream.writable.getWriter();
 const reader = stream.readable.getReader();
 const output = reader.read();

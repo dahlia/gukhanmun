@@ -634,6 +634,11 @@ To be released.
     [[#81], [#86]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
+ -  Added media types to `convert()` and `stream()`: `"text/plain"`,
+    `"text/html"`, `"text/markdown"`, and `"text/markdown; variant=GFM"`. The
+    old format strings and Markdown objects are deprecated and will be removed
+    in 1.0. Switch to media types. To find old calls at runtime, enable
+    LogTape warnings in `["gukhanmun", "format"]`. [[#87], [#91]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
     homophone identity and count as one lexeme for first-occurrence filtering.
     [[#38], [#39]]
@@ -672,6 +677,9 @@ To be released.
     boundaries do not change the selected segmentation. Ambiguous prefixes may
     remain buffered until a word boundary or EOF settles the path.
     [[#42], [#44]]
+
+[#87]: https://github.com/dahlia/gukhanmun/issues/87
+[#91]: https://github.com/dahlia/gukhanmun/pull/91
 
 ### @gukhanmun/napi-aarch64-apple-darwin (JavaScript/TypeScript)
 
@@ -869,6 +877,11 @@ To be released.
  -  Added `LoadedDictionary` and `GukhanmunLoadOptions` for mixing loaded
     dictionaries with existing sources without changing `GukhanmunOptions`.
     [[#80], [#83]]
+ -  Added `MediaType` for the four canonical format strings that `convert()`
+    and `stream()` accept. The legacy format strings and Markdown objects
+    are deprecated. `Format` includes them only for compatibility until their
+    removal in 1.0.
+    [[#87], [#91]]
  -  Added `ignoreDictionaryRequiredHanja` to the shared converter options.
     [[#81], [#86]]
  -  Added `sourcePolicy`, `referenceOnly` and explicit dictionary `role`
@@ -899,6 +912,11 @@ To be released.
     [[#81], [#86]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
+ -  Added media types to `convert()` and `stream()`: `"text/plain"`,
+    `"text/html"`, `"text/markdown"`, and `"text/markdown; variant=GFM"`. The
+    old format strings and Markdown objects are deprecated and will be removed
+    in 1.0. Switch to media types. To find old calls at runtime, enable
+    LogTape warnings in `["gukhanmun", "format"]`. [[#87], [#91]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
     homophone identity and count as one lexeme for first-occurrence filtering.
     [[#38], [#39]]

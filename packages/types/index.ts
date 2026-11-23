@@ -688,22 +688,29 @@ export interface GukhanmunOptions {
 // ── Format ─────────────────────────────────────────────────────────────────
 
 /**
- * Input / output format for {@link Gukhanmun.convert} and
+ * Canonical input/output media types for {@link Gukhanmun.convert} and
  * {@link Gukhanmun.stream}.
  *
- * - `"text"` — Plain text (default).  No markup interpretation; ruby
- *   rendering falls back to parentheses.
- * - `"html"` — HTML fragment.  The scanner is fragment-oriented and recovers
- *   from minor malformations.
- * - `"markdown"` — CommonMark Markdown (GFM disabled by default).
- * - `{ format: "markdown"; gfm?: boolean }` — Markdown with optional GFM
- *   extensions.  Set `gfm: true` to enable GitHub Flavored Markdown tables,
+ * - `"text/plain"`: Plain text (default). Ruby rendering falls back to
+ *   parentheses.
+ * - `"text/html"`: HTML fragments.
+ * - `"text/markdown"`: CommonMark Markdown.
+ * - `"text/markdown; variant=GFM"`: GitHub Flavored Markdown, including tables,
  *   strikethrough, and task lists.
- *
- * The object form `{ format: "markdown" }` is equivalent to the string
- * `"markdown"`.
+ */
+export type MediaType =
+  | "text/plain"
+  | "text/html"
+  | "text/markdown"
+  | "text/markdown; variant=GFM";
+
+/**
+ * Input/output format for {@link Gukhanmun.convert} and
+ * {@link Gukhanmun.stream}. Includes legacy selectors for compatibility until
+ * Gukhanmun 1.0. Use {@link MediaType} for new code.
  */
 export type Format =
+  | MediaType
   | "text"
   | "html"
   | "markdown"
@@ -724,10 +731,22 @@ export interface Gukhanmun {
    * before returning.
    *
    * @param source - The text to convert.
-   * @param format - Input / output format.  Defaults to `"text"`.
+   * @param format - Input/output media type. Defaults to `"text/plain"`.
    * @returns The converted text.
    * @throws {@link GukhanmunError} on conversion failure.
    */
+  convert(source: string, format?: MediaType): string;
+
+  /**
+   * @deprecated Legacy selectors will be removed in Gukhanmun 1.0. Instead
+   * pass `"text/plain"`, `"text/html"`, or `"text/markdown"` for
+   * `"text"`, `"html"`, or `"markdown"`, respectively. For Markdown objects,
+   * use `"text/markdown; variant=GFM"` if `gfm` is true or `"text/markdown"`
+   * otherwise.
+   */
+  convert(source: string, format: Exclude<Format, MediaType> | undefined): string;
+
+  /** Converts `source` when `format` can be either a media type or a legacy selector. */
   convert(source: string, format?: Format): string;
 
   /**
@@ -741,11 +760,23 @@ export interface Gukhanmun {
    * `homophoneWindow: "per-document"`) buffer until the writable side is
    * closed.
    *
-   * @param format - Input / output format.  Defaults to `"text"`.
+   * @param format - Input/output media type. Defaults to `"text/plain"`.
    * @returns A platform `TransformStream<string, string>`.
    * @throws {@link GukhanmunError} on initialisation failure (not on chunk
    *   errors; those are signalled via the stream's error channel).
    */
+  stream(format?: MediaType): TransformStream<string, string>;
+
+  /**
+   * @deprecated Legacy selectors will be removed in Gukhanmun 1.0. Instead
+   * pass `"text/plain"`, `"text/html"`, or `"text/markdown"` for
+   * `"text"`, `"html"`, or `"markdown"`, respectively. For Markdown objects,
+   * use `"text/markdown; variant=GFM"` if `gfm` is true or `"text/markdown"`
+   * otherwise.
+   */
+  stream(format: Exclude<Format, MediaType> | undefined): TransformStream<string, string>;
+
+  /** Opens a stream when `format` can be either a media type or a legacy selector. */
   stream(format?: Format): TransformStream<string, string>;
 
   /**

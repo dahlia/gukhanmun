@@ -65,6 +65,7 @@ import type {
   SourcePolicy,
   SourceRole,
 } from "@gukhanmun/types";
+import { prepareStringFormat, warnLegacyMarkdown } from "../wasm/format.ts";
 
 export type {
   AnnotationGranularity,
@@ -86,6 +87,7 @@ export type {
   HtmlOptions,
   LoadedDictionary,
   MapDictionarySource,
+  MediaType,
   NumeralStrategy,
   OriginalGloss,
   Preset,
@@ -539,6 +541,24 @@ function buildRawOptions(
 
 // ── GukhanmunImpl ─────────────────────────────────────────────────────────────
 
+function prepareFormatJson(format?: Format): string | null {
+  if (format == null) return null;
+  if (typeof format === "string") return JSON.stringify(prepareStringFormat(format));
+  // Inspect the serialized selector, not the caller's object: getters or
+  // toJSON() must run only once, as they did before the warning was added.
+  const json = JSON.stringify(format);
+  if (json?.startsWith('"')) {
+    return JSON.stringify(prepareStringFormat(JSON.parse(json) as string));
+  }
+  if (json?.startsWith("{")) {
+    const { format: name, gfm } = JSON.parse(json) as { format?: unknown; gfm?: unknown };
+    if (name === "markdown" && (gfm == null || typeof gfm === "boolean")) {
+      warnLegacyMarkdown(gfm ?? undefined);
+    }
+  }
+  return json;
+}
+
 /** Internal implementation of the `Gukhanmun` contract backed by the native addon. */
 class GukhanmunImpl implements Gukhanmun {
   readonly #handle: NapiHandle;
@@ -553,17 +573,13 @@ class GukhanmunImpl implements Gukhanmun {
    * Converts `source` in one shot.
    *
    * @param source - Input string.
-   * @param format - `"text"` (default), `"html"`, `"markdown"`, or
-   *   `{ format: "markdown"; gfm?: boolean }`.
+   * @param format - Input/output media type. Defaults to `"text/plain"`.
    * @returns Converted string.
    * @throws {@link GukhanmunError} on conversion failure.
    */
   convert(source: string, format?: Format): string {
     try {
-      return this.#handle.convert(
-        source,
-        format != null ? JSON.stringify(format) : null,
-      );
+      return this.#handle.convert(source, prepareFormatJson(format));
     } catch (e) {
       throw liftNapiError(e);
     }
@@ -580,7 +596,7 @@ class GukhanmunImpl implements Gukhanmun {
    * @returns A `TransformStream<string, string>`.
    */
   stream(format?: Format): TransformStream<string, string> {
-    const formatJson = format != null ? JSON.stringify(format) : null;
+    const formatJson = prepareFormatJson(format);
     let streamHandle: NapiStreamHandle;
     try {
       streamHandle = this.#handle.openStream(formatJson);

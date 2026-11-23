@@ -58,6 +58,7 @@ import type {
   SourcePolicy,
   SourceRole,
 } from "@gukhanmun/types";
+import { prepareStringFormat, warnLegacyMarkdown } from "./format.ts";
 
 export type {
   AnnotationGranularity,
@@ -79,6 +80,7 @@ export type {
   HtmlOptions,
   LoadedDictionary,
   MapDictionarySource,
+  MediaType,
   NumeralStrategy,
   OriginalGloss,
   Preset,
@@ -493,6 +495,26 @@ interface ResolvedOptions {
   readonly recovery: Recovery;
 }
 
+function prepareFormat(format?: Format): unknown {
+  if (format == null) return null;
+  if (typeof format === "string") return prepareStringFormat(format);
+  // Match the binding's Reflect.get() semantics. Pass it a snapshot so it
+  // doesn't read the caller's legacy properties a second time.
+  let gfm: unknown;
+  try {
+    if (Reflect.get(format, "format") !== "markdown") return {};
+    try {
+      gfm = Reflect.get(format, "gfm");
+    } catch {
+      // The binding treats a failed read of gfm as false.
+    }
+  } catch {
+    return {};
+  }
+  warnLegacyMarkdown(typeof gfm === "boolean" ? gfm : undefined);
+  return { format: "markdown", gfm: gfm === true };
+}
+
 /** Internal implementation of the `Gukhanmun` contract. */
 class GukhanmunImpl implements Gukhanmun {
   readonly #handle: WasmHandleInternal;
@@ -507,14 +529,13 @@ class GukhanmunImpl implements Gukhanmun {
    * Converts `source` in one shot.
    *
    * @param source - Input string.
-   * @param format - `"text"` (default), `"html"`, `"markdown"`, or
-   *   `{ format: "markdown"; gfm?: boolean }`.
+   * @param format - Input/output media type. Defaults to `"text/plain"`.
    * @returns Converted string.
    * @throws {@link GukhanmunError} on conversion failure.
    */
   convert(source: string, format?: Format): string {
     try {
-      return this.#handle.convert(source, format ?? null);
+      return this.#handle.convert(source, prepareFormat(format));
     } catch (e) {
       throw liftError(e);
     }
@@ -533,7 +554,7 @@ class GukhanmunImpl implements Gukhanmun {
   stream(format?: Format): TransformStream<string, string> {
     let streamHandle: WasmStreamInternal;
     try {
-      streamHandle = this.#handle.open_stream(format ?? null);
+      streamHandle = this.#handle.open_stream(prepareFormat(format));
     } catch (e) {
       throw liftError(e);
     }
