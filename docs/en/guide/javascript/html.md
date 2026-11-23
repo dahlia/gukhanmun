@@ -7,7 +7,7 @@ description: |-
 HTML processing
 ===============
 
-Pass `"html"` as the format to `convert()`:
+Pass `"text/html"` as the format to `convert()`:
 
 ~~~~ ts twoslash
 import { load } from "@gukhanmun/wasm";
@@ -15,7 +15,7 @@ import { stdictFst } from "@gukhanmun/stdict-fst";
 
 const g = await load({ dictionaries: [await stdictFst()] });
 
-console.log(g.convert("<p>漢字</p>", "html"));
+console.log(g.convert("<p>漢字</p>", "text/html"));
 // → <p>한자</p>
 ~~~~
 
@@ -55,7 +55,7 @@ const html = `
   <p>漢字</p>
   <span class="math">漢字</span>
 `;
-console.log(g.convert(html, "html"));
+console.log(g.convert(html, "text/html"));
 // → <p>한자</p>
 //   <span class="math">漢字</span>   ← preserved
 ~~~~
@@ -86,7 +86,7 @@ const g = await load({
 Ruby markup in HTML
 -------------------
 
-Combine `"html"` format with a ruby rendering mode:
+Combine `"text/html"` with a ruby rendering mode:
 
 ~~~~ ts twoslash
 import { load } from "@gukhanmun/wasm";
@@ -97,7 +97,7 @@ const g = await load({
   dictionaries: [await stdictFst()],
 });
 
-console.log(g.convert("<p>漢字</p>", "html"));
+console.log(g.convert("<p>漢字</p>", "text/html"));
 // → <p><ruby>한자<rp>(</rp><rt>漢字</rt><rp>)</rp></ruby></p>
 ~~~~
 

@@ -18,12 +18,19 @@ import type {
   ContextWindow,
   HanjaVariantSet,
   HomophoneDetection,
+  MediaType,
   NumeralStrategy,
   OriginalGloss,
   Recovery,
   RenderMode,
   Segmentation,
 } from "@gukhanmun/wasm";
+
+export const mediaTypes = {
+  text: "text/plain",
+  html: "text/html",
+  markdown: "text/markdown",
+} as const satisfies Record<"text" | "html" | "markdown", MediaType>;
 
 // Identifiers for every built-in dictionary the playground can toggle: the
 // Standard Korean Language Dictionary plus the four Open Korean Dictionary
@@ -509,7 +516,7 @@ export function generateJs(cfg: CodegenConfig): string {
 
   const optionsObject = fields.length ? `{\n  ${fields.join("\n  ")}\n}` : `{}`;
   const tpl = jsTemplate(cfg.input);
-  const convertArgs = cfg.format === "text" ? tpl : `${tpl}, ${quote(cfg.format)}`;
+  const convertArgs = cfg.format === "text" ? tpl : `${tpl}, ${quote(mediaTypes[cfg.format])}`;
 
   return `${imports.join("\n")}\n\n` +
     `const g = await load(${optionsObject});\n` +

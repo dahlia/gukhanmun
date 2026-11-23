@@ -25,7 +25,7 @@ import { load } from "@gukhanmun/wasm";
 import { stdictFst } from "@gukhanmun/stdict-fst";
 
 const g = await load({ dictionaries: [await stdictFst()] });
-const stream = g.stream("html");
+const stream = g.stream("text/html");
 
 const writer = stream.writable.getWriter();
 const reader = stream.readable.getReader();
@@ -50,16 +50,16 @@ console.log(await output);  // <p>한자</p>
 Format argument
 ---------------
 
-The format argument to `stream` accepts the same values as `convert()`:
+The format argument to `stream()` accepts the same media types as `convert()`:
 
 ~~~~ ts twoslash
 import type { Gukhanmun } from "@gukhanmun/types";
 const g: Gukhanmun = {} as unknown as Gukhanmun;
 // ---cut-before---
-g.stream();                              // plain text (default)
-g.stream("html");                        // HTML
-g.stream("markdown");                    // CommonMark
-g.stream({ format: "markdown", gfm: true });  // GFM
+g.stream();                             // plain text (default)
+g.stream("text/html");                  // HTML
+g.stream("text/markdown");              // CommonMark
+g.stream("text/markdown; variant=GFM");  // GFM
 ~~~~
 
 
@@ -75,7 +75,7 @@ const g: Gukhanmun = {} as unknown as Gukhanmun;
 const response = await fetch("/large-document.html");
 const converted = response.body!
   .pipeThrough(new TextDecoderStream())
-  .pipeThrough(g.stream("html"))
+  .pipeThrough(g.stream("text/html"))
   .pipeThrough(new TextEncoderStream());
 ~~~~
 
@@ -95,10 +95,10 @@ const chunkB: string = "字";
 const chunkC: string = "</p>";
 // ---cut-before---
 // These are always equivalent:
-const result1 = g.convert(chunkA + chunkB + chunkC, "html");
+const result1 = g.convert(chunkA + chunkB + chunkC, "text/html");
 
 // and
-const stream = g.stream("html");
+const stream = g.stream("text/html");
 const output = new Response(
   stream.readable.pipeThrough(new TextEncoderStream()),
 ).text();

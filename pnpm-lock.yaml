@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@logtape/logtape':
+        specifier: ^2.4.2
+        version: 2.4.2
       tsdown:
         specifier: ^0.23.5
         version: 0.23.5(typescript@6.0.3)

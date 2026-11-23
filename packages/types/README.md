@@ -49,9 +49,13 @@ a `chain` array of causes.
 or a path) or as a `MapDictionarySource` (`{ entries }` with hanja, reading,
 positional reading, preference, and mark fields) for readings computed at
 runtime. A source's `role` distinguishes user overrides from cooperating
-reference and loanword dictionaries. `Format` is the input format selector:
-`"text"`, `"html"`, `"markdown"`, or a `{ format: "markdown", gfm: boolean }`
-object.
+reference and loanword dictionaries.
+
+`MediaType` lists the four format strings for `convert()` and `stream()`:
+`"text/plain"` (the default), `"text/html"`, `"text/markdown"` (CommonMark),
+and `"text/markdown; variant=GFM"` (GitHub Flavored Markdown). `Format` also
+includes the legacy strings and Markdown objects for compatibility until
+Gukhanmun 1.0.
 
 All TSDoc comments live in this package as the single source of truth for the
 JavaScript API. Refer to the declarations in `index.ts` for the full details.

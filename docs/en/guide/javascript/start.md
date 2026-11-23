@@ -45,18 +45,36 @@ const g = await load({
 The `convert()` method
 ----------------------
 
-`g.convert(source)` converts plain text by default.  Pass a format string or
-object as the second argument for HTML or Markdown:
+`g.convert(source)` converts plain text by default. Pass a media type as the
+second argument to choose a format:
 
 ~~~~ ts twoslash
 import type { Gukhanmun } from "@gukhanmun/types";
 const g: Gukhanmun = {} as unknown as Gukhanmun;
 // ---cut-before---
-g.convert("漢字를 한글로");             // plain text (default)
-g.convert("<p>漢字</p>", "html");       // HTML fragment
-g.convert("# 漢字", "markdown");        // CommonMark
-g.convert("# 漢字", { format: "markdown", gfm: true });  // GFM
+g.convert("漢字를 한글로", "text/plain");         // plain text (default)
+g.convert("<p>漢字</p>", "text/html");           // HTML fragment
+g.convert("# 漢字", "text/markdown");            // CommonMark
+g.convert("# 漢字", "text/markdown; variant=GFM"); // GFM
 ~~~~
+
+These are the spellings in the TypeScript declarations. At runtime, both
+bindings parse media type parameters like the CLI, so
+`text/markdown;variant=GFM` also works.
+
+### Migrating from legacy formats
+
+The old strings (`"text"`, `"html"`, and `"markdown"`) and Markdown objects
+still work until Gukhanmun 1.0. Use the media types above instead. For a
+Markdown object, choose `"text/markdown; variant=GFM"` if `gfm` is `true`,
+or `"text/markdown"` otherwise.
+
+To find calls that still use the old formats at runtime, configure [LogTape]
+in your application to capture `warning` records under
+`["gukhanmun", "format"]`. Each warning names the replacement. Without a
+logging configuration, nothing is printed.
+
+[LogTape]: https://logtape.org/manual/library.md#for-application-developers
 
 
 Error handling
@@ -70,7 +88,7 @@ import { stdictFst } from "@gukhanmun/stdict-fst";
 
 try {
   const g = await load({ dictionaries: [await stdictFst()] });
-  g.convert("<invalid html>", "html");
+  g.convert("<invalid html>", "text/html");
 } catch (e) {
   if (e instanceof GukhanmunError) {
     console.error(e.code, e.message);

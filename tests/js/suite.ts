@@ -22,6 +22,7 @@
 
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { configure, type LogRecord, reset } from "@logtape/logtape";
 import { stdictFst } from "../../packages/stdict-fst/index.ts";
 import { opendictGeneralFst, opendictNorthKoreanFst } from "../../packages/opendict-fst/index.ts";
 import { opendictGeneralCdb, opendictNorthKoreanCdb } from "../../packages/opendict-cdb/index.ts";
@@ -29,11 +30,13 @@ import { stdictCdb } from "../../packages/stdict-cdb/index.ts";
 import type {
   DictionarySource,
   FileDictionarySource,
+  Format,
   Gukhanmun,
   GukhanmunFactory,
   GukhanmunLoadOptions,
   GukhanmunOptions,
   LoadedDictionary,
+  MediaType,
 } from "../../packages/types/index.ts";
 
 // ── Injected binding ─────────────────────────────────────────────────────────
@@ -111,6 +114,162 @@ const dictionaryBackends: readonly (readonly [
  */
 export function registerSuite(name: string, binding: Binding): void {
   const { load, loadDictionary, foreignLoad, GukhanmunError } = binding;
+
+  describe(`${name}: media types`, () => {
+    const source = "| 漢字 | 學校 |\n| --- | --- |\n| 漢字 | 學校 |\n";
+    const cases = [
+      ["text/plain", "text", "<code>漢字</code>"],
+      ["text/html", "html", "<code>漢字</code>"],
+      ["text/markdown", "markdown", source],
+      ["text/markdown", { format: "markdown" }, source],
+      ["text/markdown", { format: "markdown", gfm: false }, source],
+      ["text/markdown; variant=GFM", { format: "markdown", gfm: true }, source],
+    ] as const satisfies readonly (readonly [MediaType, Format, string])[];
+
+    test("convert and stream match their legacy equivalents", async () => {
+      const g = await load();
+      for (const [mediaType, legacy, input] of cases) {
+        const converted = g.convert(input, mediaType);
+        assert.equal(converted, g.convert(input, legacy));
+        assert.equal(await streamAll(g.stream(mediaType), [...input]), converted);
+        assert.equal(await streamAll(g.stream(legacy), [...input]), converted);
+      }
+      const plain = g.convert("<code>漢字</code>", "text/plain");
+      assert.equal(g.convert("<code>漢字</code>"), plain);
+      assert.equal(await streamAll(g.stream(), ["<code>", "漢字</code>"]), plain);
+      assert.notEqual(plain, g.convert("<code>漢字</code>", "text/html"));
+      assert.notEqual(
+        g.convert(source, "text/markdown; variant=GFM"),
+        g.convert(source, "text/markdown"),
+      );
+    });
+
+    test("runtime parses variants like the CLI", async () => {
+      // Widened MIME strings are accepted by the runtime, not the declaration.
+      const g = await load();
+      const inputs = [
+        ["text/markdown;variant=GFM", "text/markdown; variant=GFM", source],
+        ['  text/markdown ; foo=bar; VARIANT = "gfm"  ', "text/markdown; variant=GFM", source],
+        ["text/markdown;variant=CommonMark;variant=GFM", "text/markdown", source],
+        ["text/plain; charset=UTF-8", "text/plain", "<code>漢字</code>"],
+        ["text/html; charset=UTF-8", "text/html", "<code>漢字</code>"],
+      ] as const;
+      for (const [raw, canonical, input] of inputs) {
+        const expected = g.convert(input, canonical);
+        // @ts-expect-error Only canonical spellings are in the public type.
+        assert.equal(g.convert(input, raw), expected);
+        // @ts-expect-error Only canonical spellings are in the public type.
+        assert.equal(await streamAll(g.stream(raw), [...input]), expected);
+      }
+    });
+
+    test("unsupported media types and variants retain the error code", async () => {
+      const g = await load();
+      const unsupported = (error: unknown) =>
+        error instanceof GukhanmunError && error.code === "unsupported-content-type";
+      for (const format of ["application/json", "text/markdown; variant=unknown"]) {
+        // @ts-expect-error Unsupported media types cannot be passed in TypeScript.
+        assert.throws(() => g.convert(source, format), unsupported);
+        // @ts-expect-error Unsupported media types cannot be passed in TypeScript.
+        assert.throws(() => g.stream(format), unsupported);
+      }
+    });
+
+    test("only legacy selectors warn", async () => {
+      const g = await load();
+      const records: LogRecord[] = [];
+      await configure({
+        sinks: {
+          capture: (record) => {
+            records.push(record);
+          },
+        },
+        loggers: [
+          { category: ["gukhanmun"], lowestLevel: "warning", sinks: ["capture"] },
+          { category: ["logtape", "meta"], sinks: [] },
+        ],
+      });
+      try {
+        g.convert(source);
+        await streamAll(g.stream(), [source]);
+        // @ts-expect-error This alternate spelling is only accepted at runtime.
+        g.convert(source, "text/markdown;variant=GFM");
+        // @ts-expect-error This alternate spelling is only accepted at runtime.
+        await streamAll(g.stream("text/markdown;variant=GFM"), [source]);
+        for (const [mediaType, legacy, input] of cases) {
+          g.convert(input, mediaType);
+          await streamAll(g.stream(mediaType), [input]);
+          assert.equal(records.length, 0);
+
+          g.convert(input, legacy);
+          const stream = g.stream(legacy);
+          assert.equal(records.length, 2);
+          await streamAll(stream, Array.from(input));
+
+          const warnings = records.splice(0);
+          assert.equal(warnings.length, 2);
+          for (const record of warnings) {
+            assert.deepEqual(record.category, ["gukhanmun", "format"]);
+            assert.equal(record.level, "warning");
+            assert.equal(record.properties.kind, "deprecation");
+            assert.equal(record.properties.replacement, mediaType);
+            assert.equal(typeof record.properties.format, "string");
+            assert.match(String(record.rawMessage), /removed in Gukhanmun 1\.0/);
+          }
+        }
+
+        const legacyNull = { format: "markdown" as const, gfm: null };
+        // @ts-expect-error The legacy runtime accepts null as omitted.
+        assert.equal(g.convert(source, legacyNull), g.convert(source, "text/markdown"));
+        // @ts-expect-error The legacy runtime accepts null as omitted.
+        const stream = g.stream(legacyNull);
+        assert.equal(await streamAll(stream, [source]), g.convert(source, "text/markdown"));
+        assert.deepEqual(
+          records.splice(0).map((record) => record.properties.replacement),
+          ["text/markdown", "text/markdown"],
+        );
+
+        let reads = 0;
+        const legacy = {
+          format: "markdown" as const,
+          get gfm() {
+            return ++reads % 2 !== 0;
+          },
+        };
+        assert.equal(g.convert(source, legacy), g.convert(source, "text/markdown; variant=GFM"));
+        assert.equal(
+          await streamAll(g.stream(legacy), [source]),
+          g.convert(source, "text/markdown"),
+        );
+        assert.equal(reads, 2);
+        assert.deepEqual(
+          records.splice(0).map((record) => record.properties.replacement),
+          ["text/markdown; variant=GFM", "text/markdown"],
+        );
+
+        // Node-API has always accepted selectors that serialize to a string.
+        if (name === "napi") {
+          const input = "<code>漢字</code>";
+          const expected = g.convert(input, "text/html");
+          let calls = 0;
+          const serialized = {
+            toJSON() {
+              return ++calls === 1 ? "html" : "text/html; charset=UTF-8";
+            },
+          };
+          // @ts-expect-error Only strings and legacy Markdown objects are declared.
+          assert.equal(g.convert(input, serialized), expected);
+          // @ts-expect-error Only strings and legacy Markdown objects are declared.
+          const stream = g.stream(serialized);
+          assert.equal(await streamAll(stream, [input]), expected);
+          assert.equal(calls, 2);
+          assert.deepEqual(records.map((record) => record.properties.replacement), ["text/html"]);
+        }
+      } finally {
+        await reset();
+      }
+    });
+  });
 
   describe(`${name}: reusable dictionaries`, () => {
     for (const [format, getSource] of dictionaryBackends) {

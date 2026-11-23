@@ -21,7 +21,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useI18n } from "@rspress/core/runtime";
 import type {
   ContextWindow,
-  Format,
   Gukhanmun,
   GukhanmunOptions,
   HanjaVariantSet,
@@ -34,11 +33,11 @@ import type {
   Segmentation,
 } from "@gukhanmun/wasm";
 import type { Highlighter } from "shiki";
-import { DICT_ORDER, type DictId, generateExamples } from "./codegen";
+import { DICT_ORDER, type DictId, generateExamples, mediaTypes } from "./codegen";
 
 type CodeTab = "cli" | "rust" | "js" | "python";
 
-type FormatKey = "text" | "markdown" | "html";
+type FormatKey = keyof typeof mediaTypes;
 type Status = "loading" | "ready" | "error";
 
 // Shiki language id for each example tab.
@@ -523,7 +522,7 @@ export function Playground() {
         const g = await load(buildOptions(dictionaries));
         if (cancelled) return;
         gRef.current = g;
-        setOutput(g.convert(inputRef.current, formatRef.current as Format));
+        setOutput(g.convert(inputRef.current, mediaTypes[formatRef.current]));
         setErrorMsg(null);
       } catch (e) {
         if (!cancelled) setErrorMsg(e instanceof Error ? e.message : String(e));
@@ -561,7 +560,7 @@ export function Playground() {
     const timer = setTimeout(() => {
       if (!gRef.current) return;
       try {
-        setOutput(gRef.current.convert(input, format as Format));
+        setOutput(gRef.current.convert(input, mediaTypes[format]));
         setErrorMsg(null);
       } catch (e) {
         setErrorMsg(e instanceof Error ? e.message : String(e));

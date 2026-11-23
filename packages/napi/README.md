@@ -61,7 +61,7 @@ dictionary bytes from disk.
 ### Streaming
 
 ~~~~ ts
-const stream = g.stream("html");
+const stream = g.stream("text/html");
 const writer = stream.writable.getWriter();
 const reader = stream.readable.getReader();
 const output = reader.read();

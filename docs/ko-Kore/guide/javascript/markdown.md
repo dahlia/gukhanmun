@@ -7,7 +7,7 @@ description: |-
 Markdown 變換
 =============
 
-`convert()`에 形式으로 `"markdown"`을 넘깁니다:
+`convert()`에 形式으로 `"text/markdown"`을 넘깁니다:
 
 ~~~~ ts twoslash
 import { load } from "@gukhanmun/wasm";
@@ -15,7 +15,7 @@ import { stdictFst } from "@gukhanmun/stdict-fst";
 
 const g = await load({ dictionaries: [await stdictFst()] });
 
-const output = g.convert("# 漢字\n\n漢字를 한글로 변환합니다.", "markdown");
+const output = g.convert("# 漢字\n\n漢字를 한글로 변환합니다.", "text/markdown");
 // → "# 한자\n\n한자를 한글로 변환합니다."
 ~~~~
 
@@ -23,7 +23,8 @@ const output = g.convert("# 漢字\n\n漢字를 한글로 변환합니다.", "ma
 GitHub Flavored Markdown
 ------------------------
 
-GFM 擴張(表, 作業 目錄, 取消線)을 켜려면 `gfm: true`인 形式 客體를 넘깁니다:
+GFM 擴張(表, 作業 目錄, 取消線)을 켜려면 `"text/markdown; variant=GFM"`을
+넘깁니다:
 
 ~~~~ ts twoslash
 import type { Gukhanmun } from "@gukhanmun/types";
@@ -31,7 +32,7 @@ const g: Gukhanmun = {} as unknown as Gukhanmun;
 // ---cut-before---
 const output = g.convert(
   "| 漢字 | 讀音 |\n|------|------|\n| 東 | 동 |",
-  { format: "markdown", gfm: true },
+  "text/markdown; variant=GFM",
 );
 ~~~~
 
