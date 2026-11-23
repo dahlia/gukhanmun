@@ -156,6 +156,17 @@ macro_rules! configuration_setters {
             self
         }
 
+        /// Omits hanja glosses required only by a dictionary entry in
+        /// [`RenderMode::HangulOnly`](gukhanmun_core::RenderMode::HangulOnly).
+        ///
+        /// Defaults to `false`. This setting is independent of [`Self::rendering`]
+        /// and does not disable homophone glosses, explicit directives, or
+        /// author-written glosses.
+        pub fn ignore_dictionary_required_hanja(mut self, enabled: bool) -> Self {
+            self.config.options.ignore_dictionary_required_hanja = enabled;
+            self
+        }
+
         /// Selects the span to annotate when both scripts are shown.
         ///
         /// Independent of [`Self::rendering`], including fully specified

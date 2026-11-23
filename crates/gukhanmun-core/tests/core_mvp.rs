@@ -3061,6 +3061,51 @@ fn user_directives_apply_closure_predicates() {
 }
 
 #[test]
+fn render_policy_clears_only_dictionary_hanja_requirements() {
+    let marked = annotated! {
+        from_dictionary: true,
+        require_hanja: true,
+        require_hangul: true,
+        homophone: true,
+        ..annotation("憂鬱症", "우울증")
+    };
+    let token = || OutputToken::<PlainScopeData>::Annotated(marked.clone());
+    let empty = UserDirectives::new();
+    assert_eq!(
+        empty.apply_with_render_policy(token(), None, false),
+        token()
+    );
+    assert_eq!(
+        empty.apply_with_render_policy(token(), None, true),
+        OutputToken::Annotated(annotated! { require_hanja: false, ..marked.clone() }),
+    );
+
+    let source = OutputToken::<PlainScopeData>::Annotated(
+        annotated! { from_source_gloss: true, ..marked.clone() },
+    );
+    assert_eq!(
+        empty.apply_with_render_policy(source.clone(), None, true),
+        source,
+    );
+
+    let calls = Cell::new(0);
+    let mut directives = UserDirectives::new();
+    directives.skip_annotation("憂鬱症");
+    directives.add_predicate(
+        |annotation| {
+            calls.set(calls.get() + 1);
+            annotation.require_hanja && annotation.skip_annotation
+        },
+        DirectiveAction::RequireHanja,
+    );
+    assert_eq!(
+        directives.apply_with_render_policy(token(), None, true),
+        OutputToken::Annotated(annotated! { skip_annotation: true, ..marked }),
+    );
+    assert_eq!(calls.get(), 1);
+}
+
+#[test]
 fn user_directives_skip_annotations_without_rendering_them() {
     let mut directives = UserDirectives::new();
     directives.skip_annotation("漢字");

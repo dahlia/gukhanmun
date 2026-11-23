@@ -11,6 +11,22 @@ Rendering modes
 output.  The default is `hangul-only`.
 
 
+Omitting dictionary-required hanja
+----------------------------------
+
+Pass `--ignore-dictionary-required-hanja` to omit hanja glosses required only
+by dictionary entries in `hangul-only` output. Homophone glosses, explicit
+directives, and recognized source glosses are unchanged. Other rendering
+modes accept the flag without changing their output.
+
+~~~~ sh
+printf '%s\n' '憂鬱症' |
+  gukhanmun -r hangul-only --disambiguation off --ignore-dictionary-required-hanja
+~~~~
+
+With the bundled *Standard Korean Dictionary*, this prints `우울증`.
+
+
 Annotating only hanja runs
 --------------------------
 

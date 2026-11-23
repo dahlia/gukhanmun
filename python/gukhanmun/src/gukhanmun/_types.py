@@ -472,6 +472,7 @@ class ResolvedOptions:
     recovery: Recovery
     punctuation: ResolvedPunctuationProfile
     annotation_granularity: AnnotationGranularity = AnnotationGranularity.WORD
+    ignore_dictionary_required_hanja: bool = False
 
     def __post_init__(self) -> None:
         _require(self.preset, Preset, "preset")
@@ -489,6 +490,7 @@ class ResolvedOptions:
         _require(self.recovery, Recovery, "recovery")
         _require(self.punctuation, ResolvedPunctuationProfile, "punctuation")
         _require(self.annotation_granularity, AnnotationGranularity, "annotation_granularity")
+        _boolean(self.ignore_dictionary_required_hanja, "ignore_dictionary_required_hanja")
 
 
 @dataclass(frozen=True, slots=True)

@@ -51,6 +51,7 @@ fn generation_is_deterministic_and_completes_its_own_interface() {
             "gukhanmun",
             "generate-completion",
             "annotation-granularity",
+            "ignore-dictionary-required-hanja",
             "hanja-run",
             "ko-kr",
             "ko-kp",

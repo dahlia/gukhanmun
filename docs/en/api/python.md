@@ -19,26 +19,28 @@ Converter
 reusable converter. Accepted sequences are copied into owned immutable
 snapshots. Dictionary bytes and files are loaded at construction time.
 
-| Keyword                     | Type                                            | Default                             |
-| --------------------------- | ----------------------------------------------- | ----------------------------------- |
-| `preset`                    | `Preset`                                        | `Preset.KO_KR`                      |
-| `rendering`                 | `RenderMode`                                    | `RenderMode.HANGUL_ONLY`            |
-| `original_gloss`            | `OriginalGloss`                                 | `OriginalGloss.PARENS`              |
-| `hanja_variant_set`         | `HanjaVariantSet`                               | `HanjaVariantSet.AS_DICTIONARY`     |
-| `segmentation`              | `Segmentation`                                  | `Segmentation.LATTICE`              |
-| `source_policy`             | `SourcePolicy`                                  | `SourcePolicy.REFERENCE_AUTHORIZED` |
-| `reference_only`            | `bool`                                          | `False`                             |
-| `numerals`                  | `NumeralStrategy`                               | `NumeralStrategy.HANGUL_PHONETIC`   |
-| `initial_sound_law`         | `bool \| None`                                  | `None`, inherit preset              |
-| `homophone_window`          | `ContextWindow \| None`                         | `None`, inherit preset              |
-| `homophone_detection`       | `HomophoneDetection`                            | `HomophoneDetection.CONTEXT_LOCAL`  |
-| `first_occurrence_window`   | `ContextWindow`                                 | `ContextWindow.OFF`                 |
-| `collapse_redundant_parens` | `bool`                                          | `True`                              |
-| `recovery`                  | `Recovery`                                      | `Recovery.STRICT`                   |
-| `punctuation`               | `PunctuationPreset \| CustomPunctuationProfile` | `PunctuationPreset.PRESERVE`        |
-| `dictionaries`              | Sequence of file, URL or map sources            | `()`                                |
-| `directives`                | `Directives \| None`                            | `None`                              |
-| `html`                      | `HtmlOptions \| None`                           | `None`                              |
+| Keyword                            | Type                                            | Default                             |
+| ---------------------------------- | ----------------------------------------------- | ----------------------------------- |
+| `preset`                           | `Preset`                                        | `Preset.KO_KR`                      |
+| `rendering`                        | `RenderMode`                                    | `RenderMode.HANGUL_ONLY`            |
+| `annotation_granularity`           | `AnnotationGranularity`                         | `AnnotationGranularity.WORD`        |
+| `ignore_dictionary_required_hanja` | `bool`                                          | `False`                             |
+| `original_gloss`                   | `OriginalGloss`                                 | `OriginalGloss.PARENS`              |
+| `hanja_variant_set`                | `HanjaVariantSet`                               | `HanjaVariantSet.AS_DICTIONARY`     |
+| `segmentation`                     | `Segmentation`                                  | `Segmentation.LATTICE`              |
+| `source_policy`                    | `SourcePolicy`                                  | `SourcePolicy.REFERENCE_AUTHORIZED` |
+| `reference_only`                   | `bool`                                          | `False`                             |
+| `numerals`                         | `NumeralStrategy`                               | `NumeralStrategy.HANGUL_PHONETIC`   |
+| `initial_sound_law`                | `bool \| None`                                  | `None`, inherit preset              |
+| `homophone_window`                 | `ContextWindow \| None`                         | `None`, inherit preset              |
+| `homophone_detection`              | `HomophoneDetection`                            | `HomophoneDetection.CONTEXT_LOCAL`  |
+| `first_occurrence_window`          | `ContextWindow`                                 | `ContextWindow.OFF`                 |
+| `collapse_redundant_parens`        | `bool`                                          | `True`                              |
+| `recovery`                         | `Recovery`                                      | `Recovery.STRICT`                   |
+| `punctuation`                      | `PunctuationPreset \| CustomPunctuationProfile` | `PunctuationPreset.PRESERVE`        |
+| `dictionaries`                     | Sequence of file, URL or map sources            | `()`                                |
+| `directives`                       | `Directives \| None`                            | `None`                              |
+| `html`                             | `HtmlOptions \| None`                           | `None`                              |
 
 `KO_KR` resolves `initial_sound_law=True` and
 `homophone_window=ContextWindow.PER_BLOCK`. `KO_KP` resolves `False` and
@@ -46,8 +48,8 @@ snapshots. Dictionary bytes and files are loaded at construction time.
 gloss settings affect only `RenderMode.ORIGINAL`; variant selection occurs
 after dictionary recognition.
 
-The read-only `options` property returns `ResolvedOptions` with fourteen
-fields: all keywords above except `original_gloss`, `dictionaries`,
+The read-only `options` property returns `ResolvedOptions` with all keywords
+above except `original_gloss`, `dictionaries`,
 `directives` and `html`. Values use their declared enum categories, and
 `punctuation` is a `ResolvedPunctuationProfile` with no remaining `UNSET`
 fields. The profile and nested records are frozen.

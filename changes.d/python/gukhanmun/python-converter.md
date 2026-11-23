@@ -6,9 +6,11 @@ links:
   '#55': https://github.com/dahlia/gukhanmun/pull/55
   '#57': https://github.com/dahlia/gukhanmun/pull/57
   '#80': https://github.com/dahlia/gukhanmun/issues/80
+  '#81': https://github.com/dahlia/gukhanmun/issues/81
   '#83': https://github.com/dahlia/gukhanmun/pull/83
   '#84': https://github.com/dahlia/gukhanmun/issues/84
   '#85': https://github.com/dahlia/gukhanmun/pull/85
+  '#86': https://github.com/dahlia/gukhanmun/pull/86
 ---
  -  Added a Python 3.11+ `Converter` API for plain text, HTML and Markdown,
     with reusable immutable settings, standard-library enums, punctuation
@@ -19,7 +21,8 @@ links:
     `MarkdownOptions(gfm=True)` enables GFM. Conversion releases the GIL, and a
     single `Converter` can be reused from multiple threads at once. Python
     signals are checked after native conversion returns, so long conversions
-    can delay `KeyboardInterrupt`. [[#48], [#15], [#55], [#84], [#85]]
+    can delay `KeyboardInterrupt`.
+    [[#48], [#15], [#55], [#84], [#85], [#81], [#86]]
 
  -  Added `MapDictionarySource` for competing in-memory readings and
     `FileDictionarySource` for FST/CDB bytes or filesystem paths. Dictionaries

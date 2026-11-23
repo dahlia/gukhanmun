@@ -564,6 +564,13 @@ export interface GukhanmunOptions {
 
   /** Where to attach glosses, independent of `rendering`. Defaults to `"word"`. */
   readonly annotationGranularity?: AnnotationGranularity;
+
+  /**
+   * Omit hanja glosses required only by a dictionary in `"hangul-only"` mode.
+   * Defaults to `false`. Homophone glosses and explicit annotations remain.
+   */
+  readonly ignoreDictionaryRequiredHanja?: boolean;
+
   /**
    * Hanja-span segmentation algorithm.  Defaults to `"lattice"`.
    *

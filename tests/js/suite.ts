@@ -920,6 +920,24 @@ export function registerSuite(name: string, binding: Binding): void {
 
   // ── Render modes ─────────────────────────────────────────────────────────
   describe(`${name}: render modes`, () => {
+    test("ignores dictionary-required hanja without hiding source glosses", async () => {
+      const dictionary = await loadDictionary({
+        entries: [{ hanja: "憂鬱症", reading: "우울증", requireHanja: true }],
+      });
+      const options = { dictionaries: [dictionary], homophoneWindow: "off" } as const;
+      const normal = await load(options);
+      const plain = await load({ ...options, ignoreDictionaryRequiredHanja: true });
+      assert.equal(normal.options.ignoreDictionaryRequiredHanja, false);
+      assert.equal(plain.options.ignoreDictionaryRequiredHanja, true);
+      assert.equal(plain.convert("憂鬱症"), "우울증");
+      assert.equal(normal.convert("憂鬱症"), "우울증(憂鬱症)");
+      const input = "<p>憂鬱症(우울증) 憂鬱症</p>";
+      assert.equal(
+        await streamAll(plain.stream("html"), [...input]),
+        "<p>우울증(憂鬱症) 우울증</p>",
+      );
+    });
+
     test("hangul-hanja-parens glosses with the source hanja", async () => {
       const g = await load({
         dictionaries: [await stdictFst()],

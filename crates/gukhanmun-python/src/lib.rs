@@ -153,6 +153,7 @@ struct Options {
     rendering: Option<String>,
     original_gloss: Option<String>,
     annotation_granularity: Option<String>,
+    ignore_dictionary_required_hanja: Option<bool>,
     hanja_variant_set: Option<String>,
     segmentation: Option<String>,
     source_policy: Option<String>,
@@ -305,6 +306,9 @@ fn build(json: &str, dictionaries: Vec<DictionaryInput>) -> Result<NativeConvert
     }
     if let Some(value) = opts.collapse_redundant_parens {
         builder = builder.collapse_redundant_parens(value);
+    }
+    if let Some(value) = opts.ignore_dictionary_required_hanja {
+        builder = builder.ignore_dictionary_required_hanja(value);
     }
     if let Some(value) = &opts.recovery {
         builder = builder.recovery(parse_recovery(value)?);
@@ -553,6 +557,7 @@ fn resolved_options(converter: &SharedConverter, preset: &str) -> Result<String>
         "homophone_detection": name!(options.homophone_detection, { HomophoneDetection::ContextLocal => "context-local", HomophoneDetection::DictionaryWide => "dictionary-wide" }),
         "first_occurrence_window": context_name(options.first_occurrence_window),
         "collapse_redundant_parens": options.collapse_redundant_parens,
+        "ignore_dictionary_required_hanja": options.ignore_dictionary_required_hanja,
         "recovery": name!(options.recovery, { Recovery::Strict => "strict", Recovery::Lenient => "lenient" }),
         "punctuation": options.punctuation,
     }).to_string())
@@ -663,7 +668,8 @@ mod tests {
         .unwrap();
         for (converter, sound, window) in [(south, true, "per-block"), (north, false, "off")] {
             let options: serde_json::Value = serde_json::from_str(&converter.resolved).unwrap();
-            assert_eq!(options.as_object().unwrap().len(), 15);
+            assert_eq!(options.as_object().unwrap().len(), 16);
+            assert_eq!(options["ignore_dictionary_required_hanja"], false);
             assert_eq!(options["annotation_granularity"], "word");
             assert_eq!(options["initial_sound_law"], sound);
             assert_eq!(options["homophone_window"], window);

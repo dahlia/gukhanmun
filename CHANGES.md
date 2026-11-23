@@ -27,6 +27,10 @@ To be released.
     converter builders. It shows `汽車길` as `기찻(汽車)길` in hangul-first
     parentheses and omits repeated hangul in ruby as well. Whole-word
     annotations remain the default. [[#84], [#85]]
+ -  Added `.ignore_dictionary_required_hanja(true)` to `Builder` and
+    `SharedBuilder` to omit hanja glosses required only by dictionary entries
+    in `RenderMode::HangulOnly` across text, HTML, and Markdown. Homophone
+    glosses and explicit annotations remain visible. [[#81], [#86]]
  -  Added `MapDictionary::from_candidates()` and `CandidateError::EmptyKey`
     through the umbrella re-export, and made `MapDictionary::max_word_chars()`
     report `Some(0)` while the map is empty so dictionaries chained after it
@@ -112,8 +116,10 @@ To be released.
 [#53]: https://github.com/dahlia/gukhanmun/pull/53
 [#54]: https://github.com/dahlia/gukhanmun/pull/54
 [#55]: https://github.com/dahlia/gukhanmun/pull/55
+[#81]: https://github.com/dahlia/gukhanmun/issues/81
 [#84]: https://github.com/dahlia/gukhanmun/issues/84
 [#85]: https://github.com/dahlia/gukhanmun/pull/85
+[#86]: https://github.com/dahlia/gukhanmun/pull/86
 
 ### gukhanmun-cdb (Rust)
 
@@ -156,6 +162,8 @@ To be released.
     directories inside the checkout even when Git does not ignore them.
     PowerShell completion preserves unmatched non-path values without offering
     filenames. [[#61], [#75]]
+ -  Added `--ignore-dictionary-required-hanja` to omit hanja glosses required
+    only by dictionary entries in `hangul-only` output. [[#81], [#86]]
  -  Added source-attested phrase resolution for bundled and custom
     dictionaries. `無條件降服` now uses the bundled *Standard Korean
     Dictionary*'s attested `무조건항복` reading. When evidence conflicts or
@@ -230,6 +238,9 @@ To be released.
  -  Changed `MapDictionary::max_word_chars()` to report `Some(0)` while the map
     is empty, so an empty user dictionary no longer hides the word bound of the
     dictionaries chained after it while streaming.  [[#33], [#34]]
+ -  Added `UserDirectives::apply_with_render_policy()` for conversion pipelines
+    that omit hanja glosses required only by dictionary entries. It keeps
+    explicit source glosses and requests made by directives. [[#81], [#86]]
  -  Added candidate-level alias metadata (`AliasKind`, `AliasTarget`,
     `ReadingCandidate::alias`) and `LexemeIndex` for canonical lexeme lookup.
     Homophone marking shares one identity across alias kinds through
@@ -370,6 +381,9 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Added `ignoreDictionaryRequiredHanja` to the Node-API converter options.
+    It omits hanja glosses required only by dictionary entries in
+    `"hangul-only"` mode when enabled. [[#81], [#86]]
  -  Added `load_dictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added source-attested phrase resolution in conversion and streaming,
@@ -458,6 +472,9 @@ To be released.
     that becomes a `MapDictionary`, so callers need no compiled artifact for
     readings computed at runtime. Malformed entry lists report `invalid-input`
     with the offending entry index.  [[#33], [#34]]
+ -  Added `ignoreDictionaryRequiredHanja` to the WebAssembly converter options.
+    It omits hanja glosses required only by dictionary entries in
+    `"hangul-only"` mode when enabled. [[#81], [#86]]
  -  Added `load_dictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added source-attested phrase resolution in conversion and streaming,
@@ -507,6 +524,8 @@ To be released.
 
  -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
     mixed-script words when their readings can be split uniquely. [[#84], [#85]]
+ -  Added `--ignore-dictionary-required-hanja` to omit hanja glosses required
+    only by dictionary entries in `hangul-only` output. [[#81], [#86]]
  -  Added the dictionary-bundled `gukhanmun` converter and the
     `gukhanmun-mkdict` FST/CDB dictionary builder through
     `npm install -g @gukhanmun/cli`, without Rust or installation
@@ -610,6 +629,9 @@ To be released.
     hanja runs of a mixed-script word when the reading can be split uniquely.
     Whole-word glosses remain the default and are used when no unique split
     is available. [[#84], [#85]]
+ -  Added `ignoreDictionaryRequiredHanja: true` to `load()` to omit hanja
+    glosses required only by dictionary entries in `"hangul-only"` mode.
+    [[#81], [#86]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
@@ -847,6 +869,8 @@ To be released.
  -  Added `LoadedDictionary` and `GukhanmunLoadOptions` for mixing loaded
     dictionaries with existing sources without changing `GukhanmunOptions`.
     [[#80], [#83]]
+ -  Added `ignoreDictionaryRequiredHanja` to the shared converter options.
+    [[#81], [#86]]
  -  Added `sourcePolicy`, `referenceOnly` and explicit dictionary `role`
     options. File descriptors can inherit roles from embedded evidence; entry
     descriptors and untagged legacy files default to authored overrides.
@@ -870,6 +894,9 @@ To be released.
     hanja runs of a mixed-script word when the reading can be split uniquely.
     Whole-word glosses remain the default and are used when no unique split
     is available. [[#84], [#85]]
+ -  Added `ignoreDictionaryRequiredHanja: true` to `load()` to omit hanja
+    glosses required only by dictionary entries in `"hangul-only"` mode.
+    [[#81], [#86]]
  -  Added `loadDictionary()` to share a parsed dictionary across converters
     without sharing their overrides or rendering options. [[#80], [#83]]
  -  Added recognition of reviewed compound aliases. Sibling spellings share
@@ -924,7 +951,8 @@ To be released.
     `MarkdownOptions(gfm=True)` enables GFM. Conversion releases the GIL, and a
     single `Converter` can be reused from multiple threads at once. Python
     signals are checked after native conversion returns, so long conversions
-    can delay `KeyboardInterrupt`. [[#48], [#15], [#55], [#84], [#85]]
+    can delay `KeyboardInterrupt`.
+    [[#48], [#15], [#55], [#84], [#85], [#81], [#86]]
  -  Added `MapDictionarySource` for competing in-memory readings and
     `FileDictionarySource` for FST/CDB bytes or filesystem paths. Dictionaries
     load once at converter construction; conversion performs no dictionary
@@ -1017,6 +1045,8 @@ To be released.
 
  -  Added `--annotation-granularity hanja-run` to gloss only the hanja runs of
     mixed-script words when their readings can be split uniquely. [[#84], [#85]]
+ -  Added `--ignore-dictionary-required-hanja` to omit hanja glosses required
+    only by dictionary entries in `hangul-only` output. [[#81], [#86]]
  -  Added standalone CLI wheels for Python 3.11 or later on Linux with
     glibc 2.28 or musl 1.2 or later, macOS 11 or later, and Windows,
     on x86\_64 and aarch64. Install with `pipx install gukhanmun-cli`
