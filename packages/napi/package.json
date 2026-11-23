@@ -13,6 +13,9 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@logtape/logtape": "^2.4.2"
+  },
   "optionalDependencies": {
     "@gukhanmun/napi-aarch64-apple-darwin": "workspace:*",
     "@gukhanmun/napi-x86_64-apple-darwin": "workspace:*",

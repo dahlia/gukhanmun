@@ -260,6 +260,28 @@ category, message and location, as well as the preserved behaviour.
 [`@warnings.deprecated()`]: https://docs.python.org/3/library/warnings.html#warnings.deprecated
 [PEP 702]: https://peps.python.org/pep-0702/
 
+### JavaScript API deprecation
+
+When a JavaScript API is scheduled for removal, keep the old form working
+through the deprecation period. Mark only the deprecated declaration or
+overload with JSDoc `@deprecated`. Name the replacement and the planned
+removal version in the tag and the migration guidance.
+
+Emit a [LogTape] `warning` when callers use the deprecated form, even when
+they call from plain JavaScript. Use a category under `["gukhanmun"]` named
+for the feature or module, not a shared deprecation category. Use the same
+category in both bindings for the same feature. Set `kind: "deprecation"` on
+the record so applications can filter these warnings across categories.
+Include the replacement and planned removal version in the message, but
+do not log the caller's document or other input data.
+
+Use `getLogger()` in library code. Do not call `configure()` or fall back to
+`console.warn()`; the application controls whether and where warnings appear.
+Test that the deprecated form still works and warns, and that the replacement
+does not warn.
+
+[LogTape]: https://logtape.org/manual/library
+
 
 Writing docs
 ------------
